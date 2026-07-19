@@ -38,7 +38,8 @@ import {
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
-import { Sheet, SheetOption } from '../Sheet';
+import { Sheet } from '../Sheet';
+import { Select } from '../Select';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import {
@@ -363,20 +364,25 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 
       {/* Moving is a bounded, centred dialog. It was previously an absolutely
           positioned panel pinned to the bottom, which could run off a short
-          viewport with no way to scroll to the rest of it. */}
+          viewport with no way to scroll to the rest of it.
+
+          The destination is a dropdown rather than one button per column: a
+          board with a dozen columns turned the dialog into a wall of buttons
+          that filled the screen before the reader had chosen anything. */}
       <Sheet
         visible={moving !== null}
         title={moving ? `Move “${moving.title}” to` : ''}
         onClose={() => setMoving(null)}
       >
-        {columns.map((col) => (
-          <SheetOption
-            key={col.id}
-            label={col.name}
-            selected={col.id === moving?.columnId}
-            onPress={() => moving && moveTo(moving, col)}
-          />
-        ))}
+        <Select
+          label="Destination column"
+          value={moving?.columnId ?? ''}
+          options={columns.map((col) => ({ value: col.id, label: col.name }))}
+          onChange={(toColumnId) => {
+            const col = columns.find((x) => x.id === toColumnId);
+            if (moving && col && col.id !== moving.columnId) moveTo(moving, col);
+          }}
+        />
         <Button
           label="Archive card"
           variant="danger"

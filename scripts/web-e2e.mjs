@@ -479,7 +479,7 @@ try {
   await admin.screenshot({ path: join(SHOTS, 'p7-bulk-selected-light.png'), fullPage: true });
 
   await admin.getByRole('button', { name: 'Move to…' }).click();
-  await admin.getByRole('button', { name: 'Done', exact: true }).click();
+  await admin.getByLabel('Destination column').selectOption({ label: 'Done' });
   await admin.waitForTimeout(2000);
 
   const movedTogether = await admin.evaluate(() => {
@@ -542,21 +542,25 @@ try {
   check('a card can be assigned and given a due date', true);
 
   // The column is editable from the card detail — no trip back to the board.
-  const columnButton = admin.getByRole('button', { name: 'To Do', exact: true });
-  await columnButton.click();
-  await admin.getByText('Move this card to').waitFor({ timeout: 15000 });
-  await admin.getByRole('button', { name: 'Done', exact: true }).click();
+  // It is a dropdown, not a dialog listing every column: on a board with many
+  // columns that list was taller than the screen.
+  const columnSelect = admin.getByLabel('Column');
+  await columnSelect.waitFor({ timeout: 15000 });
+  check(
+    'the card column is a compact dropdown, not a list of every column',
+    (await columnSelect.evaluate((el) => el.tagName)) === 'SELECT',
+  );
+  await columnSelect.selectOption({ label: 'Done' });
   await admin.waitForTimeout(2000);
-  const movedFromDetail = await admin
-    .getByRole('button', { name: 'Done', exact: true })
-    .first()
-    .isVisible()
-    .catch(() => false);
+  const movedFromDetail =
+    (await columnSelect.inputValue()) ===
+    (await columnSelect.evaluate((el) => {
+      const opt = [...el.options].find((o) => o.textContent.trim() === 'Done');
+      return opt ? opt.value : '';
+    }));
   check('a card can change column from its detail view', movedFromDetail);
   // Put it back so later assertions still find it in To Do.
-  await admin.getByRole('button', { name: 'Done', exact: true }).first().click();
-  await admin.getByText('Move this card to').waitFor({ timeout: 15000 });
-  await admin.getByRole('button', { name: 'To Do', exact: true }).last().click();
+  await columnSelect.selectOption({ label: 'To Do' });
   await admin.waitForTimeout(2000);
   await admin.screenshot({ path: join(SHOTS, 'p5-card-detail-light.png'), fullPage: true });
 

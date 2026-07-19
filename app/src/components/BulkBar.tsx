@@ -9,6 +9,7 @@ import {
   cardsInColumn,
   type Card,
 } from '../cards';
+import { Select } from './Select';
 import type { Selection } from '../useSelection';
 import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
@@ -108,24 +109,29 @@ export function BulkBar({
         <>
           <Caption>Move the selection to</Caption>
           <Row style={styles.wrap}>
-            {columns.map((col) => (
-              <Button
-                key={col.id}
-                label={col.name}
-                busy={busy}
-                onPress={() =>
-                  run(() =>
-                    bulkMove({
-                      boardId,
-                      cards: chosen,
-                      toColumnId: col.id,
-                      destinationCards: cardsInColumn(allCards, col.id),
-                      user,
-                    }),
-                  )
-                }
-              />
-            ))}
+            {/* A dropdown rather than one button per column: the bar sits over
+                the board, so it must stay small however many columns exist. */}
+            <Select
+              label="Destination column"
+              value=""
+              options={[
+                { value: '', label: 'Choose a column…' },
+                ...columns.map((col) => ({ value: col.id, label: col.name })),
+              ]}
+              disabled={busy}
+              onChange={(toColumnId) => {
+                if (!toColumnId) return;
+                run(() =>
+                  bulkMove({
+                    boardId,
+                    cards: chosen,
+                    toColumnId,
+                    destinationCards: cardsInColumn(allCards, toColumnId),
+                    user,
+                  }),
+                );
+              }}
+            />
             <Button label="Cancel" variant="secondary" onPress={() => setMode('idle')} />
           </Row>
         </>

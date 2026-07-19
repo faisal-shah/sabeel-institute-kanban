@@ -233,7 +233,9 @@ function StateRow({ label, children }: { label: string; children: ReactNode }) {
   const t = useTheme();
   return (
     <View style={styles.stateRow}>
-      <Text style={[type.label, { color: t.text.muted }]}>{label}</Text>
+      <Text style={[type.label, styles.stateLabel, { color: t.text.muted }]}>
+        {label}
+      </Text>
       {children}
     </View>
   );
@@ -302,13 +304,17 @@ function Badge({ label, tone }: { label: string; tone: 'good' | 'accent' | 'mute
 const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
   wrap: { flexWrap: 'wrap' },
+  // Label and control sit TOGETHER on the left. They were previously pushed to
+  // opposite edges with space-between, which on a wide card left a gulf between
+  // "Role" and the control it names — the two read as unrelated, and the eye had
+  // to travel the width of the card to connect them.
   stateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: space.md,
     marginTop: space.xs,
   },
+  stateLabel: { minWidth: 56 },
   seg: {
     flexDirection: 'row',
     borderWidth: StyleSheet.hairlineWidth,

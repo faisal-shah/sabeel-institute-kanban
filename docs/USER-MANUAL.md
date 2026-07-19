@@ -78,8 +78,9 @@ Open a card for the full view:
 - **Labels** — whatever the board defines.
 - **Comments** — type **@** followed by a name to pull someone in; they are
   notified.
-- **Column** — the card's column is shown as a button. Tap it to move the card
-  without leaving the card, so everything about a card is editable in one place.
+- **Column** — a dropdown showing where the card currently sits. Change it to
+  move the card without leaving it, so everything about a card is editable in
+  one place.
 - **Activity** — who changed what, and when. Written by the system, so it cannot
   be edited by anyone.
 
@@ -89,9 +90,9 @@ Open a card for the full view:
 
 **On a phone**, one column fills the screen — swipe left and right to move
 between them, and the header shows where you are ("In Progress, 2 of 4"). To
-move a card, long-press it and choose **Move to…**. Dragging is deliberately not
-used here: on a screen that already swipes between columns, a drag would be
-ambiguous.
+move a card, long-press it and pick the destination from the dropdown. Dragging
+is deliberately not used here: on a screen that already swipes between columns, a
+drag would be ambiguous.
 
 ### Doing several at once
 

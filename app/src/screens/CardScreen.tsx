@@ -19,7 +19,7 @@ import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
 import { AssigneePicker } from '../components/AssigneePicker';
 import { DateField } from '../components/DateField';
-import { Sheet, SheetOption } from '../components/Sheet';
+import { Select } from '../components/Select';
 import {
   Body,
   Button,
@@ -66,7 +66,6 @@ export function CardScreen({
   const [editingDesc, setEditingDesc] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [movingColumn, setMovingColumn] = useState(false);
 
   // Seed the local editors once the card arrives, but never stomp on typing.
   useEffect(() => {
@@ -103,7 +102,6 @@ export function CardScreen({
 
   const today = todayInOrgTz();
   const overdue = c.dueDate !== undefined && c.dueDate < today;
-  const column = b.columns.find((col) => col.id === c.columnId);
   // Only board members may be assigned — the rule the My Work query depends on.
   // Sourced from the board doc so non-admins (who cannot list users) still see
   // who they can assign.
@@ -141,10 +139,26 @@ export function CardScreen({
             often change while reading a card. */}
         <Row>
           <Caption>in</Caption>
-          <Button
-            label={column?.name ?? 'unknown column'}
-            variant="secondary"
-            onPress={() => setMovingColumn(true)}
+          <Select
+            label="Column"
+            value={c.columnId}
+            options={b.columns.map((col) => ({ value: col.id, label: col.name }))}
+            onChange={(toColumnId) =>
+              run(async () => {
+                // Give it a fresh rank at the END of the destination. Carrying
+                // the old rank across would drop the card at an arbitrary
+                // position — ranks are only meaningful within a column.
+                const destination = cardsInColumn(boardCards.data ?? [], toColumnId);
+                await moveCard({
+                  boardId,
+                  card: c,
+                  toColumnId,
+                  before: destination[destination.length - 1] ?? null,
+                  after: null,
+                  user,
+                });
+              })
+            }
           />
         </Row>
       </Panel>
@@ -364,37 +378,6 @@ export function CardScreen({
         ) : null}
       </Panel>
 
-      {/* Change column without leaving the card. */}
-      <Sheet
-        visible={movingColumn}
-        title="Move this card to"
-        onClose={() => setMovingColumn(false)}
-      >
-        {b.columns.map((col) => (
-          <SheetOption
-            key={col.id}
-            label={col.name}
-            selected={col.id === c.columnId}
-            onPress={() =>
-              run(async () => {
-                // Give it a fresh rank at the END of the destination. Carrying
-                // the old rank across would drop the card at an arbitrary
-                // position — ranks are only meaningful within a column.
-                const destination = cardsInColumn(boardCards.data ?? [], col.id);
-                await moveCard({
-                  boardId,
-                  card: c,
-                  toColumnId: col.id,
-                  before: destination[destination.length - 1] ?? null,
-                  after: null,
-                  user,
-                });
-                setMovingColumn(false);
-              })
-            }
-          />
-        ))}
-      </Sheet>
     </Screen>
   );
 }
