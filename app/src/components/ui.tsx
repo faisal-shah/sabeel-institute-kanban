@@ -2,12 +2,10 @@
  * Themed primitives. Screens compose these rather than styling from scratch, so
  * light/dark stays coherent and no screen ever needs a color literal.
  */
-import { forwardRef, useEffect, useState, type ReactNode } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,8 +13,18 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { KeyboardScroll } from './KeyboardScroll';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { radius, space, type, useTheme } from '../theme';
+
+/**
+ * Space kept below a focused field when the keyboard is up.
+ *
+ * Sized for a help line plus a submit button (~96), because a field is rarely
+ * the last thing you interact with — the control you press after typing has to
+ * be visible too.
+ */
+const KEYBOARD_BOTTOM_OFFSET = 96;
 import { CONTENT_MAX_WIDTH, useLayout } from '../theme/layout';
 import { useListenerError } from '../liveQuery';
 
@@ -37,7 +45,6 @@ export function Screen({
   const t = useTheme();
   const error = useListenerError();
   const { isWide } = useLayout();
-  const keyboard = useKeyboardHeight();
 
   // Only cap on wide screens: on a phone the content column IS the screen, and
   // a maxWidth there would just add dead margin.
@@ -66,23 +73,17 @@ export function Screen({
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: t.bg.canvas }]}>
       {scroll ? (
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            // Room to scroll the focused field clear of the keyboard. The
-            // manifest asks for adjustResize, but under edge-to-edge the window
-            // no longer shrinks, so the keyboard OVERLAYS the content: the
-            // comment box stayed visible while its Send button was sliced in
-            // half, with no way to scroll further.
-            keyboard > 0 && { paddingBottom: keyboard + space.xl },
-          ]}
-          // Without this the first tap while the keyboard is up only dismisses
-          // the keyboard — the button under your finger never fires, so every
-          // submit takes two taps and feels broken.
-          keyboardShouldPersistTaps="handled"
+        <KeyboardScroll
+          contentContainerStyle={styles.scrollContent}
+          // Enough to clear the ACTION ROW under a field, not just the field
+          // itself. At space.xxl the comment box scrolled clear while its
+          // Comment button stayed sliced by the keyboard — technically the
+          // focused element was visible, but the thing you press next was not,
+          // so it still read as broken.
+          bottomOffset={KEYBOARD_BOTTOM_OFFSET}
         >
           {body}
-        </ScrollView>
+        </KeyboardScroll>
       ) : (
         <View style={styles.flexContent}>{body}</View>
       )}
@@ -90,27 +91,6 @@ export function Screen({
   );
 }
 
-/**
- * Height of the on-screen keyboard, or 0.
- *
- * Screens add this as bottom padding so a focused field can always be scrolled
- * above the keyboard. `keyboardDidShow` rather than `WillShow`: the Will events
- * do not fire on Android.
- */
-function useKeyboardHeight(): number {
-  const [height, setHeight] = useState(0);
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', (e) =>
-      setHeight(e.endCoordinates.height),
-    );
-    const hide = Keyboard.addListener('keyboardDidHide', () => setHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-  return height;
-}
 
 export function Title({ children }: { children: ReactNode }) {
   const t = useTheme();

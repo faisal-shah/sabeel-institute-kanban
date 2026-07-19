@@ -8,6 +8,7 @@
  */
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { KeyboardHost } from './src/components/KeyboardHost';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSession, type SessionUser } from './src/session';
 import { initErrorReporting, setErrorUser } from './src/sentry';
@@ -113,9 +114,13 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <Routes />
-    </SafeAreaProvider>
+    /* Wraps everything so KeyboardScroll receives IME insets on native; a
+       no-op on web, where the browser handles this itself. */
+    <KeyboardHost>
+      <SafeAreaProvider>
+        <StatusBar style="auto" />
+        <Routes />
+      </SafeAreaProvider>
+    </KeyboardHost>
   );
 }
