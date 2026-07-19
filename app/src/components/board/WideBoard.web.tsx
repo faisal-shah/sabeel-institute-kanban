@@ -13,7 +13,7 @@
  * layout entirely — swipe-paged columns with an explicit "Move to…" — which is
  * why these are platform seams rather than one responsive component.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   archiveCard,
   cardsInColumn,
@@ -25,6 +25,7 @@ import {
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { useSelection } from '../../useSelection';
+import { createAutoScroller } from './autoScroll';
 import { BulkBar } from '../BulkBar';
 import { columnsPatch, type BoardColumn } from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../../session';
@@ -168,6 +169,29 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const [error, setError] = useState<string | null>(null);
   const selection = useSelection(cards.data ?? EMPTY_CARDS);
 
+  // Auto-scroll during drag. The HTML5 drag API will not scroll a container
+  // when the pointer reaches its edge, so without this a card can only be
+  // dropped somewhere already on screen — on a wide board or a long column the
+  // destination is simply unreachable.
+  const columnsRef = useRef<HTMLDivElement | null>(null);
+  const cardListRefs = useRef(new Map<string, HTMLDivElement>());
+  const autoScroll = useMemo(() => createAutoScroller(), []);
+
+  // Stop the loop if the component goes away mid-drag.
+  useEffect(() => () => autoScroll.stop(), [autoScroll]);
+
+  /** Scroll the board horizontally, and whichever column is under the pointer. */
+  const driveAutoScroll = useCallback(
+    (clientX: number, clientY: number, columnId: string | null) => {
+      const targets = [];
+      if (columnsRef.current) targets.push({ el: columnsRef.current, axis: 'x' as const });
+      const list = columnId ? cardListRefs.current.get(columnId) : undefined;
+      if (list) targets.push({ el: list, axis: 'y' as const });
+      autoScroll.update(clientX, clientY, targets);
+    },
+    [autoScroll],
+  );
+
   // From the BOARD, not the user directory — only admins may list users.
   const members = board.data?.members ?? NO_MEMBERS;
 
@@ -191,6 +215,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       // dropped. Carrying the payload on the event is both how HTML5 drag and
       // drop is meant to work and immune to render timing.
       const cardId = cardIdFromEvent || drag?.cardId || null;
+      autoScroll.stop();
       setDrag(null);
       setDropTarget(null);
       if (!cardId) return;
@@ -218,7 +243,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [drag, cards.data, byColumn, boardId, user],
+    [drag, cards.data, byColumn, boardId, user, autoScroll],
   );
 
   async function addCard(columnId: string) {
@@ -278,9 +303,16 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     <div
       style={{
         background: t.bg.canvas,
-        minHeight: '100vh',
+        // A FIXED viewport height, not minHeight: the board owns the screen and
+        // the columns scroll inside it. With minHeight the page itself grew and
+        // scrolled, which is the wrong structure for a board and makes vertical
+        // dragging worse — you would be scrolling the document, not the column.
+        height: '100vh',
         padding: space.lg,
         boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
       <div
@@ -332,11 +364,22 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       ) : null}
 
       <div
+        ref={columnsRef}
+        data-testid="board-columns"
+        onDragOver={(e) => {
+          e.preventDefault();
+          // Gaps between columns, and the empty space past the last one, are
+          // exactly where someone parks the pointer to scroll the board.
+          driveAutoScroll(e.clientX, e.clientY, null);
+        }}
         style={{
           display: 'flex',
           gap: space.md,
           alignItems: 'flex-start',
           overflowX: 'auto',
+          overflowY: 'hidden',
+          flex: 1,
+          minHeight: 0,
           paddingBottom: space.lg,
         }}
       >
@@ -348,6 +391,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               onDragOver={(e) => {
                 e.preventDefault();
                 if (drag) setDropTarget({ columnId: col.id, index: colCards.length });
+                driveAutoScroll(e.clientX, e.clientY, col.id);
               }}
               onDrop={(e) => {
                 e.preventDefault();
@@ -364,6 +408,9 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 minWidth: 280,
                 maxWidth: 320,
                 flex: '0 0 auto',
+                maxHeight: '100%',
+                display: 'flex',
+                flexDirection: 'column',
                 border:
                   dropTarget?.columnId === col.id
                     ? `2px solid ${t.accent.base}`
@@ -395,6 +442,19 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 ) : null}
               </div>
 
+              <div
+                ref={(el) => {
+                  if (el) cardListRefs.current.set(col.id, el);
+                  else cardListRefs.current.delete(col.id);
+                }}
+                data-testid={`column-cards-${col.name}`}
+                style={{
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  flex: 1,
+                  minHeight: 0,
+                }}
+              >
               {colCards.map((card, i) => (
                 <div
                   key={card.id}
@@ -402,6 +462,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                     e.preventDefault();
                     e.stopPropagation();
                     if (drag) setDropTarget({ columnId: col.id, index: i });
+                    // stopPropagation above means the column handler will not
+                    // fire, so drive it here too — otherwise scrolling dies the
+                    // moment the pointer passes over a card.
+                    driveAutoScroll(e.clientX, e.clientY, col.id);
                   }}
                 >
                   {dropTarget?.columnId === col.id && dropTarget.index === i ? (
@@ -437,12 +501,15 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                       setDrag({ cardId: card.id, fromColumnId: col.id });
                     }}
                     onDragEnd={() => {
+                      autoScroll.stop();
                       setDrag(null);
                       setDropTarget(null);
                     }}
                   />
                 </div>
               ))}
+
+              </div>
 
               {adding === col.id ? (
                 <div>

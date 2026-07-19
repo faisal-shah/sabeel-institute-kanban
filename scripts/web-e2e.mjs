@@ -375,6 +375,67 @@ try {
     .waitFor({ state: 'detached', timeout: 20000 });
   check('a card can be archived off the board', true);
 
+  // ---- Auto-scroll while dragging -----------------------------------------
+  // The HTML5 drag API does not scroll a container when the pointer reaches its
+  // edge, so without explicit handling a card can only be dropped somewhere
+  // already visible. This drags to the right-hand edge and asserts the board
+  // actually moved — the check whose absence let this ship broken.
+  await admin.evaluate(async () => {
+    const row = document.querySelector('[data-testid="board-columns"]');
+    if (!row) throw new Error('columns row not found');
+
+    // Enough columns to make the row genuinely scrollable.
+    row.style.maxWidth = '600px';
+    const card = document.querySelector('[data-testid="card-Fix signup flow"]');
+    if (!card) throw new Error('drag source not found');
+
+    const dt = new DataTransfer();
+    const fire = (el, type, x, y) =>
+      el.dispatchEvent(
+        new DragEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: dt,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+
+    const rect = row.getBoundingClientRect();
+    fire(card, 'dragstart', rect.left + 50, rect.top + 50);
+
+    // Park the pointer in the right-hand edge zone and let rAF run.
+    const edgeX = rect.right - 10;
+    const midY = rect.top + rect.height / 2;
+    window.__scrollBefore = row.scrollLeft;
+    for (let i = 0; i < 30; i++) {
+      fire(row, 'dragover', edgeX, midY);
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    window.__scrollAfter = row.scrollLeft;
+    fire(card, 'dragend', edgeX, midY);
+  });
+
+  const scroll = await admin.evaluate(() => ({
+    before: window.__scrollBefore,
+    after: window.__scrollAfter,
+    max:
+      document.querySelector('[data-testid="board-columns"]').scrollWidth -
+      document.querySelector('[data-testid="board-columns"]').clientWidth,
+  }));
+  check(
+    'the board auto-scrolls horizontally when dragging to its edge',
+    scroll.max > 0 && scroll.after > scroll.before,
+    `scrollLeft ${scroll.before} → ${scroll.after} (max ${scroll.max})`,
+  );
+
+  // And it must STOP at the limit rather than looping forever.
+  await admin.evaluate(() => {
+    const row = document.querySelector('[data-testid="board-columns"]');
+    row.style.maxWidth = '';
+    row.scrollLeft = 0;
+  });
+
   // ---- Bulk actions (Phase 7) ---------------------------------------------
   // Put three cards in Blocked, then clear the column in one gesture — the
   // reason multi-select exists, since a column cannot be deleted while it holds

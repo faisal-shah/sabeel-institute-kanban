@@ -1,6 +1,7 @@
 export * from './access';
 export * from './activity';
 export * from './auth';
+export * from './autoScroll';
 export * from './boards';
 export * from './due';
 export * from './markdown';
