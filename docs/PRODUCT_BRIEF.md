@@ -53,8 +53,8 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Offboarding | A disabled user **keeps their assignments**, rendered as inactive; managers get a review list to reassign. |
 | Theming | **Light and dark, following the OS setting.** Built in Phase 0, not retrofitted. |
 | Explicitly NOT in v1 | **File attachments** (dropped — no Cloud Storage at all), checklists/subtasks, custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
-| Mobile layout | **One column at a time, swipe between columns.** Full-width cards stay readable; moving a card is an explicit "Move to…" action, not a drag. |
-| Web layout | Classic horizontal multi-column board with real drag-and-drop. Web is the big-screen surface for board setup and bulk work. |
+| Layout | **Chosen by available WIDTH, not platform** (breakpoint 768px). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
+| Drag and drop | A web **capability** layered on the wide layout. Native has no HTML5 drag API, so a wide native surface (a tablet) offers the same explicit "Move to…" the narrow layout uses. |
 | Card ordering | **Fractional string ranks** (LexoRank-style, base-62) in `@sabeel/shared`. A move is a single-document write. |
 | Notifications | Push (FCM), with **per-user, per-event-type control**. See "Notifications". |
 | Archived cards | **Kept indefinitely**, hidden from the board, reachable via filter. Cards are small text documents and the team is <50 people; auto-deletion buys nothing and loses history. Revisit only if volume surprises us. |

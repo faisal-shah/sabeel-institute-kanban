@@ -26,6 +26,10 @@ export function SignInScreen() {
 
   return (
     <Screen>
+      {/* A sign-in form has one job; stretching it across a monitor makes it
+          harder to use, not grander. Capped narrower than the general content
+          column. */}
+      <View style={styles.pane}>
       <View style={styles.header}>
         {/*
           The logo belongs on the entry screen and nowhere else — inside the app
@@ -91,11 +95,13 @@ export function SignInScreen() {
           </Caption>
         </Card>
       ) : null}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  pane: { width: '100%', maxWidth: 460, alignSelf: 'center', gap: space.sm },
   header: { gap: space.xs, marginBottom: space.md, alignItems: 'center' },
   logoPlate: {
     alignSelf: 'stretch',

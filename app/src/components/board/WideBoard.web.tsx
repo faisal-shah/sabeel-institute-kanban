@@ -1,5 +1,10 @@
 /**
- * The WEB board: classic horizontal columns with real drag-and-drop.
+ * The WIDE board, WEB build: horizontal columns with real HTML5 drag-and-drop.
+ *
+ * Chosen by available width (see app/src/theme/layout.ts), so a wide browser
+ * window gets this and a narrow one does not. The sibling WideBoard.tsx is the
+ * native build of the same layout for tablets, which cannot use HTML5 drag and
+ * offers an explicit move affordance instead.
  *
  * react-native-web is React DOM underneath, so this file uses plain DOM elements
  * and the HTML5 drag-and-drop API directly. That is far more robust than
@@ -17,15 +22,15 @@ import {
   rerankColumnIfNeeded,
   useBoardCards,
   type Card,
-} from '../cards';
-import { updateBoard, useBoard, type BoardMemberProfile } from '../boards';
-import { useSelection } from '../useSelection';
-import { BulkBar } from '../components/BulkBar';
+} from '../../cards';
+import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
+import { useSelection } from '../../useSelection';
+import { BulkBar } from '../BulkBar';
 import { columnsPatch, type BoardColumn } from '@sabeel/shared';
-import { sessionCan, type SessionUser } from '../session';
-import { useNav } from '../nav';
-import { useListenerError } from '../liveQuery';
-import { getTheme, radius, space, type Theme } from '../theme';
+import { sessionCan, type SessionUser } from '../../session';
+import { useNav } from '../../nav';
+import { useListenerError } from '../../liveQuery';
+import { getTheme, radius, space, type Theme } from '../../theme';
 import { useColorScheme } from 'react-native';
 
 type DragState = { cardId: string; fromColumnId: string } | null;
@@ -147,7 +152,7 @@ function CardTile({
   );
 }
 
-export function BoardScreen({ boardId, user }: { boardId: string; user: SessionUser }) {
+export function WideBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
   const board = useBoard(boardId);
   const cards = useBoardCards(boardId);

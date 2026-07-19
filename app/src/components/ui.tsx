@@ -16,20 +16,33 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { radius, space, type, useTheme } from '../theme';
+import { CONTENT_MAX_WIDTH, useLayout } from '../theme/layout';
 import { useListenerError } from '../liveQuery';
 
 export function Screen({
   children,
   scroll = true,
+  width = 'content',
 }: {
   children: ReactNode;
   scroll?: boolean;
+  /**
+   * `content` caps and centres the column — forms, lists and card detail become
+   * unreadable when a button stretches across a 2560px monitor.
+   * `full` lets the screen use every pixel, which the board needs.
+   */
+  width?: 'content' | 'full';
 }) {
   const t = useTheme();
   const error = useListenerError();
+  const { isWide } = useLayout();
+
+  // Only cap on wide screens: on a phone the content column IS the screen, and
+  // a maxWidth there would just add dead margin.
+  const capped = width === 'content' && isWide;
 
   const body = (
-    <>
+    <View style={capped ? styles.capped : undefined}>
       {/* Live-data errors are shown, never left to a console nobody reads. */}
       {error ? (
         <View style={[styles.banner, { backgroundColor: t.bg.dangerSoft }]}>
@@ -37,7 +50,7 @@ export function Screen({
         </View>
       ) : null}
       {children}
-    </>
+    </View>
   );
 
   return (
@@ -235,6 +248,13 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },
+  /** Centred reading column on wide screens. */
+  capped: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    gap: space.sm,
+  },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
