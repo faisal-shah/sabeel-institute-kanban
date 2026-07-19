@@ -124,6 +124,20 @@ npm run e2e           # full browser flow: sign-in, approval, live un-gating
 `npm run e2e` writes screenshots to `shots/`, and on failure dumps what each page
 actually displayed — much faster than guessing.
 
+### Checking responsive layout
+
+```sh
+node scripts/device-shots.mjs      # real device profiles → shots/devices/
+node scripts/responsive-shots.mjs  # four plain widths     → shots/responsive/
+```
+
+`device-shots.mjs` uses Playwright's maintained device descriptors (iPhone SE
+through 14 Pro Max, Galaxy S9+/S24, iPad Mini/Pro, Galaxy Tab S4 — tablets in
+both orientations) plus 1366/1920/2560 desktops. For each it asserts the
+**expected layout actually rendered** (columns vs swipe, checked against the
+breakpoint read from the source) and that there is **no horizontal overflow** —
+the classic responsive failure a top-of-page screenshot would never reveal.
+
 ## A five-minute tour
 
 With the emulators running and the app open:

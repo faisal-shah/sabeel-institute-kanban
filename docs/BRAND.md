@@ -62,16 +62,18 @@ Source: `docs/brand/sabeel-logo.png` (also copied to
 Arabic calligraphy reading *Sabeel* with gold accent strokes, alongside the
 wordmark. Two rules follow from its construction:
 
-- **Light mode: no plate.** The mark ships with transparency and sits directly
-  on the Warm Ivory canvas, exactly as supplied. An earlier version put it on an
-  ivory plate in both themes; that altered how the brand reads in the common case
-  to solve a problem that only exists in dark mode.
-- **Dark mode: a light plate**, via the `bg.brandPlate` token. The mark is dark
-  calligraphy with gold accents, so on a near-black canvas it would be invisible,
-  and flattening it to white would discard the gold. **A light-on-dark version of
-  the logo would be better than a plate — worth asking the brand owner for one**,
-  after which `palette.dark.brandPlate` becomes `transparent` too and the second
-  asset is swapped in.
+**Two assets, no plate and no tint:**
+
+| Theme | Asset |
+|---|---|
+| Light | `sabeel-logo.png` — dark calligraphy, gold accents |
+| Dark | `sabeel-logo-reverse.png` — ivory calligraphy, **gold accents preserved** |
+
+Both ship with transparency and sit directly on the canvas. This is the approach
+the sibling time-tracker app already uses, and it is the right one: a flat
+`tintColor` would recolour the whole mark and **throw the gold away**, and a
+light plate behind the dark mark in dark mode changes how the brand reads to
+work around a missing asset.
 - **It appears on the sign-in screen only.** Inside the app the brand is carried
   by the palette. A logo repeated on every screen is chrome, and on a phone it
   costs space the board needs.

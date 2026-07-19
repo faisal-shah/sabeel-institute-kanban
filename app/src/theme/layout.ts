@@ -14,15 +14,19 @@ import { Platform, useWindowDimensions } from 'react-native';
  */
 
 /**
- * 768px — the classic tablet-portrait width.
+ * 700px.
  *
- * The wide board scrolls horizontally, so it does not need room for every
- * column, only enough for TWO to be useful side by side: 2 x 300px plus gutters
- * is about 640. Setting this at 900 (the three-column width) was too
- * conservative and left an 820px tablet showing one column at a time with most
- * of the screen empty.
+ * The wide board scrolls horizontally, so it needs room for TWO columns to be
+ * useful, not all of them: 2 x 300px + gutter + screen padding is about 648.
+ *
+ * Chosen against real device profiles rather than by feel (see
+ * scripts/device-shots.mjs). The binding case is the Galaxy Tab S4 at 712px
+ * portrait — a 10.5" tablet, which at a 768 breakpoint fell to the phone's
+ * one-column layout despite easily fitting two. The largest phone in the set is
+ * the iPhone 14 Pro Max at 430px, so there is a wide margin before any handset
+ * could reach this.
  */
-export const WIDE_BREAKPOINT = 768;
+export const WIDE_BREAKPOINT = 700;
 
 /** Where a single column of forms and lists stops being comfortable to read. */
 export const CONTENT_MAX_WIDTH = 840;

@@ -6,6 +6,7 @@ import { DEV_ACCOUNTS, devSignIn, devSignInAvailable } from '../auth/devSignIn';
 import { Body, Button, Caption, Card, Row, Screen, Title } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
 import sabeelLogo from '../../assets/brand/sabeel-logo.png';
+import sabeelLogoReverse from '../../assets/brand/sabeel-logo-reverse.png';
 
 export function SignInScreen() {
   const t = useTheme();
@@ -34,13 +35,15 @@ export function SignInScreen() {
         {/*
           The logo belongs on the entry screen and nowhere else — inside the app
           the brand is carried by the palette, and a logo repeated on every
-          screen is chrome that costs space the board needs. The mark is dark
-          calligraphy with gold accents, so it needs a light ground in both
-          themes rather than the canvas colour.
+          screen is chrome that costs space the board needs.
         */}
-        <View style={[styles.logoPlate, { backgroundColor: t.bg.brandPlate }]}>
+        <View style={styles.logoPlate}>
           <Image
-            source={sabeelLogo}
+            // Two assets rather than a plate or a tint: the reverse mark has
+            // light calligraphy and KEEPS the gold accents, which a flat
+            // tintColor would flatten away. Same approach as the sibling
+            // time-tracker app.
+            source={t.name === 'dark' ? sabeelLogoReverse : sabeelLogo}
             style={styles.logo}
             resizeMode="contain"
             accessibilityRole="image"

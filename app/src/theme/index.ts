@@ -36,12 +36,6 @@ function build(name: ThemeName) {
       accentSoft: p.accentSoft,
       /** Tint behind destructive confirmation. */
       dangerSoft: p.dangerSoft,
-      /**
-       * Ground for the Sabeel logo: TRANSPARENT in light (the mark is supplied
-       * with transparency and sits on the canvas as intended), a light plate in
-       * dark only, where dark ink would otherwise disappear.
-       */
-      brandPlate: p.brandPlate,
     },
     text: {
       primary: p.textPrimary,
