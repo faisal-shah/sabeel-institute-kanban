@@ -4,17 +4,31 @@ import { USE_EMULATORS } from './env';
  * Firebase web app config. NOT SECRET — this is public by design and is meant to
  * be committed (access is controlled by Firestore rules, never by hiding these).
  *
- * PLACEHOLDER until the real Firebase project exists. Everything before the
- * production deploy runs against the emulators. Replace per TODO.md § D.
+ * Real values for the `sabeel-institute-kanban` project (registered 2026-07-19).
+ * Local development still runs against the emulators — see USE_EMULATORS below.
+ *
+ * `storageBucket` is recorded because Firebase hands it to us, NOT because it is
+ * used: attachments are deliberately out of scope and no Storage bucket is
+ * provisioned. Do not start using it without revisiting that decision.
  */
 const realConfig = {
-  apiKey: 'demo-api-key',
+  apiKey: 'AIzaSyDnHBj4vlBquHotVRjexa2yB1_x18XWqaI',
   authDomain: 'sabeel-institute-kanban.firebaseapp.com',
   projectId: 'sabeel-institute-kanban',
-  storageBucket: 'sabeel-institute-kanban.appspot.com',
-  messagingSenderId: '000000000000',
-  appId: '1:000000000000:web:0000000000000000000000',
+  storageBucket: 'sabeel-institute-kanban.firebasestorage.app',
+  messagingSenderId: '826656438175',
+  appId: '1:826656438175:web:d9d89ccb61181de5c5efaa',
 };
+
+/**
+ * The WEB OAuth client id, read from `google-services.json` (`client_type: 3`).
+ *
+ * Native Google Sign-In wants the WEB client id as `webClientId`, not the
+ * Android one — passing the Android id is a classic source of DEVELOPER_ERROR.
+ * Public, not secret.
+ */
+export const WEB_CLIENT_ID =
+  '826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com';
 
 /**
  * The project id the emulators run under. Everything server-side —
@@ -34,5 +48,11 @@ export const firebaseConfig = USE_EMULATORS
   ? { ...realConfig, projectId: EMULATOR_PROJECT_ID }
   : realConfig;
 
-/** True while the placeholder above has not been replaced with real values. */
+/**
+ * True while the config above has not been replaced with real values.
+ *
+ * Kept after the real config landed: it is what the gate screens use to explain
+ * "this build has no backend" rather than failing with a network error, and it
+ * would silently start lying if deleted the moment it read false.
+ */
 export const IS_PLACEHOLDER_CONFIG = realConfig.apiKey === 'demo-api-key';
