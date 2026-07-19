@@ -49,14 +49,25 @@ redeploy. Watch for this on the kanban project's first deploy too.
 service agent.** Not a config error — permissions take 2–5 minutes to propagate.
 Wait and redeploy just the failed functions.
 
-**3b. Bundling a workspace package is only HALF the fix — remove it from
-`dependencies` too.** `functions/esbuild.config.mjs` inlines `@sabeel/shared`, so
-nothing imports it at runtime, but it stayed listed in `functions/package.json`
-dependencies. Cloud Build installs from that list and died on
-`404 @sabeel/shared is not in this registry` — the package is private and local.
-It belongs in **devDependencies** (needed to build, never to run). Deploy only
-installs `dependencies`, so that is what makes it work. Cost the first
-production deploy on 2026-07-19.
+**3b. A bundled workspace package must be removed from `functions/package.json`
+ENTIRELY — devDependencies is not enough.** `esbuild.config.mjs` inlines
+`@sabeel/shared`, so nothing imports it at runtime, but it was still declared.
+Cloud Build died on `404 @sabeel/shared is not in this registry` — the package is
+private and local, and only exists inside this monorepo.
+
+Moving it to **devDependencies did not fix it**: the Cloud Functions Node
+buildpack installs devDependencies too. It has to be absent from that file
+altogether. It still resolves locally, because npm workspaces symlinks every
+workspace package into the root `node_modules` regardless of who declares it —
+so esbuild finds it at build time with no declaration at all. The sibling
+time-tracker has always done it this way; checking the reference implementation
+first would have skipped two failed deploys.
+
+Verify the bundle is self-contained rather than assuming:
+
+```sh
+grep -c 'require("@sabeel/shared")' functions/lib/index.js   # must be 0
+```
 
 **4. `expo export` must always `--clear`.** Metro will otherwise happily serve a
 cached bundle built under different `EXPO_PUBLIC_*` env — an emulator-mode bundle
