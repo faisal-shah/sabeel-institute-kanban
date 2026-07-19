@@ -46,20 +46,38 @@ tells you the command to run.
 
 ## C. Google Cloud — OAuth consent
 
-`oursabeel.com` is a Google Workspace domain, so use the strongest setting:
+**Decided 2026-07-19: External, published.** Not Internal.
 
-- [ ] **OAuth consent screen → User type: `Internal`.** GCP Console → APIs &
-      Services → OAuth consent screen. This makes Google itself refuse sign-in
-      from outside the Workspace, before our code runs.
-      With `Internal`, **no Google verification review is needed** and there's no
-      unverified-app warning.
+- [x] **User type: `External`, publishing status `In production`.**
+      Internal was the original plan and is the stronger setting — Google itself
+      refuses non-Workspace accounts before our code runs. It turned out to be
+      unavailable: **Internal requires the Cloud project to belong to a Google
+      Cloud organization**, and the project is deliberately under a personal
+      Google account, which has none. "Make internal" is greyed out for that
+      reason, not because anything is misconfigured.
+- [x] **Publish the app.** While status is `Testing`, ONLY explicitly-listed test
+      users can sign in — staff would be locked out. Publishing is required, not
+      optional.
 - [ ] Confirm scopes are only `email`, `profile`, `openid`. If you ever see a
       request for more, stop and tell Claude — nothing in this app needs it.
-- [ ] If you ever switch this to `External`, **tell Claude** — the server-side
-      domain check stays either way, but it changes the threat model.
+      These are non-sensitive scopes, which is why no Google verification review
+      and no 100-user cap apply.
 
-> Needed at: Phase 13. Note the app's own admin-approval gate is separate and
-> still applies to every `@oursabeel.com` account.
+**What this costs us, stated plainly.** The domain restriction now rests entirely
+on the server-side check in `onUserCreate` (it deletes any auth user whose email
+is unverified or not exactly `@oursabeel.com`). That check was always specified
+to stand alone, and firestore.rules grant nothing without an admin-set
+`status == 'active'` claim — so the window between a stray account being created
+and deleted gives no data access. But the outer wall is gone: anyone with any
+Google account can now reach the consent screen and briefly create an account.
+
+**If Sabeel ever wants this properly:** move the project into an `oursabeel.com`
+Cloud organization (keeps the project id and all data), then set Internal. That
+also fixes the larger issue that the nonprofit's production system currently
+lives in a personal Google account — a continuity risk independent of OAuth.
+
+> Needed at: Phase 13. The app's own admin-approval gate is separate and still
+> applies to every `@oursabeel.com` account.
 
 ---
 

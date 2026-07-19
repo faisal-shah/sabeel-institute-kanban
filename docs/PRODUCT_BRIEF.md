@@ -97,11 +97,15 @@ Consequences worth being explicit about:
 
 Google's `hd` hint on the client is a **convenience, not a security boundary** — a
 determined user can complete a sign-in with any Google account. `oursabeel.com`
-being a Workspace domain gives us four layers, in order of trustworthiness:
+being a Workspace domain gives us these layers, in order of trustworthiness:
 
-1. **OAuth consent screen set to "Internal"** — Google itself refuses sign-in from
-   outside the Workspace. Strongest layer, and available only because the domain
-   is Workspace-managed.
+1. ~~**OAuth consent screen set to "Internal"**~~ — **not in use.** Decided
+   2026-07-19: Internal requires the Cloud project to belong to a Google Cloud
+   organization, and the project is deliberately under a personal Google account
+   for now, which has none. The consent screen is **External, published**. This
+   was the strongest layer and we do not have it; layer 2 is therefore doing the
+   work it was always specified to do on its own. Revisit if the project is ever
+   moved into an `oursabeel.com` organization — see TODO.md § C.
 2. **An auth-create Cloud Function** verifies `email_verified` and the email
    domain server-side, marking anything else `rejected` immediately. This is the
    layer that must exist even if someone later flips the consent screen to

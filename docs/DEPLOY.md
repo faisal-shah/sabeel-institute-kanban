@@ -6,8 +6,9 @@ Deploying is the point where the console steps in `TODO.md` must be done first.
 ## Prerequisites
 
 1. Complete `TODO.md` sections B, C and D — Firebase project (Blaze), Google
-   sign-in enabled, OAuth consent screen set to **Internal**, Web and Android
-   apps registered, SHA-1 added, `google-services.json` downloaded.
+   sign-in enabled, OAuth consent screen **External and published** (see
+   TODO.md § C for why not Internal), Web and Android apps registered, SHA-1
+   added, `google-services.json` downloaded.
 2. Put the real project id in `.firebaserc`.
 3. Replace the placeholder config in `app/src/firebase-config.ts` with the real
    web config. **Keep `EMULATOR_PROJECT_ID` as it is** — it is what makes local

@@ -23,11 +23,10 @@ export function decideProvision(user: {
 }): ProvisionDecision {
   const { email, emailVerified = false } = user;
 
-  // The domain gate. Google's `hd` hint and the Internal consent screen both sit
-  // in front of this, but neither is a boundary we control from the repo — a
-  // console change could flip the consent screen to External without touching
-  // this code, and the client hint is trivially bypassed. This check is the one
-  // that must hold on its own.
+  // The domain gate, and since 2026-07-19 the only one: the consent screen is
+  // External, so Google will happily hand us any Google account. Only the client
+  // `hd` hint sits in front of this, and that is trivially bypassed. This check
+  // must hold entirely on its own.
   if (!isAllowedEmail(email, emailVerified)) {
     return { action: 'reject', reason: 'bad-domain', email: email ?? null };
   }

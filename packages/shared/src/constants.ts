@@ -4,13 +4,12 @@
  */
 
 /**
- * The only domain permitted to sign in. `oursabeel.com` is a Google Workspace
- * domain, so the OAuth consent screen is set to "Internal" and Google itself
- * refuses outside accounts.
+ * The only domain permitted to sign in.
  *
- * This constant is still the authority for the SERVER-SIDE check: the client
- * `hd` hint is a convenience, never a security boundary, and the consent-screen
- * setting could be changed in a console without touching this repo.
+ * This constant is the authority for the SERVER-SIDE check, and as of 2026-07-19
+ * it is the ONLY thing enforcing the domain: the OAuth consent screen is
+ * External (Internal needs a Cloud organization, which the project does not
+ * belong to). The client `hd` hint is a convenience, never a boundary.
  * See docs/PRODUCT_BRIEF.md, "Domain restriction is a server-side check".
  */
 export const ALLOWED_EMAIL_DOMAIN = 'oursabeel.com';
