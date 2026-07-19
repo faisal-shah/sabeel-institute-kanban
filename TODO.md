@@ -15,13 +15,11 @@ tells you the command to run.
 
 ---
 
-## A. GitHub — do this first
+## A. GitHub — done
 
-- [ ] Create the **private** repo `sabeel-institute-kanban` under your account.
-- [ ] Tell Claude when it exists; it will `git init`, wire the remote, and push
-      the Phase 0 scaffold.
-
-> Needed at: Phase 0 (for CI). Everything else can wait.
+- [x] Private repo created and pushed (2026-07-19):
+      https://github.com/faisal-shah/sabeel-institute-kanban
+- [x] CI green on the Phase 0 commit.
 
 ---
 

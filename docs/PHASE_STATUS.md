@@ -45,8 +45,8 @@ react-native-web; **semantic theme tokens with light/dark following the OS**.
 **Exit criteria**
 - [x] `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:emulator` all
       pass — 15 tests (7 shared, 2 functions unit, 6 rules).
-- [ ] CI green on a push — **blocked**: the GitHub repo does not exist yet
-      (`TODO.md` § A). Workflow is committed and ready.
+- [x] CI green on a push — run 29675519239, all steps passed including the
+      emulator integration tests.
 - [x] Hello screen screenshotted on `tb_emu` **and** the web export, in both light
       and dark: `shots/{android,web}-{light,dark}.png`.
 - [x] No color literal outside `app/src/theme` — ESLint `no-restricted-syntax`
