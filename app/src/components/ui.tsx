@@ -2,9 +2,10 @@
  * Themed primitives. Screens compose these rather than styling from scratch, so
  * light/dark stays coherent and no screen ever needs a color literal.
  */
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,6 +37,7 @@ export function Screen({
   const t = useTheme();
   const error = useListenerError();
   const { isWide } = useLayout();
+  const keyboard = useKeyboardHeight();
 
   // Only cap on wide screens: on a phone the content column IS the screen, and
   // a maxWidth there would just add dead margin.
@@ -64,12 +66,50 @@ export function Screen({
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: t.bg.canvas }]}>
       {scroll ? (
-        <ScrollView contentContainerStyle={styles.scrollContent}>{body}</ScrollView>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            // Room to scroll the focused field clear of the keyboard. The
+            // manifest asks for adjustResize, but under edge-to-edge the window
+            // no longer shrinks, so the keyboard OVERLAYS the content: the
+            // comment box stayed visible while its Send button was sliced in
+            // half, with no way to scroll further.
+            keyboard > 0 && { paddingBottom: keyboard + space.xl },
+          ]}
+          // Without this the first tap while the keyboard is up only dismisses
+          // the keyboard — the button under your finger never fires, so every
+          // submit takes two taps and feels broken.
+          keyboardShouldPersistTaps="handled"
+        >
+          {body}
+        </ScrollView>
       ) : (
         <View style={styles.flexContent}>{body}</View>
       )}
     </SafeAreaView>
   );
+}
+
+/**
+ * Height of the on-screen keyboard, or 0.
+ *
+ * Screens add this as bottom padding so a focused field can always be scrolled
+ * above the keyboard. `keyboardDidShow` rather than `WillShow`: the Will events
+ * do not fire on Android.
+ */
+function useKeyboardHeight(): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) =>
+      setHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener('keyboardDidHide', () => setHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return height;
 }
 
 export function Title({ children }: { children: ReactNode }) {
