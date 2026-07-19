@@ -17,6 +17,7 @@
  */
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut as fbSignOut, type User } from 'firebase/auth';
+import { googleSignOut } from './auth/google';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { canAdministerUsers, canManageBoards, canUseApp } from '@sabeel/shared';
 import type { Role, UserStatus } from '@sabeel/shared';
@@ -232,6 +233,10 @@ export function useSession(): Session {
 
 export async function signOut(): Promise<void> {
   stopWatchingUserDoc();
+  // Sign out of Google too, not just Firebase. On native, Google remembers the
+  // account and the next sign-in silently reuses it — so without this there is
+  // no way to switch users, and "Sign out" only appears to work. No-op on web.
+  await googleSignOut().catch(() => undefined);
   await fbSignOut(auth);
 }
 

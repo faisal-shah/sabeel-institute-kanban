@@ -13,7 +13,13 @@ import { USE_EMULATORS } from './env';
  */
 const realConfig = {
   apiKey: 'AIzaSyDnHBj4vlBquHotVRjexa2yB1_x18XWqaI',
-  authDomain: 'sabeel-institute-kanban.firebaseapp.com',
+  // The HOSTING domain, not firebaseapp.com. Hosting serves /__/auth/* itself,
+  // so the whole sign-in redirect stays same-origin — required in
+  // storage-partitioned browsers (the in-app webviews people arrive in from a
+  // WhatsApp or Slack link), where the cross-origin helper dies with
+  // "missing initial state". Redirect URI registered on the Web OAuth client
+  // 2026-07-19; the firebaseapp.com entries are kept as a working fallback.
+  authDomain: 'sabeel-institute-kanban.web.app',
   projectId: 'sabeel-institute-kanban',
   storageBucket: 'sabeel-institute-kanban.firebasestorage.app',
   messagingSenderId: '826656438175',

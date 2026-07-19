@@ -49,6 +49,15 @@ redeploy. Watch for this on the kanban project's first deploy too.
 service agent.** Not a config error — permissions take 2–5 minutes to propagate.
 Wait and redeploy just the failed functions.
 
+**3b. Bundling a workspace package is only HALF the fix — remove it from
+`dependencies` too.** `functions/esbuild.config.mjs` inlines `@sabeel/shared`, so
+nothing imports it at runtime, but it stayed listed in `functions/package.json`
+dependencies. Cloud Build installs from that list and died on
+`404 @sabeel/shared is not in this registry` — the package is private and local.
+It belongs in **devDependencies** (needed to build, never to run). Deploy only
+installs `dependencies`, so that is what makes it work. Cost the first
+production deploy on 2026-07-19.
+
 **4. `expo export` must always `--clear`.** Metro will otherwise happily serve a
 cached bundle built under different `EXPO_PUBLIC_*` env — an emulator-mode bundle
 must never ship to Hosting.

@@ -1,23 +1,55 @@
 import {
+  getRedirectResult,
   GoogleAuthProvider,
   signInWithPopup,
-  type UserCredential,
+  signInWithRedirect,
 } from 'firebase/auth';
 import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
 import { auth } from '../firebase';
+import { captureError } from '../sentry';
 
 /**
- * Google sign-in on the web.
+ * Google sign-in on the web. Works against the Auth emulator too — the popup
+ * shows the emulator's fake account chooser instead of real Google.
  *
  * `hd` restricts the account chooser to the Workspace domain. It is a UX
- * convenience ONLY — it is trivially bypassed and is never treated as a check.
- * The real enforcement is the auth-create Cloud Function, plus the Internal
- * OAuth consent screen in front of it. See docs/PRODUCT_BRIEF.md.
+ * convenience ONLY — trivially bypassed, never treated as a check. The real
+ * enforcement is the auth-create Cloud Function, which is the ONLY domain check
+ * now that the consent screen is External (see TODO.md § C).
  */
-export async function signInWithGoogle(): Promise<UserCredential> {
+
+/**
+ * A failed `signInWithRedirect` surfaces ONLY here, on the page load after the
+ * bounce back. Without this call the user silently lands back on the sign-in
+ * screen with no explanation and nothing reaches Sentry. Success needs no
+ * handling — the auth listener picks it up.
+ */
+getRedirectResult(auth).catch((e) => captureError(e, { source: 'redirectSignIn' }));
+
+export async function signInWithGoogle(): Promise<void> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN, prompt: 'select_account' });
-  return signInWithPopup(auth, provider);
+
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    // Popups are routinely blocked inside the in-app browsers people actually
+    // arrive from — a link tapped in WhatsApp or Slack opens a webview, not the
+    // system browser. Falling back to a full-page redirect is what makes those
+    // arrivals work at all, and a shared link is the common way into this app.
+    if (
+      code === 'auth/popup-blocked' ||
+      code === 'auth/operation-not-supported-in-this-environment'
+    ) {
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    throw e;
+  }
 }
+
+/** Web keeps no Google session of its own — Firebase sign-out is enough. */
+export async function googleSignOut(): Promise<void> {}
 
 export const googleSignInAvailable = true;

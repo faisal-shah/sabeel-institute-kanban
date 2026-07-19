@@ -46,6 +46,13 @@ Key product invariants (do not silently change):
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one
   document write. Never reintroduce an array-of-ids ordering.
 
+`docs/STACK-GOTCHAS.md` collects the **stack-level** traps (Expo /
+react-native-web / Firebase JS SDK) that keep getting rediscovered — auth in
+in-app browsers, emulator project-id partitioning, stale Metro bundles,
+unthemeable RNW controls, live-query empty-vs-absent. It is written symptom-first
+and is intended to become a reusable skill: **when something in this stack costs
+real time to diagnose, add the entry there**, not only in a commit message.
+
 Sibling project `../sabeel-institute-time-tracker/` is the reference
 implementation for every convention here — read its files directly rather than
 trusting a summary when the details matter. `docs/INHERITED-STACK.md` records what
