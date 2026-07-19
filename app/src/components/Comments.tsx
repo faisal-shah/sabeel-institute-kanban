@@ -165,6 +165,16 @@ export function Comments({
           multiline
         />
 
+        {/* You can only mention people who can open the card, which is board
+            members. If you are the only one, say so rather than letting the
+            autocomplete look broken. */}
+        {candidates.length <= 1 ? (
+          <Caption>
+            You are the only member of this board, so there is nobody to mention
+            yet. Add people under board Settings.
+          </Caption>
+        ) : null}
+
         {suggestions.length > 0 ? (
           <View style={[styles.suggestions, { borderColor: t.border.subtle }]}>
             <Caption>Mention</Caption>

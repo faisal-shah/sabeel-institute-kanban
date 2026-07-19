@@ -304,6 +304,22 @@ export function BoardSettingsScreen({
         </Card>
       ) : null}
 
+      {/*
+        Previously this section simply vanished when there was nobody to add,
+        which read as a bug: the assignee list showed only you, with no clue
+        that people must be APPROVED before they can be added to a board.
+      */}
+      {nonMembers.length === 0 ? (
+        <Card>
+          <Caption>Add someone</Caption>
+          <Body muted>
+            {allUsers.status === 'error'
+              ? 'Only admins can browse the full directory. Ask an admin to add people to this board.'
+              : 'Nobody available to add. People must be approved under People before they can join a board — anyone still pending will not appear here.'}
+          </Body>
+        </Card>
+      ) : null}
+
       {nonMembers.length > 0 ? (
         <Card>
           <Caption>Add someone</Caption>

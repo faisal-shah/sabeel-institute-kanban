@@ -496,24 +496,25 @@ try {
   // board-name resolution all working together.
   await openCard(admin, 'Fix signup flow');
   await admin.getByText('Assignees').waitFor({ timeout: 20000 });
-  // The assignee list comes from a separate live query, so wait for it to arrive
-  // before counting — otherwise we sample an empty list and conclude there is
-  // nobody to assign.
-  await admin
-    .getByRole('button', { name: 'Assign', exact: true })
-    .first()
-    .waitFor({ timeout: 25000 });
+  // Assignees live behind a compact picker so the section does not grow with the
+  // board. Open it, then assign everyone available — the list is ordered by
+  // display name, so picking only "the first" would not reliably include the
+  // person whose My Work we check next.
+  const openPicker = admin.getByRole('button', { name: /^Assign someone/ });
+  await openPicker.waitFor({ timeout: 25000 });
+  await openPicker.click();
 
-  // Assign EVERY board member rather than the first row — the list is ordered by
-  // display name, so "the first Assign button" is whoever sorts first, which is
-  // not necessarily the person whose My Work we then check.
   for (let i = 0; i < 5; i++) {
-    const assign = admin.getByRole('button', { name: 'Assign', exact: true });
-    if ((await assign.count()) === 0) break;
-    await assign.first().click();
-    await admin.waitForTimeout(1000);
+    const option = admin.getByRole('button', { name: /^Assign \w/ });
+    if ((await option.count()) === 0) break;
+    await option.first().click();
+    await admin.waitForTimeout(1200);
   }
-  await admin.getByRole('button', { name: 'Unassign' }).first().waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: 'Done', exact: true }).click().catch(() => {});
+
+  // Assigned people are listed with a Remove control; that is the confirmation.
+  await admin.getByRole('button', { name: 'Remove' }).first().waitFor({ timeout: 20000 });
+  check('the assignee picker lists assigned people and hides the rest', true);
   await admin.getByRole('button', { name: 'Today' }).click();
   await admin.waitForTimeout(1200);
   check('a card can be assigned and given a due date', true);

@@ -8,6 +8,7 @@ import { useNav } from '../nav';
 import { Markdown } from '../components/Markdown';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
+import { AssigneePicker } from '../components/AssigneePicker';
 import {
   Body,
   Button,
@@ -281,41 +282,29 @@ export function CardScreen({
 
       <Heading>Assignees</Heading>
       <Panel>
-        {assignable.length === 0 ? (
-          <Caption>
-            Only board members can be assigned. Ask a manager to add people to
-            this board.
-          </Caption>
-        ) : null}
-        {assignable.map((u) => {
-          const on = c.assigneeUids.includes(u.uid);
-          return (
-            <Row key={u.uid} style={styles.between}>
-              <View style={styles.grow}>
-                <Body>{u.displayName}</Body>
-                <Caption>{u.email}</Caption>
-              </View>
-              <Button
-                label={on ? 'Unassign' : 'Assign'}
-                variant={on ? 'secondary' : 'primary'}
-                onPress={() =>
-                  run(() =>
-                    updateCard(
-                      boardId,
-                      cardId,
-                      {
-                        assigneeUids: on
-                          ? c.assigneeUids.filter((x) => x !== u.uid)
-                          : [...c.assigneeUids, u.uid],
-                      },
-                      user,
-                    ),
-                  )
-                }
-              />
-            </Row>
-          );
-        })}
+        <AssigneePicker
+          members={assignable}
+          assignedUids={c.assigneeUids}
+          onToggle={(uid, assign) =>
+            run(() =>
+              updateCard(
+                boardId,
+                cardId,
+                {
+                  assigneeUids: assign
+                    ? Array.from(new Set([...c.assigneeUids, uid]))
+                    : c.assigneeUids.filter((x) => x !== uid),
+                },
+                user,
+              ),
+            )
+          }
+          emptyHint={
+            assignable.length <= 1
+              ? 'Only people added to this board can be assigned. Add them under board Settings — and they have to be approved under People first.'
+              : undefined
+          }
+        />
       </Panel>
 
       {b.labels.length > 0 ? (
