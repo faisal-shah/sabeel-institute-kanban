@@ -55,6 +55,42 @@ lying around is a thing someone later has to reason about.
 
 From then on, promote everyone else in-app under **People**.
 
+## Android release APKs
+
+`app/android/` is committed (no EAS). Build locally:
+
+```sh
+cd app/android
+./gradlew assembleRelease --no-daemon
+# outputs app/android/app/build/outputs/apk/release/app-<abi>-release.apk
+```
+
+Per-ABI splits plus R8 take arm64 from 82 MB to 27 MB. Both R8 flags are ON in
+`gradle.properties` and both are OFF by default in the React Native template.
+
+**`./gradlew clean` can fail** in `externalNativeBuildCleanDebug` while CMake
+regenerates. Delete the caches instead:
+
+```sh
+rm -rf app/android/app/.cxx app/android/app/build
+```
+
+**After any change to R8 or splits, install and RUN the result** — R8 strips
+classes reached only by reflection, and Google Sign-In is exactly that kind of
+dependency. A smaller APK that crashes on launch is worse than a large one that
+works:
+
+```sh
+adb install app/android/app/build/outputs/apk/release/app-x86_64-release.apk
+adb shell monkey -p com.sabeelinstitute.kanban -c android.intent.category.LAUNCHER 1
+adb exec-out screencap -p > shots/check.png     # then LOOK at it
+```
+
+Releases are signed with the **debug keystore** (template default), which is why
+the debug SHA-1 is the one registered in Firebase. Before distributing beyond
+internal testing, generate a real release keystore and register its SHA-1 — the
+debug key is committed to this repo, so anyone could sign an update with it.
+
 ## Verify after deploy — do not skip
 
 **1. Composite indexes (REQUIRED).** The emulator does NOT enforce them, so only
