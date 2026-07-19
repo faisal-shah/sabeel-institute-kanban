@@ -34,3 +34,6 @@ app/android/build/
 
 .DS_Store
 functions/.secret.local
+
+# Kotlin compiler session files from Gradle builds
+app/android/.kotlin/
