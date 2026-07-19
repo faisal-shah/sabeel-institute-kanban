@@ -24,6 +24,13 @@ npm run emulators
 Leave it running. The Emulator UI is at http://127.0.0.1:4000 — useful for
 inspecting Firestore documents and Auth users directly.
 
+> You will see `dueSoonReminders: function ignored because the pubsub emulator
+> does not exist or is not running`. That is expected: the daily due-soon sweep
+> is a **scheduled** function, and scheduled functions do not run locally. Every
+> other trigger — provisioning, comments, activity, notifications — does. To
+> exercise the sweep, invoke it manually from the Functions emulator shell, or
+> wait until it runs in production.
+
 **Terminal 2 — the app:**
 
 ```sh
@@ -38,8 +45,22 @@ Terminal 1 is the same (`npm run emulators`). Then:
 
 ```sh
 scripts/emulator.sh headless     # boot the tb_emu AVD (or `window` to watch it)
-npm run dev:android              # build, install, launch
+npm run dev:android              # build, install, launch (~2 min the first time)
 ```
+
+The AVD runs **headless** by default, so nothing appears on your desktop. Either
+use `scripts/emulator.sh window` to watch it live, or take screenshots:
+`scripts/emulator.sh shot my-screen` → `shots/my-screen.png`.
+
+Already built once? Just restart Metro and relaunch, which is much faster:
+
+```sh
+cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start
+adb shell monkey -p com.sabeelinstitute.kanban -c android.intent.category.LAUNCHER 1
+```
+
+**Web and Android share the emulator data.** Sign in as `faisal` on both and it
+is the same account — approve once and both are in.
 
 The app reaches the emulators at `10.0.2.2` automatically — that's the Android
 emulator's alias for your machine, handled in `app/src/env.ts`.
