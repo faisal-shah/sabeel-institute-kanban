@@ -26,6 +26,20 @@ they do, with no need to sign out or refresh.
 
 Members archive cards rather than deleting them, so nothing is lost by accident.
 
+### For admins: the People screen
+
+**People** lists everyone who has signed in. A new account waits on **pending**
+and sees nothing until an admin approves it.
+
+Each person's role and access are shown as controls set to their *current* value
+— a role segment and an **Active** toggle — rather than buttons you press. You
+change someone by moving the control to where you want it, and every change asks
+you to confirm, spelling out what it will actually let that person do. You cannot
+change your own access; that is what stops an admin locking themselves out.
+
+Disabling someone signs them out immediately but **keeps their card
+assignments**, so nothing is left ownerless — a manager can reassign at leisure.
+
 ## Boards
 
 **Boards** lists everything you can open. Tap the circle beside a board to
@@ -53,16 +67,19 @@ Tap **+ Add card** at the bottom of a column, type a title, press Enter.
 
 Open a card for the full view:
 
-- **Description** — supports formatting. The buttons above the box insert it for
-  you, so there is no syntax to memorise.
+- **Description** — supports Markdown formatting. A one-line reminder of the
+  common syntax (`**bold**`, `# heading`, `- list`) sits just above the box.
+  **Save** to keep the change, **Cancel** to discard it.
 - **Priority** — a coloured dot on the card face.
-- **Due date** — a whole day, not a time. **Today**, **Tomorrow** and **Next
-  week** are one tap; an overdue card shows in red.
+- **Due date** — a whole day, not a time. Pick it from a calendar; **Clear**
+  removes it. An overdue card shows in red.
 - **Assignees** — anyone on the board. Assigned cards appear in that person's
   **My work**.
 - **Labels** — whatever the board defines.
 - **Comments** — type **@** followed by a name to pull someone in; they are
   notified.
+- **Column** — the card's column is shown as a button. Tap it to move the card
+  without leaving the card, so everything about a card is editable in one place.
 - **Activity** — who changed what, and when. Written by the system, so it cannot
   be edited by anyone.
 

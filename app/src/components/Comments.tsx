@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { StyleSheet, View, type TextInput } from 'react-native';
 import {
   activeMentionQuery,
   completeMention,
@@ -38,6 +38,7 @@ export function Comments({
   const comments = useComments(boardId, cardId);
   const t = useTheme();
   const [draft, setDraft] = useState('');
+  const draftRef = useRef<TextInput>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +160,7 @@ export function Comments({
 
       <Panel>
         <TextField
+          ref={draftRef}
           value={draft}
           onChangeText={setDraft}
           placeholder="Add a comment — @ to mention someone"
@@ -183,7 +185,15 @@ export function Comments({
                 key={s.uid}
                 label={`${s.displayName} (@${handleFor(s.email)})`}
                 variant="secondary"
-                onPress={() => setDraft(completeMention(draft, '', s))}
+                onPress={() => {
+                  setDraft(completeMention(draft, '', s));
+                  // Picking a suggestion BLURS the comment box — whether by
+                  // click or by tab-then-enter — and without this you cannot
+                  // carry on typing, which makes the autocomplete a trap rather
+                  // than a shortcut. Refocus on the next tick so it happens
+                  // after the blur has settled.
+                  setTimeout(() => draftRef.current?.focus(), 0);
+                }}
               />
             ))}
           </View>

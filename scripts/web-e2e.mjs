@@ -84,12 +84,24 @@ function grantAdmin(email) {
   });
 }
 
+/** Confirmation text from the most recent window.confirm, per page. */
+const lastConfirm = new WeakMap();
+
 async function newApp(browser, scheme = 'light') {
   const ctx = await browser.newContext({
     colorScheme: scheme,
     viewport: { width: 1100, height: 900 },
   });
   const page = await ctx.newPage();
+
+  // Consequential access changes go through window.confirm. Playwright DISMISSES
+  // dialogs by default, so without this every approval silently did nothing and
+  // the failure looked like a broken button. Record the text too, so the tests
+  // can assert a confirmation was actually demanded.
+  page.on('dialog', async (d) => {
+    lastConfirm.set(page, d.message());
+    await d.accept();
+  });
   page.on('pageerror', (e) => console.error('   page error:', String(e)));
   page.on('console', (m) => {
     if (m.type() === 'error' || m.type() === 'warning') {
@@ -211,6 +223,13 @@ try {
   await admin.screenshot({ path: join(SHOTS, 'p1-users-light.png'), fullPage: true });
 
   await admin.getByRole('button', { name: 'Approve' }).first().click();
+  await admin.waitForTimeout(500);
+  const approveConfirm = lastConfirm.get(admin) ?? '';
+  check(
+    'approving asks for confirmation and says what will happen',
+    /approve/i.test(approveConfirm) && /sign in/i.test(approveConfirm),
+    approveConfirm.replace(/\n+/g, ' ').slice(0, 90),
+  );
 
   // Her open page must un-gate on its own too.
   await sara.getByText('Boards', { exact: true }).waitFor({ timeout: 25000 });
@@ -515,9 +534,30 @@ try {
   // Assigned people are listed with a Remove control; that is the confirmation.
   await admin.getByRole('button', { name: 'Remove' }).first().waitFor({ timeout: 20000 });
   check('the assignee picker lists assigned people and hides the rest', true);
-  await admin.getByRole('button', { name: 'Today' }).click();
-  await admin.waitForTimeout(1200);
+  // Due date is a real <input type="date"> now, not preset buttons.
+  const dueInput = admin.getByLabel('Due date');
+  await dueInput.waitFor({ timeout: 15000 });
+  await dueInput.fill(new Date().toISOString().slice(0, 10));
+  await admin.waitForTimeout(1500);
   check('a card can be assigned and given a due date', true);
+
+  // The column is editable from the card detail — no trip back to the board.
+  const columnButton = admin.getByRole('button', { name: 'To Do', exact: true });
+  await columnButton.click();
+  await admin.getByText('Move this card to').waitFor({ timeout: 15000 });
+  await admin.getByRole('button', { name: 'Done', exact: true }).click();
+  await admin.waitForTimeout(2000);
+  const movedFromDetail = await admin
+    .getByRole('button', { name: 'Done', exact: true })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check('a card can change column from its detail view', movedFromDetail);
+  // Put it back so later assertions still find it in To Do.
+  await admin.getByRole('button', { name: 'Done', exact: true }).first().click();
+  await admin.getByText('Move this card to').waitFor({ timeout: 15000 });
+  await admin.getByRole('button', { name: 'To Do', exact: true }).last().click();
+  await admin.waitForTimeout(2000);
   await admin.screenshot({ path: join(SHOTS, 'p5-card-detail-light.png'), fullPage: true });
 
   // ---- Comments, mentions and activity (Phases 8-9) ----------------------
@@ -526,6 +566,20 @@ try {
   await commentBox.waitFor({ timeout: 20000 });
   await commentBox.click();
   await commentBox.pressSequentially('Kicking this off, cc @sara', { delay: 10 });
+  // Picking a mention must NOT steal focus: you have to be able to keep typing.
+  const suggestion = admin.getByRole('button', { name: /\(@/ }).first();
+  if (await suggestion.isVisible().catch(() => false)) {
+    await suggestion.click();
+    await admin.waitForTimeout(400);
+    const focused = await admin.evaluate(() => {
+      const el = document.activeElement;
+      return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
+    });
+    check('picking a mention keeps focus in the comment box', focused);
+    // And typing actually continues into the same box.
+    await admin.keyboard.type('please take a look');
+  }
+
   await admin.getByRole('button', { name: 'Comment', exact: true }).click();
   await admin.getByText('Kicking this off').waitFor({ timeout: 20000 });
   check('a comment can be posted', true);

@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { ORG_TIMEZONE, applyMarkdown, type Priority } from '@sabeel/shared';
-import { archiveCard, deleteCard, restoreCard, updateCard, useCard } from '../cards';
+import { ORG_TIMEZONE, type Priority } from '@sabeel/shared';
+import {
+  archiveCard,
+  cardsInColumn,
+  deleteCard,
+  moveCard,
+  restoreCard,
+  updateCard,
+  useCard,
+  useBoardCards,
+} from '../cards';
 import { useBoard } from '../boards';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -9,13 +18,14 @@ import { Markdown } from '../components/Markdown';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
 import { AssigneePicker } from '../components/AssigneePicker';
+import { DateField } from '../components/DateField';
+import { Sheet, SheetOption } from '../components/Sheet';
 import {
   Body,
   Button,
   Caption,
   Card as Panel,
   Heading,
-  Pill,
   Row,
   Screen,
   Spinner,
@@ -36,13 +46,6 @@ function todayInOrgTz(): string {
   }).format(new Date());
 }
 
-function addDays(dayKey: string, days: number): string {
-  const [y, m, d] = dayKey.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
 export function CardScreen({
   boardId,
   cardId,
@@ -55,6 +58,7 @@ export function CardScreen({
   const nav = useNav();
   const card = useCard(boardId, cardId);
   const board = useBoard(boardId);
+  const boardCards = useBoardCards(boardId);
   const t = useTheme();
 
   const [title, setTitle] = useState('');
@@ -62,6 +66,7 @@ export function CardScreen({
   const [editingDesc, setEditingDesc] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [movingColumn, setMovingColumn] = useState(false);
 
   // Seed the local editors once the card arrives, but never stomp on typing.
   useEffect(() => {
@@ -130,9 +135,17 @@ export function CardScreen({
             })
           }
         />
+        {/* The column is EDITABLE here. Previously it was a read-only pill, so
+            moving a card meant leaving the detail view, finding it on the board
+            and using a separate move action — for the one property you most
+            often change while reading a card. */}
         <Row>
           <Caption>in</Caption>
-          <Pill label={column?.name ?? 'unknown column'} tone="accent" />
+          <Button
+            label={column?.name ?? 'unknown column'}
+            variant="secondary"
+            onPress={() => setMovingColumn(true)}
+          />
         </Row>
       </Panel>
 
@@ -140,37 +153,22 @@ export function CardScreen({
       <Panel>
         {editingDesc ? (
           <>
-            {/* The toolbar exists so nobody has to remember markdown syntax. */}
-            <Row style={styles.wrap}>
-              {(
-                [
-                  ['Bold', 'bold'],
-                  ['Italic', 'italic'],
-                  ['Code', 'code'],
-                  ['List', 'bullet'],
-                  ['1.', 'numbered'],
-                  ['Heading', 'heading'],
-                  ['Link', 'link'],
-                ] as const
-              ).map(([label, action]) => (
-                <Button
-                  key={action}
-                  label={label}
-                  variant="secondary"
-                  onPress={() => {
-                    setDescription((d) => applyMarkdown(d, action));
-                    setDirty(true);
-                  }}
-                />
-              ))}
-            </Row>
+            {/* A short reference beats a toolbar. The buttons only appended
+                placeholder syntax at the end of the text — they could not wrap a
+                selection, so they were slower than typing the characters. A
+                proper editor is the real answer; until then, say what the syntax
+                is and get out of the way. */}
+            <Caption>
+              **bold**  ·  *italic*  ·  `code`  ·  # heading  ·  - list  ·  1.
+              numbered  ·  [link](https://example.com)
+            </Caption>
             <TextField
               value={description}
               onChangeText={(v) => {
                 setDescription(v);
                 setDirty(true);
               }}
-              placeholder="Markdown supported"
+              placeholder="Write a description"
               multiline
             />
             <Row>
@@ -237,47 +235,14 @@ export function CardScreen({
 
       <Heading>Due date</Heading>
       <Panel>
-        <Row>
-          {c.dueDate ? (
-            <Pill
-              label={overdue ? `${c.dueDate} — overdue` : c.dueDate}
-              tone={overdue ? 'bad' : 'good'}
-            />
-          ) : (
-            <Caption>No due date.</Caption>
-          )}
-        </Row>
-        {/* All-day dates as YYYY-MM-DD strings — no timezone drift possible. */}
-        <Row style={styles.wrap}>
-          <Button
-            label="Today"
-            variant="secondary"
-            onPress={() => run(() => updateCard(boardId, cardId, { dueDate: today }, user))}
-          />
-          <Button
-            label="Tomorrow"
-            variant="secondary"
-            onPress={() =>
-              run(() => updateCard(boardId, cardId, { dueDate: addDays(today, 1) }, user))
-            }
-          />
-          <Button
-            label="Next week"
-            variant="secondary"
-            onPress={() =>
-              run(() => updateCard(boardId, cardId, { dueDate: addDays(today, 7) }, user))
-            }
-          />
-          {c.dueDate ? (
-            <Button
-              label="Clear"
-              variant="secondary"
-              onPress={() =>
-                run(() => updateCard(boardId, cardId, { dueDate: undefined }, user))
-              }
-            />
-          ) : null}
-        </Row>
+        {overdue ? <Caption>Overdue</Caption> : null}
+        <DateField
+          value={c.dueDate}
+          label="Due date"
+          onChange={(next) =>
+            run(() => updateCard(boardId, cardId, { dueDate: next }, user))
+          }
+        />
       </Panel>
 
       <Heading>Assignees</Heading>
@@ -398,6 +363,38 @@ export function CardScreen({
           </>
         ) : null}
       </Panel>
+
+      {/* Change column without leaving the card. */}
+      <Sheet
+        visible={movingColumn}
+        title="Move this card to"
+        onClose={() => setMovingColumn(false)}
+      >
+        {b.columns.map((col) => (
+          <SheetOption
+            key={col.id}
+            label={col.name}
+            selected={col.id === c.columnId}
+            onPress={() =>
+              run(async () => {
+                // Give it a fresh rank at the END of the destination. Carrying
+                // the old rank across would drop the card at an arbitrary
+                // position — ranks are only meaningful within a column.
+                const destination = cardsInColumn(boardCards.data ?? [], col.id);
+                await moveCard({
+                  boardId,
+                  card: c,
+                  toColumnId: col.id,
+                  before: destination[destination.length - 1] ?? null,
+                  after: null,
+                  user,
+                });
+                setMovingColumn(false);
+              })
+            }
+          />
+        ))}
+      </Sheet>
     </Screen>
   );
 }

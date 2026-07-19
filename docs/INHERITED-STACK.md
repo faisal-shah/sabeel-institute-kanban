@@ -117,6 +117,27 @@ the emulator dev sign-in — is correctly stripped from an exported bundle, whic
 means e2e flows that need it must drive `expo start`, not the export. We assert
 the absence separately, so the safety property is tested rather than assumed.
 
+**11. A long-running `expo start` can go stale and serve a bundle that no longer
+matches the source.** On 2026-07-19 a web dev server that had been up for hours
+stopped rebuilding on file change. The screenshots after a fix were
+byte-identical to the ones before it — which reads exactly like "the fix didn't
+work", and cost a wrong diagnosis before the cause was found. Two habits fall
+out of it: when a UI change appears to have no effect, **restart the dev server
+before concluding the code is wrong**; and compare screenshot *file sizes*, since
+byte-identical output across a real code change means the bundle is stale, not
+that the change was ineffective.
+
+Launch it with `npm run dev:web`, never a bare `npx expo start --web`: the script
+also sets `EXPO_PUBLIC_USE_EMULATORS=1` and rebuilds `@sabeel/shared`. Without
+that variable the app points at production config and the dev sign-in row never
+renders, which looks like a broken sign-in screen.
+
+**12. react-native-web's `Switch` cannot be themed.** It ignores `thumbColor` and
+`trackColor`, and the RNW-specific `activeThumbColor`/`activeTrackColor` are gone
+in 0.21 — the thumb renders Material teal (`#009688`), a colour in no part of the
+Sabeel palette. `Toggle` in `app/src/components/ui.tsx` is a Pressable and two
+Views that we fully control. Do not reintroduce `Switch`.
+
 ## Auth model to reuse as-is
 
 Google sign-in only → new user lands `pending` → an **admin** approves. Claims

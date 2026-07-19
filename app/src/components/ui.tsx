@@ -2,7 +2,7 @@
  * Themed primitives. Screens compose these rather than styling from scratch, so
  * light/dark stays coherent and no screen ever needs a color literal.
  */
-import type { ReactNode } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -183,6 +183,51 @@ export function Pill({
   );
 }
 
+/**
+ * On/off toggle.
+ *
+ * Built from a Pressable rather than React Native's `Switch` because
+ * react-native-web renders that one with its own Material palette and ignores
+ * `thumbColor`/`trackColor` (and the RNW-specific `activeThumbColor`) — the
+ * thumb came out teal, a colour that appears nowhere in the Sabeel palette.
+ * Owning the two views is less code than fighting a component we cannot style,
+ * and it looks identical on web and native.
+ */
+export function Toggle({
+  value,
+  onValueChange,
+  disabled,
+  label,
+}: {
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled: !!disabled }}
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={() => onValueChange(!value)}
+      style={[
+        styles.toggleTrack,
+        {
+          backgroundColor: value ? t.accent.base : t.border.strong,
+          opacity: disabled ? 0.5 : 1,
+          // The thumb is positioned by which end it is pushed to, so the track
+          // needs no absolute layout maths and no animation to stay correct.
+          justifyContent: value ? 'flex-end' : 'flex-start',
+        },
+      ]}
+    >
+      <View style={[styles.toggleThumb, { backgroundColor: t.accent.onAccent }]} />
+    </Pressable>
+  );
+}
+
 export function Row({
   children,
   style,
@@ -193,15 +238,7 @@ export function Row({
   return <View style={[styles.row, style]}>{children}</View>;
 }
 
-export function TextField({
-  value,
-  onChangeText,
-  placeholder,
-  onSubmit,
-  multiline,
-  autoFocus,
-  label,
-}: {
+export const TextField = forwardRef<TextInput, {
   value: string;
   onChangeText: (v: string) => void;
   placeholder?: string;
@@ -209,10 +246,17 @@ export function TextField({
   multiline?: boolean;
   autoFocus?: boolean;
   label?: string;
-}) {
+}>(function TextField(
+  { value, onChangeText, placeholder, onSubmit, multiline, autoFocus, label },
+  ref,
+) {
   const t = useTheme();
   return (
     <TextInput
+      // Forwarded so callers can restore focus — picking a mention from the
+      // autocomplete blurs this field, and without refocusing you cannot carry
+      // on typing.
+      ref={ref}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -232,7 +276,7 @@ export function TextField({
       ]}
     />
   );
-}
+});
 
 export function Spinner({ label }: { label?: string }) {
   const t = useTheme();
@@ -245,6 +289,15 @@ export function Spinner({ label }: { label?: string }) {
 }
 
 const styles = StyleSheet.create({
+  toggleTrack: {
+    width: 52,
+    height: 32,
+    borderRadius: radius.pill,
+    padding: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  toggleThumb: { width: 26, height: 26, borderRadius: radius.pill },
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },

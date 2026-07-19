@@ -38,6 +38,7 @@ import {
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
+import { Sheet, SheetOption } from '../Sheet';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import {
@@ -107,7 +108,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   const nav = useNav();
   const board = useBoard(boardId);
   const cards = useBoardCards(boardId);
-  const t = useTheme();
 
   const [page, setPage] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -361,32 +361,35 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         })}
       </ScrollView>
 
-      {/* "Move to…" sheet — the deliberate alternative to dragging across pages. */}
-      {moving ? (
-        <View style={[styles.sheet, { backgroundColor: t.bg.raised, borderColor: t.border.strong }]}>
-          <Caption>Move “{moving.title}” to</Caption>
-          {columns.map((col) => (
-            <Button
-              key={col.id}
-              label={col.name}
-              variant={col.id === moving.columnId ? 'secondary' : 'primary'}
-              disabled={col.id === moving.columnId}
-              onPress={() => moveTo(moving, col)}
-            />
-          ))}
-          <Button
-            label="Archive card"
-            variant="danger"
-            onPress={() =>
-              run(async () => {
-                await archiveCard(boardId, moving.id, user);
-                setMoving(null);
-              })
-            }
+      {/* Moving is a bounded, centred dialog. It was previously an absolutely
+          positioned panel pinned to the bottom, which could run off a short
+          viewport with no way to scroll to the rest of it. */}
+      <Sheet
+        visible={moving !== null}
+        title={moving ? `Move “${moving.title}” to` : ''}
+        onClose={() => setMoving(null)}
+      >
+        {columns.map((col) => (
+          <SheetOption
+            key={col.id}
+            label={col.name}
+            selected={col.id === moving?.columnId}
+            onPress={() => moving && moveTo(moving, col)}
           />
-          <Button label="Cancel" variant="secondary" onPress={() => setMoving(null)} />
-        </View>
-      ) : null}
+        ))}
+        <Button
+          label="Archive card"
+          variant="danger"
+          onPress={() =>
+            run(async () => {
+              if (!moving) return;
+              await archiveCard(boardId, moving.id, user);
+              setMoving(null);
+            })
+          }
+        />
+      </Sheet>
+
     </Screen>
   );
 }
