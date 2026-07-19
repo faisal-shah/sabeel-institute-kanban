@@ -39,6 +39,24 @@ npm run dev:web
 
 Opens on http://localhost:8086.
 
+**Terminal 3 — something to look at (optional):**
+
+```sh
+npm run seed
+```
+
+Creates three people, a board with eight columns and six cards by driving the
+UI, so a seed that succeeds is also evidence the flow works. It is re-runnable:
+each step is skipped if it has already happened.
+
+The emulators start empty every time. To wipe them mid-session without a
+restart:
+
+```sh
+curl -X DELETE "http://127.0.0.1:8080/emulator/v1/projects/demo-sabeel-kanban/databases/(default)/documents"
+curl -X DELETE "http://127.0.0.1:9099/emulator/v1/projects/demo-sabeel-kanban/accounts"
+```
+
 ## Android
 
 Terminal 1 is the same (`npm run emulators`). Then:
