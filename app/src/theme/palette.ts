@@ -24,11 +24,11 @@ export const palette = {
     surface: '#FFFBF5',
     raised: '#FFFFFF',
     inset: '#EFE4D4',
-    // The logo is dark calligraphy with gold accents on transparency, so it
-    // needs a light ground in BOTH themes — hence a plate colour rather than a
-    // surface colour. Recolouring the mark is not an option: the gold is part
-    // of it.
-    brandPlate: '#FFFBF5',
+    // TRANSPARENT in light mode. The logo ships with transparency and is dark
+    // ink on a warm ground — it belongs directly on the canvas. Putting it on a
+    // plate here changed how the brand reads in the common case to solve a
+    // problem that only exists in dark mode.
+    brandPlate: 'transparent',
 
     // NOT Mushroom Taupe: that is ~2.3:1 on ivory and fails WCAG AA for body
     // text. These stay in the same warm family while remaining legible.
@@ -75,7 +75,10 @@ export const palette = {
     surface: '#241D19',
     raised: '#2E2621',
     inset: '#161110',
-    // Deliberately light on a dark canvas — see the light-mode note above.
+    // A light plate ONLY here. The mark is dark calligraphy with gold accents,
+    // so on a near-black canvas it would be invisible, and a flat tint would
+    // discard the gold. A light-on-dark version of the logo would be better
+    // still — worth asking the brand owner for one.
     brandPlate: '#F5EBDD',
 
     textPrimary: '#F2E8DC',

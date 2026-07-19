@@ -62,10 +62,16 @@ Source: `docs/brand/sabeel-logo.png` (also copied to
 Arabic calligraphy reading *Sabeel* with gold accent strokes, alongside the
 wordmark. Two rules follow from its construction:
 
-- **It always sits on a light ground.** The mark is dark ink on transparency, so
-  on the dark theme's canvas it would simply disappear. The app renders it on a
-  `bg.brandPlate` token that stays warm ivory in **both** themes. Recolouring the
-  mark to white is not an option — the gold strokes are part of it.
+- **Light mode: no plate.** The mark ships with transparency and sits directly
+  on the Warm Ivory canvas, exactly as supplied. An earlier version put it on an
+  ivory plate in both themes; that altered how the brand reads in the common case
+  to solve a problem that only exists in dark mode.
+- **Dark mode: a light plate**, via the `bg.brandPlate` token. The mark is dark
+  calligraphy with gold accents, so on a near-black canvas it would be invisible,
+  and flattening it to white would discard the gold. **A light-on-dark version of
+  the logo would be better than a plate — worth asking the brand owner for one**,
+  after which `palette.dark.brandPlate` becomes `transparent` too and the second
+  asset is swapped in.
 - **It appears on the sign-in screen only.** Inside the app the brand is carried
   by the palette. A logo repeated on every screen is chrome, and on a phone it
   costs space the board needs.
