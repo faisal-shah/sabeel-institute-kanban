@@ -29,16 +29,31 @@ Hosting serves `app/dist-web`, built automatically by the predeploy hook.
 
 ## First admin
 
-Everyone lands `pending`, and only an admin can approve — so the first admin has
-to be made from outside the app:
+Everyone lands `pending` and only an admin can approve, so the first admin has to
+be made from outside the app. `scripts/grant-admin.mjs` does this with the Admin
+SDK, but it needs gcloud ADC or `GOOGLE_APPLICATION_CREDENTIALS`:
 
 ```sh
-# Sign in through the app once so the account exists, then:
-GCLOUD_PROJECT=<real-project-id> node scripts/grant-admin.mjs you@oursabeel.com
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/grant-admin.mjs you@oursabeel.com
 ```
 
-Needs gcloud ADC or `GOOGLE_APPLICATION_CREDENTIALS`. From then on, promote
-everyone else in-app under **People**.
+**Without those credentials**, use the temporary one-shot instead
+(`functions/src/bootstrap.ts`), which is how this project was bootstrapped on
+2026-07-19:
+
+1. Sign in through the app once so the account exists (you will land `pending`).
+2. `firebase deploy --only functions:bootstrapFirstAdmin`
+3. `curl https://us-central1-sabeel-institute-kanban.cloudfunctions.net/bootstrapFirstAdmin`
+4. **Delete it** — the export in `functions/src/index.ts`, the file, then
+   `firebase functions:delete bootstrapFirstAdmin --region us-central1`.
+5. Sign out and back in to pick up the claim.
+
+It is safe for the minutes it exists by construction, not secrecy: it can only
+ever promote one hardcoded address, it refuses once any admin exists, and it
+re-checks the verified-domain rule. Delete it anyway — a spent one-shot left
+lying around is a thing someone later has to reason about.
+
+From then on, promote everyone else in-app under **People**.
 
 ## Verify after deploy — do not skip
 
