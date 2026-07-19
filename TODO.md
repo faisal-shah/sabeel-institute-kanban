@@ -25,17 +25,20 @@ tells you the command to run.
 
 ## B. Firebase project
 
-- [ ] **Create the Firebase project.** Console → Add project. Suggested id:
-      `sabeel-institute-kanban`. **Blaze (pay-as-you-go)** is required — Cloud
-      Functions won't deploy on Spark. Realistic cost at this scale is a few
-      dollars a month at most.
-      → **Hand back:** the project id.
-- [ ] **Create the Firestore database.** Production mode (rules deploy from the
-      repo and will overwrite whatever you pick).
-      → **Hand back:** the location you chose (e.g. `nam5`).
+- [x] **Create the Firebase project.** Project id: **`sabeel-institute-kanban`**
+      (already in `.firebaserc`). **Blaze (pay-as-you-go)** is required — Cloud
+      Functions won't deploy on Spark.
+- [x] **Create the Firestore database.** Location: **`nam5`** (multi-region US).
+      Production mode; rules deploy from the repo and overwrite the console.
 - [ ] **Do NOT enable Cloud Storage.** Attachments are deliberately out of scope.
-- [ ] **Enable Google as the only sign-in provider.** Authentication → Sign-in
+- [x] **Enable Google as the only sign-in provider.** Authentication → Sign-in
       method → Google → Enable. Leave every other provider disabled.
+      The provider will not save until **Support email** is set — that is the
+      only required field on that screen. The SHA-1 notice above it is advance
+      warning about Android (§ D), not something that screen needs.
+- [ ] **Set the public-facing name.** Same screen, currently the generated
+      `project-8266…`. This is the name users see on the Google consent screen
+      when they sign in, so make it **Sabeel Institute Kanban**.
 
 > Needed at: Phase 13.
 
@@ -69,8 +72,21 @@ tells you the command to run.
       → **Hand back:** `google-services.json` (save it to `app/`).
 - [ ] **Add the debug SHA-1**, then **re-download `google-services.json`** — the
       re-download is what adds the Android OAuth client, and native Google
-      Sign-In silently fails without it. Claude will give you the exact
-      `keytool` command for the SHA-1.
+      Sign-In silently fails without it (that is the `DEVELOPER_ERROR` case).
+      The debug fingerprint for this repo's committed debug keystore is:
+
+      `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+
+      Not a secret — it is the fingerprint of a debug key that is committed to
+      the repo, and it only ever signs debug builds. Re-derive it any time with:
+
+      ```sh
+      keytool -list -v -keystore app/android/app/debug.keystore \
+        -alias androiddebugkey -storepass android -keypass android
+      ```
+
+      The **release** build uses a different key, so its SHA-1 must be added too
+      before sharing an APK (§ F).
 - [ ] **Web OAuth client ID** — Claude reads it from `google-services.json`
       (the `client_type: 3` entry) and commits it as `WEB_CLIENT_ID`. Public, not
       secret. Nothing for you to do beyond the above.
