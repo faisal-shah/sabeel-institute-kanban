@@ -625,7 +625,9 @@ try {
   // ---- Notifications inbox (Phase 10) -------------------------------------
   // Sara was @mentioned and assigned, so her inbox should hold entries written
   // by the triggers — not by any client.
-  await sara.getByRole('button', { name: 'Boards' }).click();
+  // My work leaves via Back, like every other screen — it used to have a
+  // 'Boards' button that reset the stack.
+  await sara.getByRole('button', { name: 'Back' }).click();
   await sara.getByRole('button', { name: /^Alerts/ }).click();
   await sara.getByText('Notifications').first().waitFor({ timeout: 20000 });
   await sara.getByText('mentioned you', { exact: false }).waitFor({ timeout: 25000 });
