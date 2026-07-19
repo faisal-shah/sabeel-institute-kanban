@@ -51,11 +51,13 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
     <Screen>
       <Row style={styles.between}>
         <Title>My work</Title>
-        <Button
-          label="Boards"
-          variant="secondary"
-          onPress={() => nav.reset({ name: 'boards' })}
-        />
+        {/* Back, like every other screen. This used to be a "Boards" button
+            that RESET the stack — it happened to land in the right place
+            because My work is only ever pushed from Boards, but it read as a
+            different kind of control than the Back on every sibling screen, and
+            it would silently become wrong the moment My work is reachable from
+            anywhere else. `pop` no-ops at the root, so it is safe regardless. */}
+        <Button label="Back" variant="secondary" onPress={nav.pop} />
       </Row>
       <Caption>
         {total === 0
