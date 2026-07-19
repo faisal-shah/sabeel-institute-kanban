@@ -11,7 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSession, type SessionUser } from './src/session';
 import { initErrorReporting, setErrorUser } from './src/sentry';
-import { useNav } from './src/nav';
+import { useNav, useHardwareBack } from './src/nav';
 import { SignInScreen } from './src/screens/SignInScreen';
 import {
   DisabledScreen,
@@ -55,6 +55,8 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
 
 function Routes() {
   const session = useSession();
+  // Android Back / edge-swipe pops this stack instead of exiting the app.
+  useHardwareBack();
 
   // Tag events with WHO hit them — uid only, never email (see src/sentry.ts).
   // Cleared on sign-out so a shared browser cannot attribute one person's

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { BackHandler } from 'react-native';
 
 /**
  * A tiny navigation stack.
@@ -46,6 +47,36 @@ export function pop() {
 export function reset(route: Route) {
   stack = [route];
   emit();
+}
+
+/**
+ * Wire Android's hardware Back — and the edge-swipe gesture, which raises the
+ * same event — to this stack.
+ *
+ * A hand-rolled stack is invisible to Android, so without this the OS sees an
+ * activity with nothing to pop and EXITS the app from any screen. Opening a
+ * card and swiping back closed the whole app instead of returning to the board.
+ *
+ * Returning true consumes the event. Returning false at the root deliberately
+ * lets Android do its normal thing and leave the app, which is what people
+ * expect from the first screen.
+ *
+ * `BackHandler` is a no-op shim under react-native-web, so this is safe to call
+ * unconditionally. Browser Back is a SEPARATE gap: this stack pushes no history
+ * entries, so the browser's back button still leaves the site — that needs
+ * history integration, noted at the top of this module.
+ */
+export function useHardwareBack() {
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (stack.length > 1) {
+        pop();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, []);
 }
 
 export function useNav() {

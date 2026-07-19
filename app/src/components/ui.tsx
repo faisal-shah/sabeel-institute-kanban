@@ -41,8 +41,16 @@ export function Screen({
   // a maxWidth there would just add dead margin.
   const capped = width === 'content' && isWide;
 
+  // `fill` when not scrolling is load-bearing, not decoration. This wrapper sits
+  // between the flex:1 container and the screen's content, and a View with no
+  // flex sizes to its CONTENT — so on native a child with flex:1 (the board's
+  // pager) collapsed to zero height and rendered nothing at all. Header and
+  // pager controls still drew, because they size to their content, which made it
+  // look like the column was missing rather than the layout being broken.
+  // react-native-web resolves the same tree differently, so web looked correct
+  // throughout. Verified on a device 2026-07-19.
   const body = (
-    <View style={capped ? styles.capped : undefined}>
+    <View style={[!scroll && styles.fill, capped ? styles.capped : null]}>
       {/* Live-data errors are shown, never left to a console nobody reads. */}
       {error ? (
         <View style={[styles.banner, { backgroundColor: t.bg.dangerSoft }]}>

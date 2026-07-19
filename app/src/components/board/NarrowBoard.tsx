@@ -54,6 +54,7 @@ import {
   Title,
 } from '../ui';
 import { radius, space, type, useTheme } from '../../theme';
+import { useLayout } from '../../theme/layout';
 
 /** Stable empties, so an absent board does not churn the memos below. */
 const NO_COLUMNS: BoardColumn[] = [];
@@ -121,7 +122,20 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   // the space available and pushed cards (and the column footer) off the right
   // edge. Measuring also means it stays correct if it is ever nested elsewhere,
   // and it tracks browser resizes for free.
-  const [width, setWidth] = useState(0);
+  //
+  // But measurement must never be the ONLY source of a width. Rendering nothing
+  // until onLayout reported meant a single missed or zero-width layout pass left
+  // a permanently blank board — header and pager controls visible (they sit
+  // outside the ScrollView), no column, no "+ Add card", no way to recover
+  // without leaving the screen. That is what a real device showed on 2026-07-19
+  // while web was fine.
+  //
+  // So: fall back to the window width minus the Screen's horizontal padding,
+  // which is what the measurement converges to anyway. A slightly wrong width
+  // for one frame is a trivial cost against a board that cannot be used at all.
+  const [measured, setMeasured] = useState(0);
+  const layout = useLayout();
+  const width = measured > 0 ? measured : Math.max(0, layout.width - space.lg * 2);
   const selection = useSelection(cards.data ?? EMPTY_CARDS);
 
   // Members come from the BOARD, not the user directory: only admins may list
@@ -282,7 +296,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         ref={scroller}
         onLayout={(e) => {
           const w = e.nativeEvent.layout.width;
-          if (w > 0 && Math.abs(w - width) > 1) setWidth(w);
+          if (w > 0 && Math.abs(w - measured) > 1) setMeasured(w);
         }}
         horizontal
         pagingEnabled
