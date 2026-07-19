@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "826656438175-qotk4v9h03rft5i88bljcrccjn42i9vo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -33,3 +33,4 @@ app/android/build/
 !app/android/app/debug.keystore
 
 .DS_Store
+functions/.secret.local

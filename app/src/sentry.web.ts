@@ -1,31 +1,65 @@
+import { USE_EMULATORS } from './env';
+import * as Sentry from '@sentry/react';
+
 /**
- * Error reporting — WEB. See sentry.ts for the native variant and the rationale.
+ * Error reporting — WEB. See sentry.ts for the native variant.
  *
  * Separate seams because the SDKs differ (@sentry/react vs @sentry/react-native)
- * even though the interface this app uses is identical.
+ * and because web and native report to SEPARATE Sentry projects: a web bundle
+ * and an Android build have different releases and different source maps, and
+ * mixing them makes triage guesswork.
+ *
+ * The DSN comes from gitignored `app/.env.local`, inlined at bundle time.
+ * Without it every function here is a no-op, so a dev build never sends noise to
+ * the production project.
  */
-const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+/**
+ * Reporting is OFF whenever the app is pointed at the emulators, even though a
+ * DSN is present in `.env.local`.
+ *
+ * Without this, every local run and every e2e pass files fake errors into the
+ * production Sentry project — burning a 5K/month event quota on noise and
+ * training everyone to ignore the issue stream. It also caused a concrete
+ * failure: the SDK wraps fetch for breadcrumbs and beacons to an ingest host
+ * the test environment cannot reach, which was enough to stall a sign-in flow
+ * and abort the suite.
+ */
+const DSN = USE_EMULATORS ? undefined : process.env.EXPO_PUBLIC_SENTRY_DSN_WEB;
 
 let initialised = false;
 
 export function initErrorReporting(): void {
   if (initialised || !DSN) return;
   initialised = true;
-  // Wiring @sentry/react happens here once a DSN exists.
+  Sentry.init({
+    dsn: DSN,
+    // Error reporting only. This is a <50-person internal tool; performance
+    // tracing would spend the event quota on data nobody is going to read.
+    tracesSampleRate: 0,
+  });
 }
 
 export function captureError(error: unknown, context?: Record<string, unknown>): void {
   if (!DSN) {
+    // Without a DSN this is still the ONE place errors are funnelled, so a
+    // developer sees them in the console rather than nowhere.
     console.warn('[error]', error, context ?? '');
     return;
   }
-  // Sentry.captureException(error, { extra: context });
+  Sentry.captureException(error, { extra: context });
 }
 
-export function setErrorUser(user: { uid: string; email: string } | null): void {
+/**
+ * Attach the signed-in user to events.
+ *
+ * **Uid only — never email or name.** The uid correlates with the `users`
+ * collection when someone needs to trace a report, which is all triage
+ * requires; putting staff email addresses into a third-party service is a
+ * disclosure this app has no reason to make.
+ */
+export function setErrorUser(uid: string | null): void {
   if (!DSN) return;
-  void user;
-  // Sentry.setUser(user ? { id: user.uid, email: user.email } : null);
+  Sentry.setUser(uid ? { id: uid } : null);
 }
 
 export const errorReportingEnabled = Boolean(DSN);

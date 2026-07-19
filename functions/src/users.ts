@@ -1,5 +1,6 @@
 import './setup';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
+import { guarded, sentryDsn } from './sentry';
 import { logger } from 'firebase-functions/v2';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -19,7 +20,7 @@ import type { Role, UserStatus } from '@sabeel/shared';
  * Claims are the authority; the user doc is a mirror kept for display and for
  * admin screens that need to list people the caller has never met.
  */
-export const setUserAccess = onCall(async (request) => {
+export const setUserAccess = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ uid?: unknown; role?: unknown; status?: unknown }>) => {
   const auth = request.auth;
   if (!auth) {
     throw new HttpsError('unauthenticated', 'Sign in first.');
@@ -102,4 +103,4 @@ export const setUserAccess = onCall(async (request) => {
   });
 
   return { ok: true, uid: targetUid, role: nextRole, status: nextStatus };
-});
+}));

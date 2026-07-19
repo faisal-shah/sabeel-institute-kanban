@@ -6,9 +6,11 @@
  * keeps fresh by force-refreshing the token whenever the server stamps
  * claimsUpdatedAt — so an admin approval un-gates the app live.
  */
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSession, type SessionUser } from './src/session';
+import { initErrorReporting, setErrorUser } from './src/sentry';
 import { useNav } from './src/nav';
 import { SignInScreen } from './src/screens/SignInScreen';
 import {
@@ -54,6 +56,14 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
 function Routes() {
   const session = useSession();
 
+  // Tag events with WHO hit them — uid only, never email (see src/sentry.ts).
+  // Cleared on sign-out so a shared browser cannot attribute one person's
+  // errors to the last person who used it.
+  const uid = session.state === 'signed-in' ? session.user.uid : null;
+  useEffect(() => {
+    setErrorUser(uid);
+  }, [uid]);
+
   switch (session.state) {
     case 'loading':
       return (
@@ -93,6 +103,13 @@ function Routes() {
 }
 
 export default function App() {
+  // Once, before anything renders — an error thrown during the first paint is
+  // exactly the kind worth catching, and initialising inside Routes would miss
+  // it. No-ops without a DSN.
+  useEffect(() => {
+    initErrorReporting();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />

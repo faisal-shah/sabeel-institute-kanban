@@ -1,5 +1,6 @@
 import './setup';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
+import { guarded, sentryDsn } from './sentry';
 import { logger } from 'firebase-functions/v2';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import type { Role, UserStatus } from '@sabeel/shared';
@@ -17,7 +18,7 @@ import { canManageBoards } from '@sabeel/shared';
  *
  * Doing both halves in one server-side batch means they cannot drift.
  */
-export const removeBoardMember = onCall(async (request) => {
+export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ boardId?: unknown; uid?: unknown }>) => {
   const auth = request.auth;
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
 
@@ -74,14 +75,14 @@ export const removeBoardMember = onCall(async (request) => {
   });
 
   return { ok: true, unassignedCards: assigned.size };
-});
+}));
 
 /**
  * How many cards a removal would unassign, so the UI can warn before doing it.
  * "Remove Sara?" and "Remove Sara, unassigning her from 12 cards?" are different
  * questions.
  */
-export const countMemberAssignments = onCall(async (request) => {
+export const countMemberAssignments = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ boardId?: unknown; uid?: unknown }>) => {
   const auth = request.auth;
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
 
@@ -106,4 +107,4 @@ export const countMemberAssignments = onCall(async (request) => {
     .get();
 
   return { count: assigned.data().count };
-});
+}));

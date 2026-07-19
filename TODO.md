@@ -115,15 +115,34 @@ lives in a personal Google account — a continuity risk independent of OAuth.
 
 ## E. Sentry
 
-- [ ] Create a Sentry org/project set. Claude suggests **three projects** so
-      errors don't get mixed: `kanban-web`, `kanban-android`, `kanban-functions`.
-      (One project also works; say which you chose.)
-- [ ] Client DSNs → put in `app/.env.local` (gitignored):
-      `EXPO_PUBLIC_SENTRY_DSN=…`. **Do not paste it in chat.**
-- [ ] Server DSN → run: `firebase functions:secrets:set SENTRY_DSN`
-      (paste the value into that prompt, not into chat).
+- [x] **Three projects created** (2026-07-19), platform set to match the SDK:
+      web → React, android → React Native, functions → Node.js. The platform
+      choice only drives onboarding docs and defaults and is changeable later;
+      the installed SDK is what determines behaviour.
+- [x] **Client DSNs are in `app/.env.local`** (gitignored) as
+      `EXPO_PUBLIC_SENTRY_DSN_WEB` and `EXPO_PUBLIC_SENTRY_DSN_NATIVE`.
+      Two names, not one: web and native are separate projects, and a single
+      shared variable would file Android crashes under the web project.
+- [ ] **`sabeel-kanban-functions` project** — creation was stalling in the
+      Sentry UI. Not a plan limit: [all Sentry plans include unlimited
+      projects](https://sentry.zendesk.com/hc/en-us/articles/23853145201051).
+      Retry in a private window or a different browser. Nothing is blocked
+      meanwhile — the functions seam no-ops without a DSN.
+- [ ] **Server DSN** → once that project exists, run:
 
-> Needed at: Phase 12. Safe to skip until then — the Sentry seams no-op without a DSN.
+      ```sh
+      firebase functions:secrets:set SENTRY_DSN
+      ```
+
+      Paste the value into that prompt, **not into chat**. Then redeploy
+      functions so the binding picks it up.
+
+**Do NOT run `npx @sentry/wizard`.** It rewrites committed native files and
+metro config and writes a `sentry.properties` containing a real auth token. The
+SDKs are wired by hand instead — see `docs/SECRETS.md`.
+
+> Client DSNs are not secret (they ship in every bundle); the functions DSN and
+> any auth token are. `docs/SECRETS.md` sets out which is which.
 
 ---
 
