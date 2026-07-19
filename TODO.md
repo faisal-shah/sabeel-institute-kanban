@@ -149,15 +149,27 @@ SDKs are wired by hand instead — see `docs/SECRETS.md`.
 
 ---
 
-## F. Release build (before sharing an APK)
+## F. Release signing — **a debug-signed APK is already published**
 
-- [ ] **Generate a real release keystore** and store it somewhere you won't lose
-      it — losing it means never being able to update the app. The debug key is
-      only good for sideloading onto your own device.
+v0.1.0 (2026-07-19) ships signed with the **debug keystore**, which is committed
+to this repo. That was fine for getting a build onto your own phone, and it is
+why the debug SHA-1 is the one registered in Firebase — but it means **anyone
+with this repo can sign an update that Android will accept as this app.** Close
+this before the APK goes to the team, not before "sharing" generally.
+
+- [ ] **Generate a real release keystore** and store it where you will not lose
+      it — losing it means never being able to update the app. Claude will give
+      you the exact `keytool` command.
 - [ ] **Register the release SHA-1** on the Firebase Android app, then
-      re-download `google-services.json` again.
+      **re-download `google-services.json`** (the re-download is what adds the
+      OAuth client — see § D).
+- [ ] Point `signingConfigs.release` at it in `app/android/app/build.gradle`,
+      with the passwords in a **gitignored** `keystore.properties`, never in the
+      gradle file.
+- [ ] Re-cut the release. The debug-signed assets should come down once a
+      properly signed build replaces them.
 
-> Needed at: Phase 13. Claude will give you the exact commands.
+> Until this is done, treat v0.1.0 as internal-testing-only.
 
 ---
 
