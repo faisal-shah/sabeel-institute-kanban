@@ -1,0 +1,68 @@
+// Screenshot the exported web build in both color schemes.
+//
+// UI changes are verified by LOOKING, not by reading code — and light/dark ship
+// together, so both get captured. Run after `npm run web:export -w @sabeel/app`.
+//
+//   node scripts/web-shot.mjs [outDirName]
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { readFile, mkdir } from 'node:fs/promises';
+import { extname, join, resolve } from 'node:path';
+
+const ROOT = resolve(import.meta.dirname, '..', 'app', 'dist-web');
+const OUT = resolve(import.meta.dirname, '..', process.argv[2] ?? 'shots');
+const PORT = 4173;
+
+const MIME = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ttf': 'font/ttf',
+};
+
+const server = createServer(async (req, res) => {
+  const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  for (const candidate of [join(ROOT, urlPath), join(ROOT, 'index.html')]) {
+    try {
+      const body = await readFile(candidate);
+      res.writeHead(200, { 'Content-Type': MIME[extname(candidate)] ?? 'application/octet-stream' });
+      return res.end(body);
+    } catch {
+      // fall through to the SPA index
+    }
+  }
+  res.writeHead(404).end('not found');
+});
+
+await new Promise((r) => server.listen(PORT, r));
+await mkdir(OUT, { recursive: true });
+
+const browser = await chromium.launch();
+try {
+  for (const scheme of ['light', 'dark']) {
+    const ctx = await browser.newContext({
+      colorScheme: scheme,
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+
+    await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(OUT, `web-${scheme}.png`), fullPage: true });
+    console.log(`wrote ${join(OUT, `web-${scheme}.png`)}`);
+    if (errors.length) {
+      console.error(`page errors (${scheme}):`, errors);
+      process.exitCode = 1;
+    }
+    await ctx.close();
+  }
+} finally {
+  await browser.close();
+  server.close();
+}

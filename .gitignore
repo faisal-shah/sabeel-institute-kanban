@@ -1,0 +1,34 @@
+node_modules/
+dist/
+dist-web/
+lib/
+build/
+coverage/
+.expo/
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+
+# Secrets & local config — never commit
+.env
+.env.local
+app/.env.local
+functions/.env
+
+# Migration inputs (ClickUp exports may contain personal data)
+migration/
+
+# Screenshots from verification runs
+shots/
+e2e-shots/
+
+# Android build output (android/ itself IS committed once generated)
+app/android/.gradle/
+app/android/app/build/
+app/android/build/
+*.keystore
+!app/android/app/debug.keystore
+
+.DS_Store

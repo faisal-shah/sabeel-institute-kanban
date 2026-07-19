@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Sabeel Kanban",
+    "slug": "sabeel-institute-kanban",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "sabeelkanban",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.sabeelinstitute.kanban",
+      "adaptiveIcon": {
+        "backgroundColor": "#1F6FEB"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-status-bar"]
+  }
+}

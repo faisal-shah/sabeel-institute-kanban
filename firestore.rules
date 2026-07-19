@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// Deny-by-default. The backend (Cloud Functions, Admin SDK) bypasses all rules;
+// clients get only the narrow, explicitly-allowed paths below.
+//
+// Roles live in custom claims (`role`, `status`), set exclusively by the
+// setUserAccess callable. The user doc mirrors them for UI display; the token is
+// what these rules trust.
+//
+// Phase 0: nothing is allowed yet. Boards, cards, comments, activity and
+// notifications arrive with their phases (see docs/PHASE_STATUS.md). The helpers
+// below are the vocabulary every later rule is written in.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    // Domain membership alone grants NOTHING — an admin must approve the account
+    // (see docs/PRODUCT_BRIEF.md, "Domain restriction is a server-side check").
+    function isActive() {
+      return isSignedIn() && request.auth.token.get('status', '') == 'active';
+    }
+    function role() {
+      return request.auth.token.get('role', 'member');
+    }
+    function isManager() {
+      return isActive() && role() in ['manager', 'admin'];
+    }
+    function isAdmin() {
+      return isActive() && role() == 'admin';
+    }
+
+    // ---- Phase 0: deny everything ----
+    // An explicit catch-all so the deny-by-default posture is testable, and so a
+    // future `match` added at the wrong nesting level fails loudly rather than
+    // silently inheriting an allow.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
