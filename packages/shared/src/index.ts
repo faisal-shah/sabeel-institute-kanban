@@ -5,6 +5,7 @@ export * from './boards';
 export * from './due';
 export * from './markdown';
 export * from './mentions';
+export * from './migration';
 export * from './notify';
 export * from './rank';
 export * from './search';
