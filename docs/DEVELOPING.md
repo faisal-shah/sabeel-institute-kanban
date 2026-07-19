@@ -103,6 +103,25 @@ npm run e2e           # full browser flow: sign-in, approval, live un-gating
 `npm run e2e` writes screenshots to `shots/`, and on failure dumps what each page
 actually displayed — much faster than guessing.
 
+## A five-minute tour
+
+With the emulators running and the app open:
+
+1. Sign in as **faisal** → you land on "Waiting for approval".
+2. In a terminal: `npm run grant-admin -- faisal@oursabeel.com`. **Watch the app
+   un-gate by itself** — no reload, no sign-out.
+3. **New board** → it starts with To Do / In Progress / Done.
+4. Add a few cards. On web, drag them between columns. On Android, long-press a
+   card for the "Move to…" sheet.
+5. Tap a card for the detail screen: markdown description with a formatting
+   toolbar, assignees, due date, priority, labels.
+6. **Settings** on the board → add a column, add a label, add a member. Try
+   deleting a column that still has cards; it refuses and says why.
+7. Sign in as **sara** in a second browser (or private window), approve her under
+   **People**, add her to the board, and assign her a card. Her view updates live.
+8. **My work** → everything assigned to you across every board, overdue first.
+9. Toggle your OS between light and dark and watch the brand palette follow.
+
 ## Where things live
 
 - `docs/PRODUCT_BRIEF.md` — decisions and data model. Start here.

@@ -23,8 +23,25 @@ web. "The code looks right" is not verification.
 | 10 | Notifications | not started |
 | 11 | Search + archive | not started |
 | 12 | Polish + deploy readiness | not started |
-| 13 | Production deploy | not started |
-| 14 | ClickUp import + launch | not started |
+| 13 | Production deploy | **blocked on Faisal** — needs the Firebase project (`TODO.md`) |
+| 14 | ClickUp import + launch | blocked on Phase 13 |
+
+## What works today (2026-07-19)
+
+A usable kanban board on both surfaces, running against the emulators:
+
+- Google-only sign-in restricted to `@oursabeel.com`, enforced server-side, with
+  admin approval that un-gates the app live.
+- Admin people-management: approve, reject, disable, change roles.
+- Boards with columns, labels and membership; favourites and recents.
+- Cards with markdown descriptions, assignees, all-day due dates, priority and
+  labels; archive and (manager-only) delete.
+- Web: multi-column board with real drag-and-drop.
+- Android: swipe-paged single-column board with a "Move to…" sheet.
+- My Work: everything assigned to you across every board, grouped by due state.
+- Sabeel brand palette and logo, light and dark, following the OS.
+
+See `docs/DEVELOPING.md` to run it.
 
 Nothing before Phase 13 needs a real Firebase project — everything runs against
 the emulators. Faisal's console tasks are tracked in `TODO.md`.
