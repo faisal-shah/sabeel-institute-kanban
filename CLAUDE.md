@@ -31,8 +31,16 @@ Key product invariants (do not silently change):
   breaking it breaks My Work's security model.
 - **No WIP limits, no watchers, no card start dates.** All considered, all
   declined.
+- **BRAND COLORS ARE FIXED.** `docs/brand/sabeel-color-usage-guide.jpg` is the
+  official Sabeel Institute Brand & Website Color Usage Guide, and
+  `docs/BRAND.md` restates it for code. **Consult both before ANY design or
+  color decision** — new screens, components, illustrations, charts, anything.
+  Warm Ivory (foundation) / Soft Sage (calm) / Dark Raspberry (brand identity,
+  used with purpose) / Antique Gold (sparingly) / Mushroom Taupe (support).
 - **All color goes through semantic theme tokens** from the first screen — light
-  and dark ship together, following the OS. Never hardcode a color.
+  and dark ship together, following the OS. Never hardcode a color; the ESLint
+  rule will reject it. `app/src/theme/palette.ts` is the only exception and is
+  where the brand palette lives.
 - **Boards archive, never hard-delete. Cards can be deleted, but only by
   managers/admins** — members archive.
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one

@@ -21,6 +21,7 @@ import { BoardsScreen } from './src/screens/BoardsScreen';
 import { BoardScreen } from './src/screens/BoardScreen';
 import { BoardSettingsScreen } from './src/screens/BoardSettingsScreen';
 import { CardScreen } from './src/screens/CardScreen';
+import { MyWorkScreen } from './src/screens/MyWorkScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
 import { Screen, Spinner } from './src/components/ui';
 
@@ -34,6 +35,8 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
       return <BoardSettingsScreen boardId={route.boardId} user={user} />;
     case 'card':
       return <CardScreen boardId={route.boardId} cardId={route.cardId} user={user} />;
+    case 'myWork':
+      return <MyWorkScreen user={user} />;
     case 'users':
       return <UsersScreen actor={user} />;
     default:

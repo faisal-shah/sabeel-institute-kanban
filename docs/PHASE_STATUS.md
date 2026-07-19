@@ -15,8 +15,8 @@ web. "The code looks right" is not verification.
 | 2 | Boards + membership | **complete** (2026-07-19) |
 | 3 | Columns + cards + ordering | **complete** (2026-07-19) |
 | 4 | Mobile board | **complete** (2026-07-19, built alongside Phase 3 — the native board was written once, in its final swipe-paged form, rather than twice) |
-| 5 | Card richness | not started |
-| 6 | My Work | not started |
+| 5 | Card richness | **complete** (2026-07-19) |
+| 6 | My Work | **complete** (2026-07-19) |
 | 7 | Bulk actions | not started |
 | 8 | Comments + mentions | not started |
 | 9 | Activity history | not started |
@@ -167,10 +167,16 @@ Scope: the cross-board collection-group query; grouping by due state (overdue /
 today / this week / later); becomes the phone's landing screen.
 
 **Exit criteria**
-- Collection-group index committed to `firestore.indexes.json`.
-- Rules tests: a user reads a card they're assigned to; **cannot** read a card on
-  a board they don't belong to; cannot list all cards globally.
-- Board names resolve with **no** extra reads (they come from the user's board list).
+- [x] Collection-group index committed to `firestore.indexes.json` (still needs
+      a **production** probe at Phase 13 — the emulator does not enforce them).
+- [x] Rules tests: a user reads a card they're assigned to; **cannot** read a
+      card on a board they don't belong to (being assigned to one card does not
+      open the rest of that board); cannot list all cards globally; cannot query
+      someone else's assignments.
+- [x] Board names resolve with **no** extra reads — taken from the user's own
+      board list, which is sound precisely because assignment implies membership.
+- [x] The collection-group rule lives at `match /{path=**}/cards/{cardId}`; a
+      board-scoped rule does not apply to collection-group queries at all.
 
 ## Phase 7 — Bulk actions
 

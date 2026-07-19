@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
 import { signInWithGoogle, googleSignInAvailable } from '../auth/google';
 import { DEV_ACCOUNTS, devSignIn, devSignInAvailable } from '../auth/devSignIn';
 import { Body, Button, Caption, Card, Row, Screen, Title } from '../components/ui';
-import { space } from '../theme';
+import { radius, space, useTheme } from '../theme';
+import sabeelLogo from '../../assets/brand/sabeel-logo.png';
 
 export function SignInScreen() {
+  const t = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +27,23 @@ export function SignInScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Title>Sabeel Kanban</Title>
+        {/*
+          The logo belongs on the entry screen and nowhere else — inside the app
+          the brand is carried by the palette, and a logo repeated on every
+          screen is chrome that costs space the board needs. The mark is dark
+          calligraphy with gold accents, so it needs a light ground in both
+          themes rather than the canvas colour.
+        */}
+        <View style={[styles.logoPlate, { backgroundColor: t.bg.brandPlate }]}>
+          <Image
+            source={sabeelLogo}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityRole="image"
+            accessibilityLabel="Sabeel Institute"
+          />
+        </View>
+        <Title>Kanban</Title>
         <Body muted>Sign in with your @{ALLOWED_EMAIL_DOMAIN} account.</Body>
       </View>
 
@@ -78,6 +96,14 @@ export function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: space.xs, marginBottom: space.md },
+  header: { gap: space.xs, marginBottom: space.md, alignItems: 'center' },
+  logoPlate: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingVertical: space.xl,
+    borderRadius: radius.lg,
+    marginBottom: space.md,
+  },
+  logo: { width: 260, height: 130 },
   wrap: { flexWrap: 'wrap' },
 });

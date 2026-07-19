@@ -12,20 +12,23 @@ export function localId(prefix: string): string {
 }
 
 /**
- * A palette that stays legible on BOTH light and dark backgrounds. Label colors
- * are the one place users pick a color, so the choices are constrained rather
- * than free — an arbitrary picker guarantees someone chooses pale yellow and it
- * vanishes in light mode.
+ * Label colors: a fixed palette, not a free picker.
+ *
+ * Two constraints. They must stay legible on BOTH the light and dark app
+ * backgrounds — a free picker guarantees someone chooses pale yellow and it
+ * vanishes on ivory. And they should sit comfortably beside the Sabeel brand
+ * palette (see docs/BRAND.md), so the first entries are drawn from it and the
+ * rest are muted, earthy tones rather than saturated primaries.
  */
 export const LABEL_COLORS = [
-  '#D73A49', // red
-  '#E36209', // orange
-  '#B08800', // amber
-  '#2DA44E', // green
-  '#0969DA', // blue
-  '#8250DF', // purple
-  '#BF3989', // magenta
-  '#57606A', // slate
+  '#8A1538', // Dark Raspberry — brand
+  '#C89B3C', // Antique Gold — brand
+  '#4E7A43', // Sage, darkened to read on ivory
+  '#9C8B7A', // Mushroom Taupe — brand
+  '#A32218', // clay red
+  '#C2611F', // burnt orange
+  '#3E6B8A', // slate blue
+  '#6B4C8A', // plum
 ] as const;
 
 export function defaultColumns(): BoardColumn[] {

@@ -4,6 +4,8 @@ Access-controlled kanban boards for Sabeel Institute — Android app and respons
 website from one Expo codebase, on a Firebase backend. Replaces ClickUp.
 
 **Docs**
+- `docs/BRAND.md` + `docs/brand/sabeel-color-usage-guide.jpg` — the official
+  Sabeel Institute color guide. Consult before any design or color decision.
 - `docs/PRODUCT_BRIEF.md` — decisions, data model, access rules. Source of truth.
 - `docs/PHASE_STATUS.md` — the phase plan, exit criteria, and live build status.
 - `docs/INHERITED-STACK.md` — what carries over from the sibling time-tracker

@@ -30,6 +30,18 @@ export const db: Firestore = initializeFirestore(app, {
     // gets persistence and the others silently fall back to memory.
     tabManager: persistentMultipleTabManager(),
   }),
+  // Firestore's default WebChannel transport is fast but not always reliable —
+  // some proxies, corporate networks and local emulator setups let the FIRST
+  // response through and then quietly drop the stream. The failure is invisible:
+  // no error fires, the listener simply never receives another snapshot, and the
+  // app sits on a spinner while the server has done everything right. We hit it
+  // intermittently against the emulator on 2026-07-19.
+  //
+  // Auto-detect rather than force: it falls back to long polling only when the
+  // stream actually fails, so a healthy connection keeps the faster transport.
+  // (React Native has no working WebChannel at all, so firebase.ts forces it —
+  // see docs/INHERITED-STACK.md lesson 10.)
+  experimentalAutoDetectLongPolling: true,
 });
 
 export const functions: Functions = getFunctions(app, 'us-central1');

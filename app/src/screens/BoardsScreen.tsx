@@ -122,6 +122,11 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       <Row style={styles.between}>
         <Title>Boards</Title>
         <Row>
+          <Button
+            label="My work"
+            variant="secondary"
+            onPress={() => nav.push({ name: 'myWork' })}
+          />
           {sessionCan.administerUsers(user) ? (
             <Button
               label="People"

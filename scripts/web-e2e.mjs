@@ -327,8 +327,57 @@ try {
     .waitFor({ state: 'detached', timeout: 20000 });
   check('a card can be archived off the board', true);
 
+  // ---- My Work: the cross-board collection-group query (Phase 6) ----------
+  // Assign a card to sara, then confirm it appears on HER cross-board view —
+  // which is the collection-group query, the assignee read-rule, and the
+  // board-name resolution all working together.
+  await admin.getByText('Fix signup flow').click();
+  await admin.getByText('Assignees').waitFor({ timeout: 20000 });
+  // The assignee list comes from a separate live query, so wait for it to arrive
+  // before counting — otherwise we sample an empty list and conclude there is
+  // nobody to assign.
+  await admin
+    .getByRole('button', { name: 'Assign', exact: true })
+    .first()
+    .waitFor({ timeout: 25000 });
+
+  // Assign EVERY board member rather than the first row — the list is ordered by
+  // display name, so "the first Assign button" is whoever sorts first, which is
+  // not necessarily the person whose My Work we then check.
+  for (let i = 0; i < 5; i++) {
+    const assign = admin.getByRole('button', { name: 'Assign', exact: true });
+    if ((await assign.count()) === 0) break;
+    await assign.first().click();
+    await admin.waitForTimeout(1000);
+  }
+  await admin.getByRole('button', { name: 'Unassign' }).first().waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: 'Today' }).click();
+  await admin.waitForTimeout(1200);
+  check('a card can be assigned and given a due date', true);
+  await admin.screenshot({ path: join(SHOTS, 'p5-card-detail-light.png'), fullPage: true });
+
+  await sara.getByRole('button', { name: 'Back' }).first().click();
+  await sara.getByRole('button', { name: 'My work' }).click();
+  await sara.getByText('My work').first().waitFor({ timeout: 20000 });
+  await sara.getByText('Fix signup flow').waitFor({ timeout: 25000 });
+  check('My Work shows a card assigned on another board', true);
+
+  const showsBoardName = await sara
+    .getByText('Fundraising 2026')
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check('My Work names the board, resolved with no extra reads', showsBoardName);
+
+  const showsToday = await sara.getByText('Today', { exact: false }).first().isVisible();
+  check('My Work groups by due state', showsToday);
+  await sara.screenshot({ path: join(SHOTS, 'p6-mywork-light.png'), fullPage: true });
+
   // ---- Domain enforcement, from a real client -----------------------------
   const { ctx: badCtx, page: bad } = await newApp(browser);
+  // Several sessions are live by now, so give this context room to boot before
+  // interacting — a click that races the first render reads as a mystery failure.
+  await bad.getByText('Sign in with Google').waitFor({ timeout: 40000 });
   await bad.getByRole('button', { name: 'intruder@gmail.com' }).click();
   // The trigger deletes the account; the client is bounced back to sign-in.
   await bad.getByText('Sign in with Google').waitFor({ timeout: 30000 });

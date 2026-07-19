@@ -19,6 +19,7 @@ functions/.env
 
 # Migration inputs (ClickUp exports may contain personal data)
 migration/
+docs/brand/*.tmp
 
 # Screenshots from verification runs
 shots/

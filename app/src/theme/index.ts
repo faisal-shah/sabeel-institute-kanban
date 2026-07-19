@@ -36,6 +36,12 @@ function build(name: ThemeName) {
       accentSoft: p.accentSoft,
       /** Tint behind destructive confirmation. */
       dangerSoft: p.dangerSoft,
+      /**
+       * Ground for the Sabeel logo. Light in BOTH themes, because the mark is
+       * dark calligraphy with gold accents and recolouring it would discard
+       * part of the brand.
+       */
+      brandPlate: p.brandPlate,
     },
     text: {
       primary: p.textPrimary,

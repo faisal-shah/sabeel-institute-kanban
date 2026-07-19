@@ -24,6 +24,17 @@ import {
   type Query,
 } from 'firebase/firestore';
 
+/**
+ * A document as handed to a mapper. `path` matters for collection-group queries,
+ * where the parent ids live only in the path — My Work reads the board id from
+ * `boards/{boardId}/cards/{cardId}` rather than duplicating it into a field.
+ */
+export interface LiveDoc {
+  id: string;
+  data: Record<string, unknown>;
+  path: string;
+}
+
 export type LiveState<T> =
   | { status: 'loading'; data: undefined; error: undefined }
   | { status: 'ready'; data: T; error: undefined }
@@ -72,7 +83,7 @@ export function useListenerError(): string | null {
 export function useLiveQuery<T>(
   label: string,
   build: () => Query | null,
-  map: (docs: { id: string; data: Record<string, unknown> }[]) => T,
+  map: (docs: LiveDoc[]) => T,
   deps: readonly unknown[],
 ): LiveState<T> {
   const [state, setState] = useState<LiveState<T>>(LOADING);
@@ -92,7 +103,11 @@ export function useLiveQuery<T>(
         setState({
           status: 'ready',
           data: map(
-            snap.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> })),
+            snap.docs.map((d) => ({
+              id: d.id,
+              data: d.data() as Record<string, unknown>,
+              path: d.ref.path,
+            })),
           ),
           error: undefined,
         });
@@ -114,7 +129,7 @@ export function useLiveQuery<T>(
 export function useLiveDoc<T>(
   label: string,
   build: () => DocumentReference | null,
-  map: (doc: { id: string; data: Record<string, unknown> } | null) => T,
+  map: (doc: LiveDoc | null) => T,
   deps: readonly unknown[],
 ): LiveState<T> {
   const [state, setState] = useState<LiveState<T>>(LOADING);
@@ -134,7 +149,11 @@ export function useLiveDoc<T>(
           status: 'ready',
           data: map(
             snap.exists()
-              ? { id: snap.id, data: snap.data() as Record<string, unknown> }
+              ? {
+                  id: snap.id,
+                  data: snap.data() as Record<string, unknown>,
+                  path: snap.ref.path,
+                }
               : null,
           ),
           error: undefined,
