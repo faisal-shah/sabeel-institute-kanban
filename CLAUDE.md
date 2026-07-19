@@ -51,7 +51,18 @@ react-native-web / Firebase JS SDK) that keep getting rediscovered — auth in
 in-app browsers, emulator project-id partitioning, stale Metro bundles,
 unthemeable RNW controls, live-query empty-vs-absent. It is written symptom-first
 and is intended to become a reusable skill: **when something in this stack costs
-real time to diagnose, add the entry there**, not only in a commit message.
+real time to diagnose, add the entry there**, not only in a commit message. It is
+published as the `expo-firebase-stack` skill in `../agent-skills/`.
+
+Its closing section, **"How this stack fools you"**, is the one to read before
+debugging anything subtle here. The recurring shape is that failures imitate
+success: APIs that run and do nothing (`Keyboard` events under edge-to-edge,
+RNW's unthemeable `Switch`), verification steps that counterfeit the result (a
+scroll during testing that looked like the fix working), a green web suite that
+says nothing about a native layout bug, and resources that report "deployed"
+while not working. **Prove the mechanism ran before concluding a fix was
+insufficient, re-test without touching anything, and reproduce on the surface
+that is actually broken.**
 
 Sibling project `../sabeel-institute-time-tracker/` is the reference
 implementation for every convention here — read its files directly rather than
