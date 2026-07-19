@@ -122,9 +122,14 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
   return (
     <Screen>
-      <Row style={styles.between}>
-        <Title>Boards</Title>
-        <Row>
+      {/*
+        The header actions WRAP. On a phone, five buttons on one line pushed
+        "Sign out" off the right edge entirely — there was no way to sign out on
+        Android. Wrapping costs a line of vertical space and keeps every action
+        reachable at any width.
+      */}
+      <Title>Boards</Title>
+      <Row style={styles.actions}>
           <Button
             label="Search"
             variant="secondary"
@@ -148,7 +153,6 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
             />
           ) : null}
           <Button label="Sign out" variant="secondary" onPress={signOut} />
-        </Row>
       </Row>
 
       {sessionCan.manageBoards(user) ? (
@@ -275,6 +279,8 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
 const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
+  /** Wraps so no action can be pushed off a narrow screen. */
+  actions: { flexWrap: 'wrap' },
   grow: { flex: 1, gap: space.xs },
   star: { width: 20, height: 20, borderRadius: radius.pill, borderWidth: 2 },
   input: {
