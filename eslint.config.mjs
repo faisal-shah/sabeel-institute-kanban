@@ -47,6 +47,14 @@ export default tseslint.config(
     },
   },
   {
+    // Playwright scripts run in Node, but the bodies passed to page.evaluate()
+    // execute inside the browser, so both global sets are legitimate here.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
+  {
     // Hooks correctness matters more than usual here: useLiveQuery's whole
     // safety property is that its state resets when its dependencies change, so
     // a wrong dependency array reintroduces exactly the stale-data bug the

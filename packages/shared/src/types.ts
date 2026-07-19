@@ -58,6 +58,14 @@ export interface BoardDoc {
   description: string;
   archived: boolean;
   columns: BoardColumn[];
+  /**
+   * The ids from `columns`, duplicated as a flat array.
+   *
+   * Firestore rules cannot search a list of maps, so this is what lets a card
+   * write be checked against "is this a real column on this board?" in one
+   * cheap expression. Always written together with `columns`.
+   */
+  columnIds: string[];
   labels: BoardLabel[];
   /** Drives `array-contains` queries for "my boards". */
   memberUids: string[];

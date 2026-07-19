@@ -129,6 +129,10 @@ try {
     await admin.getByText('Dev sign-in (emulator only)').isVisible(),
   );
   await admin.screenshot({ path: join(SHOTS, 'p1-signin-light.png'), fullPage: true });
+  await admin.emulateMedia({ colorScheme: 'dark' });
+  await admin.waitForTimeout(300);
+  await admin.screenshot({ path: join(SHOTS, 'p1-signin-dark.png'), fullPage: true });
+  await admin.emulateMedia({ colorScheme: 'light' });
 
   // ---- Sign in → pending gate --------------------------------------------
   await admin.getByRole('button', { name: 'faisal', exact: true }).click();
@@ -140,18 +144,19 @@ try {
   // No reload, no re-navigation: the open page must react on its own.
   const urlBefore = admin.url();
   await grantAdmin('faisal@oursabeel.com');
-  await admin.getByText('Manage people').waitFor({ timeout: 25000 });
+  await admin.getByRole('button', { name: 'New board' }).waitFor({ timeout: 25000 });
   check('approval un-gates the OPEN app with no reload', admin.url() === urlBefore);
   await admin.screenshot({ path: join(SHOTS, 'p1-home-light.png'), fullPage: true });
 
   // ---- A second person signs in and waits ---------------------------------
   const { ctx: saraCtx, page: sara } = await newApp(browser);
+  pages.set('sara', sara);
   await sara.getByRole('button', { name: 'sara', exact: true }).click();
   await sara.getByText('Waiting for approval').waitFor({ timeout: 25000 });
   check('second account also lands pending', true);
 
   // ---- Admin sees and approves her ----------------------------------------
-  await admin.getByText('Manage people').click();
+  await admin.getByRole('button', { name: 'People' }).click();
   await admin.getByText('People', { exact: true }).waitFor({ timeout: 15000 });
   await admin.getByText('sara@oursabeel.com').waitFor({ timeout: 20000 });
   check('admin sees the pending person in the approval queue', true);
@@ -160,15 +165,167 @@ try {
   await admin.getByRole('button', { name: 'Approve' }).first().click();
 
   // Her open page must un-gate on its own too.
-  await sara.getByText('Sabeel Kanban').first().waitFor({ timeout: 25000 });
-  await sara
-    .getByText('See the boards you have been added to.')
-    .waitFor({ timeout: 25000 });
-  check('approved member un-gates live and sees member-level capabilities', true);
+  await sara.getByText('Boards', { exact: true }).waitFor({ timeout: 25000 });
+  check('approved member un-gates live', true);
 
-  const saraSeesAdminTools = await sara.getByText('Manage people').isVisible();
-  check('a member does NOT get admin tools', !saraSeesAdminTools);
+  const saraSeesPeople = await sara
+    .getByRole('button', { name: 'People' })
+    .isVisible()
+    .catch(() => false);
+  check('a member does NOT get admin tools', !saraSeesPeople);
   await sara.screenshot({ path: join(SHOTS, 'p1-member-home-light.png'), fullPage: true });
+
+  // Back to the board list so the Phase 2 flow starts from a known place.
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  await admin.getByRole('button', { name: 'New board' }).waitFor({ timeout: 15000 });
+
+  // ---- Boards (Phase 2) ---------------------------------------------------
+  await admin.getByRole('button', { name: 'New board' }).click();
+  await admin.getByPlaceholder('Board name').fill('Fundraising 2026');
+  await admin.getByRole('button', { name: 'Create', exact: true }).click();
+  await admin.getByText('Fundraising 2026').first().waitFor({ timeout: 20000 });
+  check('a manager can create a board and lands on it', true);
+
+  // Default columns exist so a new board is usable immediately.
+  await admin.getByText('To Do').first().waitFor({ timeout: 15000 });
+  await admin.getByText('In Progress').first().waitFor({ timeout: 15000 });
+  await admin.getByText('Done').first().waitFor({ timeout: 15000 });
+  check('a new board starts with the three default columns', true);
+  await admin.screenshot({ path: join(SHOTS, 'p2-board-light.png'), fullPage: true });
+
+  // Board settings: add a column, add a label, add a member.
+  await admin.getByRole('button', { name: 'Settings' }).click();
+  await admin.getByText('Board settings').waitFor({ timeout: 15000 });
+  await admin.getByPlaceholder('New column name').fill('Blocked');
+  await admin.getByRole('button', { name: 'Add column' }).click();
+  await admin.getByText('Blocked').first().waitFor({ timeout: 15000 });
+  check('a manager can add a column', true);
+
+  await admin.getByPlaceholder('New label name').fill('urgent');
+  await admin.getByRole('button', { name: 'Add label' }).click();
+  await admin.getByText('urgent').first().waitFor({ timeout: 15000 });
+  check('a manager can add a label', true);
+
+  // Sara is active by now, so she should be addable to the board.
+  await admin.getByText('Add someone').waitFor({ timeout: 15000 });
+  await admin.getByRole('button', { name: 'Add', exact: true }).first().click();
+  await admin.getByText('Members (2)').waitFor({ timeout: 20000 });
+  check('a manager can add a member to a board', true);
+  await admin.screenshot({ path: join(SHOTS, 'p2-settings-light.png'), fullPage: true });
+
+  // The member's OPEN app must now show the board, with no reload.
+  await sara.getByText('Fundraising 2026').first().waitFor({ timeout: 25000 });
+  check('a member sees a board live once added, with no reload', true);
+  await sara.screenshot({ path: join(SHOTS, 'p2-member-boards-light.png'), fullPage: true });
+
+  // Members do not get board administration.
+  await sara.getByText('Fundraising 2026').first().click();
+  await sara.getByText('To Do').first().waitFor({ timeout: 15000 });
+  const saraSeesSettings = await sara
+    .getByRole('button', { name: 'Settings' })
+    .isVisible()
+    .catch(() => false);
+  check('a member gets no board Settings button', !saraSeesSettings);
+
+  const saraSeesNewBoard = await sara
+    .getByRole('button', { name: 'New board' })
+    .isVisible()
+    .catch(() => false);
+  check('a member cannot create boards', !saraSeesNewBoard);
+
+  // ---- Cards (Phase 3) ----------------------------------------------------
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  await admin.getByText('To Do').first().waitFor({ timeout: 20000 });
+
+  // Add three cards to the first column.
+  //
+  // Typed with real keystrokes rather than fill(): fill() sets the value and
+  // fires one input event, which a controlled React input can miss, leaving the
+  // component's state empty while the DOM looks correct — the submit then
+  // silently no-ops on an empty title. Enter matches how people actually add
+  // cards anyway.
+  for (const title of ['Fix signup flow', 'Draft newsletter', 'Book venue']) {
+    await admin.getByRole('button', { name: '+ Add card' }).first().click();
+    const input = admin.getByPlaceholder('Card title');
+    await input.waitFor({ timeout: 10000 });
+    await input.click();
+    await input.pressSequentially(title, { delay: 10 });
+    await input.press('Enter');
+    await admin.getByText(title).waitFor({ timeout: 20000 });
+  }
+  check('cards can be created and appear live', true);
+  await admin.screenshot({ path: join(SHOTS, 'p3-board-cards-light.png'), fullPage: true });
+
+  // Cards land in creation order (each appended after the last).
+  const order = await admin.evaluate(() => {
+    const tiles = [...document.querySelectorAll('[data-testid^="card-"]')];
+    return tiles.map((t) => t.getAttribute('data-testid'));
+  });
+  check(
+    'new cards append in order',
+    order.slice(0, 3).join('|') ===
+      'card-Fix signup flow|card-Draft newsletter|card-Book venue',
+    order.join(' , '),
+  );
+
+  // Drag the third card into the second column.
+  //
+  // Playwright's dragTo() synthesises MOUSE events, which do not trigger the
+  // HTML5 drag-and-drop API at all — the handlers this board actually uses. So
+  // dispatch the real drag events with a shared DataTransfer, the way a browser
+  // does.
+  await admin.evaluate(() => {
+    const card = document.querySelector('[data-testid="card-Book venue"]');
+    // The column PANEL is the outermost div whose text begins with the column
+    // name — the one carrying the drop handler.
+    const target = [...document.querySelectorAll('div')]
+      .filter((d) => d.textContent?.trimStart().startsWith('In Progress'))
+      .sort((a, b) => b.textContent.length - a.textContent.length)[0];
+    if (!card || !target) throw new Error('drag source or target not found');
+
+    const dt = new DataTransfer();
+    const fire = (el, type) =>
+      el.dispatchEvent(
+        new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }),
+      );
+
+    fire(card, 'dragstart');
+    fire(target, 'dragover');
+    fire(target, 'drop');
+    fire(card, 'dragend');
+  });
+  await admin.waitForTimeout(2500);
+
+  const movedIntoDoing = await admin.evaluate(() => {
+    // The column panel containing "In Progress" should now hold the card.
+    const panels = [...document.querySelectorAll('div')].filter((d) =>
+      d.textContent?.startsWith('In Progress'),
+    );
+    return panels.some((p) => p.querySelector('[data-testid="card-Book venue"]') !== null);
+  });
+  check('a card can be dragged to another column', movedIntoDoing);
+  await admin.screenshot({ path: join(SHOTS, 'p3-board-dragged-light.png'), fullPage: true });
+
+  // The member's open board must reflect the move without a reload.
+  await sara.getByText('Book venue').first().waitFor({ timeout: 25000 });
+  check('another person sees new and moved cards live', true);
+
+  // A column with cards cannot be deleted.
+  await admin.getByRole('button', { name: 'Delete column To Do' }).click();
+  await admin.getByText(/still has \d+ card/).waitFor({ timeout: 15000 });
+  check('deleting a non-empty column is refused, with a reason', true);
+  await admin.screenshot({
+    path: join(SHOTS, 'p3-column-delete-blocked-light.png'),
+    fullPage: true,
+  });
+  await admin.getByRole('button', { name: 'Dismiss' }).click();
+
+  // Archiving removes a card from the board.
+  await admin.getByRole('button', { name: 'Archive Draft newsletter' }).click();
+  await admin
+    .getByText('Draft newsletter')
+    .waitFor({ state: 'detached', timeout: 20000 });
+  check('a card can be archived off the board', true);
 
   // ---- Domain enforcement, from a real client -----------------------------
   const { ctx: badCtx, page: bad } = await newApp(browser);
@@ -182,15 +339,19 @@ try {
   check('non-org account is rejected server-side and never reaches a gate', !stillSignedIn);
 
   // ---- Dark mode ----------------------------------------------------------
-  const { page: darkAdmin } = await newApp(browser, 'dark');
-  await darkAdmin.getByText('Sign in with Google').waitFor({ timeout: 20000 });
-  await darkAdmin.screenshot({ path: join(SHOTS, 'p1-signin-dark.png'), fullPage: true });
-  await darkAdmin.getByRole('button', { name: 'faisal', exact: true }).click();
-  await darkAdmin.getByText('Manage people').waitFor({ timeout: 25000 });
-  await darkAdmin.getByText('Manage people').click();
-  await darkAdmin.getByText('People', { exact: true }).waitFor({ timeout: 15000 });
-  await darkAdmin.screenshot({ path: join(SHOTS, 'p1-users-dark.png'), fullPage: true });
-  check('dark theme renders the same flows', true);
+  // Re-emulate the colour scheme on the page we already have, rather than
+  // opening a fourth context and signing in again. The theme follows the OS
+  // signal, so this exercises exactly the same code path — and avoids four
+  // concurrent sessions competing for the dev server.
+  await admin.emulateMedia({ colorScheme: 'dark' });
+  await admin.waitForTimeout(500);
+  await admin.screenshot({ path: join(SHOTS, 'p2-settings-dark.png'), fullPage: true });
+
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  await admin.getByText('Fundraising 2026').first().waitFor({ timeout: 20000 });
+  await admin.screenshot({ path: join(SHOTS, 'p2-board-dark.png'), fullPage: true });
+  check('dark theme renders the board flows', true);
+  await admin.emulateMedia({ colorScheme: 'light' });
 
   // ---- Production-safety: the dev sign-in must NOT survive an export --------
   // `expo export` sets __DEV__ false, which is one of the two conditions gating

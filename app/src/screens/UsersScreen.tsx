@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ROLES, type Role, type UserStatus } from '@sabeel/shared';
 import { setUserAccess, useAllUsers, type AdminUserRow } from '../users';
 import type { SessionUser } from '../session';
+import { useNav } from '../nav';
 import {
   Body,
   Button,
@@ -103,6 +104,7 @@ function UserRow({
 }
 
 export function UsersScreen({ actor }: { actor: SessionUser }) {
+  const nav = useNav();
   const users = useAllUsers();
   const [error, setError] = useState<string | null>(null);
   const [busyUid, setBusyUid] = useState<string | null>(null);
@@ -127,7 +129,11 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
 
   return (
     <Screen>
-      <Title>People</Title>
+      <Row style={styles.headerRow}>
+        <Title>People</Title>
+        {/* Without this the screen is a dead end — there is no other way back. */}
+        <Button label="Back" variant="secondary" onPress={nav.pop} />
+      </Row>
       <Caption>
         Only admins approve accounts and change roles. Managers create boards and
         may join any board; members see only the boards they&rsquo;re added to.

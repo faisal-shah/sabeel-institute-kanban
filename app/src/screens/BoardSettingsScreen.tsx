@@ -1,0 +1,365 @@
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  LABEL_COLORS,
+  localId,
+  newLabel,
+  validateBoardName,
+  validateColumnName,
+  type BoardColumn,
+} from '@sabeel/shared';
+import {
+  addBoardMember,
+  countMemberAssignments,
+  removeBoardMember,
+  updateBoard,
+  useBoard,
+} from '../boards';
+import { useAllUsers } from '../users';
+import type { SessionUser } from '../session';
+import { useNav } from '../nav';
+import {
+  Body,
+  Button,
+  Caption,
+  Card,
+  Heading,
+  Pill,
+  Row,
+  Screen,
+  Spinner,
+  TextField,
+  Title,
+} from '../components/ui';
+import { radius, space, useTheme } from '../theme';
+
+export function BoardSettingsScreen({
+  boardId,
+  user,
+}: {
+  boardId: string;
+  user: SessionUser;
+}) {
+  const nav = useNav();
+  const board = useBoard(boardId);
+  // Only admins may list all users; managers add members by picking from the
+  // board's own view, so a non-admin manager sees an empty picker and a note.
+  const allUsers = useAllUsers();
+  const t = useTheme();
+
+  const [newColumn, setNewColumn] = useState('');
+  const [newLabelName, setNewLabelName] = useState('');
+  const [labelColor, setLabelColor] = useState<string>(LABEL_COLORS[0]);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    uid: string;
+    cards: number;
+  } | null>(null);
+
+  if (board.status === 'loading') return <Spinner label="Loading board…" />;
+  const b = board.data;
+  if (!b) {
+    return (
+      <Screen>
+        <Title>Board not found</Title>
+        <Button label="Back" variant="secondary" onPress={nav.pop} />
+      </Screen>
+    );
+  }
+
+  async function run(fn: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function addColumn() {
+    const problem = validateColumnName(newColumn, b!.columns);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    const next: BoardColumn[] = [
+      ...b!.columns,
+      { id: localId('col'), name: newColumn.trim() },
+    ];
+    setNewColumn('');
+    await run(() => updateBoard(boardId, { columns: next }));
+  }
+
+  async function renameBoard(name: string) {
+    const problem = validateBoardName(name);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    await run(() => updateBoard(boardId, { name: name.trim() }));
+  }
+
+  async function askRemove(uid: string) {
+    // "Remove Sara?" and "Remove Sara, unassigning 12 cards?" are different
+    // questions — find out which one we are asking before asking it.
+    const cards = await countMemberAssignments(boardId, uid).catch(() => 0);
+    setPendingRemoval({ uid, cards });
+  }
+
+  const members = (allUsers.data ?? []).filter((u) => b.memberUids.includes(u.uid));
+  const nonMembers = (allUsers.data ?? []).filter(
+    (u) => !b.memberUids.includes(u.uid) && u.status === 'active',
+  );
+
+  return (
+    <Screen>
+      <Row style={styles.between}>
+        <Title>Board settings</Title>
+        <Button label="Back" variant="secondary" onPress={nav.pop} />
+      </Row>
+
+      {error ? (
+        <Card>
+          <Body>{error}</Body>
+        </Card>
+      ) : null}
+
+      <Heading>Name</Heading>
+      <Card>
+        <BoardNameEditor initial={b.name} onSave={renameBoard} />
+      </Card>
+
+      <Heading>Columns</Heading>
+      <Card>
+        {b.columns.map((c, i) => (
+          <Row key={c.id} style={styles.between}>
+            <Body>{c.name}</Body>
+            <Row>
+              <Button
+                label="↑"
+                variant="secondary"
+                disabled={i === 0}
+                onPress={() =>
+                  run(() => {
+                    const next = [...b.columns];
+                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                    return updateBoard(boardId, { columns: next });
+                  })
+                }
+              />
+              <Button
+                label="↓"
+                variant="secondary"
+                disabled={i === b.columns.length - 1}
+                onPress={() =>
+                  run(() => {
+                    const next = [...b.columns];
+                    [next[i + 1], next[i]] = [next[i], next[i + 1]];
+                    return updateBoard(boardId, { columns: next });
+                  })
+                }
+              />
+            </Row>
+          </Row>
+        ))}
+        <Caption>
+          Columns are removed from the board screen, and only once they are
+          empty — so no cards can vanish with them.
+        </Caption>
+        <TextField
+          value={newColumn}
+          onChangeText={setNewColumn}
+          placeholder="New column name"
+          onSubmit={addColumn}
+        />
+        <Button label="Add column" onPress={addColumn} disabled={!newColumn.trim()} />
+      </Card>
+
+      <Heading>Labels</Heading>
+      <Card>
+        {b.labels.length === 0 ? <Caption>No labels yet.</Caption> : null}
+        {b.labels.map((l) => (
+          <Row key={l.id} style={styles.between}>
+            <Row>
+              <View style={[styles.swatch, { backgroundColor: l.color }]} />
+              <Body>{l.name}</Body>
+            </Row>
+            <Button
+              label="Remove"
+              variant="secondary"
+              onPress={() =>
+                run(() =>
+                  updateBoard(boardId, {
+                    labels: b.labels.filter((x) => x.id !== l.id),
+                  }),
+                )
+              }
+            />
+          </Row>
+        ))}
+        <TextField
+          value={newLabelName}
+          onChangeText={setNewLabelName}
+          placeholder="New label name"
+        />
+        <Row style={styles.wrap}>
+          {LABEL_COLORS.map((c) => (
+            <Pressable
+              key={c}
+              onPress={() => setLabelColor(c)}
+              accessibilityRole="button"
+              accessibilityLabel={`Label colour ${c}`}
+            >
+              <View
+                style={[
+                  styles.swatch,
+                  styles.swatchPick,
+                  {
+                    backgroundColor: c,
+                    borderColor: labelColor === c ? t.text.primary : 'transparent',
+                  },
+                ]}
+              />
+            </Pressable>
+          ))}
+        </Row>
+        <Button
+          label="Add label"
+          disabled={!newLabelName.trim()}
+          onPress={() =>
+            run(async () => {
+              await updateBoard(boardId, {
+                labels: [...b.labels, newLabel(newLabelName, labelColor)],
+              });
+              setNewLabelName('');
+            })
+          }
+        />
+      </Card>
+
+      <Heading>Members ({b.memberUids.length})</Heading>
+      <Card>
+        {members.map((m) => (
+          <Row key={m.uid} style={styles.between}>
+            <View style={styles.grow}>
+              <Body>{m.displayName}</Body>
+              <Caption>{m.email}</Caption>
+            </View>
+            <Row>
+              <Pill label={m.role} tone="accent" />
+              {m.uid === user.uid ? null : (
+                <Button
+                  label="Remove"
+                  variant="secondary"
+                  onPress={() => askRemove(m.uid)}
+                />
+              )}
+            </Row>
+          </Row>
+        ))}
+        {allUsers.status === 'error' ? (
+          <Caption>
+            Only admins can browse the full directory. Ask an admin to add
+            people to this board.
+          </Caption>
+        ) : null}
+      </Card>
+
+      {pendingRemoval ? (
+        <Card>
+          <Body>
+            Remove this person from the board?
+            {pendingRemoval.cards > 0
+              ? ` They are assigned to ${pendingRemoval.cards} card${
+                  pendingRemoval.cards === 1 ? '' : 's'
+                }, and will be unassigned from ${
+                  pendingRemoval.cards === 1 ? 'it' : 'them'
+                }.`
+              : ' They are not assigned to any cards.'}
+          </Body>
+          <Row>
+            <Button
+              label="Remove"
+              variant="danger"
+              onPress={() =>
+                run(async () => {
+                  await removeBoardMember(boardId, pendingRemoval.uid);
+                  setPendingRemoval(null);
+                })
+              }
+            />
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => setPendingRemoval(null)}
+            />
+          </Row>
+        </Card>
+      ) : null}
+
+      {nonMembers.length > 0 ? (
+        <Card>
+          <Caption>Add someone</Caption>
+          {nonMembers.map((u) => (
+            <Row key={u.uid} style={styles.between}>
+              <View style={styles.grow}>
+                <Body>{u.displayName}</Body>
+                <Caption>{u.email}</Caption>
+              </View>
+              <Button
+                label="Add"
+                onPress={() => run(() => addBoardMember(boardId, u.uid))}
+              />
+            </Row>
+          ))}
+        </Card>
+      ) : null}
+
+      <Heading>Archive</Heading>
+      <Card>
+        <Body muted>
+          Archiving hides the board from everyone&rsquo;s list. Boards are never
+          permanently deleted — too much work accumulates in them.
+        </Body>
+        <Button
+          label={b.archived ? 'Restore board' : 'Archive board'}
+          variant={b.archived ? 'primary' : 'danger'}
+          onPress={() =>
+            run(async () => {
+              await updateBoard(boardId, { archived: !b.archived });
+              if (!b.archived) nav.reset({ name: 'boards' });
+            })
+          }
+        />
+      </Card>
+    </Screen>
+  );
+}
+
+function BoardNameEditor({
+  initial,
+  onSave,
+}: {
+  initial: string;
+  onSave: (name: string) => void;
+}) {
+  const [name, setName] = useState(initial);
+  return (
+    <>
+      <TextField value={name} onChangeText={setName} placeholder="Board name" />
+      <Button
+        label="Save name"
+        onPress={() => onSave(name)}
+        disabled={name.trim() === initial}
+      />
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  between: { justifyContent: 'space-between' },
+  grow: { flex: 1, gap: space.xs },
+  wrap: { flexWrap: 'wrap' },
+  swatch: { width: 18, height: 18, borderRadius: radius.pill },
+  swatchPick: { width: 28, height: 28, borderWidth: 2 },
+});

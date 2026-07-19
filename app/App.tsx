@@ -6,10 +6,10 @@
  * keeps fresh by force-refreshing the token whenever the server stamps
  * claimsUpdatedAt — so an admin approval un-gates the app live.
  */
-import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useSession } from './src/session';
+import { useSession, type SessionUser } from './src/session';
+import { useNav } from './src/nav';
 import { SignInScreen } from './src/screens/SignInScreen';
 import {
   DisabledScreen,
@@ -17,13 +17,32 @@ import {
   ProvisioningScreen,
   RejectedScreen,
 } from './src/screens/GateScreens';
-import { HomeScreen } from './src/screens/HomeScreen';
+import { BoardsScreen } from './src/screens/BoardsScreen';
+import { BoardScreen } from './src/screens/BoardScreen';
+import { BoardSettingsScreen } from './src/screens/BoardSettingsScreen';
+import { CardScreen } from './src/screens/CardScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
 import { Screen, Spinner } from './src/components/ui';
 
+function SignedInRoutes({ user }: { user: SessionUser }) {
+  const { route } = useNav();
+
+  switch (route.name) {
+    case 'board':
+      return <BoardScreen boardId={route.boardId} user={user} />;
+    case 'boardSettings':
+      return <BoardSettingsScreen boardId={route.boardId} user={user} />;
+    case 'card':
+      return <CardScreen boardId={route.boardId} cardId={route.cardId} user={user} />;
+    case 'users':
+      return <UsersScreen actor={user} />;
+    default:
+      return <BoardsScreen user={user} />;
+  }
+}
+
 function Routes() {
   const session = useSession();
-  const [screen, setScreen] = useState<'home' | 'users'>('home');
 
   switch (session.state) {
     case 'loading':
@@ -52,11 +71,7 @@ function Routes() {
         case 'disabled':
           return <DisabledScreen user={user} />;
         case 'active':
-          return screen === 'users' ? (
-            <UsersScreen actor={user} />
-          ) : (
-            <HomeScreen user={user} onOpenUsers={() => setScreen('users')} />
-          );
+          return <SignedInRoutes user={user} />;
       }
     }
   }

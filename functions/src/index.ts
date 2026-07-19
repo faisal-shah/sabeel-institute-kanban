@@ -6,3 +6,4 @@
  */
 export { onUserCreate } from './auth';
 export { setUserAccess } from './users';
+export { removeBoardMember, countMemberAssignments } from './boards';

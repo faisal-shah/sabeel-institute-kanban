@@ -88,9 +88,15 @@ describe('deny-by-default floor', () => {
   });
 
   it('blocks even an active admin from collections no phase has opened yet', async () => {
+    // Boards opened in Phase 2 and cards in Phase 3, so this guards what is
+    // still closed. Each phase moves one collection out of this list; anything
+    // NOT deliberately opened must stay denied, including for admins.
     const db = ctx('admin1', 'admin', 'active');
-    await assertFails(getDoc(doc(db, 'boards/anything')));
-    await assertFails(setDoc(doc(db, 'boards/anything'), { name: 'nope' }));
+    await assertFails(getDoc(doc(db, 'boards/b/cards/c1/comments/x')));
+    await assertFails(setDoc(doc(db, 'boards/b/cards/c1/comments/x'), { body: 'no' }));
+    await assertFails(getDoc(doc(db, 'boards/b/cards/c1/activity/x')));
+    await assertFails(getDoc(doc(db, 'randomCollection/anything')));
+    await assertFails(setDoc(doc(db, 'randomCollection/anything'), { x: 1 }));
   });
 });
 
@@ -148,7 +154,12 @@ describe('writes to user docs are impossible from any client', () => {
     // The attack this whole design exists to prevent.
     const db = ctx('member1', 'member', 'active');
     await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'admin' }));
-    await assertFails(updateDoc(doc(db, 'users/member1'), { status: 'active' }));
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'manager' }));
+    // A real status change is blocked too. (Writing a field to the value it
+    // ALREADY has is a no-op: `diff().affectedKeys()` reports only keys whose
+    // values differ, so such a write changes nothing and is harmless. The rule
+    // constrains state transitions, not the shape of the request.)
+    await assertFails(updateDoc(doc(db, 'users/member1'), { status: 'disabled' }));
   });
 
   it('blocks a pending user activating themselves', async () => {
@@ -170,16 +181,68 @@ describe('writes to user docs are impossible from any client', () => {
     await assertFails(deleteDoc(doc(db, 'users/member1')));
   });
 
-  it('blocks writing innocuous-looking fields too', async () => {
-    // Denying the whole document means no future field can be privilege-adjacent
-    // by accident.
+  it('blocks writing profile fields that are not preferences', async () => {
+    // displayName and email come from Google; letting people edit them would let
+    // someone impersonate a colleague in an admin's approval queue.
     const db = ctx('member1', 'member', 'active');
     await assertFails(updateDoc(doc(db, 'users/member1'), { displayName: 'Renamed' }));
+    await assertFails(updateDoc(doc(db, 'users/member1'), { email: 'x@oursabeel.com' }));
+  });
+
+  it('blocks tampering with the server audit trail', async () => {
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(updateDoc(doc(db, 'users/member1'), { accessChangedBy: 'me' }));
+  });
+
+  it('blocks smuggling role alongside a legitimate preference change', async () => {
+    // hasOnly() is what makes this fail — a whitelist that checked only "may
+    // write favourites" would let this through.
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(
+      updateDoc(doc(db, 'users/member1'), {
+        favoriteBoardIds: ['b1'],
+        role: 'admin',
+      }),
+    );
+  });
+
+  it('blocks editing someone ELSE preferences', async () => {
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(updateDoc(doc(db, 'users/manager1'), { favoriteBoardIds: ['b1'] }));
   });
 
   it('blocks creating a user doc for someone who never signed up', async () => {
     const db = ctx('member1', 'member', 'active');
     await assertFails(setDoc(doc(db, 'users/ghost'), { role: 'admin', status: 'active' }));
+  });
+});
+
+describe('preference self-writes', () => {
+  it('an active user may set their own favourites and recents', async () => {
+    const db = ctx('member1', 'member', 'active');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users/member1'), {
+        favoriteBoardIds: ['b1'],
+        recentBoardIds: ['b1', 'b2'],
+      }),
+    );
+  });
+
+  it('an active user may set notification preferences', async () => {
+    const db = ctx('member1', 'member', 'active');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users/member1'), {
+        notifyPrefs: { mention: false },
+        mutedBoardIds: ['b1'],
+        pushTokens: ['tok'],
+      }),
+    );
+  });
+
+  it('a PENDING user may not write preferences', async () => {
+    // Nothing at all before approval.
+    const db = ctx('pending1', 'member', 'pending');
+    await assertFails(updateDoc(doc(db, 'users/pending1'), { favoriteBoardIds: ['b1'] }));
   });
 });
 

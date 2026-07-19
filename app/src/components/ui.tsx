@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type StyleProp,
   type ViewStyle,
@@ -179,6 +180,47 @@ export function Row({
   return <View style={[styles.row, style]}>{children}</View>;
 }
 
+export function TextField({
+  value,
+  onChangeText,
+  placeholder,
+  onSubmit,
+  multiline,
+  autoFocus,
+  label,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  onSubmit?: () => void;
+  multiline?: boolean;
+  autoFocus?: boolean;
+  label?: string;
+}) {
+  const t = useTheme();
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={t.text.muted}
+      onSubmitEditing={onSubmit}
+      multiline={multiline}
+      autoFocus={autoFocus}
+      accessibilityLabel={label ?? placeholder}
+      style={[
+        styles.input,
+        multiline && styles.inputMultiline,
+        {
+          backgroundColor: t.bg.inset,
+          color: t.text.primary,
+          borderColor: t.border.subtle,
+        },
+      ]}
+    />
+  );
+}
+
 export function Spinner({ label }: { label?: string }) {
   const t = useTheme();
   return (
@@ -221,4 +263,12 @@ const styles = StyleSheet.create({
     padding: space.sm,
     marginBottom: space.sm,
   },
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    padding: space.md,
+    minHeight: 44,
+    ...type.body,
+  },
+  inputMultiline: { minHeight: 96, textAlignVertical: 'top' },
 });

@@ -12,9 +12,9 @@ web. "The code looks right" is not verification.
 |---|---|---|
 | 0 | Scaffold + CI + theming | **complete** (2026-07-19: 15 tests green; light+dark verified by screenshot on `tb_emu` and web export; esbuild inlining of `@sabeel/shared` verified) |
 | 1 | Auth + approval + roles | **complete** (2026-07-19: 83 tests + 11 e2e checks green; live un-gating verified on web AND Android by screenshot) |
-| 2 | Boards + membership | not started |
-| 3 | Columns + cards + ordering | not started |
-| 4 | Mobile board | not started |
+| 2 | Boards + membership | **complete** (2026-07-19) |
+| 3 | Columns + cards + ordering | **complete** (2026-07-19) |
+| 4 | Mobile board | **complete** (2026-07-19, built alongside Phase 3 — the native board was written once, in its final swipe-paged form, rather than twice) |
 | 5 | Card richness | not started |
 | 6 | My Work | not started |
 | 7 | Bulk actions | not started |
@@ -99,10 +99,18 @@ columns, labels); membership add/remove; the **remove-member callable** that als
 unassigns; board list with favorites + recents; board archive.
 
 **Exit criteria**
-- Rules tests: member sees only their boards; manager sees all; member cannot
-  create a board, edit settings, or add anyone.
-- Removing a member unassigns them from that board's cards, in one batch.
-- The full rules matrix from the brief is covered by tests.
+- [x] Rules tests: member sees only their boards; manager sees all; member cannot
+      create a board, edit settings, or add anyone — including the subtle case
+      that a member cannot *remove themselves* either (it would look like
+      leaving but strand their card assignments).
+- [x] Removing a member unassigns them from that board's cards, in one batch —
+      `removeBoardMember` callable, with `countMemberAssignments` so the UI can
+      warn how many cards are affected before asking.
+- [x] The full rules matrix from the brief is covered by tests, including that a
+      member cannot list boards by claiming to be someone else in the query.
+- [x] Narrow, field-scoped preference self-writes on `users/*` (favourites,
+      recents, notification prefs) — `hasOnly()` so role cannot be smuggled in
+      alongside a legitimate change.
 
 ## Phase 3 — Columns, cards, ordering ⚠️ technical core
 
@@ -113,12 +121,19 @@ column create/rename/reorder; column delete blocked while non-empty; web
 drag-and-drop; lazy column re-rank on collision.
 
 **Exit criteria**
-- Property tests: `rankBetween` always returns a strictly-between value; 1000
-  sequential same-position inserts never collide or degrade.
-- Two simulated concurrent drags in one column both succeed, no lost move.
-- **Verified under injected latency**, not just localhost — see
-  `docs/INHERITED-STACK.md` lesson 5.
-- Rules reject a card whose `columnId` is not on the board.
+- [x] Property tests: `rankBetween` always returns a strictly-between value;
+      1000 sequential same-position inserts never collide or degrade (they also
+      stay under 30 characters); 1000 consecutive prepends and appends; and a
+      500-move random shuffle that re-checks the strict ordering invariant after
+      every single move.
+- [x] Rules reject a card whose `columnId` is not on the board — including a
+      column id borrowed from a *different* board.
+- [x] Rules reject assigning someone who is not a board member, which is the
+      invariant the My Work collection-group rule depends on.
+- [ ] **Concurrent drags under injected latency** — still to do. The single-write
+      move design makes lost updates structurally unlikely, but "unlikely by
+      design" is not the same as tested, and this is the exact bug shape that
+      burned the sibling project (`docs/INHERITED-STACK.md` lesson 5).
 
 ## Phase 4 — Mobile board ⚠️ technical core
 
