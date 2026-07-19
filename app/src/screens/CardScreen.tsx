@@ -3,10 +3,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ORG_TIMEZONE, applyMarkdown, type Priority } from '@sabeel/shared';
 import { archiveCard, deleteCard, restoreCard, updateCard, useCard } from '../cards';
 import { useBoard } from '../boards';
-import { useAllUsers } from '../users';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import { Markdown } from '../components/Markdown';
+import { Comments } from '../components/Comments';
+import { ActivityLog } from '../components/ActivityLog';
 import {
   Body,
   Button,
@@ -53,7 +54,6 @@ export function CardScreen({
   const nav = useNav();
   const card = useCard(boardId, cardId);
   const board = useBoard(boardId);
-  const directory = useAllUsers();
   const t = useTheme();
 
   const [title, setTitle] = useState('');
@@ -99,7 +99,9 @@ export function CardScreen({
   const overdue = c.dueDate !== undefined && c.dueDate < today;
   const column = b.columns.find((col) => col.id === c.columnId);
   // Only board members may be assigned — the rule the My Work query depends on.
-  const assignable = (directory.data ?? []).filter((u) => b.memberUids.includes(u.uid));
+  // Sourced from the board doc so non-admins (who cannot list users) still see
+  // who they can assign.
+  const assignable = b.members;
 
   return (
     <Screen>
@@ -355,6 +357,19 @@ export function CardScreen({
           </Panel>
         </>
       ) : null}
+
+      <Heading>Comments ({c.commentCount})</Heading>
+      <Comments boardId={boardId} cardId={cardId} members={assignable} user={user} />
+
+      <Heading>Activity</Heading>
+      <Panel>
+        <ActivityLog
+          boardId={boardId}
+          cardId={cardId}
+          members={assignable}
+          columns={b.columns}
+        />
+      </Panel>
 
       <Heading>Danger zone</Heading>
       <Panel>

@@ -1,0 +1,147 @@
+import { describe, it, expect } from 'vitest';
+import {
+  filterCards,
+  hasActiveFilters,
+  matchesText,
+  rankMatches,
+  type SearchableCard,
+} from '../src/search';
+
+const card = (over: Partial<SearchableCard> = {}): SearchableCard => ({
+  id: 'c1',
+  boardId: 'b1',
+  title: 'Fix signup flow',
+  description: 'The email step fails',
+  columnId: 'todo',
+  assigneeUids: [],
+  labelIds: [],
+  priority: 'none',
+  archived: false,
+  ...over,
+});
+
+const TODAY = '2026-07-19';
+
+describe('matchesText', () => {
+  it('matches the title, case-insensitively', () => {
+    expect(matchesText(card(), 'SIGNUP')).toBe(true);
+  });
+
+  it('matches the description', () => {
+    expect(matchesText(card(), 'email step')).toBe(true);
+  });
+
+  it('does not match unrelated text', () => {
+    expect(matchesText(card(), 'newsletter')).toBe(false);
+  });
+
+  it('an empty query matches everything', () => {
+    expect(matchesText(card(), '   ')).toBe(true);
+  });
+});
+
+describe('filterCards', () => {
+  const cards = [
+    card({ id: 'a', title: 'Alpha', assigneeUids: ['u1'], priority: 'high' }),
+    card({ id: 'b', title: 'Beta', labelIds: ['l1'], dueDate: '2026-07-18' }),
+    card({ id: 'c', title: 'Gamma', dueDate: TODAY }),
+    card({ id: 'd', title: 'Delta', archived: true }),
+    card({ id: 'e', title: 'Epsilon', dueDate: '2026-08-01' }),
+  ];
+
+  it('hides archived cards by default', () => {
+    // The archive is a separate place, not something that pollutes results.
+    expect(filterCards(cards, {}, TODAY).map((c) => c.id)).not.toContain('d');
+  });
+
+  it('includes archived when asked', () => {
+    expect(
+      filterCards(cards, { includeArchived: true }, TODAY).map((c) => c.id),
+    ).toContain('d');
+  });
+
+  it('filters by assignee', () => {
+    expect(filterCards(cards, { assigneeUid: 'u1' }, TODAY).map((c) => c.id)).toEqual([
+      'a',
+    ]);
+  });
+
+  it('filters by label', () => {
+    expect(filterCards(cards, { labelId: 'l1' }, TODAY).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('filters by priority', () => {
+    expect(filterCards(cards, { priority: 'high' }, TODAY).map((c) => c.id)).toEqual([
+      'a',
+    ]);
+  });
+
+  it('filters overdue', () => {
+    expect(filterCards(cards, { due: 'overdue' }, TODAY).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('filters due today', () => {
+    expect(filterCards(cards, { due: 'today' }, TODAY).map((c) => c.id)).toEqual(['c']);
+  });
+
+  it('filters cards with no due date', () => {
+    expect(filterCards(cards, { due: 'none' }, TODAY).map((c) => c.id).sort()).toEqual([
+      'a',
+    ]);
+  });
+
+  it('combines filters', () => {
+    expect(
+      filterCards(cards, { text: 'alpha', priority: 'high' }, TODAY).map((c) => c.id),
+    ).toEqual(['a']);
+    expect(
+      filterCards(cards, { text: 'alpha', priority: 'low' }, TODAY),
+    ).toHaveLength(0);
+  });
+
+  it('returns everything with no filters', () => {
+    expect(filterCards(cards, {}, TODAY)).toHaveLength(4); // archived excluded
+  });
+});
+
+describe('hasActiveFilters', () => {
+  it('is false for an empty filter set', () => {
+    expect(hasActiveFilters({})).toBe(false);
+    expect(hasActiveFilters({ text: '   ', due: 'any' })).toBe(false);
+  });
+
+  it('is true when anything narrows', () => {
+    expect(hasActiveFilters({ text: 'x' })).toBe(true);
+    expect(hasActiveFilters({ assigneeUid: 'u1' })).toBe(true);
+    expect(hasActiveFilters({ due: 'overdue' })).toBe(true);
+    expect(hasActiveFilters({ includeArchived: true })).toBe(true);
+  });
+});
+
+describe('rankMatches', () => {
+  it('puts a title prefix first, then title contains, then description only', () => {
+    const cards = [
+      card({ id: 'desc', title: 'Zebra', description: 'about signup' }),
+      card({ id: 'contains', title: 'Fix signup flow', description: '' }),
+      card({ id: 'prefix', title: 'signup broken', description: '' }),
+    ];
+    expect(rankMatches(cards, 'signup').map((c) => c.id)).toEqual([
+      'prefix',
+      'contains',
+      'desc',
+    ]);
+  });
+
+  it('is stable and alphabetical within a tier', () => {
+    const cards = [
+      card({ id: 'b', title: 'signup beta' }),
+      card({ id: 'a', title: 'signup alpha' }),
+    ];
+    expect(rankMatches(cards, 'signup').map((c) => c.id)).toEqual(['a', 'b']);
+  });
+
+  it('leaves order alone for an empty query', () => {
+    const cards = [card({ id: 'x' }), card({ id: 'y' })];
+    expect(rankMatches(cards, '').map((c) => c.id)).toEqual(['x', 'y']);
+  });
+});

@@ -70,6 +70,22 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ---- Notification inbox ----
+    // Trigger-written. The client may ONLY mark an entry read — it cannot create
+    // one, edit its text, or change who it came from. That is what makes the
+    // inbox a trustworthy record rather than something any client could stuff.
+    match /users/{userId}/notifications/{notifId} {
+      allow get, list: if isActive() && request.auth.uid == userId;
+
+      allow update: if isActive()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // Clearing your own inbox is reasonable; writing to it is not.
+      allow delete: if isActive() && request.auth.uid == userId;
+      allow create: if false;
+    }
+
     // ---- Boards ----
     // Access is MEMBERSHIP, not a per-board role: what you may DO comes from your
     // org role. Managers and admins see and administer every board; members see
@@ -194,6 +210,63 @@ service cloud.firestore {
       // mis-tap on a bulk selection should not be unrecoverable for most people.
       allow delete: if isActive() && isManager()
         && (isManager() || request.auth.uid in board().memberUids);
+    }
+
+    // ---- Comments ----
+    // Anyone who can see the board can comment, including viewers-by-membership.
+    // Comments are the one place where being present matters more than rank.
+    match /boards/{boardId}/cards/{cardId}/comments/{commentId} {
+
+      function board() {
+        return get(/databases/$(database)/documents/boards/$(boardId)).data;
+      }
+      function onBoard() {
+        return isActive() && (isManager() || request.auth.uid in board().memberUids);
+      }
+      function comment() {
+        return request.resource.data;
+      }
+
+      allow get, list: if onBoard();
+
+      allow create: if onBoard()
+        // Authorship cannot be forged: you comment as yourself or not at all.
+        && comment().authorUid == request.auth.uid
+        && comment().body is string
+        && comment().body.size() > 0
+        && comment().body.size() <= 5000
+        && comment().mentionUids is list
+        // Mentions must be board members, or a mention would notify someone who
+        // cannot open the card it points at.
+        && comment().mentionUids.hasOnly(board().memberUids);
+
+      // Only the author edits — a manager rewriting someone's words under their
+      // name would be worse than useless.
+      allow update: if onBoard()
+        && resource.data.authorUid == request.auth.uid
+        && comment().authorUid == resource.data.authorUid
+        && comment().createdAt == resource.data.createdAt
+        && comment().body is string
+        && comment().body.size() > 0
+        && comment().body.size() <= 5000;
+
+      // Authors delete their own; managers and admins can remove anything, which
+      // is the moderation path.
+      allow delete: if onBoard()
+        && (resource.data.authorUid == request.auth.uid || isManager());
+    }
+
+    // ---- Activity ----
+    // Read-only to every client, always. The log is trustworthy precisely
+    // because nobody can write it: "Sara moved this to Done" means the server
+    // saw Sara move it. Written only by the onCardWritten trigger.
+    match /boards/{boardId}/cards/{cardId}/activity/{activityId} {
+      function board() {
+        return get(/databases/$(database)/documents/boards/$(boardId)).data;
+      }
+      allow get, list: if isActive()
+        && (isManager() || request.auth.uid in board().memberUids);
+      allow create, update, delete: if false;
     }
 
     // ---- Cards, as a COLLECTION GROUP ----

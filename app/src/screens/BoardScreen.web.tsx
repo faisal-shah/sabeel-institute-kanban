@@ -18,7 +18,9 @@ import {
   useBoardCards,
   type Card,
 } from '../cards';
-import { updateBoard, useBoard } from '../boards';
+import { updateBoard, useBoard, type BoardMemberProfile } from '../boards';
+import { useSelection } from '../useSelection';
+import { BulkBar } from '../components/BulkBar';
 import { columnsPatch, type BoardColumn } from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -27,6 +29,10 @@ import { getTheme, radius, space, type Theme } from '../theme';
 import { useColorScheme } from 'react-native';
 
 type DragState = { cardId: string; fromColumnId: string } | null;
+
+/** Stable empty, so the selection hook does not churn on every render. */
+const EMPTY_CARDS: Card[] = [];
+const NO_MEMBERS: BoardMemberProfile[] = [];
 
 function useWebTheme(): Theme {
   const scheme = useColorScheme();
@@ -37,8 +43,10 @@ function CardTile({
   card,
   t,
   canEdit,
+  selected,
   onOpen,
   onArchive,
+  onToggleSelect,
   onDragStart,
   onDragEnd,
   dragging,
@@ -46,8 +54,10 @@ function CardTile({
   card: Card;
   t: Theme;
   canEdit: boolean;
+  selected: boolean;
   onOpen: () => void;
   onArchive: () => void;
+  onToggleSelect: (shiftKey: boolean) => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   dragging: boolean;
@@ -60,8 +70,10 @@ function CardTile({
       onClick={onOpen}
       data-testid={`card-${card.title}`}
       style={{
-        background: t.bg.surface,
-        border: `1px solid ${t.border.subtle}`,
+        background: selected ? t.bg.accentSoft : t.bg.surface,
+        border: `${selected ? 2 : 1}px solid ${
+          selected ? t.accent.base : t.border.subtle
+        }`,
         borderRadius: radius.md,
         padding: space.md,
         marginBottom: space.sm,
@@ -70,7 +82,22 @@ function CardTile({
         boxShadow: `0 1px 2px ${t.effect.shadow}`,
       }}
     >
-      <div style={{ color: t.text.primary, fontSize: 15 }}>{card.title}</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: space.sm }}>
+        <input
+          type="checkbox"
+          checked={selected}
+          aria-label={`Select ${card.title}`}
+          // Shift-click extends from the last touched card — the convention
+          // everyone already knows from file managers and mail clients.
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(e.shiftKey);
+          }}
+          onChange={() => {}}
+          style={{ marginTop: 3, accentColor: t.accent.base, cursor: 'pointer' }}
+        />
+        <div style={{ color: t.text.primary, fontSize: 15, flex: 1 }}>{card.title}</div>
+      </div>
       <div
         style={{
           display: 'flex',
@@ -134,6 +161,10 @@ export function BoardScreen({ boardId, user }: { boardId: string; user: SessionU
   const [adding, setAdding] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const selection = useSelection(cards.data ?? EMPTY_CARDS);
+
+  // From the BOARD, not the user directory — only admins may list users.
+  const members = board.data?.members ?? NO_MEMBERS;
 
   const canEdit = true; // any board member may edit cards
   const isManager = sessionCan.manageBoards(user);
@@ -271,6 +302,18 @@ export function BoardScreen({ boardId, user }: { boardId: string; user: SessionU
         </div>
       </div>
 
+      {selection.active ? (
+        <BulkBar
+          boardId={boardId}
+          columns={b.columns}
+          allCards={cards.data ?? []}
+          selection={selection}
+          members={members}
+          user={user}
+          onError={setError}
+        />
+      ) : null}
+
       {listenerError ? (
         <div style={banner(t)}>{listenerError}</div>
       ) : null}
@@ -370,8 +413,18 @@ export function BoardScreen({ boardId, user }: { boardId: string; user: SessionU
                     card={card}
                     t={t}
                     canEdit={canEdit}
+                    selected={selection.isSelected(card.id)}
                     dragging={drag?.cardId === card.id}
-                    onOpen={() => nav.push({ name: 'card', boardId, cardId: card.id })}
+                    onToggleSelect={(shiftKey) =>
+                      shiftKey
+                        ? selection.selectRangeTo(card.id, colCards)
+                        : selection.toggle(card.id)
+                    }
+                    onOpen={() =>
+                      selection.active
+                        ? selection.toggle(card.id)
+                        : nav.push({ name: 'card', boardId, cardId: card.id })
+                    }
                     onArchive={() => archiveCard(boardId, card.id, user)}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', card.id);

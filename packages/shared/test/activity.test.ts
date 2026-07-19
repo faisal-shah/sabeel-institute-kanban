@@ -1,0 +1,170 @@
+import { describe, it, expect } from 'vitest';
+import { describeActivity, diffCard, type CardSnapshot } from '../src/activity';
+
+const base: CardSnapshot = {
+  title: 'Fix signup',
+  description: '',
+  columnId: 'todo',
+  rank: 'V',
+  assigneeUids: [],
+  priority: 'none',
+  labelIds: [],
+  archived: false,
+};
+
+describe('diffCard', () => {
+  it('reports creation', () => {
+    expect(diffCard(null, base)).toEqual([{ type: 'created' }]);
+  });
+
+  it('reports nothing for deletion — the history goes with the card', () => {
+    expect(diffCard(base, null)).toEqual([]);
+  });
+
+  it('reports nothing when nothing meaningful changed', () => {
+    expect(diffCard(base, { ...base })).toEqual([]);
+  });
+
+  it('IGNORES a rank-only change', () => {
+    // The load-bearing omission: reordering within a column is a rank-only
+    // write, and logging those would drown the timeline in noise nobody reads.
+    expect(diffCard(base, { ...base, rank: 'W' })).toEqual([]);
+  });
+
+  it('ignores updatedAt/updatedBy churn', () => {
+    expect(
+      diffCard(base, { ...base, updatedAt: 999, updatedBy: 'someone' }),
+    ).toEqual([]);
+  });
+
+  it('reports a column move', () => {
+    expect(diffCard(base, { ...base, columnId: 'done' })).toEqual([
+      { type: 'moved', from: 'todo', to: 'done' },
+    ]);
+  });
+
+  it('reports a move even when the rank also changed', () => {
+    // Which is always: moving a card rewrites both fields.
+    expect(diffCard(base, { ...base, columnId: 'done', rank: 'Z' })).toEqual([
+      { type: 'moved', from: 'todo', to: 'done' },
+    ]);
+  });
+
+  it('reports assignment per person, not as a list diff', () => {
+    expect(diffCard(base, { ...base, assigneeUids: ['u1', 'u2'] })).toEqual([
+      { type: 'assigned', to: 'u1' },
+      { type: 'assigned', to: 'u2' },
+    ]);
+  });
+
+  it('reports unassignment', () => {
+    expect(
+      diffCard({ ...base, assigneeUids: ['u1'] }, { ...base, assigneeUids: [] }),
+    ).toEqual([{ type: 'unassigned', to: 'u1' }]);
+  });
+
+  it('reports a swap as one assign and one unassign', () => {
+    expect(
+      diffCard({ ...base, assigneeUids: ['u1'] }, { ...base, assigneeUids: ['u2'] }),
+    ).toEqual([
+      { type: 'assigned', to: 'u2' },
+      { type: 'unassigned', to: 'u1' },
+    ]);
+  });
+
+  it('ignores assignee reordering', () => {
+    expect(
+      diffCard({ ...base, assigneeUids: ['u1', 'u2'] }, { ...base, assigneeUids: ['u2', 'u1'] }),
+    ).toEqual([]);
+  });
+
+  it('reports due date set, changed and cleared', () => {
+    expect(diffCard(base, { ...base, dueDate: '2026-07-20' })).toEqual([
+      { type: 'due', from: undefined, to: '2026-07-20' },
+    ]);
+    expect(
+      diffCard({ ...base, dueDate: '2026-07-20' }, { ...base, dueDate: undefined }),
+    ).toEqual([{ type: 'due', from: '2026-07-20', to: undefined }]);
+  });
+
+  it('reports priority changes', () => {
+    expect(diffCard(base, { ...base, priority: 'urgent' })).toEqual([
+      { type: 'priority', from: 'none', to: 'urgent' },
+    ]);
+  });
+
+  it('reports label changes but ignores reordering', () => {
+    expect(diffCard(base, { ...base, labelIds: ['l1'] })).toEqual([{ type: 'labels' }]);
+    expect(
+      diffCard({ ...base, labelIds: ['l1', 'l2'] }, { ...base, labelIds: ['l2', 'l1'] }),
+    ).toEqual([]);
+  });
+
+  it('collapses a title and description save into ONE edited entry', () => {
+    const out = diffCard(base, { ...base, title: 'New', description: 'text' });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ type: 'edited', from: 'Fix signup', to: 'New' });
+  });
+
+  it('reports a description-only edit without pretending it was a rename', () => {
+    const out = diffCard(base, { ...base, description: 'text' });
+    expect(out).toEqual([{ type: 'edited', from: undefined, to: undefined }]);
+  });
+
+  it('reports archive and restore', () => {
+    expect(diffCard(base, { ...base, archived: true })).toEqual([
+      { type: 'archived', from: 'false', to: 'true' },
+    ]);
+    expect(diffCard({ ...base, archived: true }, base)).toEqual([
+      { type: 'archived', from: 'true', to: 'false' },
+    ]);
+  });
+
+  it('reports several changes from one save', () => {
+    const out = diffCard(base, {
+      ...base,
+      columnId: 'done',
+      priority: 'high',
+      assigneeUids: ['u1'],
+    });
+    expect(out.map((e) => e.type).sort()).toEqual(['assigned', 'moved', 'priority']);
+  });
+});
+
+describe('describeActivity', () => {
+  const name = (uid: string) => ({ u1: 'Sara' })[uid] ?? 'someone';
+  const col = (id: string) => ({ done: 'Done' })[id] ?? 'a column';
+
+  it('reads as a sentence for every type', () => {
+    expect(describeActivity({ type: 'created' }, name, col)).toBe('created this card');
+    expect(describeActivity({ type: 'moved', to: 'done' }, name, col)).toBe(
+      'moved it to Done',
+    );
+    expect(describeActivity({ type: 'assigned', to: 'u1' }, name, col)).toBe(
+      'assigned Sara',
+    );
+    expect(describeActivity({ type: 'unassigned', to: 'u1' }, name, col)).toBe(
+      'unassigned Sara',
+    );
+    expect(describeActivity({ type: 'due', to: '2026-07-20' }, name, col)).toBe(
+      'set the due date to 2026-07-20',
+    );
+    expect(describeActivity({ type: 'due' }, name, col)).toBe('cleared the due date');
+    expect(describeActivity({ type: 'priority', to: 'high' }, name, col)).toBe(
+      'set priority to high',
+    );
+    expect(describeActivity({ type: 'labels' }, name, col)).toBe('changed the labels');
+    expect(describeActivity({ type: 'edited', to: 'New' }, name, col)).toBe(
+      'renamed it to “New”',
+    );
+    expect(describeActivity({ type: 'edited' }, name, col)).toBe(
+      'edited the description',
+    );
+    expect(describeActivity({ type: 'archived', to: 'true' }, name, col)).toBe(
+      'archived it',
+    );
+    expect(describeActivity({ type: 'archived', to: 'false' }, name, col)).toBe(
+      'restored it',
+    );
+  });
+});

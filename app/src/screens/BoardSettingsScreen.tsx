@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
   LABEL_COLORS,
+  columnsPatch,
   localId,
   newLabel,
   validateBoardName,
@@ -24,7 +25,6 @@ import {
   Caption,
   Card,
   Heading,
-  Pill,
   Row,
   Screen,
   Spinner,
@@ -87,7 +87,11 @@ export function BoardSettingsScreen({
       { id: localId('col'), name: newColumn.trim() },
     ];
     setNewColumn('');
-    await run(() => updateBoard(boardId, { columns: next }));
+    // columnsPatch, never a bare `columns` write: rules validate card writes
+    // against the flat `columnIds` mirror, so a desynced pair means cards cannot
+    // be created in the new column at all — with a bare PERMISSION_DENIED as the
+    // only clue.
+    await run(() => updateBoard(boardId, columnsPatch(next)));
   }
 
   async function renameBoard(name: string) {
@@ -106,7 +110,9 @@ export function BoardSettingsScreen({
     setPendingRemoval({ uid, cards });
   }
 
-  const members = (allUsers.data ?? []).filter((u) => b.memberUids.includes(u.uid));
+  // Current members come from the board (everyone can see them); the ADD picker
+  // needs the directory, which only admins may list.
+  const members = b.members;
   const nonMembers = (allUsers.data ?? []).filter(
     (u) => !b.memberUids.includes(u.uid) && u.status === 'active',
   );
@@ -143,7 +149,7 @@ export function BoardSettingsScreen({
                   run(() => {
                     const next = [...b.columns];
                     [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                    return updateBoard(boardId, { columns: next });
+                    return updateBoard(boardId, columnsPatch(next));
                   })
                 }
               />
@@ -155,7 +161,7 @@ export function BoardSettingsScreen({
                   run(() => {
                     const next = [...b.columns];
                     [next[i + 1], next[i]] = [next[i], next[i + 1]];
-                    return updateBoard(boardId, { columns: next });
+                    return updateBoard(boardId, columnsPatch(next));
                   })
                 }
               />
@@ -246,7 +252,8 @@ export function BoardSettingsScreen({
               <Caption>{m.email}</Caption>
             </View>
             <Row>
-              <Pill label={m.role} tone="accent" />
+              {/* The board knows who its members are, not what org role they
+                  hold — that lives in users/*, which only admins may read. */}
               {m.uid === user.uid ? null : (
                 <Button
                   label="Remove"
@@ -308,7 +315,15 @@ export function BoardSettingsScreen({
               </View>
               <Button
                 label="Add"
-                onPress={() => run(() => addBoardMember(boardId, u.uid))}
+                onPress={() =>
+                  run(() =>
+                    addBoardMember(boardId, {
+                      uid: u.uid,
+                      displayName: u.displayName,
+                      email: u.email,
+                    }),
+                  )
+                }
               />
             </Row>
           ))}

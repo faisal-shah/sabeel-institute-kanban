@@ -7,3 +7,11 @@
 export { onUserCreate } from './auth';
 export { setUserAccess } from './users';
 export { removeBoardMember, countMemberAssignments } from './boards';
+export { onCommentWritten } from './comments';
+export { onCardWritten } from './activity';
+export {
+  onCommentCreated,
+  onCardNotify,
+  onUserPending,
+  dueSoonReminders,
+} from './notifications';

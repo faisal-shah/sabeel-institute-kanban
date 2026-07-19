@@ -37,6 +37,13 @@ export type Session =
   | { state: 'signed-out' }
   /** Signed in, but the user doc/claims have not arrived yet. */
   | { state: 'provisioning'; uid: string }
+  /**
+   * Provisioning never completed. Overwhelmingly this means the auth-create
+   * trigger REJECTED the account and deleted it — a non-org address. The
+   * client's ID token stays valid until it refreshes, so nothing would tell the
+   * person anything without this state; they would watch a spinner forever.
+   */
+  | { state: 'not-provisioned'; uid: string }
   | { state: 'signed-in'; user: SessionUser };
 
 type Listener = (s: Session) => void;
@@ -51,11 +58,33 @@ function emit(next: Session) {
 
 let unsubUserDoc: (() => void) | null = null;
 let lastClaimsStamp: number | null = null;
+let provisioningTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * How long to wait for the auth-create trigger before concluding it is not
+ * coming. Provisioning normally takes well under a second; ten is generous
+ * enough to survive a cold function start without leaving a rejected user
+ * staring at a spinner.
+ */
+const PROVISIONING_TIMEOUT_MS = 10_000;
 
 function stopWatchingUserDoc() {
   unsubUserDoc?.();
   unsubUserDoc = null;
   lastClaimsStamp = null;
+  if (provisioningTimer) {
+    clearTimeout(provisioningTimer);
+    provisioningTimer = null;
+  }
+}
+
+function armProvisioningTimeout(uid: string) {
+  if (provisioningTimer) clearTimeout(provisioningTimer);
+  provisioningTimer = setTimeout(() => {
+    if (current.state === 'provisioning') {
+      emit({ state: 'not-provisioned', uid });
+    }
+  }, PROVISIONING_TIMEOUT_MS);
 }
 
 /**
@@ -117,9 +146,16 @@ async function handleUserSnapshot(fbUser: User, snap: DocumentSnapshot): Promise
   }
   if (!snap.exists()) {
     // The auth-create trigger has not finished yet, or it rejected the account
-    // and is about to delete it. Neither is an error state.
+    // and is about to delete it. The timer below decides which.
     emit({ state: 'provisioning', uid: fbUser.uid });
+    armProvisioningTimeout(fbUser.uid);
     return;
+  }
+
+  // The doc arrived, so provisioning succeeded — stand the timer down.
+  if (provisioningTimer) {
+    clearTimeout(provisioningTimer);
+    provisioningTimer = null;
   }
 
   const data = snap.data() ?? {};
@@ -179,6 +215,7 @@ onAuthStateChanged(auth, (fbUser) => {
   }
   emit({ state: 'provisioning', uid: fbUser.uid });
   watchUserDoc(fbUser);
+  armProvisioningTimeout(fbUser.uid);
 });
 
 export function useSession(): Session {

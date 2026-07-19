@@ -9,6 +9,7 @@ import {
   useMyBoards,
   type BoardListItem,
 } from '../boards';
+import { useUnreadCount } from '../notifications';
 import { sessionCan, signOut, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
@@ -74,6 +75,8 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const boards = useMyBoards(user);
   const prefs = useMyBoardPrefs(user);
+  const unreadDoc = useUnreadCount(user);
+  const unread = unreadDoc.data ?? 0;
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -123,9 +126,19 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
         <Title>Boards</Title>
         <Row>
           <Button
+            label="Search"
+            variant="secondary"
+            onPress={() => nav.push({ name: 'search' })}
+          />
+          <Button
             label="My work"
             variant="secondary"
             onPress={() => nav.push({ name: 'myWork' })}
+          />
+          <Button
+            label={unread > 0 ? `Alerts (${unread > 9 ? '9+' : unread})` : 'Alerts'}
+            variant={unread > 0 ? 'primary' : 'secondary'}
+            onPress={() => nav.push({ name: 'notifications' })}
           />
           {sessionCan.administerUsers(user) ? (
             <Button

@@ -88,15 +88,18 @@ describe('deny-by-default floor', () => {
   });
 
   it('blocks even an active admin from collections no phase has opened yet', async () => {
-    // Boards opened in Phase 2 and cards in Phase 3, so this guards what is
-    // still closed. Each phase moves one collection out of this list; anything
-    // NOT deliberately opened must stay denied, including for admins.
+    // Guards paths that no phase will ever open, so this test does not need
+    // rewriting every time a collection is legitimately added. The point is the
+    // catch-all `match /{document=**}` still denies by default: anything not
+    // deliberately granted stays shut, including for admins.
     const db = ctx('admin1', 'admin', 'active');
-    await assertFails(getDoc(doc(db, 'boards/b/cards/c1/comments/x')));
-    await assertFails(setDoc(doc(db, 'boards/b/cards/c1/comments/x'), { body: 'no' }));
-    await assertFails(getDoc(doc(db, 'boards/b/cards/c1/activity/x')));
     await assertFails(getDoc(doc(db, 'randomCollection/anything')));
     await assertFails(setDoc(doc(db, 'randomCollection/anything'), { x: 1 }));
+    await assertFails(getDoc(doc(db, 'boards/b/cards/c1/madeUpSubcollection/x')));
+    await assertFails(
+      setDoc(doc(db, 'boards/b/cards/c1/madeUpSubcollection/x'), { x: 1 }),
+    );
+    await assertFails(getDoc(doc(db, 'boards/b/secrets/x')));
   });
 });
 

@@ -40,6 +40,7 @@ export function newBoard(params: {
   name: string;
   description?: string;
   createdBy: string;
+  createdByProfile?: { displayName: string; email: string };
   now: number;
 }): BoardDoc {
   const columns = defaultColumns();
@@ -52,6 +53,9 @@ export function newBoard(params: {
     labels: [],
     // The creator is always a member: a board nobody can see is a support ticket.
     memberUids: [params.createdBy],
+    memberProfiles: params.createdByProfile
+      ? { [params.createdBy]: params.createdByProfile }
+      : {},
     createdAt: params.now,
     createdBy: params.createdBy,
   };

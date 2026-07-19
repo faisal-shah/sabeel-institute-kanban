@@ -16,12 +16,15 @@ import {
   PendingScreen,
   ProvisioningScreen,
   RejectedScreen,
+  WrongDomainScreen,
 } from './src/screens/GateScreens';
 import { BoardsScreen } from './src/screens/BoardsScreen';
 import { BoardScreen } from './src/screens/BoardScreen';
 import { BoardSettingsScreen } from './src/screens/BoardSettingsScreen';
 import { CardScreen } from './src/screens/CardScreen';
 import { MyWorkScreen } from './src/screens/MyWorkScreen';
+import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { SearchScreen } from './src/screens/SearchScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
 import { Screen, Spinner } from './src/components/ui';
 
@@ -37,6 +40,10 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
       return <CardScreen boardId={route.boardId} cardId={route.cardId} user={user} />;
     case 'myWork':
       return <MyWorkScreen user={user} />;
+    case 'notifications':
+      return <NotificationsScreen user={user} />;
+    case 'search':
+      return <SearchScreen user={user} />;
     case 'users':
       return <UsersScreen actor={user} />;
     default:
@@ -63,6 +70,11 @@ function Routes() {
     // on its own).
     case 'provisioning':
       return <ProvisioningScreen />;
+
+    // Provisioning never completed: almost always a non-org address that the
+    // auth-create trigger rejected and deleted. Say so, instead of spinning.
+    case 'not-provisioned':
+      return <WrongDomainScreen />;
 
     case 'signed-in': {
       const { user } = session;

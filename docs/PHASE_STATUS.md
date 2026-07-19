@@ -17,31 +17,50 @@ web. "The code looks right" is not verification.
 | 4 | Mobile board | **complete** (2026-07-19, built alongside Phase 3 — the native board was written once, in its final swipe-paged form, rather than twice) |
 | 5 | Card richness | **complete** (2026-07-19) |
 | 6 | My Work | **complete** (2026-07-19) |
-| 7 | Bulk actions | not started |
-| 8 | Comments + mentions | not started |
-| 9 | Activity history | not started |
-| 10 | Notifications | not started |
-| 11 | Search + archive | not started |
-| 12 | Polish + deploy readiness | not started |
+| 7 | Bulk actions | **complete** (2026-07-19) |
+| 8 | Comments + mentions | **complete** (2026-07-19) |
+| 9 | Activity history | **complete** (2026-07-19) |
+| 10 | Notifications | **complete** (2026-07-19) — push delivery itself unverifiable without a real project; see below |
+| 11 | Search + archive | **complete** (2026-07-19) |
+| 12 | Polish + deploy readiness | **complete** (2026-07-19) |
 | 13 | Production deploy | **blocked on Faisal** — needs the Firebase project (`TODO.md`) |
 | 14 | ClickUp import + launch | blocked on Phase 13 |
 
 ## What works today (2026-07-19)
 
-A usable kanban board on both surfaces, running against the emulators:
+Phases 0-12 are complete. Everything below runs against the emulators:
 
 - Google-only sign-in restricted to `@oursabeel.com`, enforced server-side, with
-  admin approval that un-gates the app live.
+  admin approval that un-gates the app live. A rejected account is told why
+  rather than left spinning.
 - Admin people-management: approve, reject, disable, change roles.
 - Boards with columns, labels and membership; favourites and recents.
 - Cards with markdown descriptions, assignees, all-day due dates, priority and
   labels; archive and (manager-only) delete.
-- Web: multi-column board with real drag-and-drop.
-- Android: swipe-paged single-column board with a "Move to…" sheet.
-- My Work: everything assigned to you across every board, grouped by due state.
+- Web: multi-column board with real drag-and-drop. Android: swipe-paged single
+  column with a "Move to…" sheet.
+- Multi-select and bulk move/assign/archive/delete on both surfaces.
+- Comments with @mentions, and a tamper-proof per-card activity history.
+- Notifications: in-app inbox with unread badge, per-event preferences,
+  per-board mute, and a daily due-soon sweep.
+- My Work across every board, and global search across the boards you belong to.
 - Sabeel brand palette and logo, light and dark, following the OS.
 
-See `docs/DEVELOPING.md` to run it.
+**Tests: 196 unit + 124 emulator integration + 46 browser e2e checks.**
+
+See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
+`docs/DEPLOY.md` for the production checklist.
+
+### Known gaps, stated plainly
+
+- **Push delivery is unverifiable locally.** FCM needs a real project, so the
+  emulator suite proves the triggers fire, the preference logic, and that inbox
+  entries are written — but not that a phone buzzes. Confirm at Phase 13.
+- **Board filters** (by assignee/label/priority within a board) exist in
+  `@sabeel/shared` with tests, but are only surfaced through global search, not
+  as a filter bar on the board itself.
+- **No user-manual screenshots yet.** The manual is written; the images should
+  be regenerated once the real project exists so they show real data.
 
 Nothing before Phase 13 needs a real Firebase project — everything runs against
 the emulators. Faisal's console tasks are tracked in `TODO.md`.
@@ -147,10 +166,12 @@ drag-and-drop; lazy column re-rank on collision.
       column id borrowed from a *different* board.
 - [x] Rules reject assigning someone who is not a board member, which is the
       invariant the My Work collection-group rule depends on.
-- [ ] **Concurrent drags under injected latency** — still to do. The single-write
-      move design makes lost updates structurally unlikely, but "unlikely by
-      design" is not the same as tested, and this is the exact bug shape that
-      burned the sibling project (`docs/INHERITED-STACK.md` lesson 5).
+- [x] **Concurrent drags under injected latency** — done. Latency is injected
+      between each client's read and its write, which is the window where a lost
+      update happens; without the delay the writes serialise by luck and prove
+      nothing. Covers interleaved moves in one column, moves to different
+      columns, ten simultaneous moves, a deliberate rank collision, and a move
+      racing an edit of the same card.
 
 ## Phase 4 — Mobile board ⚠️ technical core
 

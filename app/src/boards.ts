@@ -21,23 +21,48 @@ import { db, functions } from './firebase';
 import { useLiveDoc, useLiveQuery } from './liveQuery';
 import type { SessionUser } from './session';
 
+export interface BoardMemberProfile {
+  uid: string;
+  displayName: string;
+  email: string;
+}
+
 export interface BoardListItem {
   id: string;
   name: string;
   description: string;
   archived: boolean;
   memberUids: string[];
+  /**
+   * Who is on this board, with names. Read from the board doc rather than
+   * `users/*` because only admins may list the directory — every member needs
+   * this to assign a card or @mention someone.
+   */
+  members: BoardMemberProfile[];
   columns: BoardColumn[];
   labels: BoardLabel[];
 }
 
 function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
+  const uids = (data.memberUids as string[]) ?? [];
+  const profiles =
+    (data.memberProfiles as Record<string, { displayName: string; email: string }>) ?? {};
+
   return {
     id,
     name: (data.name as string) ?? '(untitled)',
     description: (data.description as string) ?? '',
     archived: Boolean(data.archived),
-    memberUids: (data.memberUids as string[]) ?? [],
+    memberUids: uids,
+    // Derived from memberUids so a missing profile never hides a member — it
+    // just shows a placeholder name until the next membership write fills it in.
+    members: uids
+      .map((uid) => ({
+        uid,
+        displayName: profiles[uid]?.displayName ?? 'Someone',
+        email: profiles[uid]?.email ?? '',
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     columns: (data.columns as BoardColumn[]) ?? [],
     labels: (data.labels as BoardLabel[]) ?? [],
   };
@@ -91,15 +116,27 @@ export async function createBoard(name: string, user: SessionUser): Promise<stri
   const board: BoardDoc = newBoard({
     name,
     createdBy: user.uid,
+    createdByProfile: { displayName: user.displayName, email: user.email },
     now: Date.now(),
   });
   const ref = await addDoc(collection(db, 'boards'), board);
   return ref.id;
 }
 
+/**
+ * A board patch. `columns` may ONLY be written together with `columnIds` — the
+ * type enforces what a comment cannot: rules validate card writes against the
+ * flat mirror, so a desynced pair makes cards uncreatable in the new column with
+ * a bare PERMISSION_DENIED as the only clue. Build it with `columnsPatch()`.
+ */
+export type BoardPatch = Partial<
+  Pick<BoardListItem, 'name' | 'description' | 'labels' | 'archived'>
+> &
+  ({ columns: BoardColumn[]; columnIds: string[] } | { columns?: never; columnIds?: never });
+
 export async function updateBoard(
   boardId: string,
-  patch: Partial<Pick<BoardListItem, 'name' | 'description' | 'columns' | 'labels' | 'archived'>>,
+  patch: BoardPatch,
 ): Promise<void> {
   // `createdBy` must be echoed back: the update rule pins it to its existing
   // value so authorship cannot be rewritten, and Firestore rules compare against
@@ -109,10 +146,19 @@ export async function updateBoard(
   await updateDoc(doc(db, 'boards', boardId), { ...patch, createdBy });
 }
 
-export async function addBoardMember(boardId: string, uid: string): Promise<void> {
+export async function addBoardMember(
+  boardId: string,
+  person: { uid: string; displayName: string; email: string },
+): Promise<void> {
   const snap = await getDoc(doc(db, 'boards', boardId));
   await updateDoc(doc(db, 'boards', boardId), {
-    memberUids: arrayUnion(uid),
+    memberUids: arrayUnion(person.uid),
+    // The profile travels with the membership, so board members can see who is
+    // on the board without permission to list the user directory.
+    [`memberProfiles.${person.uid}`]: {
+      displayName: person.displayName,
+      email: person.email,
+    },
     createdBy: snap.data()?.createdBy,
   });
 }

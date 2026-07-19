@@ -23,6 +23,7 @@ import {
   type DocumentReference,
   type Query,
 } from 'firebase/firestore';
+import { captureError } from './sentry';
 
 /**
  * A document as handed to a mapper. `path` matters for collection-group queries,
@@ -52,6 +53,11 @@ function publishError(label: string, e: { code?: string; message: string }) {
   lastError = `Live data error (${label}): ${e.code ?? e.message}`;
   watchers.forEach((w) => w(lastError));
   console.warn(`${label} listener`, e.code ?? e.message);
+  // Off-device visibility. A rejected listen on someone's phone is invisible
+  // otherwise — the sibling project lost a day to exactly that (see
+  // docs/INHERITED-STACK.md lesson 5). With a DSN wired it is one dashboard
+  // event; without one it is at least a console warning.
+  captureError(e, { source: label });
 }
 
 function publishSuccess(label: string) {

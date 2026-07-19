@@ -100,6 +100,54 @@ async function newApp(browser, scheme = 'light') {
   return { ctx, page };
 }
 
+/**
+ * Open a card from the board.
+ *
+ * Two things make a naive click unreliable here. A live board re-renders as
+ * snapshots arrive, so Playwright's "element is stable" check can time out on a
+ * perfectly good element; and while a selection is active a tap TOGGLES the card
+ * instead of opening it (deliberate — see useSelection). So: clear any
+ * selection, then retry the click until the card screen actually appears.
+ */
+async function openCard(page, title) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const clear = page.getByRole('button', { name: 'Clear' });
+    if ((await clear.count()) > 0) {
+      await clear.first().click().catch(() => {});
+      await page.waitForTimeout(400);
+    }
+
+    const tile = page.locator(`[data-testid="card-${title}"]`);
+    await tile.waitFor({ timeout: 20000 });
+    await tile.click({ timeout: 10000, force: attempt > 0 }).catch(() => {});
+
+    const opened = await page
+      .getByText('Card', { exact: true })
+      .waitFor({ timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    if (opened) return;
+  }
+  throw new Error(`could not open card "${title}"`);
+}
+
+/**
+ * Pop back to the board list, however deep the stack happens to be. Hard-coding
+ * the number of Backs makes every later section brittle to earlier edits.
+ */
+async function backToBoards(page) {
+  for (let i = 0; i < 5; i++) {
+    if (await page.getByRole('button', { name: 'New board' }).isVisible().catch(() => false)) {
+      return;
+    }
+    const back = page.getByRole('button', { name: 'Back' });
+    if ((await back.count()) === 0) break;
+    await back.first().click();
+    await page.waitForTimeout(600);
+  }
+  await page.getByRole('button', { name: 'New board' }).waitFor({ timeout: 20000 });
+}
+
 /** On failure, show what the screen actually said — guessing wastes runs. */
 const pages = new Map();
 async function dumpAll() {
@@ -327,11 +375,65 @@ try {
     .waitFor({ state: 'detached', timeout: 20000 });
   check('a card can be archived off the board', true);
 
+  // ---- Bulk actions (Phase 7) ---------------------------------------------
+  // Put three cards in Blocked, then clear the column in one gesture — the
+  // reason multi-select exists, since a column cannot be deleted while it holds
+  // cards.
+  for (const title of ['Bulk one', 'Bulk two', 'Bulk three']) {
+    await admin.getByRole('button', { name: '+ Add card' }).last().click();
+    const input = admin.getByPlaceholder('Card title');
+    await input.waitFor({ timeout: 10000 });
+    await input.click();
+    await input.pressSequentially(title, { delay: 10 });
+    await input.press('Enter');
+    await admin.getByText(title).waitFor({ timeout: 20000 });
+  }
+
+  await admin.getByRole('checkbox', { name: 'Select Bulk one' }).click();
+  // Shift-click extends the range, so three cards come from two clicks.
+  await admin
+    .getByRole('checkbox', { name: 'Select Bulk three' })
+    .click({ modifiers: ['Shift'] });
+  await admin.getByText('3 cards selected').waitFor({ timeout: 15000 });
+  check('shift-click selects a range', true);
+  await admin.screenshot({ path: join(SHOTS, 'p7-bulk-selected-light.png'), fullPage: true });
+
+  await admin.getByRole('button', { name: 'Move to…' }).click();
+  await admin.getByRole('button', { name: 'Done', exact: true }).click();
+  await admin.waitForTimeout(2000);
+
+  const movedTogether = await admin.evaluate(() => {
+    const panel = [...document.querySelectorAll('div')]
+      .filter((d) => d.textContent?.trimStart().startsWith('Done'))
+      .sort((a, b) => b.textContent.length - a.textContent.length)[0];
+    return ['Bulk one', 'Bulk two', 'Bulk three'].every(
+      (t) => panel?.querySelector(`[data-testid="card-${t}"]`) !== null,
+    );
+  });
+  check('a bulk move takes the whole selection to one column', movedTogether);
+
+  // And the emptied column can now be deleted, which was the point.
+  await admin.getByRole('button', { name: 'Delete column Blocked' }).click();
+  await admin
+    .getByText('Blocked')
+    .first()
+    .waitFor({ state: 'detached', timeout: 20000 });
+  check('a column emptied by a bulk move can then be deleted', true);
+
+  // Bulk archive clears them off the board in one batch.
+  await admin.getByRole('checkbox', { name: 'Select Bulk one' }).click();
+  await admin
+    .getByRole('checkbox', { name: 'Select Bulk three' })
+    .click({ modifiers: ['Shift'] });
+  await admin.getByRole('button', { name: 'Archive', exact: true }).click();
+  await admin.getByText('Bulk two').waitFor({ state: 'detached', timeout: 20000 });
+  check('a bulk archive clears the selection off the board', true);
+
   // ---- My Work: the cross-board collection-group query (Phase 6) ----------
   // Assign a card to sara, then confirm it appears on HER cross-board view —
   // which is the collection-group query, the assignee read-rule, and the
   // board-name resolution all working together.
-  await admin.getByText('Fix signup flow').click();
+  await openCard(admin, 'Fix signup flow');
   await admin.getByText('Assignees').waitFor({ timeout: 20000 });
   // The assignee list comes from a separate live query, so wait for it to arrive
   // before counting — otherwise we sample an empty list and conclude there is
@@ -356,6 +458,33 @@ try {
   check('a card can be assigned and given a due date', true);
   await admin.screenshot({ path: join(SHOTS, 'p5-card-detail-light.png'), fullPage: true });
 
+  // ---- Comments, mentions and activity (Phases 8-9) ----------------------
+  // Still on the card detail screen from the assignment above.
+  const commentBox = admin.getByPlaceholder('Add a comment — @ to mention someone');
+  await commentBox.waitFor({ timeout: 20000 });
+  await commentBox.click();
+  await commentBox.pressSequentially('Kicking this off, cc @sara', { delay: 10 });
+  await admin.getByRole('button', { name: 'Comment', exact: true }).click();
+  await admin.getByText('Kicking this off').waitFor({ timeout: 20000 });
+  check('a comment can be posted', true);
+
+  // Wait rather than sample: the caption renders once the comment round-trips.
+  const mentionRecorded = await admin
+    .getByText('mentioned', { exact: false })
+    .first()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  check('an @mention resolves to a person on the card', mentionRecorded);
+
+  // The activity log is written by a trigger, so it lags slightly.
+  await admin.getByText('created this card').waitFor({ timeout: 25000 });
+  check('activity records card creation', true);
+  await admin.getByText('assigned', { exact: false }).first().waitFor({ timeout: 25000 });
+  check('activity records assignment', true);
+  await admin.screenshot({ path: join(SHOTS, 'p8-card-comments-light.png'), fullPage: true });
+
+  // Sara sees the comment on her side, live.
   await sara.getByRole('button', { name: 'Back' }).first().click();
   await sara.getByRole('button', { name: 'My work' }).click();
   await sara.getByText('My work').first().waitFor({ timeout: 20000 });
@@ -373,33 +502,116 @@ try {
   check('My Work groups by due state', showsToday);
   await sara.screenshot({ path: join(SHOTS, 'p6-mywork-light.png'), fullPage: true });
 
+  // ---- Notifications inbox (Phase 10) -------------------------------------
+  // Sara was @mentioned and assigned, so her inbox should hold entries written
+  // by the triggers — not by any client.
+  await sara.getByRole('button', { name: 'Boards' }).click();
+  await sara.getByRole('button', { name: /^Alerts/ }).click();
+  await sara.getByText('Notifications').first().waitFor({ timeout: 20000 });
+  await sara.getByText('mentioned you', { exact: false }).waitFor({ timeout: 25000 });
+  check('an @mention lands in the recipient inbox', true);
+
+  const assignedEntry = await sara
+    .getByText('assigned you', { exact: false })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check('an assignment lands in the inbox too', assignedEntry);
+  await sara.screenshot({ path: join(SHOTS, 'p10-inbox-light.png'), fullPage: true });
+
+  // Preferences are per-event and per-board.
+  await sara.getByRole('button', { name: 'Settings' }).click();
+  await sara.getByText('What you are told about').first().waitFor({ timeout: 15000 });
+  const movedDefaultOff = await sara
+    .getByText('A card assigned to you was moved')
+    .first()
+    .isVisible();
+  check('the high-frequency event is listed and defaults off', movedDefaultOff);
+  await sara.screenshot({ path: join(SHOTS, 'p10-notify-settings-light.png'), fullPage: true });
+
+  await sara.getByRole('button', { name: 'Inbox' }).click();
+  await sara.getByRole('button', { name: 'Mark all read' }).click();
+  await sara.waitForTimeout(1500);
+  const stillUnread = await sara
+    .getByText('· unread', { exact: false })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check('mark all read clears the inbox badge', !stillUnread);
+
+  // ---- Search (Phase 11) --------------------------------------------------
+  // Walk back to the board list rather than assuming how deep the stack is —
+  // earlier sections leave the admin on a card or a board depending on flow.
+  await backToBoards(admin);
+  await admin.getByRole('button', { name: 'Search' }).click();
+  const searchBox = admin.getByPlaceholder('Search cards across your boards');
+  await searchBox.waitFor({ timeout: 20000 });
+  await searchBox.click();
+  await searchBox.pressSequentially('signup', { delay: 15 });
+  await admin.getByText('Fix signup flow').first().waitFor({ timeout: 25000 });
+  check('search finds a card by title across boards', true);
+
+  // A description-only match proves it is not just filtering titles.
+  await searchBox.fill('');
+  await searchBox.pressSequentially('venue', { delay: 15 });
+  await admin.getByText('Book venue').first().waitFor({ timeout: 20000 });
+  check('search matches on card content', true);
+
+  // Archived cards are hidden until asked for — the archive is a separate place.
+  await searchBox.fill('');
+  await searchBox.pressSequentially('Draft newsletter', { delay: 15 });
+  await admin.getByText('No matches').waitFor({ timeout: 20000 });
+  check('archived cards are excluded from search by default', true);
+
+  await admin.getByRole('button', { name: 'Excluding archived' }).click();
+  await admin.getByText('Draft newsletter').first().waitFor({ timeout: 20000 });
+  check('archived cards are findable when explicitly included', true);
+  await admin.screenshot({ path: join(SHOTS, 'p11-search-light.png'), fullPage: true });
+
+  await backToBoards(admin);
+
   // ---- Domain enforcement, from a real client -----------------------------
+  // Sara's session is finished with — close it so this last context is not
+  // competing with three live Firestore sessions for the dev server.
+  await saraCtx.close();
+  pages.delete('sara');
+
   const { ctx: badCtx, page: bad } = await newApp(browser);
-  // Several sessions are live by now, so give this context room to boot before
-  // interacting — a click that races the first render reads as a mystery failure.
+  // Give it room to boot before interacting: a click that races the first render
+  // reads as a mystery failure rather than a slow start.
   await bad.getByText('Sign in with Google').waitFor({ timeout: 40000 });
-  await bad.getByRole('button', { name: 'intruder@gmail.com' }).click();
-  // The trigger deletes the account; the client is bounced back to sign-in.
-  await bad.getByText('Sign in with Google').waitFor({ timeout: 30000 });
-  const stillSignedIn = await bad
+  const intruderButton = bad.getByRole('button', { name: 'intruder@gmail.com' });
+  await intruderButton.waitFor({ timeout: 30000 });
+  await intruderButton.click();
+
+  // The trigger deletes the account, but the client's ID token stays valid until
+  // it refreshes — so the app does not get signed out. It must explain itself
+  // rather than spin: after a grace period it shows "Wrong account".
+  await bad.getByText('Wrong account').waitFor({ timeout: 40000 });
+  check('a non-org account is rejected server-side and told why', true);
+
+  const reachedAGate = await bad
     .getByText('Waiting for approval')
     .isVisible()
     .catch(() => false);
-  check('non-org account is rejected server-side and never reaches a gate', !stillSignedIn);
+  check('a rejected account never reaches the approval queue', !reachedAGate);
+  await bad.screenshot({ path: join(SHOTS, 'p1-wrong-domain-light.png'), fullPage: true });
 
   // ---- Dark mode ----------------------------------------------------------
   // Re-emulate the colour scheme on the page we already have, rather than
   // opening a fourth context and signing in again. The theme follows the OS
   // signal, so this exercises exactly the same code path — and avoids four
   // concurrent sessions competing for the dev server.
+  await backToBoards(admin);
   await admin.emulateMedia({ colorScheme: 'dark' });
-  await admin.waitForTimeout(500);
-  await admin.screenshot({ path: join(SHOTS, 'p2-settings-dark.png'), fullPage: true });
+  await admin.waitForTimeout(600);
+  await admin.screenshot({ path: join(SHOTS, 'p2-boards-dark.png'), fullPage: true });
 
-  await admin.getByRole('button', { name: 'Back' }).first().click();
-  await admin.getByText('Fundraising 2026').first().waitFor({ timeout: 20000 });
+  await admin.getByText('Fundraising 2026').first().click();
+  await admin.getByText('To Do', { exact: false }).first().waitFor({ timeout: 20000 });
   await admin.screenshot({ path: join(SHOTS, 'p2-board-dark.png'), fullPage: true });
   check('dark theme renders the board flows', true);
+
   await admin.emulateMedia({ colorScheme: 'light' });
 
   // ---- Production-safety: the dev sign-in must NOT survive an export --------
@@ -420,7 +632,6 @@ try {
   await prodCtx.close();
 
   await adminCtx.close();
-  await saraCtx.close();
   await badCtx.close();
 } catch (e) {
   console.error('\nE2E aborted:', e instanceof Error ? e.message : String(e));

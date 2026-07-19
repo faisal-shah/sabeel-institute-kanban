@@ -33,7 +33,9 @@ import {
   useBoardCards,
   type Card,
 } from '../cards';
-import { updateBoard, useBoard } from '../boards';
+import { updateBoard, useBoard, type BoardMemberProfile } from '../boards';
+import { useSelection } from '../useSelection';
+import { BulkBar } from '../components/BulkBar';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
@@ -49,30 +51,37 @@ import {
 } from '../components/ui';
 import { radius, space, type, useTheme } from '../theme';
 
-/** Stable empty, so an absent board does not churn the memo. */
+/** Stable empties, so an absent board does not churn the memos below. */
 const NO_COLUMNS: BoardColumn[] = [];
+const EMPTY_CARDS: Card[] = [];
+const NO_MEMBERS: BoardMemberProfile[] = [];
 
 function CardTile({
   card,
+  selected,
+  selectionActive,
   onOpen,
-  onMove,
+  onLongPress,
 }: {
   card: Card;
+  selected: boolean;
+  selectionActive: boolean;
   onOpen: () => void;
-  onMove: () => void;
+  onLongPress: () => void;
 }) {
   const t = useTheme();
   return (
     <Pressable
       onPress={onOpen}
-      onLongPress={onMove}
+      onLongPress={onLongPress}
       accessibilityRole="button"
-      accessibilityLabel={card.title}
+      accessibilityLabel={selected ? `${card.title}, selected` : card.title}
       style={({ pressed }) => [
         styles.card,
         {
-          backgroundColor: t.bg.surface,
-          borderColor: t.border.subtle,
+          backgroundColor: selected ? t.bg.accentSoft : t.bg.surface,
+          borderColor: selected ? t.accent.base : t.border.subtle,
+          borderWidth: selected ? 2 : StyleSheet.hairlineWidth,
           opacity: pressed ? 0.7 : 1,
         },
       ]}
@@ -83,6 +92,9 @@ function CardTile({
         {card.dueDate ? <Caption>{card.dueDate}</Caption> : null}
         {card.assigneeUids.length > 0 ? (
           <Caption>{card.assigneeUids.length} assigned</Caption>
+        ) : null}
+        {selectionActive ? (
+          <Caption>{selected ? '✓ selected' : 'tap to select'}</Caption>
         ) : null}
       </Row>
     </Pressable>
@@ -102,6 +114,12 @@ export function BoardScreen({ boardId, user }: { boardId: string; user: SessionU
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<ScrollView>(null);
   const width = Dimensions.get('window').width;
+  const selection = useSelection(cards.data ?? EMPTY_CARDS);
+
+  // Members come from the BOARD, not the user directory: only admins may list
+  // users, so reading the directory here would show every non-admin a
+  // permission-denied banner and leave them unable to assign anyone.
+  const members = board.data?.members ?? NO_MEMBERS;
 
   // `?? []` would allocate a new array each render, defeating the memo below.
   const columns = board.data?.columns ?? NO_COLUMNS;
@@ -238,6 +256,20 @@ export function BoardScreen({ boardId, user }: { boardId: string; user: SessionU
         </Panel>
       ) : null}
 
+      <BulkBar
+        boardId={boardId}
+        columns={columns}
+        allCards={cards.data ?? []}
+        selection={selection}
+        members={members}
+        user={user}
+        onError={setError}
+      />
+
+      {!selection.active && (byColumn.get(current?.id ?? '')?.length ?? 0) > 0 ? (
+        <Caption>Long-press a card to select several at once.</Caption>
+      ) : null}
+
       <ScrollView
         ref={scroller}
         horizontal
@@ -259,8 +291,19 @@ export function BoardScreen({ boardId, user }: { boardId: string; user: SessionU
                 renderItem={({ item }) => (
                   <CardTile
                     card={item}
-                    onOpen={() => nav.push({ name: 'card', boardId, cardId: item.id })}
-                    onMove={() => setMoving(item)}
+                    selected={selection.isSelected(item.id)}
+                    selectionActive={selection.active}
+                    // Once anything is selected, tapping toggles rather than
+                    // opens — otherwise building a selection means alternating
+                    // between long-press and tap, which nobody discovers.
+                    onOpen={() =>
+                      selection.active
+                        ? selection.toggle(item.id)
+                        : nav.push({ name: 'card', boardId, cardId: item.id })
+                    }
+                    onLongPress={() =>
+                      selection.active ? selection.toggle(item.id) : setMoving(item)
+                    }
                   />
                 )}
                 ListEmptyComponent={<Caption>No cards in {col.name}.</Caption>}

@@ -24,6 +24,22 @@
         { "fieldPath": "assigneeUids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "archived", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "cards",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "archived", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "read", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

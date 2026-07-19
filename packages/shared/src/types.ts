@@ -69,6 +69,16 @@ export interface BoardDoc {
   labels: BoardLabel[];
   /** Drives `array-contains` queries for "my boards". */
   memberUids: string[];
+  /**
+   * Names and addresses of the board's members, denormalised.
+   *
+   * Only admins may list `users/*`, but every board member needs to see who is
+   * on the board to assign a card or @mention someone. Without this a member
+   * would hit permission-denied on the directory and simply be unable to assign
+   * anyone. Written together with `memberUids`; the removeBoardMember callable
+   * clears both.
+   */
+  memberProfiles: Record<string, { displayName: string; email: string }>;
   createdAt: number;
   createdBy: string;
 }

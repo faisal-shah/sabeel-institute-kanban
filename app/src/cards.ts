@@ -178,6 +178,99 @@ export async function deleteCard(boardId: string, cardId: string): Promise<void>
   await deleteDoc(doc(db, 'boards', boardId, 'cards', cardId));
 }
 
+// ---- Bulk actions ---------------------------------------------------------
+//
+// Multi-select exists partly for its own sake and partly because deleting a
+// column is blocked while it holds cards: clearing a stale column of forty cards
+// must not be forty separate gestures.
+//
+// Every bulk operation is ONE batch, so a partial application is impossible —
+// either the whole selection moves or none of it does.
+
+/** Move many cards into a column at once, preserving their relative order. */
+export async function bulkMove(params: {
+  boardId: string;
+  cards: readonly Card[];
+  toColumnId: string;
+  /** Cards already in the destination, so the moved block lands after them. */
+  destinationCards: readonly Card[];
+  user: SessionUser;
+}): Promise<void> {
+  const moving = [...params.cards].sort(compareRank);
+  const staying = params.destinationCards.filter(
+    (c) => !moving.some((m) => m.id === c.id),
+  );
+
+  const batch = writeBatch(db);
+  let prev = staying[staying.length - 1]?.rank ?? null;
+
+  for (const card of moving) {
+    // Ranks are assigned in sequence so the selection keeps its order at the
+    // destination rather than arriving scrambled.
+    const rank = rankBetween(prev, null);
+    prev = rank;
+    batch.update(doc(db, 'boards', params.boardId, 'cards', card.id), {
+      columnId: params.toColumnId,
+      rank,
+      updatedAt: Date.now(),
+      updatedBy: params.user.uid,
+    });
+  }
+
+  await batch.commit();
+}
+
+export async function bulkArchive(
+  boardId: string,
+  cards: readonly Card[],
+  user: SessionUser,
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const c of cards) {
+    batch.update(doc(db, 'boards', boardId, 'cards', c.id), {
+      archived: true,
+      archivedAt: Date.now(),
+      updatedAt: Date.now(),
+      updatedBy: user.uid,
+    });
+  }
+  await batch.commit();
+}
+
+/** Managers and admins only — rules enforce it on the bulk path too. */
+export async function bulkDelete(
+  boardId: string,
+  cards: readonly Card[],
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const c of cards) {
+    batch.delete(doc(db, 'boards', boardId, 'cards', c.id));
+  }
+  await batch.commit();
+}
+
+/** Add or remove one person across a selection. */
+export async function bulkAssign(params: {
+  boardId: string;
+  cards: readonly Card[];
+  uid: string;
+  assign: boolean;
+  user: SessionUser;
+}): Promise<void> {
+  const batch = writeBatch(db);
+  for (const c of params.cards) {
+    const next = params.assign
+      ? Array.from(new Set([...c.assigneeUids, params.uid]))
+      : c.assigneeUids.filter((u) => u !== params.uid);
+    batch.update(doc(db, 'boards', params.boardId, 'cards', c.id), {
+      assigneeUids: next,
+      updatedAt: Date.now(),
+      updatedBy: params.user.uid,
+    });
+  }
+  await batch.commit();
+}
+
 /**
  * Quietly rebuild a column's ranks when they have collided or grown long.
  *

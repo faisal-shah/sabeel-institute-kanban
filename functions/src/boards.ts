@@ -55,7 +55,12 @@ export const removeBoardMember = onCall(async (request) => {
     .get();
 
   const batch = db.batch();
-  batch.update(boardRef, { memberUids: FieldValue.arrayRemove(uid) });
+  batch.update(boardRef, {
+    memberUids: FieldValue.arrayRemove(uid),
+    // The denormalised profile goes with the membership — leaving it behind
+    // would keep a departed colleague in every assignee picker.
+    [`memberProfiles.${uid}`]: FieldValue.delete(),
+  });
   for (const card of assigned.docs) {
     batch.update(card.ref, { assigneeUids: FieldValue.arrayRemove(uid) });
   }
