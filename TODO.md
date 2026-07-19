@@ -123,12 +123,15 @@ lives in a personal Google account — a continuity risk independent of OAuth.
       `EXPO_PUBLIC_SENTRY_DSN_WEB` and `EXPO_PUBLIC_SENTRY_DSN_NATIVE`.
       Two names, not one: web and native are separate projects, and a single
       shared variable would file Android crashes under the web project.
-- [ ] **`sabeel-kanban-functions` project** — creation was stalling in the
-      Sentry UI. Not a plan limit: [all Sentry plans include unlimited
-      projects](https://sentry.zendesk.com/hc/en-us/articles/23853145201051).
-      Retry in a private window or a different browser. Nothing is blocked
-      meanwhile — the functions seam no-ops without a DSN.
-- [ ] **Server DSN** → once that project exists, run:
+- [x] **`sabeel-kanban-functions` project created** (the UI stall cleared on a
+      retry; it was never a plan limit — all Sentry plans include unlimited
+      projects).
+- [ ] **Rotate the functions DSN first.** It was pasted into a chat transcript
+      on 2026-07-19. A DSN is send-only — it cannot read Sentry or app data —
+      so the realistic risk is quota abuse rather than disclosure, but rotating
+      costs nothing: Sentry → project → Settings → Client Keys (DSN) → revoke,
+      then Generate New Key.
+- [ ] **Server DSN** → run:
 
       ```sh
       firebase functions:secrets:set SENTRY_DSN
