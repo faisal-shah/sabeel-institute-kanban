@@ -105,6 +105,31 @@ android {
             keyPassword 'android'
         }
     }
+    /**
+     * Per-ABI APKs instead of one universal binary.
+     *
+     * A universal APK carries native libraries (Hermes, RN core, Google Play
+     * services shims) for EVERY architecture, so a phone downloads three copies
+     * it can never execute. Splitting takes the download from ~82 MB to roughly a
+     * third of that for the arm64 build every modern phone actually uses.
+     *
+     * `universalApk true` keeps the everything-included artifact as a fallback
+     * for anyone unsure which to grab.
+     *
+     * These are distributed from GitHub releases rather than Play, so the
+     * per-split versionCode offsets Play requires are deliberately not set — if
+     * this ever ships to Play, they become mandatory.
+     */
+    splits {
+        abi {
+            enable true
+            reset()
+            // x86_64 is kept because that is what the Android emulator runs, and
+            // an unverifiable build is not worth the bytes it saves.
+            include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+            universalApk true
+        }
+    }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
