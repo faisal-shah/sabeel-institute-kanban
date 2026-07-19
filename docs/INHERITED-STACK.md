@@ -158,6 +158,32 @@ in 0.21 — the thumb renders Material teal (`#009688`), a colour in no part of 
 Sabeel palette. `Toggle` in `app/src/components/ui.tsx` is a Pressable and two
 Views that we fully control. Do not reintroduce `Switch`.
 
+**13. A bare collection-group `array-contains` needs a single-field index
+EXEMPTION, not a composite index.** My Work queries
+`collectionGroup('cards').where('assigneeUids','array-contains',uid)` with no
+other constraint. Firestore does not index array fields at collection-group
+scope by default, so this fails in production with `FAILED_PRECONDITION` while
+every emulator test passes — the emulator enforces no indexes at all (lesson 6).
+It is a `fieldOverrides` entry in `firestore.indexes.json`, not an `indexes` one:
+
+```json
+{ "collectionGroup": "cards", "fieldPath": "assigneeUids",
+  "indexes": [{ "arrayConfig": "CONTAINS", "queryScope": "COLLECTION_GROUP" }] }
+```
+
+Caught on 2026-07-19 by `npm run probe-indexes`, minutes after the first
+production deploy and before anyone opened My Work.
+
+**14. "Deployed" is not "ready" for indexes.** `firebase firestore:indexes`
+reports definitions but no build state, so it cannot tell you an index is still
+`CREATING` — and a creating index errors on use exactly like a missing one. The
+above took ~4 minutes on an EMPTY database. Read the real state with:
+
+```sh
+curl -s -H "Authorization: Bearer $(gcloud auth application-default print-access-token)" \
+  "https://firestore.googleapis.com/v1/projects/<project>/databases/(default)/collectionGroups/<coll>/fields/<field>"
+```
+
 ## Auth model to reuse as-is
 
 Google sign-in only → new user lands `pending` → an **admin** approves. Claims

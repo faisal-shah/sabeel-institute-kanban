@@ -25,7 +25,8 @@
     "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 8086",
     "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android",
     "grant-admin": "bash scripts/grant-admin.sh",
-    "seed": "node scripts/seed-dev.mjs"
+    "seed": "node scripts/seed-dev.mjs",
+    "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
