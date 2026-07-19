@@ -5,11 +5,7 @@ rules_version = '2';
 //
 // Roles live in custom claims (`role`, `status`), set exclusively by the
 // setUserAccess callable. The user doc mirrors them for UI display; the token is
-// what these rules trust.
-//
-// Phase 0: nothing is allowed yet. Boards, cards, comments, activity and
-// notifications arrive with their phases (see docs/PHASE_STATUS.md). The helpers
-// below are the vocabulary every later rule is written in.
+// what these rules trust. A stale or tampered mirror must never grant anything.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -24,17 +20,41 @@ service cloud.firestore {
     function role() {
       return request.auth.token.get('role', 'member');
     }
+    // Managers create boards and may see/join any board.
     function isManager() {
       return isActive() && role() in ['manager', 'admin'];
     }
+    // Admins alone approve accounts and change roles.
     function isAdmin() {
       return isActive() && role() == 'admin';
     }
 
-    // ---- Phase 0: deny everything ----
-    // An explicit catch-all so the deny-by-default posture is testable, and so a
-    // future `match` added at the wrong nesting level fails loudly rather than
-    // silently inheriting an allow.
+    // ---- Users ----
+    // Read-only to clients, and writes go through the setUserAccess callable.
+    // Rationale: role and status are the entire security model. If clients could
+    // write any field of their own user doc, every future field added here would
+    // need re-auditing to be sure it is not privilege-adjacent. Denying writes
+    // outright means that audit can never be forgotten.
+    //
+    // Later phases add narrow, field-scoped self-writes (notification
+    // preferences, favourite boards) — never role or status.
+    match /users/{userId} {
+      // Your own doc: needed even while pending, so the gate screen can show
+      // your status and update live the moment an admin approves you.
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      // Admins read every profile to run the approval queue. They need name and
+      // email to judge a request, and they are the only ones who ever see the
+      // full list.
+      allow get, list: if isAdmin();
+
+      allow create, update, delete: if false;
+    }
+
+    // ---- Everything else ----
+    // Boards, cards, comments, activity and notifications arrive with their
+    // phases. This catch-all keeps the deny-by-default posture testable, and
+    // makes a future `match` added at the wrong nesting level fail loudly rather
+    // than silently inheriting an allow.
     match /{document=**} {
       allow read, write: if false;
     }

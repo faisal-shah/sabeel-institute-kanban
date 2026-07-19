@@ -402,10 +402,23 @@ expected to be all-day dates in a single org timezone.
 "Offline depth" means: how much still works with no signal, and what happens to
 edits made while offline.
 
-- **v1 (decided):** enable Firestore's persistent local cache. A board you opened
-  before losing signal still renders; edits made offline queue and sync when
-  connectivity returns, surviving an app restart. This is a configuration flag,
-  essentially free.
+- **Web (v1):** Firestore's persistent local cache (IndexedDB), with the
+  multi-tab manager. A board opened before losing signal still renders after a
+  reload, and queued writes survive.
+- **Android (v1): memory cache only — corrected 2026-07-19.** The earlier plan
+  said "persistent cache on both surfaces"; that is **not achievable** with the
+  Firebase JS SDK on React Native, because `persistentLocalCache` requires
+  IndexedDB and React Native has none. So on Android, offline means "keeps
+  working while the app stays open, and syncs queued writes on reconnect" — it
+  does **not** survive an app restart.
+
+  Auth persistence *is* handled (AsyncStorage), so people stay signed in across
+  restarts; it is only the Firestore cache that is in-memory.
+
+  If restart-surviving offline on Android becomes a real requirement, the honest
+  options are react-native-firebase (a native SDK with real persistence, but it
+  has no web support, so it would mean two Firebase clients) or a local mirror of
+  our own. Both are big; neither is worth doing before the team reports needing it.
 - **Not in v1:** a conflict-resolution UI. If two people edit the same card while
   one is offline, last-write-wins silently. For a <50-person team with
   card-per-document granularity this is very unlikely to bite; building a merge UI

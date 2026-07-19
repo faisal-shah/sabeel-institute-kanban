@@ -76,6 +76,47 @@ production probe after deploy.
 dodge a lock. Expect the kanban equivalent: any client-supplied field that gates
 a permission must be recomputed or constrained in rules, never trusted.
 
+## Lessons paid for in THIS project
+
+**8. The client's `projectId` must match the emulator project.** The Firestore
+emulator partitions data by project id, so a client configured with a different
+id talks to a *different database inside the same emulator*. Our client carried
+the placeholder `sabeel-institute-kanban` while `emulators:exec --project`, the
+Functions runtime and the Admin SDK all used `demo-sabeel-kanban`.
+
+The symptom is genuinely nasty: every write succeeds, the trigger logs success,
+the uids match exactly — and the client's listener returns a **server** snapshot
+(`fromCache=false`) saying the document does not exist. Because in its namespace,
+it doesn't. `singleProjectMode` does not save you here.
+
+Fixed in `app/src/firebase-config.ts`, which swaps in `EMULATOR_PROJECT_ID`
+whenever `EXPO_PUBLIC_USE_EMULATORS` is set. Cost about an hour on 2026-07-19.
+
+The debugging lesson generalises: when a listener misbehaves, log
+`snap.exists()` **and** `snap.metadata.fromCache` immediately. Those two booleans
+separated "never arrived", "arrived from a stale cache" and "the server really
+says no" in a single run, after two runs of guessing.
+
+**10. React Native needs `experimentalForceLongPolling` on Firestore.** RN's
+networking stack does not support Firestore's default WebChannel streaming
+transport. Without long polling the FIRST snapshot arrives and then the listen
+stream silently dies — no error, no retry — so any document written a moment
+later never reaches the device.
+
+Symptom on 2026-07-19: the account was provisioned server-side, uid matched,
+Functions logged success, and the phone sat on "Setting up your account…"
+forever, having received exactly one (empty) snapshot from before the write. Web
+was already fine; only Android hung. Set in `app/src/firebase.ts`.
+
+Note this and lesson 8 produce an almost identical symptom from different causes,
+which is why the `exists`/`fromCache` breadcrumb in `session.ts` earns its keep:
+lesson 8 gives `exists=false` forever, lesson 10 gives one snapshot then silence.
+
+**9. `expo export` sets `__DEV__` to false.** Anything gated on `__DEV__` — like
+the emulator dev sign-in — is correctly stripped from an exported bundle, which
+means e2e flows that need it must drive `expo start`, not the export. We assert
+the absence separately, so the safety property is tested rather than assumed.
+
 ## Auth model to reuse as-is
 
 Google sign-in only → new user lands `pending` → an **admin** approves. Claims
@@ -100,5 +141,9 @@ See `docs/PRODUCT_BRIEF.md` for the full decisions. Deltas from the time tracker
 - **Timezone machinery is NOT copied.** It was load-bearing for work-local time
   entries; kanban due dates are all-day dates in a single org timezone. Resist
   porting `time.ts` wholesale.
-- **Offline:** enable Firestore's persistent local cache (the time tracker did not
-  need to); no conflict-resolution UI in v1.
+- **Offline:** persistent Firestore cache on web only. React Native has no
+  IndexedDB, so `persistentLocalCache` is unavailable there and Android uses the
+  memory cache — verified 2026-07-19, brief corrected. Auth persistence on native
+  needs `getReactNativePersistence`, which exists in the SDK's react-native build
+  but is missing from the default typings (see `app/src/firebase.ts`). No
+  conflict-resolution UI in v1.

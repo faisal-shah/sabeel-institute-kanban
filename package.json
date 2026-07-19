@@ -19,12 +19,18 @@
     "pretest": "npm run build -w @sabeel/shared",
     "test": "npm run test --workspaces --if-present",
     "test:emulator": "bash scripts/test-emulator.sh",
-    "build": "npm run build -w @sabeel/shared && npm run build -w functions"
+    "e2e": "bash scripts/e2e.sh",
+    "build": "npm run build -w @sabeel/shared && npm run build -w functions",
+    "emulators": "bash scripts/emulators.sh",
+    "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 8086",
+    "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android",
+    "grant-admin": "bash scripts/grant-admin.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@types/node": "^22.10.0",
     "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",
     "playwright": "^1.61.1",
     "typescript": "~6.0.3",

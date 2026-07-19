@@ -1,13 +1,36 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   initializeTestEnvironment,
   assertFails,
+  assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  doc,
+  collection,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
+
+const ROLES = ['member', 'manager', 'admin'] as const;
+const STATUSES = ['pending', 'active', 'rejected', 'disabled'] as const;
+
+function ctx(uid: string, role: string, status: string) {
+  return env
+    .authenticatedContext(uid, {
+      email: `${uid}@oursabeel.com`,
+      email_verified: true,
+      role,
+      status,
+    })
+    .firestore();
+}
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -24,71 +47,148 @@ afterAll(async () => {
   await env?.cleanup();
 });
 
-// Phase 0 posture: nothing is allowed to anyone. Each phase adds allows and the
-// tests that pin them down; this file proves the deny-by-default floor exists,
-// so a later `match` at the wrong nesting level fails loudly instead of silently
-// inheriting an allow.
-describe('deny-by-default', () => {
-  it('blocks an unauthenticated read', async () => {
-    const db = env.unauthenticatedContext().firestore();
-    await assertFails(getDoc(doc(db, 'boards/anything')));
-  });
-
-  it('blocks an unauthenticated write', async () => {
-    const db = env.unauthenticatedContext().firestore();
-    await assertFails(setDoc(doc(db, 'boards/anything'), { name: 'nope' }));
-  });
-
-  it('blocks a signed-in but unapproved user', async () => {
-    // The shape of every new account: signed in on the org domain, awaiting an
-    // admin. Domain membership alone must grant nothing.
-    const db = env
-      .authenticatedContext('pending-user', {
-        email: 'newbie@oursabeel.com',
-        email_verified: true,
-        status: 'pending',
-        role: 'member',
-      })
-      .firestore();
-    await assertFails(getDoc(doc(db, 'boards/anything')));
-    await assertFails(setDoc(doc(db, 'boards/anything'), { name: 'nope' }));
-  });
-
-  it('blocks even an active admin, since no path is open yet', async () => {
-    const db = env
-      .authenticatedContext('admin-user', {
-        email: 'boss@oursabeel.com',
-        email_verified: true,
-        status: 'active',
-        role: 'admin',
-      })
-      .firestore();
-    await assertFails(getDoc(doc(db, 'boards/anything')));
-  });
-
-  it('blocks writes to the users collection from the client', async () => {
-    // Role and status are claims set only by the admin-only setUserAccess
-    // callable. A client must never be able to write its own user doc.
-    const db = env
-      .authenticatedContext('self', {
-        email: 'self@oursabeel.com',
-        email_verified: true,
-        status: 'active',
-        role: 'member',
-      })
-      .firestore();
-    await assertFails(setDoc(doc(db, 'users/self'), { role: 'admin' }));
+beforeEach(async () => {
+  await env.clearFirestore();
+  await env.withSecurityRulesDisabled(async (c) => {
+    const db = c.firestore();
+    // A representative population: one of each role, plus someone waiting.
+    await setDoc(doc(db, 'users/admin1'), {
+      displayName: 'Admin One',
+      email: 'admin1@oursabeel.com',
+      role: 'admin',
+      status: 'active',
+    });
+    await setDoc(doc(db, 'users/manager1'), {
+      displayName: 'Manager One',
+      email: 'manager1@oursabeel.com',
+      role: 'manager',
+      status: 'active',
+    });
+    await setDoc(doc(db, 'users/member1'), {
+      displayName: 'Member One',
+      email: 'member1@oursabeel.com',
+      role: 'member',
+      status: 'active',
+    });
+    await setDoc(doc(db, 'users/pending1'), {
+      displayName: 'Pending One',
+      email: 'pending1@oursabeel.com',
+      role: 'member',
+      status: 'pending',
+    });
   });
 });
 
-// Sanity check that the harness itself works — if assertFails passed against a
-// broken emulator connection, every test above would be vacuous.
+describe('deny-by-default floor', () => {
+  it('blocks unauthenticated reads and writes anywhere', async () => {
+    const db = env.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'boards/anything')));
+    await assertFails(setDoc(doc(db, 'boards/anything'), { name: 'nope' }));
+    await assertFails(getDoc(doc(db, 'users/admin1')));
+  });
+
+  it('blocks even an active admin from collections no phase has opened yet', async () => {
+    const db = ctx('admin1', 'admin', 'active');
+    await assertFails(getDoc(doc(db, 'boards/anything')));
+    await assertFails(setDoc(doc(db, 'boards/anything'), { name: 'nope' }));
+  });
+});
+
+describe('reading your own user doc', () => {
+  it('is allowed for every role x status combination', async () => {
+    // Load-bearing for the gate screens: a pending, rejected or disabled user
+    // must still be able to read their OWN status, or they would see a blank
+    // screen with no explanation of why they cannot get in.
+    for (const role of ROLES) {
+      for (const status of STATUSES) {
+        const uid = `self_${role}_${status}`;
+        await env.withSecurityRulesDisabled(async (c) => {
+          await setDoc(doc(c.firestore(), `users/${uid}`), { role, status });
+        });
+        await assertSucceeds(getDoc(doc(ctx(uid, role, status), `users/${uid}`)));
+      }
+    }
+  });
+});
+
+describe('reading OTHER user docs', () => {
+  it('is allowed only for active admins', async () => {
+    for (const role of ROLES) {
+      for (const status of STATUSES) {
+        const db = ctx(`peeker_${role}_${status}`, role, status);
+        const read = getDoc(doc(db, 'users/member1'));
+        if (role === 'admin' && status === 'active') {
+          await assertSucceeds(read);
+        } else {
+          await assertFails(read);
+        }
+      }
+    }
+  });
+
+  it('lets an active admin list the approval queue', async () => {
+    await assertSucceeds(getDocs(collection(ctx('admin1', 'admin', 'active'), 'users')));
+  });
+
+  it('refuses the user list to managers and members', async () => {
+    await assertFails(getDocs(collection(ctx('manager1', 'manager', 'active'), 'users')));
+    await assertFails(getDocs(collection(ctx('member1', 'member', 'active'), 'users')));
+  });
+
+  it('refuses the user list to an admin who is not active', async () => {
+    // Disabling an admin must actually disable them.
+    for (const status of STATUSES.filter((s) => s !== 'active')) {
+      await assertFails(getDocs(collection(ctx('admin1', 'admin', status), 'users')));
+    }
+  });
+});
+
+describe('writes to user docs are impossible from any client', () => {
+  it('blocks self-escalation of role', async () => {
+    // The attack this whole design exists to prevent.
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'admin' }));
+    await assertFails(updateDoc(doc(db, 'users/member1'), { status: 'active' }));
+  });
+
+  it('blocks a pending user activating themselves', async () => {
+    const db = ctx('pending1', 'member', 'pending');
+    await assertFails(updateDoc(doc(db, 'users/pending1'), { status: 'active' }));
+  });
+
+  it('blocks a manager promoting someone', async () => {
+    const db = ctx('manager1', 'manager', 'active');
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'manager' }));
+  });
+
+  it('blocks an ADMIN writing user docs directly — it must go through the callable', async () => {
+    // Admins are authorised to change access, but not by writing Firestore.
+    // Claims and the mirror would drift apart, and claims are what rules trust.
+    const db = ctx('admin1', 'admin', 'active');
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'manager' }));
+    await assertFails(setDoc(doc(db, 'users/newperson'), { role: 'member' }));
+    await assertFails(deleteDoc(doc(db, 'users/member1')));
+  });
+
+  it('blocks writing innocuous-looking fields too', async () => {
+    // Denying the whole document means no future field can be privilege-adjacent
+    // by accident.
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(updateDoc(doc(db, 'users/member1'), { displayName: 'Renamed' }));
+  });
+
+  it('blocks creating a user doc for someone who never signed up', async () => {
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(setDoc(doc(db, 'users/ghost'), { role: 'admin', status: 'active' }));
+  });
+});
+
 describe('test harness', () => {
   it('can bypass rules via withSecurityRulesDisabled', async () => {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'boards/seeded'), { name: 'ok' });
-      const snap = await getDoc(doc(ctx.firestore(), 'boards/seeded'));
-      expect(snap.exists()).toBe(true);
+    // If this failed, every assertFails above would be vacuously true.
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'boards/seeded'), { name: 'ok' });
+      expect((await getDoc(doc(c.firestore(), 'boards/seeded'))).exists()).toBe(true);
     });
   });
 });

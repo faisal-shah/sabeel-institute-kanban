@@ -1,13 +1,16 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/dist-web/**',
+      // Any exported web bundle, however it is named. Linting minified bundle
+      // output produces thousands of meaningless errors.
+      '**/dist-web*/**',
       '**/lib/**',
       '**/build/**',
       '**/coverage/**',
@@ -39,7 +42,20 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         ...globals.browser,
+        __DEV__: 'readonly',
       },
+    },
+  },
+  {
+    // Hooks correctness matters more than usual here: useLiveQuery's whole
+    // safety property is that its state resets when its dependencies change, so
+    // a wrong dependency array reintroduces exactly the stale-data bug the
+    // module exists to prevent.
+    files: ['app/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   {

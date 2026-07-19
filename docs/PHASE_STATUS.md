@@ -11,7 +11,7 @@ web. "The code looks right" is not verification.
 | Phase | What | Status |
 |---|---|---|
 | 0 | Scaffold + CI + theming | **complete** (2026-07-19: 15 tests green; light+dark verified by screenshot on `tb_emu` and web export; esbuild inlining of `@sabeel/shared` verified) |
-| 1 | Auth + approval + roles | not started |
+| 1 | Auth + approval + roles | **complete** (2026-07-19: 83 tests + 11 e2e checks green; live un-gating verified on web AND Android by screenshot) |
 | 2 | Boards + membership | not started |
 | 3 | Columns + cards + ordering | not started |
 | 4 | Mobile board | not started |
@@ -71,12 +71,24 @@ admin approve/reject; `setUserAccess` callable (admin-only) setting `role` and
 disabled; admin user-management screen; `scripts/grant-admin.mjs`.
 
 **Exit criteria**
-- A non-`oursabeel.com` account is rejected by the *function*, proven with the
-  consent screen bypassed (don't rely on the Internal setting for the test).
-- New user lands `pending`; admin approves; the client picks up the claim change
-  live without a manual sign-out.
-- Rules tests cover every role × status combination.
-- Only admins can promote; a member cannot escalate themselves. Tested.
+- [x] A non-`oursabeel.com` account is rejected by the *function*, proven with the
+      consent screen bypassed — integration tests create users straight through
+      the Admin SDK, including look-alike domains and unverified addresses.
+- [x] New user lands `pending`; admin approves; the client picks up the claim
+      change live without a manual sign-out. **Verified on web (e2e assertion
+      that the URL never changed) and on Android by screenshot, with no
+      interaction with the device between grant and un-gate.**
+- [x] Rules tests cover every role × status combination (all 12).
+- [x] Only admins can promote; a member cannot escalate themselves — tested at
+      three levels: pure logic, the real callable over HTTP, and rules.
+
+**Tests:** 32 shared + 11 functions unit + 40 emulator integration = 83, plus 11
+browser e2e checks (`npm run e2e`).
+
+**Two traps found and documented** (`docs/INHERITED-STACK.md` lessons 8 and 10):
+the emulator project-id mismatch, and React Native needing
+`experimentalForceLongPolling`. Both produce "the app hangs on a spinner while
+the server says everything worked".
 
 ## Phase 2 — Boards and membership
 

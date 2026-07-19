@@ -15,7 +15,16 @@ if [ -n "${JAVA_HOME:-}" ]; then
   export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
+# The functions emulator runs the BUILT bundle, so build before starting it.
+# This also means the integration suite exercises the same esbuild output that
+# gets deployed, not the TypeScript sources.
+npm run build -w functions
+
+# `functions` is in the emulator set so the auth-create trigger and the
+# setUserAccess callable are tested for real, not just their extracted logic.
+# The domain rejection is a security boundary; asserting it against the actual
+# trigger is the point.
 exec firebase emulators:exec \
   --project demo-sabeel-kanban \
-  --only firestore,auth \
+  --only firestore,auth,functions \
   "npm run test:integration -w functions"
