@@ -43,6 +43,51 @@ export type LiveState<T> =
 
 const LOADING = { status: 'loading', data: undefined, error: undefined } as const;
 
+// ---- Last-result cache ----------------------------------------------------
+/**
+ * The last mapped result for each subscription, so returning to a screen you
+ * were just on renders immediately instead of tearing down to a spinner.
+ *
+ * Navigating opened a FULL-SCREEN "Loading card…" for about a second, then the
+ * content appeared — in both directions. That reads as the screen failing to
+ * draw rather than as loading, because everything vanishes including the parts
+ * that never changed.
+ *
+ * This does NOT weaken invariant 1. The bug that invariant exists for is showing
+ * query A's data under query B's inputs; the key here is the label plus the deps
+ * that IDENTIFY the subscription, so a different query has no entry and still
+ * starts at `loading`. Only a query showing its own previous result skips the
+ * spinner — and Firestore is about to re-deliver exactly that from its cache.
+ *
+ * Errors evict, so invariant 2 holds too: a failed listen never leaves stale
+ * rows on screen.
+ */
+const lastResults = new Map<string, unknown>();
+const MAX_CACHED = 60;
+
+function cacheKey(label: string, deps: readonly unknown[]): string {
+  return `${label}|${JSON.stringify(deps)}`;
+}
+
+function remember(key: string, value: unknown) {
+  // Bounded: keys include ids (every card visited), so this would otherwise grow
+  // for the life of the session. Oldest-out is fine — the cost of a miss is the
+  // spinner we had before.
+  if (lastResults.size >= MAX_CACHED) {
+    const oldest = lastResults.keys().next().value;
+    if (oldest !== undefined) lastResults.delete(oldest);
+  }
+  lastResults.delete(key);
+  lastResults.set(key, value);
+}
+
+function cachedState<T>(key: string): LiveState<T> {
+  const hit = lastResults.get(key);
+  return hit === undefined
+    ? (LOADING as LiveState<T>)
+    : { status: 'ready', data: hit as T, error: undefined };
+}
+
 // ---- Listener-error visibility -------------------------------------------
 // Errors are broadcast so a screen-level banner can show them. A later success
 // from the same source clears it.
@@ -92,35 +137,37 @@ export function useLiveQuery<T>(
   map: (docs: LiveDoc[]) => T,
   deps: readonly unknown[],
 ): LiveState<T> {
-  const [state, setState] = useState<LiveState<T>>(LOADING);
+  const key = cacheKey(label, deps);
+  const [state, setState] = useState<LiveState<T>>(() => cachedState<T>(key));
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const query = useMemo(build, deps);
 
   useEffect(() => {
-    // Invariant 1: reset before the new subscription produces anything.
-    setState(LOADING);
+    // Invariant 1: never show ANOTHER query's data. A cache hit here is this
+    // same subscription's own last result, which is not that.
+    setState(cachedState<T>(key));
     if (!query) return;
 
     const unsub = onSnapshot(
       query,
       (snap) => {
         publishSuccess(label);
-        setState({
-          status: 'ready',
-          data: map(
-            snap.docs.map((d) => ({
-              id: d.id,
-              data: d.data() as Record<string, unknown>,
-              path: d.ref.path,
-            })),
-          ),
-          error: undefined,
-        });
+        const data = map(
+          snap.docs.map((d) => ({
+            id: d.id,
+            data: d.data() as Record<string, unknown>,
+            path: d.ref.path,
+          })),
+        );
+        remember(key, data);
+        setState({ status: 'ready', data, error: undefined });
       },
       (e) => {
         publishError(label, e);
-        // Invariant 2: never leave stale rows visible behind an error.
+        // Invariant 2: never leave stale rows visible behind an error — including
+        // via the cache, so a later remount cannot resurrect them either.
+        lastResults.delete(key);
         setState({ status: 'error', data: undefined, error: e.code ?? e.message });
       },
     );
@@ -138,35 +185,35 @@ export function useLiveDoc<T>(
   map: (doc: LiveDoc | null) => T,
   deps: readonly unknown[],
 ): LiveState<T> {
-  const [state, setState] = useState<LiveState<T>>(LOADING);
+  const key = cacheKey(label, deps);
+  const [state, setState] = useState<LiveState<T>>(() => cachedState<T>(key));
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ref = useMemo(build, deps);
 
   useEffect(() => {
-    setState(LOADING);
+    setState(cachedState<T>(key));
     if (!ref) return;
 
     const unsub = onSnapshot(
       ref,
       (snap) => {
         publishSuccess(label);
-        setState({
-          status: 'ready',
-          data: map(
-            snap.exists()
-              ? {
-                  id: snap.id,
-                  data: snap.data() as Record<string, unknown>,
-                  path: snap.ref.path,
-                }
-              : null,
-          ),
-          error: undefined,
-        });
+        const data = map(
+          snap.exists()
+            ? {
+                id: snap.id,
+                data: snap.data() as Record<string, unknown>,
+                path: snap.ref.path,
+              }
+            : null,
+        );
+        remember(key, data);
+        setState({ status: 'ready', data, error: undefined });
       },
       (e) => {
         publishError(label, e);
+        lastResults.delete(key);
         setState({ status: 'error', data: undefined, error: e.code ?? e.message });
       },
     );

@@ -40,6 +40,7 @@ export function Comments({
   const comments = useComments(boardId, cardId);
   const t = useTheme();
   const [draft, setDraft] = useState('');
+  const [posting, setPosting] = useState(false);
   const draftRef = useRef<TextInput>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -206,13 +207,32 @@ export function Comments({
             keyboard. The hint is guidance, not a step, so it reads fine after. */}
         <Button
           label="Comment"
-          disabled={draft.trim().length === 0}
-          onPress={() =>
-            run(async () => {
-              await addComment({ boardId, cardId, body: draft, candidates, user });
-              setDraft('');
-            })
-          }
+          disabled={draft.trim().length === 0 || posting}
+          busy={posting}
+          onPress={() => {
+            // Clear the box IMMEDIATELY rather than after the server
+            // acknowledges. `addDoc` resolves on server ack, which on a phone
+            // can take many seconds — during which the draft sat there, the
+            // button stayed enabled, and nothing indicated progress. It looked
+            // dead, so you tap it again. Firestore applies the write locally
+            // first, so the comment appears on its own.
+            //
+            // The text is restored if the write actually fails, because losing
+            // what someone typed is far worse than a second of uncertainty.
+            const body = draft;
+            setDraft('');
+            setPosting(true);
+            void run(async () => {
+              try {
+                await addComment({ boardId, cardId, body, candidates, user });
+              } catch (e) {
+                setDraft(body);
+                throw e;
+              } finally {
+                setPosting(false);
+              }
+            });
+          }}
         />
 
         {/* You can only mention people who can open the card, which is board
