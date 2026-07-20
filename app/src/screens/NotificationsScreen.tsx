@@ -25,7 +25,7 @@ import {
   Spinner,
   Title,
 } from '../components/ui';
-import { radius, space, useTheme } from '../theme';
+import { space, useTheme } from '../theme';
 import { useAction } from '../useAction';
 
 function when(ms: number): string {
@@ -199,24 +199,3 @@ const styles = StyleSheet.create({
   grow: { flex: 1, gap: space.xs },
 });
 
-/** Small unread badge for the boards header. */
-export function UnreadDot({ count }: { count: number }) {
-  const t = useTheme();
-  if (count <= 0) return null;
-  return (
-    <View style={[badge.dot, { backgroundColor: t.accent.base }]}>
-      <Caption>{count > 9 ? '9+' : String(count)}</Caption>
-    </View>
-  );
-}
-
-const badge = StyleSheet.create({
-  dot: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-});

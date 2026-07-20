@@ -70,14 +70,6 @@ export function useBoardCards(boardId: string) {
   );
 }
 
-export function useArchivedCards(boardId: string) {
-  return useLiveQuery<Card[]>(
-    'archived-cards',
-    () => query(cardsRef(boardId), where('archived', '==', true)),
-    (docs) => docs.map((d) => toCard(d.id, d.data)),
-    [boardId],
-  );
-}
 
 export function useCard(boardId: string, cardId: string) {
   return useLiveDoc<Card | null>(

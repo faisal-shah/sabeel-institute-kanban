@@ -2,7 +2,7 @@
   "name": "sabeel-institute-kanban",
   "version": "0.0.0",
   "private": true,
-  "description": "Sabeel Institute Kanban \u2014 access-controlled kanban boards for a small nonprofit (Android + web from one Expo codebase, Firebase backend)",
+  "description": "Sabeel Institute Kanban — access-controlled kanban boards for a small nonprofit (Android + web from one Expo codebase, Firebase backend)",
   "workspaces": [
     "packages/*",
     "functions",
@@ -26,7 +26,8 @@
     "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android",
     "grant-admin": "bash scripts/grant-admin.sh",
     "seed": "node scripts/seed-dev.mjs",
-    "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs"
+    "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs",
+    "deadcode": "knip"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -34,6 +35,7 @@
     "eslint": "^9.39.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",
+    "knip": "^5.88.1",
     "playwright": "^1.61.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.53.0"

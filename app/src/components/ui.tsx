@@ -185,31 +185,6 @@ export function Button({
 }
 
 /** Small status pill — pending / active / rejected / disabled, role names. */
-export function Pill({
-  label,
-  tone = 'neutral',
-}: {
-  label: string;
-  tone?: 'neutral' | 'good' | 'warn' | 'bad' | 'accent';
-}) {
-  const t = useTheme();
-  const color =
-    tone === 'good'
-      ? t.feedback.success
-      : tone === 'warn'
-        ? t.feedback.warning
-        : tone === 'bad'
-          ? t.feedback.danger
-          : tone === 'accent'
-            ? t.accent.base
-            : t.text.muted;
-
-  return (
-    <View style={[styles.pill, { borderColor: color }]}>
-      <Text style={[type.caption, { color }]}>{label}</Text>
-    </View>
-  );
-}
 
 /**
  * On/off toggle.

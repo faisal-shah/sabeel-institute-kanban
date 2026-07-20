@@ -63,4 +63,3 @@ export function setErrorUser(uid: string | null): void {
   Sentry.setUser(uid ? { id: uid } : null);
 }
 
-export const errorReportingEnabled = Boolean(DSN);
