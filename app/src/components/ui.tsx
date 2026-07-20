@@ -2,7 +2,7 @@
  * Themed primitives. Screens compose these rather than styling from scratch, so
  * light/dark stays coherent and no screen ever needs a color literal.
  */
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -14,8 +14,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { KeyboardScroll } from './KeyboardScroll';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { radius, space, type, useTheme } from '../theme';
+
+/** Any MaterialIcons glyph name, without re-listing them here. */
+type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
 /**
  * Space kept below a focused field when the keyboard is up.
@@ -231,6 +235,48 @@ export function Toggle({
   );
 }
 
+/**
+ * A quiet icon action — an icon, not a labelled button.
+ *
+ * Labelled buttons cost a full row each. Comment actions, the description
+ * editor and the bulk-selection bar all made the same mistake independently:
+ * a screen ends up spending more height on chrome than on content. For
+ * ordinary, well-known operations — edit, delete, move, archive, close — an
+ * icon carries the meaning at a fraction of the space.
+ *
+ * `accessibilityLabel` carries the word the icon replaces, so nothing is lost
+ * for screen readers, and `hitSlop` keeps the tap target finger-sized while the
+ * ink stays small.
+ */
+export function IconAction({
+  icon,
+  label,
+  onPress,
+  danger,
+}: {
+  icon: MaterialIconName;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+      style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}
+    >
+      <MaterialIcons
+        name={icon}
+        size={18}
+        color={danger ? t.text.danger : t.text.muted}
+      />
+    </Pressable>
+  );
+}
+
 export function Row({
   children,
   style,
@@ -301,6 +347,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleThumb: { width: 26, height: 26, borderRadius: radius.pill },
+  action: { paddingVertical: 2 },
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },

@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { StyleSheet, View, type TextInput } from 'react-native';
 import {
   activeMentionQuery,
   completeMention,
@@ -11,7 +10,16 @@ import {
 import { addComment, deleteComment, editComment, useComments } from '../comments';
 import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Caption, Card as Panel, Row, Spinner, TextField } from './ui';
+import {
+  Body,
+  Button,
+  Caption,
+  Card as Panel,
+  IconAction,
+  Row,
+  Spinner,
+  TextField,
+} from './ui';
 import { space, useTheme } from '../theme';
 import { useAction } from '../useAction';
 
@@ -235,49 +243,8 @@ export function Comments({
   );
 }
 
-/**
- * A quiet, inline icon action.
- *
- * Per-comment Edit/Delete used to be full Buttons on their own row, so a thread
- * of three comments spent more height on chrome than on what people wrote. An
- * icon costs a line it was already going to occupy — it sits on the byline.
- *
- * `accessibilityLabel` carries the word the icon replaces, so nothing is lost
- * for screen readers, and `hitSlop` keeps the tap target finger-sized while the
- * ink stays small.
- */
-function IconAction({
-  icon,
-  label,
-  onPress,
-  danger,
-}: {
-  icon: 'edit' | 'delete-outline';
-  label: string;
-  onPress: () => void;
-  danger?: boolean;
-}) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
-      style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}
-    >
-      <MaterialIcons
-        name={icon}
-        size={18}
-        color={danger ? t.text.danger : t.text.muted}
-      />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   actions: { gap: space.md },
-  action: { paddingVertical: 2 },
   between: { justifyContent: 'space-between' },
   wrap: { flexWrap: 'wrap' },
   suggestions: {

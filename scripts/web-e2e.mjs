@@ -123,7 +123,7 @@ async function newApp(browser, scheme = 'light') {
  */
 async function openCard(page, title) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const clear = page.getByRole('button', { name: 'Clear' });
+    const clear = page.getByRole('button', { name: 'Clear selection' });
     if ((await clear.count()) > 0) {
       await clear.first().click().catch(() => {});
       await page.waitForTimeout(400);
@@ -474,11 +474,12 @@ try {
   await admin
     .getByRole('checkbox', { name: 'Select Bulk three' })
     .click({ modifiers: ['Shift'] });
-  await admin.getByText('3 cards selected').waitFor({ timeout: 15000 });
+  await admin.getByText('3 selected').waitFor({ timeout: 15000 });
   check('shift-click selects a range', true);
   await admin.screenshot({ path: join(SHOTS, 'p7-bulk-selected-light.png'), fullPage: true });
 
-  await admin.getByRole('button', { name: 'Move to…' }).click();
+  // The bulk bar is icons now; the accessible name carries the word.
+  await admin.getByRole('button', { name: 'Move selected cards' }).click();
   await admin.getByLabel('Destination column').selectOption({ label: 'Done' });
   await admin.waitForTimeout(2000);
 
@@ -505,7 +506,7 @@ try {
   await admin
     .getByRole('checkbox', { name: 'Select Bulk three' })
     .click({ modifiers: ['Shift'] });
-  await admin.getByRole('button', { name: 'Archive', exact: true }).click();
+  await admin.getByRole('button', { name: 'Archive selected cards' }).click();
   await admin.getByText('Bulk two').waitFor({ state: 'detached', timeout: 20000 });
   check('a bulk archive clears the selection off the board', true);
 

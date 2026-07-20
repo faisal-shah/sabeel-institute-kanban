@@ -13,7 +13,7 @@ import { Select } from './Select';
 import type { Selection } from '../useSelection';
 import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Caption, Row } from './ui';
+import { Body, Button, Caption, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
 import { toUserMessage } from '../errors';
 
@@ -72,39 +72,49 @@ export function BulkBar({
         { backgroundColor: t.bg.raised, borderColor: t.border.strong },
       ]}
     >
+      {/* ONE row. This bar floats over the board, so every row it takes is a row
+          of board you cannot see. Labelled buttons wrapped onto two or three
+          rows on a phone; move, assign, archive, delete and close are ordinary
+          operations with settled icons, and each keeps its word as an
+          accessibility label. */}
       <Row style={styles.between}>
-        <Body>
-          {selection.count} card{selection.count === 1 ? '' : 's'} selected
-        </Body>
-        <Button label="Clear" variant="secondary" onPress={selection.clear} />
-      </Row>
-
-      {mode === 'idle' ? (
-        <Row style={styles.wrap}>
-          <Button label="Move to…" onPress={() => setMode('move')} busy={busy} />
-          <Button
-            label="Assign…"
-            variant="secondary"
-            onPress={() => setMode('assign')}
-            busy={busy}
-          />
-          <Button
-            label="Archive"
-            variant="secondary"
-            busy={busy}
-            onPress={() => run(() => bulkArchive(boardId, chosen, user))}
-          />
-          {/* Members archive; only managers and admins destroy. */}
-          {sessionCan.manageBoards(user) ? (
-            <Button
-              label="Delete"
-              variant="danger"
-              busy={busy}
-              onPress={() => setMode('confirmDelete')}
-            />
+        <Caption>{selection.count} selected</Caption>
+        <Row style={styles.actions}>
+          {mode === 'idle' ? (
+            <>
+              <IconAction
+                icon="swap-horiz"
+                label="Move selected cards"
+                onPress={() => setMode('move')}
+              />
+              <IconAction
+                icon="person-add"
+                label="Assign selected cards"
+                onPress={() => setMode('assign')}
+              />
+              <IconAction
+                icon="archive"
+                label="Archive selected cards"
+                onPress={() => run(() => bulkArchive(boardId, chosen, user))}
+              />
+              {/* Members archive; only managers and admins destroy. */}
+              {sessionCan.manageBoards(user) ? (
+                <IconAction
+                  icon="delete-outline"
+                  label="Delete selected cards"
+                  danger
+                  onPress={() => setMode('confirmDelete')}
+                />
+              ) : null}
+            </>
           ) : null}
+          <IconAction
+            icon="close"
+            label={mode === 'idle' ? 'Clear selection' : 'Cancel'}
+            onPress={() => (mode === 'idle' ? selection.clear() : setMode('idle'))}
+          />
         </Row>
-      ) : null}
+      </Row>
 
       {mode === 'move' ? (
         <>
@@ -202,6 +212,7 @@ const styles = StyleSheet.create({
     gap: space.sm,
     marginBottom: space.sm,
   },
-  between: { justifyContent: 'space-between' },
+  between: { justifyContent: 'space-between', alignItems: 'center' },
+  actions: { gap: space.lg, alignItems: 'center' },
   wrap: { flexWrap: 'wrap' },
 });

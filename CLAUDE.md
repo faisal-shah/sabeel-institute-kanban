@@ -42,6 +42,17 @@ Key product invariants (do not silently change):
   color decision** — new screens, components, illustrations, charts, anything.
   Warm Ivory (foundation) / Soft Sage (calm) / Dark Raspberry (brand identity,
   used with purpose) / Antique Gold (sparingly) / Mushroom Taupe (support).
+- **Ordinary actions are icons, not labelled buttons.** Edit, delete, move,
+  archive, assign, close — these have settled conventions, and a full-width
+  labelled button for each costs a row of vertical space every time. This was
+  got wrong three separate times (comment actions, the description editor, the
+  bulk-selection bar) before it was written down. Give every icon an
+  `accessibilityLabel` carrying the word it replaces, and a generous `hitSlop`
+  so the target stays finger-sized while the ink stays small. Use `IconAction`
+  in `components/ui.tsx`. Reserve labelled buttons for the primary action of a
+  screen and for anything destructive-and-unusual.
+- **A control that floats over content must fit on one row.** The bulk bar sits
+  on top of the board: every row it takes is a row of board the user cannot see.
 - **All color goes through semantic theme tokens** from the first screen — light
   and dark ship together, following the OS. Never hardcode a color; the ESLint
   rule will reject it. `app/src/theme/palette.ts` is the only exception and is
