@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ORG_TIMEZONE, type Priority } from '@sabeel/shared';
 import {
   archiveCard,
@@ -163,7 +164,24 @@ export function CardScreen({
         </Row>
       </Panel>
 
-      <Heading>Description</Heading>
+      {/* Edit sits ON the heading, not as a full-width button under the text.
+          A button that wide reads as the section's primary action when it is
+          really a secondary one, and it cost a whole row on a screen that is
+          already long. */}
+      <Row style={styles.between}>
+        <Heading>Description</Heading>
+        {!editingDesc ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit description"
+            onPress={() => setEditingDesc(true)}
+            hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+          >
+            <MaterialIcons name="edit" size={18} color={t.text.muted} />
+          </Pressable>
+        ) : null}
+      </Row>
       <Panel>
         {editingDesc ? (
           <>
@@ -214,11 +232,6 @@ export function CardScreen({
             ) : (
               <Caption>No description yet.</Caption>
             )}
-            <Button
-              label="Edit description"
-              variant="secondary"
-              onPress={() => setEditingDesc(true)}
-            />
           </>
         )}
       </Panel>

@@ -54,7 +54,7 @@ import {
   Title,
 } from '../ui';
 import { radius, space, type, useTheme } from '../../theme';
-import { useLayout } from '../../theme/layout';
+import { KeyboardSticky } from '../KeyboardSticky';
 
 /** Stable empties, so an absent board does not churn the memos below. */
 const NO_COLUMNS: BoardColumn[] = [];
@@ -120,22 +120,19 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   // Measured, not Dimensions.get('window'): this pager sits inside the Screen's
   // horizontal padding, so sizing pages to the WINDOW made every page wider than
   // the space available and pushed cards (and the column footer) off the right
-  // edge. Measuring also means it stays correct if it is ever nested elsewhere,
-  // and it tracks browser resizes for free.
+  // edge. Measuring also keeps it correct if it is ever nested elsewhere, and it
+  // tracks browser resizes for free.
   //
-  // But measurement must never be the ONLY source of a width. Rendering nothing
-  // until onLayout reported meant a single missed or zero-width layout pass left
-  // a permanently blank board — header and pager controls visible (they sit
-  // outside the ScrollView), no column, no "+ Add card", no way to recover
-  // without leaving the screen. That is what a real device showed on 2026-07-19
-  // while web was fine.
-  //
-  // So: fall back to the window width minus the Screen's horizontal padding,
-  // which is what the measurement converges to anyway. A slightly wrong width
-  // for one frame is a trivial cost against a board that cannot be used at all.
-  const [measured, setMeasured] = useState(0);
-  const layout = useLayout();
-  const width = measured > 0 ? measured : Math.max(0, layout.width - space.lg * 2);
+  // ONE source of truth, deliberately. A previous version fell back to
+  // window-width-minus-padding until the measurement arrived, as insurance
+  // against a blank board. That was a mistake: `syncPage` derives the current
+  // page from `contentOffset.x / width`, so two different widths in play meant
+  // the division could produce a page the user never navigated to — the board
+  // jumped from column 2 to column 7 while opening the add-card form, and sat
+  // between two columns showing half of each. The blank board it was insuring
+  // against had a different cause (a flex:1 chain broken in Screen) and is fixed
+  // there. Insurance that corrupts the thing it protects is not insurance.
+  const [width, setWidth] = useState(0);
   const selection = useSelection(cards.data ?? EMPTY_CARDS);
 
   // Members come from the BOARD, not the user directory: only admins may list
@@ -296,7 +293,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         ref={scroller}
         onLayout={(e) => {
           const w = e.nativeEvent.layout.width;
-          if (w > 0 && Math.abs(w - measured) > 1) setMeasured(w);
+          if (w > 0 && Math.abs(w - width) > 1) setWidth(w);
         }}
         horizontal
         pagingEnabled
@@ -336,27 +333,39 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                 contentContainerStyle={styles.listContent}
               />
 
-              {adding ? (
-                <Panel>
-                  <TextField
-                    value={newTitle}
-                    onChangeText={setNewTitle}
-                    placeholder="Card title"
-                    autoFocus
-                    onSubmit={() => addCard(col.id)}
-                  />
-                  <Row>
-                    <Button label="Add" onPress={() => addCard(col.id)} />
-                    <Button
-                      label="Cancel"
-                      variant="secondary"
-                      onPress={() => {
-                        setAdding(false);
-                        setNewTitle('');
-                      }}
+              {/* ONLY the visible column gets a composer.
+                  `adding` is one boolean for the whole board, so rendering the
+                  form on every page created one autoFocus TextField PER COLUMN.
+                  The last one to mount won focus, and Android then scrolled the
+                  horizontal pager to reveal that focused input — the board
+                  jumped from column 1 to column 7 the moment you tapped "+ Add
+                  card", landing between pages with two forms side by side. */}
+              {adding && col.id === current?.id ? (
+                /* Lifted above the keyboard: this composer is pinned to the
+                   bottom of a NON-scrolling screen, so nothing can scroll it
+                   into view and the keyboard simply covered the field. */
+                <KeyboardSticky>
+                  <Panel>
+                    <TextField
+                      value={newTitle}
+                      onChangeText={setNewTitle}
+                      placeholder="Card title"
+                      autoFocus
+                      onSubmit={() => addCard(col.id)}
                     />
-                  </Row>
-                </Panel>
+                    <Row>
+                      <Button label="Add" onPress={() => addCard(col.id)} />
+                      <Button
+                        label="Cancel"
+                        variant="secondary"
+                        onPress={() => {
+                          setAdding(false);
+                          setNewTitle('');
+                        }}
+                      />
+                    </Row>
+                  </Panel>
+                </KeyboardSticky>
               ) : (
                 <Row style={[styles.footer, styles.wrap]}>
                   <View style={styles.grow}>

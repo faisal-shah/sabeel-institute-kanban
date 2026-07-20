@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInput } from 'react-native';
+import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   activeMentionQuery,
   completeMention,
@@ -88,11 +89,40 @@ export function Comments({
         const canDelete = mine || sessionCan.manageBoards(user);
         return (
           <Panel key={c.id}>
+            {/* Actions live ON the byline, not under the comment. Full-size
+                Edit/Delete buttons cost a whole row each, so a thread of three
+                comments spent more height on chrome than on what people wrote.
+                These are quiet text actions with a generous hitSlop — the touch
+                target stays finger-sized while the visual footprint is a word. */}
             <Row style={styles.between}>
               <Caption>
                 {nameFor.get(c.authorUid) ?? 'Someone'} · {when(c.createdAt)}
                 {c.editedAt ? ' · edited' : ''}
               </Caption>
+              {editing !== c.id ? (
+                <Row style={styles.actions}>
+                  {/* Only the author edits: a manager rewriting someone's words
+                      under their name would be worse than useless. */}
+                  {mine ? (
+                    <IconAction
+                      icon="edit"
+                      label="Edit comment"
+                      onPress={() => {
+                        setEditing(c.id);
+                        setEditDraft(c.body);
+                      }}
+                    />
+                  ) : null}
+                  {canDelete ? (
+                    <IconAction
+                      icon="delete-outline"
+                      label="Delete comment"
+                      danger
+                      onPress={() => run(() => deleteComment(boardId, cardId, c.id))}
+                    />
+                  ) : null}
+                </Row>
+              ) : null}
             </Row>
 
             {editing === c.id ? (
@@ -131,27 +161,6 @@ export function Comments({
                     {c.mentionUids.map((u) => nameFor.get(u) ?? 'someone').join(', ')}
                   </Caption>
                 ) : null}
-                <Row style={styles.wrap}>
-                  {/* Only the author edits: a manager rewriting someone's words
-                      under their name would be worse than useless. */}
-                  {mine ? (
-                    <Button
-                      label="Edit"
-                      variant="secondary"
-                      onPress={() => {
-                        setEditing(c.id);
-                        setEditDraft(c.body);
-                      }}
-                    />
-                  ) : null}
-                  {canDelete ? (
-                    <Button
-                      label="Delete"
-                      variant="secondary"
-                      onPress={() => run(() => deleteComment(boardId, cardId, c.id))}
-                    />
-                  ) : null}
-                </Row>
               </>
             )}
           </Panel>
@@ -214,7 +223,49 @@ export function Comments({
   );
 }
 
+/**
+ * A quiet, inline icon action.
+ *
+ * Per-comment Edit/Delete used to be full Buttons on their own row, so a thread
+ * of three comments spent more height on chrome than on what people wrote. An
+ * icon costs a line it was already going to occupy — it sits on the byline.
+ *
+ * `accessibilityLabel` carries the word the icon replaces, so nothing is lost
+ * for screen readers, and `hitSlop` keeps the tap target finger-sized while the
+ * ink stays small.
+ */
+function IconAction({
+  icon,
+  label,
+  onPress,
+  danger,
+}: {
+  icon: 'edit' | 'delete-outline';
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+      style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}
+    >
+      <MaterialIcons
+        name={icon}
+        size={18}
+        color={danger ? t.text.danger : t.text.muted}
+      />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  actions: { gap: space.md },
+  action: { paddingVertical: 2 },
   between: { justifyContent: 'space-between' },
   wrap: { flexWrap: 'wrap' },
   suggestions: {
