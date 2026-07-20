@@ -1,6 +1,7 @@
 import './setup';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
+import { guardedEvent, sentryDsn } from './sentry';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 /**
@@ -15,8 +16,11 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
  * the same moment must both be counted, and increment is atomic on the server.
  */
 export const onCommentWritten = onDocumentWritten(
-  'boards/{boardId}/cards/{cardId}/comments/{commentId}',
-  async (event) => {
+  {
+    document: 'boards/{boardId}/cards/{cardId}/comments/{commentId}',
+    secrets: [sentryDsn],
+  },
+  guardedEvent(async (event) => {
     const before = event.data?.before;
     const after = event.data?.after;
 
@@ -35,5 +39,5 @@ export const onCommentWritten = onDocumentWritten(
       // there is nothing to keep in step and this is not an error worth alerting on.
       logger.debug('commentCount update skipped', { boardId, cardId, error: String(e) });
     }
-  },
+  }),
 );

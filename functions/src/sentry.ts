@@ -47,6 +47,32 @@ export async function reportError(e: unknown): Promise<void> {
   }
 }
 
+/**
+ * Wrap a BACKGROUND TRIGGER: failures reach Sentry, then rethrow.
+ *
+ * Triggers need this more than callables do, not less. A callable that fails
+ * tells the person who called it; a trigger fails into the logs, where nobody
+ * is looking. The notification, activity and provisioning triggers were all
+ * unwrapped — a comment silently failing to notify anyone would have produced
+ * no user-visible symptom and no alert.
+ *
+ * Rethrows so the platform still records the failure. Any function using this
+ * must bind `secrets: [sentryDsn]` or the DSN is not in its environment and
+ * reporting silently no-ops.
+ */
+export function guardedEvent<T>(
+  fn: (event: T) => Promise<void>,
+): (event: T) => Promise<void> {
+  return async (event) => {
+    try {
+      await fn(event);
+    } catch (e) {
+      await reportError(e);
+      throw e;
+    }
+  };
+}
+
 /** Wrap a callable handler: unexpected failures reach Sentry, then rethrow. */
 export function guarded<Req, Res>(
   fn: (req: CallableRequest<Req>) => Promise<Res>,

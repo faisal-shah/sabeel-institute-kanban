@@ -1,6 +1,7 @@
 import './setup';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
+import { guardedEvent, sentryDsn } from './sentry';
 import { getFirestore } from 'firebase-admin/firestore';
 import { diffCard, type CardSnapshot } from '@sabeel/shared';
 
@@ -15,8 +16,8 @@ import { diffCard, type CardSnapshot } from '@sabeel/shared';
  * notably that a rank-only change (a reorder within a column) produces NO entry.
  */
 export const onCardWritten = onDocumentWritten(
-  'boards/{boardId}/cards/{cardId}',
-  async (event) => {
+  { document: 'boards/{boardId}/cards/{cardId}', secrets: [sentryDsn] },
+  guardedEvent(async (event) => {
     const before = (event.data?.before?.data() ?? null) as CardSnapshot | null;
     const after = (event.data?.after?.data() ?? null) as CardSnapshot | null;
 
@@ -48,5 +49,5 @@ export const onCardWritten = onDocumentWritten(
       // card change itself has already committed by the time this runs.
       logger.warn('activity write failed', { boardId, cardId, error: String(e) });
     }
-  },
+  }),
 );

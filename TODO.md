@@ -225,12 +225,17 @@ Android push is wired and ships in the next APK. Two items are console work.
       service worker and re-deploy. Until then web push does nothing at all,
       deliberately.
 
-- [ ] **Verify functions-side Sentry.** The Android DSN is confirmed end to end
-      (you saw `sentry-check 2026-07-20T03:01:23.774Z`). The
-      `sabeel-kanban-functions` DSN has never been observed delivering anything —
-      the secret is set, but "set" isn't "arriving". Same pattern as the
-      bootstrap function: say the word and I'll deploy a temporary admin-only
-      callable that throws, you call it and check the project, and I delete it.
+- [ ] **Check one Sentry issue and this line is done.** Open the
+      `sabeel-kanban-functions` project and look for:
+
+      > `FUNCTIONS SENTRY PROBE — functions-sentry-check 2026-07-20T16:01:17.471Z`
+
+      I deployed a temporary trigger, fired it, confirmed in the Cloud Functions
+      log that it threw with `SENTRY_DSN` bound to the function, then deleted the
+      trigger, the probe document and the code. Everything up to the ingest is
+      verified; **whether the event arrived is the one part only you can see.**
+      If it isn't there, tell me and I'll redeploy the probe — it's one commit
+      back in the history.
 
 ## Answered — kept for reference
 

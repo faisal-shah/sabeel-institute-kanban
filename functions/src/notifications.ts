@@ -2,6 +2,7 @@ import './setup';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions/v2';
+import { guardedEvent, sentryDsn } from './sentry';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import {
@@ -158,8 +159,11 @@ async function notify(params: {
 
 /** A comment: notifies mentioned people, and the card's assignees. */
 export const onCommentCreated = onDocumentCreated(
-  'boards/{boardId}/cards/{cardId}/comments/{commentId}',
-  async (event) => {
+  {
+    document: 'boards/{boardId}/cards/{cardId}/comments/{commentId}',
+    secrets: [sentryDsn],
+  },
+  guardedEvent(async (event) => {
     const data = event.data?.data();
     if (!data) return;
 
@@ -196,13 +200,13 @@ export const onCommentCreated = onDocumentCreated(
       cardId,
       cardTitle,
     });
-  },
+  }),
 );
 
 /** Assignment and moves on a card someone owns. */
 export const onCardNotify = onDocumentWritten(
-  'boards/{boardId}/cards/{cardId}',
-  async (event) => {
+  { document: 'boards/{boardId}/cards/{cardId}', secrets: [sentryDsn] },
+  guardedEvent(async (event) => {
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();
     if (!after) return;
@@ -242,27 +246,30 @@ export const onCardNotify = onDocumentWritten(
         cardTitle,
       });
     }
-  },
+  }),
 );
 
 /** Admins hear about people waiting for approval. */
-export const onUserPending = onDocumentCreated('users/{uid}', async (event) => {
-  const data = event.data?.data();
-  if (!data || data.status !== 'pending') return;
+export const onUserPending = onDocumentCreated(
+  { document: 'users/{uid}', secrets: [sentryDsn] },
+  guardedEvent(async (event) => {
+    const data = event.data?.data();
+    if (!data || data.status !== 'pending') return;
 
-  const admins = await db().collection('users').where('role', '==', 'admin').get();
-  const recipients = await loadRecipients(admins.docs.map((d) => d.id));
+    const admins = await db().collection('users').where('role', '==', 'admin').get();
+    const recipients = await loadRecipients(admins.docs.map((d) => d.id));
 
-  await notify({
-    event: 'newUserPending',
-    recipients,
-    // The new person is the "actor", so an admin signing themselves up is not
-    // notified about their own arrival.
-    actorUid: event.params.uid,
-    actorName: (data.displayName as string) ?? 'Someone',
-    boardId: '',
-  });
-});
+    await notify({
+      event: 'newUserPending',
+      recipients,
+      // The new person is the "actor", so an admin signing themselves up is not
+      // notified about their own arrival.
+      actorUid: event.params.uid,
+      actorName: (data.displayName as string) ?? 'Someone',
+      boardId: '',
+    });
+  }),
+);
 
 /**
  * Due-soon reminders, once a day.
@@ -272,8 +279,8 @@ export const onUserPending = onDocumentCreated('users/{uid}', async (event) => {
  * notifies their assignees.
  */
 export const dueSoonReminders = onSchedule(
-  { schedule: '0 8 * * *', timeZone: ORG_TIMEZONE },
-  async () => {
+  { schedule: '0 8 * * *', timeZone: ORG_TIMEZONE, secrets: [sentryDsn] },
+  guardedEvent(async () => {
     const today = todayInOrgTz();
     const horizon = addDays(today, 1);
 
@@ -303,5 +310,5 @@ export const dueSoonReminders = onSchedule(
         cardTitle: card.data().title as string | undefined,
       });
     }
-  },
+  }),
 );
