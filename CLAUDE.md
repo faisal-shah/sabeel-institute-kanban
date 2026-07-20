@@ -24,8 +24,13 @@ Key product invariants (do not silently change):
   The domain check is server-side — the client `hd` hint is UX, not a boundary.
 - **No file attachments, no Cloud Storage.** Dropped deliberately; do not
   reintroduce a storage bucket without asking.
-- **Descriptions are markdown in a native `TextInput`** — never a WebView
-  rich-text editor. The research behind this is in the brief; don't redo it.
+- **Descriptions and comments are PLAIN TEXT.** Decided 2026-07-20 and locked:
+  no markdown rendering, no markdown syntax hints, no rich-text editor, no
+  WebView. What someone types is what everyone sees. The markdown renderer and
+  parser were **deleted**, not disabled — a dormant renderer invites someone to
+  switch it back on. Revisit only on an explicit request from the team or during
+  a deliberate refactor; `docs/RESEARCH-RICH-TEXT.md` holds the analysis so it
+  does not have to be redone.
 - **Assignees must be board members**, rules-enforced. This is what makes the
   cross-board "My Work" collection-group query legal without a parent lookup —
   breaking it breaks My Work's security model.

@@ -11,7 +11,6 @@ import {
 import { addComment, deleteComment, editComment, useComments } from '../comments';
 import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
-import { Markdown } from './Markdown';
 import { Body, Button, Caption, Card as Panel, Row, Spinner, TextField } from './ui';
 import { space, useTheme } from '../theme';
 import { useAction } from '../useAction';
@@ -146,9 +145,7 @@ export function Comments({
               </>
             ) : (
               <>
-                {/* Comments render as markdown too, so a pasted list or link
-                    behaves the same as in a description. */}
-                <Markdown source={c.body} />
+                <Body>{c.body}</Body>
                 {c.mentionUids.length > 0 ? (
                   <Caption>
                     mentioned{' '}

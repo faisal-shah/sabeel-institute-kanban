@@ -1,5 +1,11 @@
 # Rich-text editing for card descriptions — research, 2026-07-20
 
+> **SHELVED 2026-07-20.** Descriptions and comments are plain text; the markdown
+> renderer and parser were deleted. Nothing below is scheduled. It is kept so
+> that reopening this is a decision rather than a fresh investigation — the
+> conclusion, if it is reopened, is Lexical with `@lexical/markdown`, web first,
+> and a toolbar constrained to what the renderer supports.
+
 **No code changed.** This revisits the `CLAUDE.md` invariant *"descriptions are
 markdown in a native TextInput — never a WebView rich-text editor"*, at Faisal's
 request. The goal he set: **the user sees and edits rich text; markdown stays the

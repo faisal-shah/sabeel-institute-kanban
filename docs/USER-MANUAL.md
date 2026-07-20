@@ -67,9 +67,8 @@ Tap **+ Add card** at the bottom of a column, type a title, press Enter.
 
 Open a card for the full view:
 
-- **Description** — supports Markdown formatting. A one-line reminder of the
-  common syntax (`**bold**`, `# heading`, `- list`) sits just above the box.
-  **Save** to keep the change, **Cancel** to discard it.
+- **Description** — plain text. Type whatever you like; it appears exactly as
+  you typed it. **Save** to keep the change, **Cancel** to discard it.
 - **Priority** — a coloured dot on the card face.
 - **Due date** — a whole day, not a time. Pick it from a calendar; **Clear**
   removes it. An overdue card shows in red.

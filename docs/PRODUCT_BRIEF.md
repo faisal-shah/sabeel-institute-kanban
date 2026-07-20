@@ -41,7 +41,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Cross-board view | **"My Work"** — every card assigned to me across every board, sorted by due date. First-class screen, and the phone's default landing surface. |
 | Due dates | **All-day dates only** (`YYYY-MM-DD`), no time-of-day, no start dates. |
 | Labels | **Per board.** No org-wide label vocabulary. |
-| Description format | **Markdown**, edited in a native `TextInput` with a formatting toolbar, rendered on display. Explicitly **not** a WebView rich-text editor — see "Why markdown". |
+| Description format | **Plain text.** Superseded markdown on 2026-07-20 — see "Why plain text". |
 | Search | **Global across the boards you belong to**, client-side matching. See "Search". |
 | Notifications | Push **plus an in-app inbox** with an unread badge. |
 | Watchers | **None.** Assignment and @mention are the only ways to get notified about a card. |
@@ -141,7 +141,7 @@ boards/{boardId}
   memberUids: [uid, …]                           # for `array-contains` queries
 
 boards/{boardId}/cards/{cardId}
-  title, description                             # description is markdown source
+  title, description                             # plain text
   columnId, rank: string
   assigneeUids: [uid, …]                         # MUST be board members (rule-enforced)
   dueDate?: string                               # 'YYYY-MM-DD' — an all-day date, NOT a timestamp
@@ -229,7 +229,26 @@ Required composite index: collection group `cards` on
 `(archived, assigneeUids array-contains, dueDate)`. The emulator will not enforce
 this — verify in production (see `docs/INHERITED-STACK.md`, lesson 6).
 
-## Why markdown, not a rich-text editor
+## Why plain text (2026-07-20)
+
+**Descriptions and comments are plain text.** No markdown rendering, no syntax
+hints, no rich-text editor. What someone types is what everyone sees.
+
+Faisal called this after the alternatives were costed. The team will not learn
+markdown syntax, so a markdown editor was never going to be *their* editor — it
+was ours. A true rich-text editor means a web editor (Lexical being the
+strongest, with first-party markdown), which on Android means a WebView; that is
+a real and defensible option, but not one worth spending on before anyone has
+asked for formatting.
+
+The renderer and parser were **deleted rather than disabled**. Code that still
+works invites someone to switch it back on without revisiting the reasoning.
+`docs/RESEARCH-RICH-TEXT.md` keeps the analysis, so reopening this costs a
+decision rather than a fresh investigation.
+
+Revisit on an explicit request from the team, or during a deliberate refactor.
+
+## Superseded: why markdown was chosen originally
 
 Researched 2026-07-19, because "rich text is solved in React" deserved checking.
 
@@ -479,7 +498,7 @@ also the live build tracker. Summary:
 | 2 | Boards: CRUD, membership, rules + rules tests |
 | 3 | Columns + cards: create, edit, move, `rankBetween`, web drag-and-drop |
 | 4 | Mobile board: swipe columns, move sheet, card detail screen |
-| 5 | Card richness: markdown + toolbar, assignees, due date, priority, labels |
+| 5 | Card richness: plain-text description, assignees, due date, priority, labels |
 | 6 | **My Work** cross-board view + collection-group index |
 | 7 | Multi-select + bulk actions |
 | 8 | Comments + @mentions |

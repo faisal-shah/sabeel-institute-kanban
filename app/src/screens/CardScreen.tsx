@@ -15,7 +15,6 @@ import {
 import { useBoard } from '../boards';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
-import { Markdown } from '../components/Markdown';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
 import { AssigneePicker } from '../components/AssigneePicker';
@@ -186,15 +185,6 @@ export function CardScreen({
       <Panel>
         {editingDesc ? (
           <>
-            {/* A short reference beats a toolbar. The buttons only appended
-                placeholder syntax at the end of the text — they could not wrap a
-                selection, so they were slower than typing the characters. A
-                proper editor is the real answer; until then, say what the syntax
-                is and get out of the way. */}
-            <Caption>
-              **bold**  ·  *italic*  ·  `code`  ·  # heading  ·  - list  ·  1.
-              numbered  ·  [link](https://example.com)
-            </Caption>
             <TextField
               value={description}
               onChangeText={(v) => {
@@ -230,7 +220,7 @@ export function CardScreen({
         ) : (
           <>
             {c.description ? (
-              <Markdown source={c.description} />
+              <Body>{c.description}</Body>
             ) : (
               <Caption>No description yet.</Caption>
             )}
