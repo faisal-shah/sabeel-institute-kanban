@@ -26,6 +26,7 @@ import {
   Title,
 } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
+import { toUserMessage } from '../errors';
 
 function when(ms: number): string {
   const mins = Math.floor((Date.now() - ms) / 60000);
@@ -61,7 +62,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'notifications'));
     }
   }
 

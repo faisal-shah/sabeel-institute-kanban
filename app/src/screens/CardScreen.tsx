@@ -34,6 +34,7 @@ import {
   Title,
 } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
+import { toUserMessage } from '../errors';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -97,7 +98,7 @@ export function CardScreen({
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'card'));
     }
   }
 
@@ -124,16 +125,23 @@ export function CardScreen({
       <Panel>
         <Caption>Title</Caption>
         <TextField value={title} onChangeText={(v) => { setTitle(v); setDirty(true); }} />
-        <Button
-          label="Save title"
-          disabled={title.trim() === c.title || title.trim().length === 0}
-          onPress={() =>
-            run(async () => {
-              await updateCard(boardId, cardId, { title: title.trim() }, user);
-              setDirty(false);
-            })
-          }
-        />
+        {/* Only once the title actually differs. A permanently visible
+            full-width button that is disabled 99% of the time is pure cost: it
+            takes a row on every card, and a control you can never press teaches
+            people to ignore it. An empty title is not a save either — it is a
+            half-typed edit, so the button stays away rather than appearing
+            disabled. */}
+        {title.trim() !== c.title && title.trim().length > 0 ? (
+          <Button
+            label="Save title"
+            onPress={() =>
+              run(async () => {
+                await updateCard(boardId, cardId, { title: title.trim() }, user);
+                setDirty(false);
+              })
+            }
+          />
+        ) : null}
         {/* The column is EDITABLE here. Previously it was a read-only pill, so
             moving a card meant leaving the detail view, finding it on the board
             and using a separate move action — for the one property you most

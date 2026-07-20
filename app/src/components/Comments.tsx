@@ -14,6 +14,7 @@ import type { BoardMemberProfile } from '../boards';
 import { Markdown } from './Markdown';
 import { Body, Button, Caption, Card as Panel, Row, Spinner, TextField } from './ui';
 import { space, useTheme } from '../theme';
+import { toUserMessage } from '../errors';
 
 function when(ms: number): string {
   const diff = Date.now() - ms;
@@ -66,7 +67,7 @@ export function Comments({
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'comments'));
     }
   }
 
@@ -176,16 +177,6 @@ export function Comments({
           multiline
         />
 
-        {/* You can only mention people who can open the card, which is board
-            members. If you are the only one, say so rather than letting the
-            autocomplete look broken. */}
-        {candidates.length <= 1 ? (
-          <Caption>
-            You are the only member of this board, so there is nobody to mention
-            yet. Add people under board Settings.
-          </Caption>
-        ) : null}
-
         {suggestions.length > 0 ? (
           <View style={[styles.suggestions, { borderColor: t.border.subtle }]}>
             <Caption>Mention</Caption>
@@ -208,6 +199,11 @@ export function Comments({
           </View>
         ) : null}
 
+        {/* Submit sits DIRECTLY under the field. The mention hint used to be
+            between them, pushing the button ~50dp lower — far enough that the
+            keyboard covered it while the field itself stayed clear, so there was
+            nothing to scroll and no way to reach Comment without dismissing the
+            keyboard. The hint is guidance, not a step, so it reads fine after. */}
         <Button
           label="Comment"
           disabled={draft.trim().length === 0}
@@ -218,6 +214,16 @@ export function Comments({
             })
           }
         />
+
+        {/* You can only mention people who can open the card, which is board
+            members. If you are the only one, say so rather than letting the
+            autocomplete look broken. */}
+        {candidates.length <= 1 ? (
+          <Caption>
+            You are the only member of this board, so there is nobody to mention
+            yet. Add people under board Settings.
+          </Caption>
+        ) : null}
       </Panel>
     </>
   );

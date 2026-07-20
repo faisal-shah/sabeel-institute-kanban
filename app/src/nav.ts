@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BackHandler } from 'react-native';
+import { goBackHistory, onPopState, pushHistory, replaceHistory } from './history';
 
 /**
  * A tiny navigation stack.
@@ -9,8 +10,10 @@ import { BackHandler } from 'react-native';
  * Android surfaces behaving identically with no platform configuration, and it
  * is small enough to read in one sitting.
  *
- * If deep links or browser history become requirements, this is the one module
- * to replace.
+ * Browser history IS wired (see ./history): each push adds an entry so the
+ * browser's back button walks this stack instead of leaving the site. Routes are
+ * not serialised into history state, so the forward button cannot restore a
+ * screen — if that or deep links ever matter, this is the one module to replace.
  */
 export type Route =
   | { name: 'boards' }
@@ -33,19 +36,34 @@ function emit() {
 
 export function push(route: Route) {
   stack = [...stack, route];
+  pushHistory();
   emit();
 }
 
-export function pop() {
+/** Pop without touching history — the browser has already moved. */
+function popInternal() {
   if (stack.length > 1) {
     stack = stack.slice(0, -1);
     emit();
   }
 }
 
+// A browser Back walks our stack rather than leaving the site.
+onPopState(popInternal);
+
+export function pop() {
+  if (stack.length <= 1) return;
+  // On web let the BROWSER drive: history.back() fires popstate, which calls
+  // popInternal. Popping here as well would take two screens off one press.
+  // Returns false on native, where we pop directly.
+  if (goBackHistory()) return;
+  popInternal();
+}
+
 /** Replace the whole stack — used when signing out, or jumping to a root tab. */
 export function reset(route: Route) {
   stack = [route];
+  replaceHistory();
   emit();
 }
 

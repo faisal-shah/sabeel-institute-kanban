@@ -32,6 +32,7 @@ import {
   Title,
 } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
+import { toUserMessage } from '../errors';
 
 export function BoardSettingsScreen({
   boardId,
@@ -72,7 +73,7 @@ export function BoardSettingsScreen({
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'boardSettings'));
     }
   }
 

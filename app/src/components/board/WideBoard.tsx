@@ -26,6 +26,7 @@ import {
   Title,
 } from '../ui';
 import { radius, space, useTheme } from '../../theme';
+import { toUserMessage } from '../../errors';
 
 /**
  * The WIDE board, NATIVE build — a tablet, or any large-screen React Native
@@ -71,7 +72,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'wideBoard'));
     }
   }
 

@@ -15,6 +15,7 @@ import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
 import { Body, Button, Caption, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
+import { toUserMessage } from '../errors';
 
 /**
  * Actions for a multi-card selection. Shared by both board layouts so the two
@@ -58,7 +59,7 @@ export function BulkBar({
       selection.clear();
       setMode('idle');
     } catch (e) {
-      onError(e instanceof Error ? e.message : String(e));
+      onError(toUserMessage(e, 'bulkBar'));
     } finally {
       setBusy(false);
     }

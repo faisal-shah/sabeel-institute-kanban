@@ -55,6 +55,7 @@ import {
 } from '../ui';
 import { radius, space, type, useTheme } from '../../theme';
 import { KeyboardSticky } from '../KeyboardSticky';
+import { toUserMessage } from '../../errors';
 
 /** Stable empties, so an absent board does not churn the memos below. */
 const NO_COLUMNS: BoardColumn[] = [];
@@ -174,7 +175,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'narrowBoard'));
     }
   }
 

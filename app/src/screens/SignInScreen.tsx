@@ -7,6 +7,7 @@ import { Body, Button, Caption, Card, Row, Screen, Title } from '../components/u
 import { radius, space, useTheme } from '../theme';
 import sabeelLogo from '../../assets/brand/sabeel-logo.png';
 import sabeelLogoReverse from '../../assets/brand/sabeel-logo-reverse.png';
+import { toUserMessage } from '../errors';
 
 export function SignInScreen() {
   const t = useTheme();
@@ -19,7 +20,7 @@ export function SignInScreen() {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(toUserMessage(e, 'signIn'));
     } finally {
       setBusy(false);
     }

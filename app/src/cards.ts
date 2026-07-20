@@ -5,6 +5,7 @@ import {
   doc,
   orderBy,
   query,
+  deleteField,
   updateDoc,
   where,
   writeBatch,
@@ -126,8 +127,18 @@ export async function updateCard(
   patch: Partial<Omit<Card, 'id' | 'createdAt' | 'createdBy'>>,
   user: SessionUser,
 ): Promise<void> {
+  // `undefined` means "clear this field", but Firestore REJECTS undefined
+  // outright — `updateDoc` throws "Unsupported field value: undefined" rather
+  // than removing anything. Clearing a due date failed with exactly that, in the
+  // user's face, and left the date on screen. Optional fields have to be mapped
+  // to deleteField() explicitly.
+  const patched: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    patched[key] = value === undefined ? deleteField() : value;
+  }
+
   await updateDoc(doc(db, 'boards', boardId, 'cards', cardId), {
-    ...patch,
+    ...patched,
     updatedAt: Date.now(),
     updatedBy: user.uid,
   });
