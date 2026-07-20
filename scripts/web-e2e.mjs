@@ -752,6 +752,46 @@ try {
   check('a rejected account never reaches the approval queue', !reachedAGate);
   await bad.screenshot({ path: join(SHOTS, 'p1-wrong-domain-light.png'), fullPage: true });
 
+  // ---- Archived boards can be found and restored (Phase 2) ---------------
+  // Archiving is the SAFE alternative to deleting, so it must be reversible.
+  // It was not: the board list filters archived boards out and Restore lives
+  // inside board settings, reachable only from the board itself.
+  await backToBoards(admin);
+  await admin.getByText('Fundraising 2026').first().click();
+  await admin.getByText('To Do').first().waitFor({ timeout: 25000 });
+  await admin.getByRole('button', { name: 'Settings' }).click();
+  await admin.getByText('Board settings').waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: 'Archive board' }).click();
+  await admin.getByRole('button', { name: 'New board' }).waitFor({ timeout: 25000 });
+  await admin.waitForTimeout(1500);
+
+  const archivedChip = admin.getByRole('button', { name: /^Archived \(/ });
+  check(
+    'an archived board leaves the active list and appears under Archived',
+    await archivedChip.isVisible().catch(() => false),
+  );
+
+  await archivedChip.click();
+  await admin.waitForTimeout(800);
+  check(
+    'the archived board is reachable again',
+    await admin.getByText('Fundraising 2026').first().isVisible().catch(() => false),
+  );
+
+  await admin.getByText('Fundraising 2026').first().click();
+  await admin.getByText('To Do').first().waitFor({ timeout: 25000 });
+  await admin.getByRole('button', { name: 'Settings' }).click();
+  await admin.getByRole('button', { name: 'Restore board' }).click();
+  await admin.waitForTimeout(2000);
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  await admin.getByText('To Do').first().waitFor({ timeout: 25000 });
+  await backToBoards(admin);
+  await admin.waitForTimeout(1200);
+  check(
+    'restoring returns it to the active list and hides the Archived section',
+    !(await archivedChip.isVisible().catch(() => false)),
+  );
+
   // ---- Dark mode ----------------------------------------------------------
   // Re-emulate the colour scheme on the page we already have, rather than
   // opening a fourth context and signing in again. The theme follows the OS

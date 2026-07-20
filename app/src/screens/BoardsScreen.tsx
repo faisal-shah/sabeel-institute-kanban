@@ -11,6 +11,7 @@ import {
 } from '../boards';
 import { useUnreadCount } from '../notifications';
 import { sessionCan, signOut, type SessionUser } from '../session';
+import { useArchivedBoards } from '../boards';
 import { useNav } from '../nav';
 import {
   Body,
@@ -273,7 +274,62 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           ))}
         </>
       ) : null}
+
+      {/* Archived boards live behind a disclosure, not mixed into the list.
+          Archiving is meant to be the SAFE alternative to deleting, but the
+          board list filters archived boards out and "Restore" lives inside
+          board settings — which you can only reach from the board. So an
+          archived board was unreachable, and archive was a one-way door.
+
+          Collapsed by default: the point of archiving is to get a board out of
+          the way, and a flat list of active and archived boards together would
+          undo that. */}
+      {sessionCan.manageBoards(user) ? (
+        <ArchivedBoards user={user} onOpen={open} />
+      ) : null}
     </Screen>
+  );
+}
+
+function ArchivedBoards({
+  user,
+  onOpen,
+}: {
+  user: SessionUser;
+  onOpen: (b: BoardListItem) => void;
+}) {
+  const archived = useArchivedBoards(user);
+  const [open, setOpen] = useState(false);
+  const list = archived.data ?? [];
+
+  // Nothing archived: say nothing at all rather than showing an empty section.
+  if (list.length === 0) return null;
+
+  return (
+    <>
+      <Button
+        label={open ? `Hide archived (${list.length})` : `Archived (${list.length})`}
+        variant="secondary"
+        onPress={() => setOpen((v) => !v)}
+      />
+      {open ? (
+        <>
+          <Caption>
+            Archived boards are hidden from everyone. Open one and use Restore in
+            its settings to bring it back.
+          </Caption>
+          {list.map((b) => (
+            <BoardRow
+              key={b.id}
+              board={b}
+              isFavourite={false}
+              onOpen={() => onOpen(b)}
+              onToggleFavourite={() => {}}
+            />
+          ))}
+        </>
+      ) : null}
+    </>
   );
 }
 

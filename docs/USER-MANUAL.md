@@ -26,6 +26,11 @@ they do, with no need to sign out or refresh.
 
 Members archive cards rather than deleting them, so nothing is lost by accident.
 
+**Archiving a board** hides it from everyone. Managers and admins see an
+**Archived** button at the bottom of the board list — open one from there and use
+**Restore** in its settings to bring it back. It stays collapsed unless something
+is actually archived, so it costs nothing when you are not using it.
+
 ### For admins: the People screen
 
 **People** lists everyone who has signed in. A new account waits on **pending**
