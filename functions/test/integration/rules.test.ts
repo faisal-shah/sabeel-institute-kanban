@@ -237,9 +237,59 @@ describe('preference self-writes', () => {
       updateDoc(doc(db, 'users/member1'), {
         notifyPrefs: { mention: false },
         mutedBoardIds: ['b1'],
-        pushTokens: ['tok'],
       }),
     );
+  });
+
+  it('an active user may NOT write a pushTokens field on their user doc', async () => {
+    // Device tokens live in a subcollection, one document per device. The old
+    // array field is gone; allowing it back would let a client hold tokens the
+    // send path no longer reads, which is silent breakage rather than an error.
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(updateDoc(doc(db, 'users/member1'), { pushTokens: ['tok'] }));
+  });
+});
+
+describe('push tokens', () => {
+  it('you may register, read back, and remove a token on your own doc', async () => {
+    const db = ctx('member1', 'member', 'active');
+    const tok = doc(db, 'users/member1/pushTokens/token-abc');
+    await assertSucceeds(setDoc(tok, { platform: 'android', updatedAt: 1 }));
+    await assertSucceeds(getDoc(tok));
+    await assertSucceeds(deleteDoc(tok));
+  });
+
+  it('a PENDING user may register a token', async () => {
+    // Registration happens at sign-in, before an admin approves the account.
+    // Holding a token grants nothing: the send path checks status separately.
+    const db = ctx('pending1', 'member', 'pending');
+    await assertSucceeds(
+      setDoc(doc(db, 'users/pending1/pushTokens/token-p'), { platform: 'android' }),
+    );
+  });
+
+  it('nobody may write a token onto SOMEONE ELSE (an admin included)', async () => {
+    // A token is a capability to notify a specific device. Writing one to
+    // another user's collection would redirect their notifications.
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member', 'active'), 'users/admin1/pushTokens/t'), {
+        platform: 'android',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(ctx('admin1', 'admin', 'active'), 'users/member1/pushTokens/t'), {
+        platform: 'android',
+      }),
+    );
+  });
+
+  it("nobody may READ someone else's tokens", async () => {
+    // Which devices a person carries is not admin business.
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'users/member1/pushTokens/t'), { platform: 'android' });
+    });
+    await assertFails(getDoc(doc(ctx('admin1', 'admin', 'active'), 'users/member1/pushTokens/t')));
+    await assertFails(getDocs(collection(ctx('manager1', 'manager', 'active'), 'users/member1/pushTokens')));
   });
 
   it('a PENDING user may not write preferences', async () => {

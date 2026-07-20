@@ -76,7 +76,6 @@ export const onUserCreate = functionsV1
         mutedBoardIds: [],
         favoriteBoardIds: [],
         recentBoardIds: [],
-        pushTokens: [],
         unreadNotifCount: 0,
         createdAt: FieldValue.serverTimestamp(),
         claimsUpdatedAt: FieldValue.serverTimestamp(),

@@ -18,6 +18,7 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut as fbSignOut, type User } from 'firebase/auth';
 import { googleSignOut } from './auth/google';
+import { registerPush, unregisterPush } from './notify';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { canAdministerUsers, canManageBoards, canUseApp } from '@sabeel/shared';
 import type { Role, UserStatus } from '@sabeel/shared';
@@ -60,6 +61,8 @@ function emit(next: Session) {
 let unsubUserDoc: (() => void) | null = null;
 let lastClaimsStamp: number | null = null;
 let provisioningTimer: ReturnType<typeof setTimeout> | null = null;
+/** Which uid this device has already registered a push token for. */
+let pushRegisteredFor: string | null = null;
 
 /**
  * How long to wait for the auth-create trigger before concluding it is not
@@ -184,6 +187,18 @@ async function handleUserSnapshot(fbUser: User, snap: DocumentSnapshot): Promise
       status: claims.status,
     },
   });
+
+  // Register this device for push once, on the first signed-in snapshot. The
+  // user doc emits repeatedly (claims refresh, profile edits, prefs changes) and
+  // re-registering on each would rewrite the same token document for no reason.
+  //
+  // Deliberately not awaited: notifications are best-effort, and nobody should
+  // wait on a permission prompt to reach their boards. registerPush never
+  // throws.
+  if (pushRegisteredFor !== fbUser.uid) {
+    pushRegisteredFor = fbUser.uid;
+    void registerPush(fbUser.uid);
+  }
 }
 
 function watchUserDoc(fbUser: User) {
@@ -233,6 +248,12 @@ export function useSession(): Session {
 
 export async function signOut(): Promise<void> {
   stopWatchingUserDoc();
+  // Before dropping the session: unregistering needs to know WHO to unregister,
+  // and pushes target the device rather than the session — so a shared phone
+  // would otherwise keep receiving the previous account's notifications.
+  const uid = current.state === 'signed-in' ? current.user.uid : null;
+  pushRegisteredFor = null;
+  if (uid) await unregisterPush(uid).catch(() => undefined);
   // Sign out of Google too, not just Firebase. On native, Google remembers the
   // account and the next sign-in silently reuses it — so without this there is
   // no way to switch users, and "Sign out" only appears to work. No-op on web.

@@ -126,10 +126,10 @@ users/{uid}
   mutedBoardIds: [boardId, …]
   favoriteBoardIds: [boardId, …]
   recentBoardIds: [boardId, …]                   # client-maintained, capped at 10
-  pushTokens: [ … ]
   unreadNotifCount
   # Mirrors custom claims for UI display. Rules trust the TOKEN, never this doc.
 
+users/{uid}/pushTokens/{token}                     # one doc per device; the token IS the id
 users/{uid}/notifications/{notifId}                # the in-app inbox
   type, boardId, cardId, actorUid, at, read: bool, text
   # Trigger-written, like activity. The client may only flip `read`.

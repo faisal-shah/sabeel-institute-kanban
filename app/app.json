@@ -9,6 +9,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.sabeelinstitute.kanban",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#1F6FEB"
       }

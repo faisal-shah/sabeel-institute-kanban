@@ -72,7 +72,15 @@ describe('domain enforcement (consent screen bypassed)', () => {
     await adminAuth().createUser({ ...u, emailVerified: true });
     await waitUntilGone('the intruder to be deleted', () => userExists(u.uid));
 
-    expect((await adminDb().doc(`users/${u.uid}`).get()).exists).toBe(false);
+    // Poll rather than assert once. The auth user disappearing does not mean
+    // every effect of the trigger has settled: a doc write already in flight can
+    // land microseconds after the delete, and asserting on that instant makes
+    // this test fail intermittently for a reason that is not a defect. What
+    // matters is that no user doc SURVIVES.
+    await waitUntilGone(
+      'no user doc to remain for the intruder',
+      async () => (await adminDb().doc(`users/${u.uid}`).get()).exists,
+    );
   });
 
   it('rejects look-alike domains', async () => {

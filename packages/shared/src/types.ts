@@ -34,7 +34,6 @@ export interface UserDoc {
   mutedBoardIds: string[];
   favoriteBoardIds: string[];
   recentBoardIds: string[];
-  pushTokens: string[];
   unreadNotifCount: number;
   createdAt: number;
 }

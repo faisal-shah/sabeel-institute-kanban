@@ -50,7 +50,7 @@ service cloud.firestore {
       function selfWritableOnly() {
         return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['favoriteBoardIds', 'recentBoardIds', 'mutedBoardIds',
-                    'notifyPrefs', 'pushTokens', 'unreadNotifCount']);
+                    'notifyPrefs', 'unreadNotifCount']);
       }
 
       // Your own doc: needed even while pending, so the gate screen can show
@@ -74,6 +74,22 @@ service cloud.firestore {
     // Trigger-written. The client may ONLY mark an entry read — it cannot create
     // one, edit its text, or change who it came from. That is what makes the
     // inbox a trustworthy record rather than something any client could stuff.
+    /**
+     * Push tokens: one document per device, keyed by the token.
+     *
+     * Only ever your own, and only ever your own devices. A token is a
+     * capability to notify a specific device, so letting anyone else write here
+     * would let them point your notifications somewhere else — and letting
+     * anyone READ the collection would expose which devices a person uses.
+     *
+     * `isSignedIn` rather than `isActive` deliberately: registration happens as
+     * soon as you sign in, which is before an admin has approved you. Holding a
+     * token grants nothing on its own — the send path checks status separately.
+     */
+    match /users/{userId}/pushTokens/{token} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId}/notifications/{notifId} {
       allow get, list: if isActive() && request.auth.uid == userId;
 

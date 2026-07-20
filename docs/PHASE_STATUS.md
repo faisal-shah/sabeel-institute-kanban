@@ -20,7 +20,7 @@ web. "The code looks right" is not verification.
 | 7 | Bulk actions | **complete** (2026-07-19) |
 | 8 | Comments + mentions | **complete** (2026-07-19) |
 | 9 | Activity history | **complete** (2026-07-19) |
-| 10 | Notifications | **in-app inbox complete** (2026-07-19). **PUSH IS NOT WIRED**: the functions send via FCM, but the app never registers a device token, so `pushTokens` is always empty and nothing is ever delivered. Decision needed — see below. |
+| 10 | Notifications | **complete** (2026-07-20). In-app inbox, per-event prefs, mute-a-board, and Android push. Web push is inert until a VAPID key exists (`TODO.md` § I); on-device delivery is still unverified — see below. |
 | 11 | Search + archive | **complete** (2026-07-19) |
 | 12 | Polish + deploy readiness | **complete** (2026-07-19) |
 | 13 | Production deploy | **complete** (2026-07-20) — live at sabeel-institute-kanban.web.app; APKs published; indexes probed in production |
@@ -274,29 +274,44 @@ pass; release keystore.
 - Every screen has a designed empty and error state.
 - Manual covers every user-visible feature, screenshots current.
 
-## Push notifications are not functional (found 2026-07-20)
+## Push notifications — wired 2026-07-20
 
-`functions/src/notifications.ts` sends through `getMessaging().sendEachForMulticast()`
-using each user's `pushTokens`. Nothing on the client ever writes that field —
-`auth.ts` initialises it to `[]` at provisioning and no code touches it again. So
-`tokens.length === 0` on every call and the send returns early, every time.
+Found broken and fixed the same day. The send path in
+`functions/src/notifications.ts` had always been there, but nothing on the client
+ever registered a device token: `auth.ts` initialised `pushTokens` to `[]` at
+provisioning and no code touched it again, so every send saw an empty list and
+returned early. The inbox, the per-event preferences and mute-a-board all worked,
+which is what made it look finished from the outside.
 
-The in-app inbox, the per-event preferences and the mute-a-board control all
-work; only delivery to a device does not. That makes this the most dangerous
-shape of unfinished work: it looks complete from the outside, including to
-whoever writes the next feature on top of it.
+What it took:
 
-Two honest options:
+- `app/src/notify.ts` / `notify.web.ts` — a new platform seam. Native takes the
+  FCM token from `Notifications.getDevicePushTokenAsync()` (**not** an Expo push
+  token — that routes through Expo's service, which the functions do not use).
+- Tokens moved from an array field to the subcollection
+  `users/{uid}/pushTokens/{token}`, matching the time tracker. Two devices
+  registering at once cannot race, and rules can scope write access to a
+  person's own tokens without opening the rest of their user document. The
+  `pushTokens` array is gone from the type, the rules allowlist and the brief.
+- Registration fires once per uid on the first signed-in snapshot in
+  `session.ts`, and unregisters on sign-out — a push targets the DEVICE, so
+  otherwise a handed-on phone keeps receiving the previous account's
+  notifications.
+- The Android build had no FCM config at all: `googleServicesFile` in `app.json`,
+  the `com.google.gms:google-services` plugin in both gradle files, and
+  `android/app/google-services.json` committed (public client config, same class
+  as the web config).
+- The send path now prunes tokens FCM reports as
+  `registration-token-not-registered` / `invalid-registration-token`. Nothing
+  else ever would: an uninstall or a factory reset leaves a token behind forever.
+- Rules tests cover the subcollection — own tokens read/write/delete, pending
+  users may register (registration precedes approval), nobody may write to
+  another person's collection **including an admin**, and nobody may read
+  another person's devices.
 
-1. **Finish it** — register a device token on sign-in (expo-notifications or the
-   FCM SDK), write it to `pushTokens`, and remove it on sign-out. Needs native
-   config and a real device to verify; an emulator cannot prove delivery.
-2. **Remove the send path** and rely on the inbox. Defensible for a team of this
-   size, and "restraint is the feature" argues for it — but it should be a
-   decision, not a silence.
-
-Doing neither is the one option that is not acceptable, because the code
-currently claims a capability the app does not have.
+**Still unverified:** delivery itself. An emulator cannot prove it — it needs a
+push to arrive on Faisal's phone. Web push is deliberately inert until a Web Push
+certificate (VAPID) key exists; see `TODO.md` § I.
 
 ## Phase 13 — Production deploy
 

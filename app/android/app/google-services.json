@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "826656438175",
+    "project_id": "sabeel-institute-kanban",
+    "storage_bucket": "sabeel-institute-kanban.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:826656438175:android:cb7573ed956b72b0c5efaa",
+        "android_client_info": {
+          "package_name": "com.sabeelinstitute.kanban"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "826656438175-qotk4v9h03rft5i88bljcrccjn42i9vo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9GgVKXTT5hwVEGrZn6O3YvXMrNiwd6tQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

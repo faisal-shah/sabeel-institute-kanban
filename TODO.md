@@ -204,6 +204,34 @@ this before the APK goes to the team, not before "sharing" generally.
 
 ---
 
+## I. Push notifications — two things only you can do
+
+Android push is wired and ships in the next APK. Two items are console work.
+
+- [ ] **Verify a push actually arrives.** Install the new APK, sign in, and let
+      it ask for notification permission (Android 13+ prompts; if you dismissed
+      it, Settings → Apps → Sabeel Kanban → Notifications). Then have the app
+      notify you: from a second account, or the web app in a browser, `@`-mention
+      yourself in a comment or assign yourself a card. The banner should arrive
+      within a few seconds. An emulator cannot prove this — it needs the phone.
+      If nothing arrives, say so and I'll read the function logs.
+
+- [ ] **Web push — generate a VAPID key** (only if you want notifications in the
+      browser too; Android works without it). Firebase console → Project settings
+      → **Cloud Messaging** → *Web configuration* → **Web Push certificates** →
+      **Generate key pair**. Copy the public key into `app/.env.local` as
+      `EXPO_PUBLIC_FCM_VAPID_KEY=…` — it is a public key, not a secret, but keep
+      it out of chat by convention. Tell me once it's there and I'll add the
+      service worker and re-deploy. Until then web push does nothing at all,
+      deliberately.
+
+- [ ] **Verify functions-side Sentry.** The Android DSN is confirmed end to end
+      (you saw `sentry-check 2026-07-20T03:01:23.774Z`). The
+      `sabeel-kanban-functions` DSN has never been observed delivering anything —
+      the secret is set, but "set" isn't "arriving". Same pattern as the
+      bootstrap function: say the word and I'll deploy a temporary admin-only
+      callable that throws, you call it and check the project, and I delete it.
+
 ## Answered — kept for reference
 
 - [x] **Sign-in domain is `oursabeel.com`**, a Google Workspace domain

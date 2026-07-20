@@ -30,7 +30,6 @@ interface Recipient {
   status?: string;
   prefs?: Partial<Record<NotifyEvent, boolean>>;
   mutedBoardIds?: string[];
-  pushTokens?: string[];
   displayName?: string;
 }
 
@@ -46,7 +45,6 @@ async function loadRecipients(uids: readonly string[]): Promise<Recipient[]> {
       status: s.data()?.status as string | undefined,
       prefs: s.data()?.notifyPrefs ?? {},
       mutedBoardIds: (s.data()?.mutedBoardIds as string[]) ?? [],
-      pushTokens: (s.data()?.pushTokens as string[]) ?? [],
       displayName: s.data()?.displayName as string | undefined,
     }));
 }
@@ -109,18 +107,48 @@ async function notify(params: {
   // Push is best-effort and must never fail the inbox write above: a device
   // token goes stale the moment someone reinstalls the app, and that is not a
   // reason to lose the notification.
-  const tokens = targets.flatMap((r) => r.pushTokens ?? []);
-  if (tokens.length === 0) return;
+  // Tokens live in a SUBCOLLECTION keyed by the token itself, not an array on
+  // the user doc. Devices register and unregister independently, and an array
+  // field makes that a read-modify-write race between two phones; a document per
+  // token cannot collide, and rules can grant a user write access to their own
+  // tokens without opening up the rest of their user document.
+  const tokenSnaps = await Promise.all(
+    targets.map((r) => db().collection(`users/${r.uid}/pushTokens`).get()),
+  );
+  // Keep the owning ref alongside each token: a failed send has to be traced
+  // back to the document that has to be deleted.
+  const registrations = tokenSnaps.flatMap((snap) => snap.docs.map((d) => d.ref));
+  if (registrations.length === 0) return;
 
   try {
-    await getMessaging().sendEachForMulticast({
-      tokens,
+    const res = await getMessaging().sendEachForMulticast({
+      tokens: registrations.map((ref) => ref.id),
       notification: { title: 'Sabeel Kanban', body: text },
       data: {
         boardId: params.boardId,
         ...(params.cardId ? { cardId: params.cardId } : {}),
       },
     });
+
+    // Prune tokens FCM has rejected as dead. Nothing else ever would: a token is
+    // removed on sign-out, but an uninstall, a data clear, or a factory reset
+    // leaves it behind forever. Left alone, every send to that person carries a
+    // growing tail of tokens that can only fail.
+    //
+    // Only these two codes mean "this token is gone". Everything else —
+    // quota, an unavailable backend, an internal error — is transient, and
+    // deleting on those would unregister working devices.
+    const dead = res.responses.flatMap((r, i) => {
+      const code = r.error?.code;
+      return code === 'messaging/registration-token-not-registered' ||
+        code === 'messaging/invalid-registration-token'
+        ? [registrations[i]]
+        : [];
+    });
+    if (dead.length > 0) {
+      await Promise.all(dead.map((ref) => ref.delete()));
+      logger.info('pruned dead push tokens', { count: dead.length });
+    }
   } catch (e) {
     logger.warn('push send failed (inbox entry was still written)', {
       error: String(e),
