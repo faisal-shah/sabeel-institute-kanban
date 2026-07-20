@@ -55,6 +55,18 @@ lying around is a thing someone later has to reason about.
 
 From then on, promote everyone else in-app under **People**.
 
+## Public download page
+
+The app repo is private, so its releases are not publicly downloadable. The team
+downloads from GitHub Pages instead — public, free bandwidth, no account needed:
+
+<https://faisal-shah.github.io/sabeel-kanban/>
+
+Update it from `../faisal-shah.github.io` by copying the new APKs over the
+existing ones **keeping the same filenames** (the links must not go stale) and
+bumping the version line in `sabeel-kanban/index.html`. That repo's
+`sabeel-kanban/README.md` records the history-size cost and what to do about it.
+
 ## Android release APKs
 
 `app/android/` is committed (no EAS). Build locally:
