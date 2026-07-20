@@ -223,6 +223,23 @@ receiving the previous account's notifications), and prune tokens FCM rejects as
 `registration-token-not-registered` / `invalid-registration-token` — an uninstall
 leaves one behind forever. Prune on nothing else; the other codes are transient.
 
+### An `EXPO_PUBLIC_*` value added to `.env.local` does not appear in the bundle
+The value is **inlined at build time and cached**. A module compiled before the
+variable existed keeps the old inlined value — usually `undefined` — through any
+number of clean `expo export` runs, because `dist/` is the output, not the cache.
+
+Symptom: the feature behaves exactly as it does with no key at all, and the code
+is correct. `expo export --clear` (and removing `.expo`) fixes it.
+
+**Grep the export for the literal value** rather than trusting the build:
+
+```bash
+grep -rc "<the value>" dist/_expo/static/js/web/*.js   # 0 means it never arrived
+```
+
+Check a *different* `EXPO_PUBLIC_` var first — if that one is present, env
+loading works and the problem is the cache, not the file.
+
 ### Web push is inert without a VAPID key and a service worker
 Make the missing key an explicit early return rather than a throw during
 sign-in. Half-configured web push should do nothing, by design, while native
