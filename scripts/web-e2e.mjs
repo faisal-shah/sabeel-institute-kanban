@@ -537,7 +537,17 @@ try {
   // Due date is a real <input type="date"> now, not preset buttons.
   const dueInput = admin.getByLabel('Due date');
   await dueInput.waitFor({ timeout: 15000 });
-  await dueInput.fill(new Date().toISOString().slice(0, 10));
+  // The ORG timezone's today, not UTC's. `toISOString()` rolls over hours before
+  // America/New_York does, so an evening run set a date the app then grouped
+  // under "Next 7 days" and the "Today" assertion failed — a real flake that
+  // only appeared after ~20:00 local and looked like a regression.
+  const orgToday = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  await dueInput.fill(orgToday);
   await admin.waitForTimeout(1500);
   check('a card can be assigned and given a due date', true);
 
