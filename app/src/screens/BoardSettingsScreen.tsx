@@ -32,7 +32,7 @@ import {
   Title,
 } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
-import { toUserMessage } from '../errors';
+import { useAction } from '../useAction';
 
 export function BoardSettingsScreen({
   boardId,
@@ -51,7 +51,7 @@ export function BoardSettingsScreen({
   const [newColumn, setNewColumn] = useState('');
   const [newLabelName, setNewLabelName] = useState('');
   const [labelColor, setLabelColor] = useState<string>(LABEL_COLORS[0]);
-  const [error, setError] = useState<string | null>(null);
+  const { run, busy, error, setError } = useAction('boardSettings');
   const [pendingRemoval, setPendingRemoval] = useState<{
     uid: string;
     cards: number;
@@ -68,14 +68,6 @@ export function BoardSettingsScreen({
     );
   }
 
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(toUserMessage(e, 'boardSettings'));
-    }
-  }
 
   async function addColumn() {
     const problem = validateColumnName(newColumn, b!.columns);
@@ -143,6 +135,7 @@ export function BoardSettingsScreen({
             <Body>{c.name}</Body>
             <Row>
               <Button
+          busy={busy}
                 label="↑"
                 variant="secondary"
                 disabled={i === 0}
@@ -155,6 +148,7 @@ export function BoardSettingsScreen({
                 }
               />
               <Button
+          busy={busy}
                 label="↓"
                 variant="secondary"
                 disabled={i === b.columns.length - 1}
@@ -192,6 +186,7 @@ export function BoardSettingsScreen({
               <Body>{l.name}</Body>
             </Row>
             <Button
+          busy={busy}
               label="Remove"
               variant="secondary"
               onPress={() =>
@@ -231,6 +226,7 @@ export function BoardSettingsScreen({
           ))}
         </Row>
         <Button
+          busy={busy}
           label="Add label"
           disabled={!newLabelName.trim()}
           onPress={() =>
@@ -287,6 +283,7 @@ export function BoardSettingsScreen({
           </Body>
           <Row>
             <Button
+          busy={busy}
               label="Remove"
               variant="danger"
               onPress={() =>
@@ -331,6 +328,7 @@ export function BoardSettingsScreen({
                 <Caption>{u.email}</Caption>
               </View>
               <Button
+          busy={busy}
                 label="Add"
                 onPress={() =>
                   run(() =>
@@ -354,6 +352,7 @@ export function BoardSettingsScreen({
           permanently deleted — too much work accumulates in them.
         </Body>
         <Button
+          busy={busy}
           label={b.archived ? 'Restore board' : 'Archive board'}
           variant={b.archived ? 'primary' : 'danger'}
           onPress={() =>

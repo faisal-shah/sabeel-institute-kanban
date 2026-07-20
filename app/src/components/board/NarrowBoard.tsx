@@ -55,7 +55,7 @@ import {
 } from '../ui';
 import { radius, space, type, useTheme } from '../../theme';
 import { KeyboardSticky } from '../KeyboardSticky';
-import { toUserMessage } from '../../errors';
+import { useAction } from '../../useAction';
 
 /** Stable empties, so an absent board does not churn the memos below. */
 const NO_COLUMNS: BoardColumn[] = [];
@@ -116,7 +116,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [moving, setMoving] = useState<Card | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { run, busy, error, setError } = useAction('narrowBoard');
   const scroller = useRef<ScrollView>(null);
   // Measured, not Dimensions.get('window'): this pager sits inside the Screen's
   // horizontal padding, so sizing pages to the WINDOW made every page wider than
@@ -170,14 +170,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     scroller.current?.scrollTo({ x: clamped * width, animated: true });
   }
 
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(toUserMessage(e, 'narrowBoard'));
-    }
-  }
 
   async function addCard(columnId: string) {
     const title = newTitle.trim();
@@ -408,6 +400,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           }}
         />
         <Button
+          busy={busy}
           label="Archive card"
           variant="danger"
           onPress={() =>

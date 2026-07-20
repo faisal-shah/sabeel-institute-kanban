@@ -34,7 +34,7 @@ import {
   Title,
 } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
-import { toUserMessage } from '../errors';
+import { useAction } from '../useAction';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
@@ -66,7 +66,7 @@ export function CardScreen({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { run, busy, error } = useAction('card');
   const [dirty, setDirty] = useState(false);
 
   // Seed the local editors once the card arrives, but never stomp on typing.
@@ -93,14 +93,6 @@ export function CardScreen({
     );
   }
 
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(toUserMessage(e, 'card'));
-    }
-  }
 
   const today = todayInOrgTz();
   const overdue = c.dueDate !== undefined && c.dueDate < today;
@@ -133,6 +125,7 @@ export function CardScreen({
             disabled. */}
         {title.trim() !== c.title && title.trim().length > 0 ? (
           <Button
+          busy={busy}
             label="Save title"
             onPress={() =>
               run(async () => {
@@ -213,6 +206,7 @@ export function CardScreen({
             />
             <Row>
               <Button
+          busy={busy}
                 label="Save"
                 onPress={() =>
                   run(async () => {
@@ -364,11 +358,13 @@ export function CardScreen({
       <Panel>
         {c.archived ? (
           <Button
+          busy={busy}
             label="Restore to the board"
             onPress={() => run(() => restoreCard(boardId, cardId, user))}
           />
         ) : (
           <Button
+          busy={busy}
             label="Archive card"
             variant="danger"
             onPress={() =>
@@ -386,6 +382,7 @@ export function CardScreen({
               archive.
             </Caption>
             <Button
+          busy={busy}
               label="Delete permanently"
               variant="danger"
               onPress={() =>

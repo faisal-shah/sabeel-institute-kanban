@@ -26,7 +26,7 @@ import {
   Title,
 } from '../ui';
 import { radius, space, useTheme } from '../../theme';
-import { toUserMessage } from '../../errors';
+import { useAction } from '../../useAction';
 
 /**
  * The WIDE board, NATIVE build — a tablet, or any large-screen React Native
@@ -55,7 +55,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const [adding, setAdding] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [moving, setMoving] = useState<Card | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { run, busy, error, setError } = useAction('wideBoard');
   const selection = useSelection(cards.data ?? EMPTY_CARDS);
 
   const columns = board.data?.columns ?? NO_COLUMNS;
@@ -67,14 +67,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     return map;
   }, [columns, cards.data]);
 
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(toUserMessage(e, 'wideBoard'));
-    }
-  }
 
   async function addCard(columnId: string) {
     const title = newTitle.trim();
@@ -289,6 +281,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
           </Row>
           <Row style={styles.wrap}>
             <Button
+          busy={busy}
               label="Archive card"
               variant="danger"
               onPress={() =>

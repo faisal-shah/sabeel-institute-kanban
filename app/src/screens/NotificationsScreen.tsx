@@ -26,7 +26,7 @@ import {
   Title,
 } from '../components/ui';
 import { radius, space, useTheme } from '../theme';
-import { toUserMessage } from '../errors';
+import { useAction } from '../useAction';
 
 function when(ms: number): string {
   const mins = Math.floor((Date.now() - ms) / 60000);
@@ -51,20 +51,12 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const boards = useMyBoards(user);
   const t = useTheme();
   const [showSettings, setShowSettings] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { run, busy, error } = useAction('notifications');
 
   const items = inbox.data ?? [];
   const prefs = prefsDoc.data?.prefs ?? {};
   const muted = prefsDoc.data?.mutedBoardIds ?? [];
 
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(toUserMessage(e, 'notifications'));
-    }
-  }
 
   function open(item: InboxItem) {
     void markRead(user, item).catch(() => {});
@@ -112,6 +104,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                     <Caption>{spec.description}</Caption>
                   </View>
                   <Button
+          busy={busy}
                     label={on ? 'On' : 'Off'}
                     variant={on ? 'primary' : 'secondary'}
                     onPress={() =>
@@ -135,6 +128,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                 <Row style={styles.between}>
                   <Body>{b.name}</Body>
                   <Button
+          busy={busy}
                     label={isMuted ? 'Muted' : 'Mute'}
                     variant={isMuted ? 'danger' : 'secondary'}
                     onPress={() => run(() => setBoardMuted(user, b.id, !isMuted, muted))}
@@ -154,6 +148,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
             </Caption>
             {unread > 0 ? (
               <Button
+          busy={busy}
                 label="Mark all read"
                 variant="secondary"
                 onPress={() => run(() => markAllRead(user, items))}
@@ -184,6 +179,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                     </Caption>
                   </View>
                   <Button
+          busy={busy}
                     label="Dismiss"
                     variant="secondary"
                     onPress={() => run(() => dismiss(user, item))}

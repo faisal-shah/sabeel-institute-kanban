@@ -14,7 +14,7 @@ import type { BoardMemberProfile } from '../boards';
 import { Markdown } from './Markdown';
 import { Body, Button, Caption, Card as Panel, Row, Spinner, TextField } from './ui';
 import { space, useTheme } from '../theme';
-import { toUserMessage } from '../errors';
+import { useAction } from '../useAction';
 
 function when(ms: number): string {
   const diff = Date.now() - ms;
@@ -40,11 +40,10 @@ export function Comments({
   const comments = useComments(boardId, cardId);
   const t = useTheme();
   const [draft, setDraft] = useState('');
-  const [posting, setPosting] = useState(false);
   const draftRef = useRef<TextInput>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { run, busy, error } = useAction('comments');
 
   const candidates: MentionCandidate[] = useMemo(
     () => members.map((m) => ({ uid: m.uid, displayName: m.displayName, email: m.email })),
@@ -63,14 +62,6 @@ export function Comments({
   const suggestions =
     mentionQuery === null ? [] : mentionSuggestions(mentionQuery, candidates);
 
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(toUserMessage(e, 'comments'));
-    }
-  }
 
   if (comments.status === 'loading') return <Spinner label="Loading comments…" />;
 
@@ -132,6 +123,7 @@ export function Comments({
                 <TextField value={editDraft} onChangeText={setEditDraft} multiline />
                 <Row>
                   <Button
+          busy={busy}
                     label="Save"
                     onPress={() =>
                       run(async () => {
@@ -207,8 +199,8 @@ export function Comments({
             keyboard. The hint is guidance, not a step, so it reads fine after. */}
         <Button
           label="Comment"
-          disabled={draft.trim().length === 0 || posting}
-          busy={posting}
+          disabled={draft.trim().length === 0 || busy}
+          busy={busy}
           onPress={() => {
             // Clear the box IMMEDIATELY rather than after the server
             // acknowledges. `addDoc` resolves on server ack, which on a phone
@@ -221,17 +213,14 @@ export function Comments({
             // what someone typed is far worse than a second of uncertainty.
             const body = draft;
             setDraft('');
-            setPosting(true);
             void run(async () => {
               try {
                 await addComment({ boardId, cardId, body, candidates, user });
               } catch (e) {
                 setDraft(body);
                 throw e;
-              } finally {
-                setPosting(false);
               }
-            });
+            }, 'addComment');
           }}
         />
 
