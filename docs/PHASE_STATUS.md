@@ -20,11 +20,11 @@ web. "The code looks right" is not verification.
 | 7 | Bulk actions | **complete** (2026-07-19) |
 | 8 | Comments + mentions | **complete** (2026-07-19) |
 | 9 | Activity history | **complete** (2026-07-19) |
-| 10 | Notifications | **complete** (2026-07-19) — push delivery itself unverifiable without a real project; see below |
+| 10 | Notifications | **in-app inbox complete** (2026-07-19). **PUSH IS NOT WIRED**: the functions send via FCM, but the app never registers a device token, so `pushTokens` is always empty and nothing is ever delivered. Decision needed — see below. |
 | 11 | Search + archive | **complete** (2026-07-19) |
 | 12 | Polish + deploy readiness | **complete** (2026-07-19) |
-| 13 | Production deploy | **blocked on Faisal** — needs the Firebase project (`TODO.md`) |
-| 14 | ClickUp import + launch | blocked on Phase 13 |
+| 13 | Production deploy | **complete** (2026-07-20) — live at sabeel-institute-kanban.web.app; APKs published; indexes probed in production |
+| 14 | ClickUp import + launch | **blocked on a sample export** — the parser cannot be written without seeing real column names |
 
 ## What works today (2026-07-19)
 
@@ -273,6 +273,30 @@ pass; release keystore.
 **Exit criteria**
 - Every screen has a designed empty and error state.
 - Manual covers every user-visible feature, screenshots current.
+
+## Push notifications are not functional (found 2026-07-20)
+
+`functions/src/notifications.ts` sends through `getMessaging().sendEachForMulticast()`
+using each user's `pushTokens`. Nothing on the client ever writes that field —
+`auth.ts` initialises it to `[]` at provisioning and no code touches it again. So
+`tokens.length === 0` on every call and the send returns early, every time.
+
+The in-app inbox, the per-event preferences and the mute-a-board control all
+work; only delivery to a device does not. That makes this the most dangerous
+shape of unfinished work: it looks complete from the outside, including to
+whoever writes the next feature on top of it.
+
+Two honest options:
+
+1. **Finish it** — register a device token on sign-in (expo-notifications or the
+   FCM SDK), write it to `pushTokens`, and remove it on sign-out. Needs native
+   config and a real device to verify; an emulator cannot prove delivery.
+2. **Remove the send path** and rely on the inbox. Defensible for a team of this
+   size, and "restraint is the feature" argues for it — but it should be a
+   decision, not a silence.
+
+Doing neither is the one option that is not acceptable, because the code
+currently claims a capability the app does not have.
 
 ## Phase 13 — Production deploy
 
