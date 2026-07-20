@@ -216,14 +216,25 @@ Android push is wired and ships in the next APK. Two items are console work.
       within a few seconds. An emulator cannot prove this — it needs the phone.
       If nothing arrives, say so and I'll read the function logs.
 
-- [ ] **Web push — generate a VAPID key** (only if you want notifications in the
-      browser too; Android works without it). Firebase console → Project settings
-      → **Cloud Messaging** → *Web configuration* → **Web Push certificates** →
-      **Generate key pair**. Copy the public key into `app/.env.local` as
-      `EXPO_PUBLIC_FCM_VAPID_KEY=…` — it is a public key, not a secret, but keep
-      it out of chat by convention. Tell me once it's there and I'll add the
-      service worker and re-deploy. Until then web push does nothing at all,
-      deliberately.
+- [ ] **Web push — generate a VAPID key.** My half is written and committed:
+      the service worker is in place and verified to land at the site root on
+      export. This is the only thing left.
+
+      A VAPID key is a public/private pair identifying *your server* to the
+      browser's push service (Google's for Chrome, Mozilla's for Firefox). The
+      public half ships in the web app so a subscription is bound to you and
+      cannot be replayed by anyone else; the private half stays in Firebase and
+      signs each push. Android needs none of this because FCM reaches Play
+      services on the device directly.
+
+      Firebase console → **Project settings** → **Cloud Messaging** →
+      *Web configuration* → **Web Push certificates** → **Generate key pair**.
+      Copy the key into `app/.env.local` as `EXPO_PUBLIC_FCM_VAPID_KEY=…`. It is
+      a public key, not a secret, but keep it out of chat by convention.
+
+      Console-only — there is no `firebase` CLI command and no REST endpoint for
+      it (checked, not assumed). Tell me when it's there and I'll rebuild and
+      redeploy the web app. Until then web push does nothing, deliberately.
 
 - [x] **Functions Sentry verified 2026-07-20.** Marker
       `functions-sentry-check 2026-07-20T16:01:17.471Z` arrived in
