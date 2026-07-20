@@ -45,6 +45,23 @@ export async function signInWithGoogle(): Promise<void> {
       await signInWithRedirect(auth, provider);
       return;
     }
+
+    // Changing your mind is not a failure. Closing the Google popup, or opening
+    // a second one which supersedes the first, raises these — and because the
+    // sign-in screen reports what it catches, they were arriving in Sentry as
+    // if something had broken. An issue stream full of people deciding not to
+    // sign in is one nobody reads, which costs us the real reports.
+    //
+    // The native seam has always treated cancellation this way
+    // (SIGN_IN_CANCELLED / IN_PROGRESS); web simply never matched it.
+    if (
+      code === 'auth/popup-closed-by-user' ||
+      code === 'auth/cancelled-popup-request' ||
+      code === 'auth/user-cancelled'
+    ) {
+      return;
+    }
+
     throw e;
   }
 }
