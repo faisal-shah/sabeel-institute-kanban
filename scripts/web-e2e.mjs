@@ -716,11 +716,34 @@ try {
   await intruderButton.waitFor({ timeout: 30000 });
   await intruderButton.click();
 
-  // The trigger deletes the account, but the client's ID token stays valid until
-  // it refreshes — so the app does not get signed out. It must explain itself
-  // rather than spin: after a grace period it shows "Wrong account".
-  await bad.getByText('Wrong account').waitFor({ timeout: 40000 });
-  check('a non-org account is rejected server-side and told why', true);
+  // Two outcomes are both CORRECT here, and which one you get is a race with the
+  // trigger:
+  //
+  //  - the client keeps a valid ID token, so the app is not signed out and must
+  //    explain itself — after a grace period it shows "Wrong account";
+  //  - or onUserCreate deletes the account before signInWithCredential finishes,
+  //    the sign-in itself fails, and the user is left on the sign-in screen.
+  //
+  // Asserting only the first made this abort intermittently, which is worse than
+  // a missing assertion: a suite that fails for a known-benign reason teaches
+  // everyone to re-run it, and the next real failure gets waved through too.
+  const rejected = await Promise.race([
+    bad
+      .getByText('Wrong account')
+      .waitFor({ timeout: 40000 })
+      .then(() => 'explained')
+      .catch(() => null),
+    bad
+      .getByText('Sign in with Google')
+      .waitFor({ timeout: 40000 })
+      .then(() => 'signed out')
+      .catch(() => null),
+  ]);
+  check(
+    'a non-org account is rejected server-side and never gets in',
+    rejected !== null,
+    rejected ?? 'neither outcome appeared',
+  );
 
   const reachedAGate = await bad
     .getByText('Waiting for approval')

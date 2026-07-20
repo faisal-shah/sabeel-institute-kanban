@@ -194,9 +194,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                           ? selection.toggle(card.id)
                           : nav.push({ name: 'card', boardId, cardId: card.id })
                       }
-                      onLongPress={() =>
-                        selection.active ? selection.toggle(card.id) : setMoving(card)
-                      }
+                      onLongPress={() => selection.toggle(card.id)}
                       style={[
                         styles.card,
                         {

@@ -28,18 +28,14 @@ import {
 } from 'react-native';
 import { columnsPatch, type BoardColumn } from '@sabeel/shared';
 import {
-  archiveCard,
   cardsInColumn,
   createCard,
-  moveCard,
   useBoardCards,
   type Card,
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
-import { Sheet } from '../Sheet';
-import { Select } from '../Select';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import {
@@ -107,16 +103,28 @@ function CardTile({
   );
 }
 
+/**
+ * Which column each board was last showing.
+ *
+ * Module-level on purpose: this must survive the component unmounting, which is
+ * exactly what happens when you open a card. Bounded implicitly by the number of
+ * boards, which is small.
+ */
+const lastPageByBoard = new Map<string, number>();
+
 export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
   const board = useBoard(boardId);
   const cards = useBoardCards(boardId);
 
-  const [page, setPage] = useState(0);
+  // Remembered PER BOARD, outside the component. The pager's position was
+  // component state, so opening a card unmounted the board and lost it —
+  // returning from a card in the third column dumped you back on the first.
+  // Keyed by board so two boards do not inherit each other's position.
+  const [page, setPage] = useState(() => lastPageByBoard.get(boardId) ?? 0);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [moving, setMoving] = useState<Card | null>(null);
-  const { run, busy, error, setError } = useAction('narrowBoard');
+  const { run, error, setError } = useAction('narrowBoard');
   const scroller = useRef<ScrollView>(null);
   // Measured, not Dimensions.get('window'): this pager sits inside the Screen's
   // horizontal padding, so sizing pages to the WINDOW made every page wider than
@@ -159,14 +167,19 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
    * disagree with what the user is looking at, which is the whole point of
    * having it on a surface where only one column is visible.
    */
+  function rememberPage(next: number) {
+    lastPageByBoard.set(boardId, next);
+    setPage(next);
+  }
+
   function syncPage(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const next = Math.round(e.nativeEvent.contentOffset.x / width);
-    if (next !== page && next >= 0 && next < columns.length) setPage(next);
+    if (next !== page && next >= 0 && next < columns.length) rememberPage(next);
   }
 
   function goTo(index: number) {
     const clamped = Math.max(0, Math.min(index, columns.length - 1));
-    setPage(clamped);
+    rememberPage(clamped);
     scroller.current?.scrollTo({ x: clamped * width, animated: true });
   }
 
@@ -187,20 +200,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     );
   }
 
-  async function moveTo(card: Card, column: BoardColumn) {
-    const target = (byColumn.get(column.id) ?? []).filter((c) => c.id !== card.id);
-    setMoving(null);
-    await run(() =>
-      moveCard({
-        boardId,
-        card,
-        toColumnId: column.id,
-        before: target[target.length - 1] ?? null,
-        after: null,
-        user,
-      }),
-    );
-  }
 
   async function removeColumn(col: BoardColumn) {
     const inCol = byColumn.get(col.id) ?? [];
@@ -279,14 +278,28 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       />
 
       {!selection.active && (byColumn.get(current?.id ?? '')?.length ?? 0) > 0 ? (
-        <Caption>Long-press a card to select several at once.</Caption>
+        <Caption>
+          Tap a card to open it. Long-press to start selecting, then tap others
+          to move or archive them together.
+        </Caption>
       ) : null}
 
       <ScrollView
         ref={scroller}
         onLayout={(e) => {
           const w = e.nativeEvent.layout.width;
-          if (w > 0 && Math.abs(w - width) > 1) setWidth(w);
+          if (w > 0 && Math.abs(w - width) > 1) {
+            setWidth(w);
+            // Restore the remembered column once we know how wide a page is.
+            // Without this the state says "column 3" while the ScrollView is
+            // still at offset 0, which is the desync that showed half of two
+            // columns at once.
+            if (page > 0) {
+              requestAnimationFrame(() =>
+                scroller.current?.scrollTo({ x: page * w, animated: false }),
+              );
+            }
+          }
         }}
         horizontal
         pagingEnabled
@@ -317,9 +330,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                         ? selection.toggle(item.id)
                         : nav.push({ name: 'card', boardId, cardId: item.id })
                     }
-                    onLongPress={() =>
-                      selection.active ? selection.toggle(item.id) : setMoving(item)
-                    }
+                    onLongPress={() => selection.toggle(item.id)}
                   />
                 )}
                 ListEmptyComponent={<Caption>No cards in {col.name}.</Caption>}
@@ -378,40 +389,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         })}
       </ScrollView>
 
-      {/* Moving is a bounded, centred dialog. It was previously an absolutely
-          positioned panel pinned to the bottom, which could run off a short
-          viewport with no way to scroll to the rest of it.
-
-          The destination is a dropdown rather than one button per column: a
-          board with a dozen columns turned the dialog into a wall of buttons
-          that filled the screen before the reader had chosen anything. */}
-      <Sheet
-        visible={moving !== null}
-        title={moving ? `Move “${moving.title}” to` : ''}
-        onClose={() => setMoving(null)}
-      >
-        <Select
-          label="Destination column"
-          value={moving?.columnId ?? ''}
-          options={columns.map((col) => ({ value: col.id, label: col.name }))}
-          onChange={(toColumnId) => {
-            const col = columns.find((x) => x.id === toColumnId);
-            if (moving && col && col.id !== moving.columnId) moveTo(moving, col);
-          }}
-        />
-        <Button
-          busy={busy}
-          label="Archive card"
-          variant="danger"
-          onPress={() =>
-            run(async () => {
-              if (!moving) return;
-              await archiveCard(boardId, moving.id, user);
-              setMoving(null);
-            })
-          }
-        />
-      </Sheet>
 
     </Screen>
   );
