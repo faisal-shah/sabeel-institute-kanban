@@ -267,7 +267,7 @@ label, priority, due); archive view + restore.
 ## Phase 12 — Polish and deploy readiness
 
 Scope: empty states, error states, loading states; `docs/USER-MANUAL.md` with
-screenshots; `docs/DEPLOY.md`; Sentry wired on all three surfaces; accessibility
+screenshots; `docs/DEPLOY.md`; Sentry wired **and observed delivering** on all three surfaces (web, Android, functions — the last confirmed 2026-07-20); accessibility
 pass; release keystore.
 
 **Exit criteria**

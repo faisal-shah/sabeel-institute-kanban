@@ -225,17 +225,12 @@ Android push is wired and ships in the next APK. Two items are console work.
       service worker and re-deploy. Until then web push does nothing at all,
       deliberately.
 
-- [ ] **Check one Sentry issue and this line is done.** Open the
-      `sabeel-kanban-functions` project and look for:
-
-      > `FUNCTIONS SENTRY PROBE — functions-sentry-check 2026-07-20T16:01:17.471Z`
-
-      I deployed a temporary trigger, fired it, confirmed in the Cloud Functions
-      log that it threw with `SENTRY_DSN` bound to the function, then deleted the
-      trigger, the probe document and the code. Everything up to the ingest is
-      verified; **whether the event arrived is the one part only you can see.**
-      If it isn't there, tell me and I'll redeploy the probe — it's one commit
-      back in the history.
+- [x] **Functions Sentry verified 2026-07-20.** Marker
+      `functions-sentry-check 2026-07-20T16:01:17.471Z` arrived in
+      `sabeel-kanban-functions`, environment `production`. The trace's second
+      frame is `await fn(event)` — `guardedEvent` — so this also confirms the
+      newly-wrapped background triggers deliver, not just the callables. All
+      three surfaces now have an observed event, none inferred.
 
 ## Answered — kept for reference
 
