@@ -62,21 +62,23 @@ Key product invariants (do not silently change):
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one
   document write. Never reintroduce an array-of-ids ordering.
 
-`docs/STACK-GOTCHAS.md` collects the **stack-level** traps (Expo /
-react-native-web / Firebase JS SDK) that keep getting rediscovered — auth in
-in-app browsers, emulator project-id partitioning, stale Metro bundles,
-unthemeable RNW controls, live-query empty-vs-absent. It is written symptom-first
-and is intended to become a reusable skill: **when something in this stack costs
-real time to diagnose, add the entry there**, not only in a commit message. It is
-published as the `expo-firebase-stack` skill in `../agent-skills/`.
+**Stack-level traps live in the `expo-firebase-stack` skill**, in
+`../agent-skills/` (public repo), NOT in this one. `docs/STACK-GOTCHAS.md` is a
+stub explaining that. When something in this stack costs real time to diagnose,
+**write the entry into the skill** — symptom-first — rather than only into a
+commit message.
+
+The split is: *would this be true for a different company on the same stack?*
+Yes → the skill. No → this file. Nothing naming this project goes into the
+skill; the repo is public.
 
 Its closing section, **"How this stack fools you"**, is the one to read before
 debugging anything subtle here. The recurring shape is that failures imitate
 success: APIs that run and do nothing (`Keyboard` events under edge-to-edge,
-RNW's unthemeable `Switch`), verification steps that counterfeit the result (a
-scroll during testing that looked like the fix working), a green web suite that
-says nothing about a native layout bug, and resources that report "deployed"
-while not working. **Prove the mechanism ran before concluding a fix was
+RNW's unthemeable `Switch`, an `EXPO_PUBLIC_*` value stale in the Metro cache),
+verification steps that counterfeit the result, a green web suite that says
+nothing about a native layout bug, and resources that report "deployed" while
+not working. **Prove the mechanism ran before concluding a fix was
 insufficient, re-test without touching anything, and reproduce on the surface
 that is actually broken.**
 
