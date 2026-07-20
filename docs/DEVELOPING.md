@@ -31,6 +31,40 @@ inspecting Firestore documents and Auth users directly.
 > exercise the sweep, invoke it manually from the Functions emulator shell, or
 > wait until it runs in production.
 
+## Just use `scripts/dev.sh`
+
+```sh
+scripts/dev.sh status     # what is running, and which process owns each port
+scripts/dev.sh stop       # free every port this project uses, and VERIFY
+scripts/dev.sh web        # stop, start emulators + web, seed
+scripts/dev.sh android    # stop, start emulators + Metro for the device build
+scripts/dev.sh e2e        # stop, then run the full suite
+```
+
+Always `stop` before starting anything. A stale emulator or Metro holding a port
+fails in ways that look like application bugs — `Could not start Authentication
+Emulator, port taken`, or worse, a dev server that answers on 8086 while serving
+code from a different checkout. `stop` re-checks the ports afterwards rather than
+trusting that a kill worked, because a silently-failed kill is exactly how a
+"cleared" port keeps serving yesterday's bundle.
+
+### Debugging habits that keep paying off
+
+- **`status` first, always.** Half a dozen sessions were lost to a process
+  nobody knew was still running.
+- **Never pipe a long-running command through `grep` to a log you intend to
+  read while it runs.** grep buffers when its output is not a terminal, so the
+  file stays empty and the run looks hung. Write the full output, then grep the
+  file. (`grep --line-buffered` if you must filter live.)
+- **Write logs to `/tmp/sk-*.log`, not the agent scratchpad** — the scratchpad
+  gets cleaned mid-session and the evidence disappears with it.
+- **Background jobs must outlive their launcher** (`nohup … & disown`), or they
+  die with the shell and you debug a process that is not running.
+- **Verify by using the app, not by reading coordinates.** A control can be
+  on-screen and still unreachable. Type the comment and post it.
+- **Re-test without touching anything.** If confirming a fix needs a scroll or a
+  retry, your interaction may be producing the result rather than the fix.
+
 **Terminal 2 — the app:**
 
 ```sh

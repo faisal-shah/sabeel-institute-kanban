@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ROLES, type Role, type UserStatus } from '@sabeel/shared';
 import { setUserAccess, useAllUsers, type AdminUserRow } from '../users';
 import { confirmAction } from '../confirm';
+import { captureError, errorReportingEnabled } from '../sentry';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
@@ -106,6 +107,29 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
       ))}
 
       {sorted.length === 0 ? <Caption>Nobody has signed in yet.</Caption> : null}
+
+      {/* TEMPORARY diagnostic — remove once Sentry delivery is confirmed.
+          Error reporting cannot be proven locally: it is deliberately disabled
+          against the emulators, so only a production build can show whether an
+          event actually arrives. Rather than ship the reporting path believing
+          it works, this sends one deliberately-tagged event on demand. */}
+      <Caption>Diagnostics</Caption>
+      <Button
+        label="Send a test error to Sentry"
+        variant="secondary"
+        onPress={() => {
+          const marker = `sentry-check ${new Date().toISOString()}`;
+          captureError(new Error(`TEST EVENT — ${marker}`), {
+            source: 'sentryDeliveryCheck',
+            marker,
+          });
+          setError(
+            errorReportingEnabled
+              ? `Sent: ${marker} — look for it in Sentry.`
+              : 'Reporting is OFF in this build (no DSN, or emulator mode).',
+          );
+        }}
+      />
     </Screen>
   );
 }
