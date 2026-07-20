@@ -186,6 +186,52 @@ putting staff addresses into a third-party service.
 
 ---
 
+## Push notifications (FCM)
+
+### Nothing is delivered, and nothing anywhere reports an error
+The send path was complete and the **registration path was never written**. The
+function reads each recipient's tokens, finds an empty list, and returns early —
+a success, not an error. The inbox, the preferences and the mute control all
+worked, so the feature looked finished from the outside for weeks.
+
+Check that a token exists on a real user before debugging delivery at all.
+
+### A token is registered and still nothing arrives
+`getExpoPushTokenAsync()` returns an Expo token, deliverable only by Expo's push
+service. The **Firebase Admin SDK** needs the native FCM token from
+`getDevicePushTokenAsync()`. Both store a plausible string; the mismatch is
+silent.
+
+### `googleServicesFile` in `app.json` does nothing in a bare workflow
+It is read by **prebuild**, and with a committed `android/` nobody runs prebuild.
+`android/app/google-services.json`, the `com.google.gms:google-services`
+classpath, and `apply plugin:` must all physically exist. Proof the build used
+them:
+
+```bash
+ls app/android/app/build/generated/res/processReleaseGoogleServices/values/values.xml
+```
+
+### Tokens go in a subcollection, not an array field
+`users/{uid}/pushTokens/{token}`. Two devices registering at once cannot race,
+and the rule grants nothing beyond a person's own tokens. Use `isSignedIn`, not
+`isActive` — **registration happens before an admin approves the account**; gate
+the send instead. Nobody else may read the collection, admins included.
+
+Unregister on sign-out (a push targets the *device*, so a handed-on phone keeps
+receiving the previous account's notifications), and prune tokens FCM rejects as
+`registration-token-not-registered` / `invalid-registration-token` — an uninstall
+leaves one behind forever. Prune on nothing else; the other codes are transient.
+
+### Web push is inert without a VAPID key and a service worker
+Make the missing key an explicit early return rather than a throw during
+sign-in. Half-configured web push should do nothing, by design, while native
+keeps working.
+
+### Arrival is the one part you cannot test
+FCM has no emulator. Registration, rules and pruning are all testable; delivery
+needs real hardware. Say which one you did not verify.
+
 ## Testing
 
 ### A seed or test "did nothing" — and did it repeatedly
@@ -200,6 +246,13 @@ against the database directly, not the UI, when checking whether a write landed.
 Playwright **auto-dismisses** `window.confirm`. Register
 `page.on('dialog', d => d.accept())` — and assert on the dialog *text*, so the
 test proves a confirmation was demanded rather than just clicking through.
+
+### An intermittent failure on a race the test created
+Waiting for condition A and asserting condition B in the same tick. A trigger
+that deletes an auth user can still have a doc write in flight. The assertion is
+about what *survives*, so poll for it instead of sampling an instant — and re-run
+a suspected flake several times, since one green run does not distinguish a fix
+from luck.
 
 ### Verify UI by looking at it
 Take the screenshot and actually read it. "The code looks right" has been wrong
