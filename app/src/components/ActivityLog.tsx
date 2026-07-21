@@ -34,12 +34,10 @@ function when(ms: number): string {
  * to the end of.
  */
 export function ActivityLog({
-  boardId,
   cardId,
   members,
   columns,
 }: {
-  boardId: string;
   cardId: string;
   members: readonly BoardMemberProfile[];
   columns: readonly BoardColumn[];
@@ -50,7 +48,7 @@ export function ActivityLog({
     'activity',
     () =>
       query(
-        collection(db, 'boards', boardId, 'cards', cardId, 'activity'),
+        collection(db, 'cards', cardId, 'activity'),
         orderBy('at', 'desc'),
         limit(50),
       ),
@@ -63,7 +61,7 @@ export function ActivityLog({
         from: d.data.from as string | undefined,
         to: d.data.to as string | undefined,
       })),
-    [boardId, cardId],
+    [cardId],
   );
 
   const nameFor = useMemo(() => {

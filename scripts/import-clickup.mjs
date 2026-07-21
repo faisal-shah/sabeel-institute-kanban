@@ -211,6 +211,7 @@ for (const { bn, brows, cols } of plan) {
       const comments = jsonOr(r['Comments'], []);
       const cardId = r['Task ID'];
       const card = {
+        boardId,
         title: r['Task Name'].trim() || '(untitled)',
         description: buildDescription(r),
         columnId: colId[colName],
@@ -228,7 +229,7 @@ for (const { bn, brows, cols } of plan) {
       };
       const due = mapDueDate(r['Due Date']);
       if (due) card.dueDate = due;
-      await db.doc(`boards/${boardId}/cards/${cardId}`).set(card);
+      await db.doc(`cards/${cardId}`).set(card);
       nCards++;
 
       // Comments as real comments, oldest first, attributed in the body.
@@ -236,7 +237,7 @@ for (const { bn, brows, cols } of plan) {
       for (const c of ordered) {
         const author = c.by ?? 'unknown';
         const when = commentDate(c, createdAt);
-        await db.collection(`boards/${boardId}/cards/${cardId}/comments`).add({
+        await db.collection(`cards/${cardId}/comments`).add({
           authorUid: adminUid,
           body: `[${author} · ${c.date ?? ''}]\n${(c.text ?? '').trim()}`,
           mentionUids: [],

@@ -26,7 +26,6 @@ import { toUserMessage } from '../errors';
  * dismiss dialogs.
  */
 export function BulkBar({
-  boardId,
   columns,
   allCards,
   selection,
@@ -34,7 +33,6 @@ export function BulkBar({
   user,
   onError,
 }: {
-  boardId: string;
   columns: readonly BoardColumn[];
   allCards: readonly Card[];
   selection: Selection;
@@ -95,7 +93,7 @@ export function BulkBar({
               <IconAction
                 icon="archive"
                 label="Archive selected cards"
-                onPress={() => run(() => bulkArchive(boardId, chosen, user))}
+                onPress={() => run(() => bulkArchive(chosen, user))}
               />
               {/* Members archive; only managers and admins destroy. */}
               {sessionCan.manageBoards(user) ? (
@@ -134,7 +132,6 @@ export function BulkBar({
                 if (!toColumnId) return;
                 run(() =>
                   bulkMove({
-                    boardId,
                     cards: chosen,
                     toColumnId,
                     destinationCards: cardsInColumn(allCards, toColumnId),
@@ -166,7 +163,6 @@ export function BulkBar({
                   onPress={() =>
                     run(() =>
                       bulkAssign({
-                        boardId,
                         cards: chosen,
                         uid: m.uid,
                         assign: !allHave,
@@ -194,7 +190,7 @@ export function BulkBar({
               label={`Delete ${selection.count}`}
               variant="danger"
               busy={busy}
-              onPress={() => run(() => bulkDelete(boardId, chosen))}
+              onPress={() => run(() => bulkDelete(chosen))}
             />
             <Button label="Cancel" variant="secondary" onPress={() => setMode('idle')} />
           </Row>

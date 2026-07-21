@@ -5,6 +5,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "boardId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "archived",
           "order": "ASCENDING"
         },
@@ -16,39 +20,21 @@
     },
     {
       "collectionGroup": "cards",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "boardId",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "assigneeUids",
           "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "archived",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "dueDate",
-          "order": "ASCENDING"
         }
       ]
     },
     {
       "collectionGroup": "cards",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        {
-          "fieldPath": "assigneeUids",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "archived",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "cards",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "archived",
@@ -75,20 +61,5 @@
       ]
     }
   ],
-  "fieldOverrides": [
-    {
-      "collectionGroup": "cards",
-      "fieldPath": "assigneeUids",
-      "indexes": [
-        {
-          "arrayConfig": "CONTAINS",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "arrayConfig": "CONTAINS",
-          "queryScope": "COLLECTION_GROUP"
-        }
-      ]
-    }
-  ]
+  "fieldOverrides": []
 }

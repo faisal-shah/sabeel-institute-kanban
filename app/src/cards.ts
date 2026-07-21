@@ -24,6 +24,9 @@ import type { SessionUser } from './session';
 
 export interface Card {
   id: string;
+  /** The board this card is on. Cards are a top-level collection; boardId is a
+   *  field, not the path. A cross-board move mutates it (Phase B). */
+  boardId: string;
   title: string;
   description: string;
   columnId: string;
@@ -42,6 +45,7 @@ export interface Card {
 function toCard(id: string, d: Record<string, unknown>): Card {
   return {
     id,
+    boardId: (d.boardId as string) ?? '',
     title: (d.title as string) ?? '',
     description: (d.description as string) ?? '',
     columnId: (d.columnId as string) ?? '',
@@ -58,25 +62,33 @@ function toCard(id: string, d: Record<string, unknown>): Card {
   };
 }
 
-const cardsRef = (boardId: string) => collection(db, 'boards', boardId, 'cards');
+// Cards are a TOP-LEVEL collection (`cards/{id}`), keyed to a board by a
+// `boardId` field. This is the single place card paths are built.
+const cardsRef = () => collection(db, 'cards');
+const cardRef = (cardId: string) => doc(db, 'cards', cardId);
 
 /** Live cards for a board, already in rank order. */
 export function useBoardCards(boardId: string) {
   return useLiveQuery<Card[]>(
     'cards',
-    () => query(cardsRef(boardId), where('archived', '==', false), orderBy('rank')),
+    () =>
+      query(
+        cardsRef(),
+        where('boardId', '==', boardId),
+        where('archived', '==', false),
+        orderBy('rank'),
+      ),
     (docs) => docs.map((d) => toCard(d.id, d.data)).sort(compareRank),
     [boardId],
   );
 }
 
-
-export function useCard(boardId: string, cardId: string) {
+export function useCard(cardId: string) {
   return useLiveDoc<Card | null>(
     'card',
-    () => doc(db, 'boards', boardId, 'cards', cardId),
+    () => cardRef(cardId),
     (d) => (d ? toCard(d.id, d.data) : null),
-    [boardId, cardId],
+    [cardId],
   );
 }
 
@@ -95,6 +107,7 @@ export async function createCard(params: {
   const last = params.columnCards[params.columnCards.length - 1] ?? null;
   const now = Date.now();
   const card: CardDoc = {
+    boardId: params.boardId,
     title: params.title.trim(),
     description: '',
     columnId: params.columnId,
@@ -109,12 +122,11 @@ export async function createCard(params: {
     updatedAt: now,
     updatedBy: params.user.uid,
   };
-  const ref = await addDoc(cardsRef(params.boardId), card);
+  const ref = await addDoc(cardsRef(), card);
   return ref.id;
 }
 
 export async function updateCard(
-  boardId: string,
   cardId: string,
   patch: Partial<Omit<Card, 'id' | 'createdAt' | 'createdBy'>>,
   user: SessionUser,
@@ -129,7 +141,7 @@ export async function updateCard(
     patched[key] = value === undefined ? deleteField() : value;
   }
 
-  await updateDoc(doc(db, 'boards', boardId, 'cards', cardId), {
+  await updateDoc(cardRef(cardId), {
     ...patched,
     updatedAt: Date.now(),
     updatedBy: user.uid,
@@ -144,7 +156,6 @@ export async function updateCard(
  * `before`/`after` are the cards that will surround it at the destination.
  */
 export async function moveCard(params: {
-  boardId: string;
   card: Card;
   toColumnId: string;
   before: Card | null;
@@ -152,33 +163,20 @@ export async function moveCard(params: {
   user: SessionUser;
 }): Promise<void> {
   const rank = rankBetween(params.before?.rank ?? null, params.after?.rank ?? null);
-  await updateCard(
-    params.boardId,
-    params.card.id,
-    { columnId: params.toColumnId, rank },
-    params.user,
-  );
+  await updateCard(params.card.id, { columnId: params.toColumnId, rank }, params.user);
 }
 
 /** Members archive; only managers/admins may destroy. Rules enforce both. */
-export async function archiveCard(
-  boardId: string,
-  cardId: string,
-  user: SessionUser,
-): Promise<void> {
-  await updateCard(boardId, cardId, { archived: true }, user);
+export async function archiveCard(cardId: string, user: SessionUser): Promise<void> {
+  await updateCard(cardId, { archived: true }, user);
 }
 
-export async function restoreCard(
-  boardId: string,
-  cardId: string,
-  user: SessionUser,
-): Promise<void> {
-  await updateCard(boardId, cardId, { archived: false }, user);
+export async function restoreCard(cardId: string, user: SessionUser): Promise<void> {
+  await updateCard(cardId, { archived: false }, user);
 }
 
-export async function deleteCard(boardId: string, cardId: string): Promise<void> {
-  await deleteDoc(doc(db, 'boards', boardId, 'cards', cardId));
+export async function deleteCard(cardId: string): Promise<void> {
+  await deleteDoc(cardRef(cardId));
 }
 
 // ---- Bulk actions ---------------------------------------------------------
@@ -192,7 +190,6 @@ export async function deleteCard(boardId: string, cardId: string): Promise<void>
 
 /** Move many cards into a column at once, preserving their relative order. */
 export async function bulkMove(params: {
-  boardId: string;
   cards: readonly Card[];
   toColumnId: string;
   /** Cards already in the destination, so the moved block lands after them. */
@@ -212,7 +209,7 @@ export async function bulkMove(params: {
     // destination rather than arriving scrambled.
     const rank = rankBetween(prev, null);
     prev = rank;
-    batch.update(doc(db, 'boards', params.boardId, 'cards', card.id), {
+    batch.update(cardRef(card.id), {
       columnId: params.toColumnId,
       rank,
       updatedAt: Date.now(),
@@ -224,13 +221,12 @@ export async function bulkMove(params: {
 }
 
 export async function bulkArchive(
-  boardId: string,
   cards: readonly Card[],
   user: SessionUser,
 ): Promise<void> {
   const batch = writeBatch(db);
   for (const c of cards) {
-    batch.update(doc(db, 'boards', boardId, 'cards', c.id), {
+    batch.update(cardRef(c.id), {
       archived: true,
       archivedAt: Date.now(),
       updatedAt: Date.now(),
@@ -241,20 +237,16 @@ export async function bulkArchive(
 }
 
 /** Managers and admins only — rules enforce it on the bulk path too. */
-export async function bulkDelete(
-  boardId: string,
-  cards: readonly Card[],
-): Promise<void> {
+export async function bulkDelete(cards: readonly Card[]): Promise<void> {
   const batch = writeBatch(db);
   for (const c of cards) {
-    batch.delete(doc(db, 'boards', boardId, 'cards', c.id));
+    batch.delete(cardRef(c.id));
   }
   await batch.commit();
 }
 
 /** Add or remove one person across a selection. */
 export async function bulkAssign(params: {
-  boardId: string;
   cards: readonly Card[];
   uid: string;
   assign: boolean;
@@ -265,7 +257,7 @@ export async function bulkAssign(params: {
     const next = params.assign
       ? Array.from(new Set([...c.assigneeUids, params.uid]))
       : c.assigneeUids.filter((u) => u !== params.uid);
-    batch.update(doc(db, 'boards', params.boardId, 'cards', c.id), {
+    batch.update(cardRef(c.id), {
       assigneeUids: next,
       updatedAt: Date.now(),
       updatedBy: params.user.uid,
@@ -282,7 +274,6 @@ export async function bulkAssign(params: {
  * that nobody waits for and that is safe to skip on failure.
  */
 export async function rerankColumnIfNeeded(
-  boardId: string,
   columnCards: readonly Card[],
 ): Promise<void> {
   if (columnCards.length < 2) return;
@@ -293,7 +284,7 @@ export async function rerankColumnIfNeeded(
 
   const batch = writeBatch(db);
   for (const [cardId, rank] of updates) {
-    batch.update(doc(db, 'boards', boardId, 'cards', cardId), { rank });
+    batch.update(cardRef(cardId), { rank });
   }
   await batch.commit();
 }

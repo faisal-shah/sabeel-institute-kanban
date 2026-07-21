@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import {
   filterCards,
   rankMatches,
@@ -71,7 +71,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     setLoading(true);
     Promise.all(
       ids.map((boardId) =>
-        getDocs(query(collection(db, 'boards', boardId, 'cards'))).then((snap) =>
+        getDocs(query(collection(db, 'cards'), where('boardId', '==', boardId))).then((snap) =>
           snap.docs.map<SearchableCard>((d) => ({
             id: d.id,
             boardId,

@@ -17,7 +17,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
  */
 export const onCommentWritten = onDocumentWritten(
   {
-    document: 'boards/{boardId}/cards/{cardId}/comments/{commentId}',
+    document: 'cards/{cardId}/comments/{commentId}',
     secrets: [sentryDsn],
   },
   guardedEvent(async (event) => {
@@ -29,15 +29,15 @@ export const onCommentWritten = onDocumentWritten(
     // An edit changes neither the count nor anything else here.
     if (!created && !deleted) return;
 
-    const { boardId, cardId } = event.params;
-    const cardRef = getFirestore().doc(`boards/${boardId}/cards/${cardId}`);
+    const { cardId } = event.params;
+    const cardRef = getFirestore().doc(`cards/${cardId}`);
 
     try {
       await cardRef.update({ commentCount: FieldValue.increment(created ? 1 : -1) });
     } catch (e) {
       // The card may have been deleted along with its comments, in which case
       // there is nothing to keep in step and this is not an error worth alerting on.
-      logger.debug('commentCount update skipped', { boardId, cardId, error: String(e) });
+      logger.debug('commentCount update skipped', { cardId, error: String(e) });
     }
   }),
 );

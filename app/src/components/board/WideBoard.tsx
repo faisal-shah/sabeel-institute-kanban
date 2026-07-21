@@ -90,7 +90,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     setMoving(null);
     await run(() =>
       moveCard({
-        boardId,
         card,
         toColumnId: column.id,
         before: target[target.length - 1] ?? null,
@@ -152,7 +151,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       ) : null}
 
       <BulkBar
-        boardId={boardId}
         columns={columns}
         allCards={cards.data ?? []}
         selection={selection}
@@ -285,7 +283,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               variant="danger"
               onPress={() =>
                 run(async () => {
-                  await archiveCard(boardId, moving.id, user);
+                  await archiveCard(moving.id, user);
                   setMoving(null);
                 })
               }

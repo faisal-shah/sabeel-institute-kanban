@@ -29,7 +29,8 @@ interface TestCard {
 
 async function readColumn(columnId: string): Promise<TestCard[]> {
   const snap = await adminDb()
-    .collection(`boards/${BOARD}/cards`)
+    .collection('cards')
+    .where('boardId', '==', BOARD)
     .where('columnId', '==', columnId)
     .get();
   return snap.docs
@@ -62,7 +63,7 @@ async function moveCard(params: {
   const after = params.index < target.length ? target[params.index] : undefined;
 
   await adminDb()
-    .doc(`boards/${BOARD}/cards/${params.cardId}`)
+    .doc(`cards/${params.cardId}`)
     .update({
       columnId: params.toColumnId,
       rank: rankBetween(before?.rank ?? null, after?.rank ?? null),
@@ -70,8 +71,8 @@ async function moveCard(params: {
 }
 
 beforeEach(async () => {
-  const existing = await adminDb().collection(`boards/${BOARD}/cards`).listDocuments();
-  await Promise.all(existing.map((d) => d.delete()));
+  const existing = await adminDb().collection('cards').where('boardId', '==', BOARD).get();
+  await Promise.all(existing.docs.map((d) => d.ref.delete()));
 
   await adminDb().doc(`boards/${BOARD}`).set({
     name: 'Concurrency',
@@ -97,7 +98,8 @@ async function seed(n: number, columnId = 'todo') {
   let prev: string | null = null;
   for (let i = 0; i < n; i++) {
     prev = rankBetween(prev, null);
-    await adminDb().doc(`boards/${BOARD}/cards/card${i}`).set({
+    await adminDb().doc(`cards/card${i}`).set({
+      boardId: BOARD,
       title: `card${i}`,
       description: '',
       columnId,
@@ -189,8 +191,8 @@ describe('two people moving cards at the same time', () => {
 
     const tied = rankBetween(first.rank, second.rank);
     await Promise.all([
-      adminDb().doc(`boards/${BOARD}/cards/card0`).update({ rank: tied }),
-      adminDb().doc(`boards/${BOARD}/cards/card1`).update({ rank: tied }),
+      adminDb().doc(`cards/card0`).update({ rank: tied }),
+      adminDb().doc(`cards/card1`).update({ rank: tied }),
     ]);
 
     const after = await readColumn('todo');
@@ -210,12 +212,12 @@ describe('two people moving cards at the same time', () => {
       (async () => {
         await delay(100);
         await adminDb()
-          .doc(`boards/${BOARD}/cards/card0`)
+          .doc(`cards/card0`)
           .update({ title: 'renamed while moving' });
       })(),
     ]);
 
-    const doc = await adminDb().doc(`boards/${BOARD}/cards/card0`).get();
+    const doc = await adminDb().doc(`cards/card0`).get();
     expect(doc.data()!.columnId).toBe('doing');
     expect(doc.data()!.title).toBe('renamed while moving');
   });

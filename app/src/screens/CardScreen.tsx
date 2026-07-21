@@ -58,7 +58,7 @@ export function CardScreen({
   user: SessionUser;
 }) {
   const nav = useNav();
-  const card = useCard(boardId, cardId);
+  const card = useCard(cardId);
   const board = useBoard(boardId);
   const boardCards = useBoardCards(boardId);
   const t = useTheme();
@@ -129,7 +129,7 @@ export function CardScreen({
             label="Save title"
             onPress={() =>
               run(async () => {
-                await updateCard(boardId, cardId, { title: title.trim() }, user);
+                await updateCard(cardId, { title: title.trim() }, user);
                 setDirty(false);
               })
             }
@@ -152,7 +152,6 @@ export function CardScreen({
                 // position — ranks are only meaningful within a column.
                 const destination = cardsInColumn(boardCards.data ?? [], toColumnId);
                 await moveCard({
-                  boardId,
                   card: c,
                   toColumnId,
                   before: destination[destination.length - 1] ?? null,
@@ -201,7 +200,7 @@ export function CardScreen({
                 label="Save"
                 onPress={() =>
                   run(async () => {
-                    await updateCard(boardId, cardId, { description }, user);
+                    await updateCard(cardId, { description }, user);
                     setEditingDesc(false);
                     setDirty(false);
                   })
@@ -235,7 +234,7 @@ export function CardScreen({
           {PRIORITIES.map((p) => (
             <Pressable
               key={p}
-              onPress={() => run(() => updateCard(boardId, cardId, { priority: p }, user))}
+              onPress={() => run(() => updateCard(cardId, { priority: p }, user))}
               accessibilityRole="button"
               accessibilityLabel={`Priority ${p}`}
               style={[
@@ -260,7 +259,7 @@ export function CardScreen({
           value={c.dueDate}
           label="Due date"
           onChange={(next) =>
-            run(() => updateCard(boardId, cardId, { dueDate: next }, user))
+            run(() => updateCard(cardId, { dueDate: next }, user))
           }
         />
       </Panel>
@@ -273,7 +272,6 @@ export function CardScreen({
           onToggle={(uid, assign) =>
             run(() =>
               updateCard(
-                boardId,
                 cardId,
                 {
                   assigneeUids: assign
@@ -307,7 +305,6 @@ export function CardScreen({
                     onPress={() =>
                       run(() =>
                         updateCard(
-                          boardId,
                           cardId,
                           {
                             labelIds: on
@@ -333,12 +330,11 @@ export function CardScreen({
       ) : null}
 
       <Heading>Comments ({c.commentCount})</Heading>
-      <Comments boardId={boardId} cardId={cardId} members={assignable} user={user} />
+      <Comments cardId={cardId} members={assignable} user={user} />
 
       <Heading>Activity</Heading>
       <Panel>
         <ActivityLog
-          boardId={boardId}
           cardId={cardId}
           members={assignable}
           columns={b.columns}
@@ -351,7 +347,7 @@ export function CardScreen({
           <Button
           busy={busy}
             label="Restore to the board"
-            onPress={() => run(() => restoreCard(boardId, cardId, user))}
+            onPress={() => run(() => restoreCard(cardId, user))}
           />
         ) : (
           <Button
@@ -360,7 +356,7 @@ export function CardScreen({
             variant="danger"
             onPress={() =>
               run(async () => {
-                await archiveCard(boardId, cardId, user);
+                await archiveCard(cardId, user);
                 nav.pop();
               })
             }
@@ -378,7 +374,7 @@ export function CardScreen({
               variant="danger"
               onPress={() =>
                 run(async () => {
-                  await deleteCard(boardId, cardId);
+                  await deleteCard(cardId);
                   nav.pop();
                 })
               }

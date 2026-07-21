@@ -9,7 +9,6 @@ import { readFileSync } from 'node:fs';
 import {
   doc,
   collection,
-  collectionGroup,
   query,
   where,
   getDoc,
@@ -32,7 +31,9 @@ function ctx(uid: string, role: string, status = 'active') {
     .firestore();
 }
 
+// Cards are a TOP-LEVEL collection now (`cards/{id}`) with a `boardId` field.
 const card = (over: Record<string, unknown> = {}) => ({
+  boardId: 'b1',
   title: 'Fix signup flow',
   description: '',
   columnId: 'c1',
@@ -93,55 +94,71 @@ beforeEach(async () => {
       createdAt: 1,
       createdBy: 'manager1',
     });
-    await setDoc(doc(db, 'boards/b1/cards/card1'), card());
-    // A card on a board `member1` is NOT on, but which they are assigned to.
-    // Only possible via a data error, and the read rule must not widen access
+    // A second board member1 IS on, for the successful cross-board move.
+    await setDoc(doc(db, 'boards/b3'), {
+      name: 'Roadmap',
+      description: '',
+      archived: false,
+      columns: [{ id: 'd1', name: 'To Do' }],
+      columnIds: ['d1'],
+      labels: [],
+      memberUids: ['member1'],
+      createdAt: 1,
+      createdBy: 'manager1',
+    });
+    await setDoc(doc(db, 'cards/card1'), card());
+    // A card on a board member1 is NOT on, but which they are assigned to.
+    // Only possible via a data error; the read rule must not widen access
     // beyond that one card.
     await setDoc(
-      doc(db, 'boards/b2/cards/foreign'),
-      card({ columnId: 'x1', assigneeUids: ['member1'], createdBy: 'outsider' }),
+      doc(db, 'cards/foreign'),
+      card({ boardId: 'b2', columnId: 'x1', assigneeUids: ['member1'], createdBy: 'outsider' }),
     );
-    await setDoc(doc(db, 'boards/b2/cards/foreign2'), card({ columnId: 'x1' }));
+    await setDoc(doc(db, 'cards/foreign2'), card({ boardId: 'b2', columnId: 'x1' }));
+    // member2's card on a board member1 cannot see — for the "someone else's
+    // assignments" query below.
+    await setDoc(
+      doc(db, 'cards/m2card'),
+      card({ boardId: 'b2', columnId: 'x1', assigneeUids: ['member2'] }),
+    );
   });
 });
 
 describe('reading cards', () => {
   it('a board member reads cards on their board', async () => {
-    await assertSucceeds(getDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1')));
+    await assertSucceeds(getDoc(doc(ctx('member1', 'member'), 'cards/card1')));
   });
 
   it('a manager reads cards on any board', async () => {
-    await assertSucceeds(getDoc(doc(ctx('manager1', 'manager'), 'boards/b2/cards/foreign2')));
+    await assertSucceeds(getDoc(doc(ctx('manager1', 'manager'), 'cards/foreign2')));
   });
 
   it('a non-member cannot read cards on a board they are not on', async () => {
-    await assertFails(getDoc(doc(ctx('member1', 'member'), 'boards/b2/cards/foreign2')));
+    await assertFails(getDoc(doc(ctx('member1', 'member'), 'cards/foreign2')));
   });
 
   it('an assignee can read the specific card assigned to them', async () => {
-    // The arm that makes the cross-board My Work query legal without a parent
-    // lookup. It grants exactly one card, not the board.
-    await assertSucceeds(getDoc(doc(ctx('member1', 'member'), 'boards/b2/cards/foreign')));
+    // The arm that makes the My Work query legal without a parent lookup. It
+    // grants exactly one card, not the board.
+    await assertSucceeds(getDoc(doc(ctx('member1', 'member'), 'cards/foreign')));
   });
 
   it('being assigned to one card does not open the rest of that board', async () => {
-    await assertFails(getDoc(doc(ctx('member1', 'member'), 'boards/b2/cards/foreign2')));
+    await assertFails(getDoc(doc(ctx('member1', 'member'), 'cards/foreign2')));
     await assertFails(getDoc(doc(ctx('member1', 'member'), 'boards/b2')));
   });
 
   it('a pending user reads nothing', async () => {
-    await assertFails(
-      getDoc(doc(ctx('member1', 'member', 'pending'), 'boards/b1/cards/card1')),
-    );
+    await assertFails(getDoc(doc(ctx('member1', 'member', 'pending'), 'cards/card1')));
   });
 });
 
-describe('the My Work collection-group query', () => {
+describe('the My Work query (top-level cards)', () => {
   it('is allowed when constrained to your own assignments', async () => {
     await assertSucceeds(
       getDocs(
         query(
-          collectionGroup(ctx('member1', 'member'), 'cards'),
+          collection(ctx('member1', 'member'), 'cards'),
           where('assigneeUids', 'array-contains', 'member1'),
         ),
       ),
@@ -149,14 +166,14 @@ describe('the My Work collection-group query', () => {
   });
 
   it('is refused unconstrained — that would be every card in the org', async () => {
-    await assertFails(getDocs(collectionGroup(ctx('member1', 'member'), 'cards')));
+    await assertFails(getDocs(collection(ctx('member1', 'member'), 'cards')));
   });
 
   it('is refused when asking for someone else assignments', async () => {
     await assertFails(
       getDocs(
         query(
-          collectionGroup(ctx('member1', 'member'), 'cards'),
+          collection(ctx('member1', 'member'), 'cards'),
           where('assigneeUids', 'array-contains', 'member2'),
         ),
       ),
@@ -166,25 +183,23 @@ describe('the My Work collection-group query', () => {
 
 describe('creating cards', () => {
   it('a board member can create one', async () => {
-    await assertSucceeds(
-      setDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/new1'), card()),
-    );
+    await assertSucceeds(setDoc(doc(ctx('member1', 'member'), 'cards/new1'), card()));
   });
 
-  it('a non-member cannot', async () => {
+  it('a non-member of the target board cannot', async () => {
     await assertFails(
       setDoc(
-        doc(ctx('stranger', 'member'), 'boards/b1/cards/new2'),
-        card({ createdBy: 'stranger' }),
+        doc(ctx('member1', 'member'), 'cards/new2'),
+        // member1 is not a member of b2.
+        card({ boardId: 'b2', columnId: 'x1' }),
       ),
     );
   });
 
   it('rejects a column that does not exist on the board', async () => {
-    // Clients cannot invent columns — this is what `columnIds` exists for.
     await assertFails(
       setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new3'),
+        doc(ctx('member1', 'member'), 'cards/new3'),
         card({ columnId: 'not-a-column' }),
       ),
     );
@@ -192,19 +207,14 @@ describe('creating cards', () => {
 
   it('rejects a column belonging to a DIFFERENT board', async () => {
     await assertFails(
-      setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new4'),
-        card({ columnId: 'x1' }),
-      ),
+      setDoc(doc(ctx('member1', 'member'), 'cards/new4'), card({ columnId: 'x1' })),
     );
   });
 
   it('rejects assigning someone who is not a board member', async () => {
-    // Load-bearing: assignment implies membership, which is what keeps the
-    // assignee read-rule from leaking access.
     await assertFails(
       setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new5'),
+        doc(ctx('member1', 'member'), 'cards/new5'),
         card({ assigneeUids: ['outsider'] }),
       ),
     );
@@ -213,7 +223,7 @@ describe('creating cards', () => {
   it('allows assigning an actual board member', async () => {
     await assertSucceeds(
       setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new6'),
+        doc(ctx('member1', 'member'), 'cards/new6'),
         card({ assigneeUids: ['member2'] }),
       ),
     );
@@ -222,16 +232,22 @@ describe('creating cards', () => {
   it('rejects a forged author', async () => {
     await assertFails(
       setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new7'),
-        card({ createdBy: 'manager1' }),
+        doc(ctx('member1', 'member'), 'cards/new7'),
+        card({ createdBy: 'manager1', updatedBy: 'manager1' }),
       ),
+    );
+  });
+
+  it('rejects a forged updatedBy actor', async () => {
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/new7b'), card({ updatedBy: 'member2' })),
     );
   });
 
   it('rejects an empty or over-long title', async () => {
     for (const title of ['', 'x'.repeat(201)]) {
       await assertFails(
-        setDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/new8'), card({ title })),
+        setDoc(doc(ctx('member1', 'member'), 'cards/new8'), card({ title })),
       );
     }
   });
@@ -239,7 +255,7 @@ describe('creating cards', () => {
   it('rejects an unknown priority', async () => {
     await assertFails(
       setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new9'),
+        doc(ctx('member1', 'member'), 'cards/new9'),
         card({ priority: 'catastrophic' }),
       ),
     );
@@ -247,18 +263,15 @@ describe('creating cards', () => {
 
   it('rejects a card born archived', async () => {
     await assertFails(
-      setDoc(
-        doc(ctx('member1', 'member'), 'boards/b1/cards/new10'),
-        card({ archived: true }),
-      ),
+      setDoc(doc(ctx('member1', 'member'), 'cards/new10'), card({ archived: true })),
     );
   });
 });
 
-describe('updating cards', () => {
+describe('updating cards (in-board)', () => {
   it('a member can move a card between columns on their board', async () => {
     await assertSucceeds(
-      updateDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1'), {
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
         ...card(),
         columnId: 'c2',
         rank: 'W',
@@ -268,25 +281,19 @@ describe('updating cards', () => {
 
   it('a member can archive a card', async () => {
     await assertSucceeds(
-      updateDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1'), {
-        ...card(),
-        archived: true,
-      }),
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), { ...card(), archived: true }),
     );
   });
 
   it('cannot move a card to a column that does not exist', async () => {
     await assertFails(
-      updateDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1'), {
-        ...card(),
-        columnId: 'ghost',
-      }),
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), { ...card(), columnId: 'ghost' }),
     );
   });
 
   it('cannot assign a non-member during an update', async () => {
     await assertFails(
-      updateDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1'), {
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
         ...card(),
         assigneeUids: ['outsider'],
       }),
@@ -295,24 +302,78 @@ describe('updating cards', () => {
 
   it('cannot rewrite authorship or creation time', async () => {
     await assertFails(
-      updateDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1'), {
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
         ...card(),
         createdBy: 'member1_impostor',
       }),
     );
     await assertFails(
-      updateDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1'), {
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), { ...card(), createdAt: 999 }),
+    );
+  });
+
+  it('cannot forge the updatedBy actor', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
         ...card(),
-        createdAt: 999,
+        updatedBy: 'member2',
       }),
     );
   });
 
   it('a non-member cannot update', async () => {
     await assertFails(
-      updateDoc(doc(ctx('stranger', 'member'), 'boards/b1/cards/card1'), {
+      updateDoc(doc(ctx('stranger', 'member'), 'cards/card1'), {
         ...card(),
         title: 'Hijacked',
+        updatedBy: 'stranger',
+      }),
+    );
+  });
+});
+
+describe('moving a card to another board', () => {
+  it('a plain member moves a card to a board they are also on', async () => {
+    // Proves a move is an EDIT, not a delete — the delete gate (manager/admin)
+    // must not apply. member1 is on both b1 and b3.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        ...card(),
+        boardId: 'b3',
+        columnId: 'd1',
+        labelIds: [],
+        assigneeUids: [],
+      }),
+    );
+  });
+
+  it('cannot move a card to a board you are not a member of', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        ...card(),
+        boardId: 'b2',
+        columnId: 'x1',
+      }),
+    );
+  });
+
+  it('the destination column must exist on the destination board', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        ...card(),
+        boardId: 'b3',
+        columnId: 'c1', // c1 is a b1 column, not on b3
+      }),
+    );
+  });
+
+  it('cannot keep an assignee who is not a member of the destination', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        ...card(),
+        boardId: 'b3',
+        columnId: 'd1',
+        assigneeUids: ['member2'], // member2 is not on b3
       }),
     );
   });
@@ -320,22 +381,20 @@ describe('updating cards', () => {
 
 describe('deleting cards', () => {
   it('a plain member CANNOT delete — they archive instead', async () => {
-    await assertFails(deleteDoc(doc(ctx('member1', 'member'), 'boards/b1/cards/card1')));
+    await assertFails(deleteDoc(doc(ctx('member1', 'member'), 'cards/card1')));
   });
 
   it('a manager can delete', async () => {
-    await assertSucceeds(
-      deleteDoc(doc(ctx('manager1', 'manager'), 'boards/b1/cards/card1')),
-    );
+    await assertSucceeds(deleteDoc(doc(ctx('manager1', 'manager'), 'cards/card1')));
   });
 
   it('an admin can delete', async () => {
-    await assertSucceeds(deleteDoc(doc(ctx('admin1', 'admin'), 'boards/b1/cards/card1')));
+    await assertSucceeds(deleteDoc(doc(ctx('admin1', 'admin'), 'cards/card1')));
   });
 
   it('a disabled manager cannot delete', async () => {
     await assertFails(
-      deleteDoc(doc(ctx('manager1', 'manager', 'disabled'), 'boards/b1/cards/card1')),
+      deleteDoc(doc(ctx('manager1', 'manager', 'disabled'), 'cards/card1')),
     );
   });
 });
@@ -345,7 +404,8 @@ describe('listing cards on a board', () => {
     await assertSucceeds(
       getDocs(
         query(
-          collection(ctx('member1', 'member'), 'boards/b1/cards'),
+          collection(ctx('member1', 'member'), 'cards'),
+          where('boardId', '==', 'b1'),
           where('archived', '==', false),
         ),
       ),
@@ -354,7 +414,9 @@ describe('listing cards on a board', () => {
 
   it('a non-member cannot list another board cards', async () => {
     await assertFails(
-      getDocs(collection(ctx('member1', 'member'), 'boards/b2/cards')),
+      getDocs(
+        query(collection(ctx('member1', 'member'), 'cards'), where('boardId', '==', 'b2')),
+      ),
     );
   });
 });

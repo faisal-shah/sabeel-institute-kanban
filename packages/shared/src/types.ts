@@ -87,16 +87,25 @@ export interface BoardDoc {
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 
 export interface CardDoc {
+  /**
+   * The board this card is on. Cards are a TOP-LEVEL collection (`cards/{id}`),
+   * not a subcollection, so the board is a field, not the path. Client-supplied
+   * and rule-validated: create/update require membership of this board, and a
+   * cross-board MOVE is precisely a mutation of this field (to another board the
+   * user is a member of). See firestore.rules `match /cards/{cardId}`.
+   */
+  boardId: string;
   title: string;
-  /** Markdown source. Never HTML — see PRODUCT_BRIEF § "Why markdown". */
+  /** Plain text. Never markdown/HTML — see PRODUCT_BRIEF § "Why plain text". */
   description: string;
   columnId: string;
   /** Fractional base-62 rank. Only `rankBetween` in this package produces these. */
   rank: string;
   /**
-   * MUST be a subset of the parent board's `memberUids` — rules enforce it.
-   * This is what makes the cross-board "My Work" collection-group query legal
-   * without a per-card parent lookup. Breaking it breaks My Work's security.
+   * MUST be a subset of `boardId`'s `memberUids` — rules enforce it. This is what
+   * lets an assignee read a card (the "My Work" query) via the read rule's
+   * assignee arm without a parent-board lookup. Breaking it breaks My Work's
+   * security. A move drops any assignee who isn't a member of the destination.
    */
   assigneeUids: string[];
   /** All-day date as `YYYY-MM-DD`. Never a timestamp — timestamps drift. */

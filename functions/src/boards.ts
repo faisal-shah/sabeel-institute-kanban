@@ -51,7 +51,8 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
   // change so there is no window in which they are unassigned but still a
   // member, or removed but still assigned.
   const assigned = await db
-    .collection(`boards/${boardId}/cards`)
+    .collection('cards')
+    .where('boardId', '==', boardId)
     .where('assigneeUids', 'array-contains', uid)
     .get();
 
@@ -101,7 +102,8 @@ export const countMemberAssignments = onCall({ secrets: [sentryDsn] }, guarded(a
   }
 
   const assigned = await getFirestore()
-    .collection(`boards/${boardId}/cards`)
+    .collection('cards')
+    .where('boardId', '==', boardId)
     .where('assigneeUids', 'array-contains', uid)
     .count()
     .get();

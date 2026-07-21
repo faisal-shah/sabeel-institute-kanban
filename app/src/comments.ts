@@ -21,13 +21,16 @@ export interface Comment {
   editedAt?: number;
 }
 
-const commentsRef = (boardId: string, cardId: string) =>
-  collection(db, 'boards', boardId, 'cards', cardId, 'comments');
+// Comments are a subcollection UNDER the card (`cards/{cardId}/comments`), so
+// they travel with the card automatically when it moves boards.
+const commentsRef = (cardId: string) => collection(db, 'cards', cardId, 'comments');
+const commentRef = (cardId: string, commentId: string) =>
+  doc(db, 'cards', cardId, 'comments', commentId);
 
-export function useComments(boardId: string, cardId: string) {
+export function useComments(cardId: string) {
   return useLiveQuery<Comment[]>(
     'comments',
-    () => query(commentsRef(boardId, cardId), orderBy('createdAt')),
+    () => query(commentsRef(cardId), orderBy('createdAt')),
     (docs) =>
       docs.map((d) => ({
         id: d.id,
@@ -37,7 +40,7 @@ export function useComments(boardId: string, cardId: string) {
         createdAt: (d.data.createdAt as number) ?? 0,
         editedAt: d.data.editedAt as number | undefined,
       })),
-    [boardId, cardId],
+    [cardId],
   );
 }
 
@@ -50,7 +53,6 @@ export function useComments(boardId: string, cardId: string) {
  * which is a duplication waiting to drift.
  */
 export async function addComment(params: {
-  boardId: string;
   cardId: string;
   body: string;
   candidates: readonly MentionCandidate[];
@@ -59,7 +61,7 @@ export async function addComment(params: {
   const body = params.body.trim();
   if (!body) return;
 
-  await addDoc(commentsRef(params.boardId, params.cardId), {
+  await addDoc(commentsRef(params.cardId), {
     authorUid: params.user.uid,
     body,
     mentionUids: extractMentions(body, params.candidates),
@@ -68,21 +70,16 @@ export async function addComment(params: {
 }
 
 export async function editComment(params: {
-  boardId: string;
   cardId: string;
   commentId: string;
   body: string;
 }): Promise<void> {
-  await updateDoc(
-    doc(db, 'boards', params.boardId, 'cards', params.cardId, 'comments', params.commentId),
-    { body: params.body.trim(), editedAt: Date.now() },
-  );
+  await updateDoc(commentRef(params.cardId, params.commentId), {
+    body: params.body.trim(),
+    editedAt: Date.now(),
+  });
 }
 
-export async function deleteComment(
-  boardId: string,
-  cardId: string,
-  commentId: string,
-): Promise<void> {
-  await deleteDoc(doc(db, 'boards', boardId, 'cards', cardId, 'comments', commentId));
+export async function deleteComment(cardId: string, commentId: string): Promise<void> {
+  await deleteDoc(commentRef(cardId, commentId));
 }

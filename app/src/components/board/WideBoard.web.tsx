@@ -228,7 +228,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
       try {
         await moveCard({
-          boardId,
           card: moving,
           toColumnId: columnId,
           before: before ?? null,
@@ -236,12 +235,12 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
           user,
         });
         // Background tidy-up; never blocks the user.
-        void rerankColumnIfNeeded(boardId, target).catch(() => {});
+        void rerankColumnIfNeeded(target).catch(() => {});
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [drag, cards.data, byColumn, boardId, user, autoScroll],
+    [drag, cards.data, byColumn, user, autoScroll],
   );
 
   async function addCard(columnId: string) {
@@ -339,7 +338,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
       {selection.active ? (
         <BulkBar
-          boardId={boardId}
           columns={b.columns}
           allCards={cards.data ?? []}
           selection={selection}
@@ -492,7 +490,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                         ? selection.toggle(card.id)
                         : nav.push({ name: 'card', boardId, cardId: card.id })
                     }
-                    onArchive={() => archiveCard(boardId, card.id, user)}
+                    onArchive={() => archiveCard(card.id, user)}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', card.id);
                       e.dataTransfer.effectAllowed = 'move';

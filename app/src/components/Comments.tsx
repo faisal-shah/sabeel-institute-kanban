@@ -35,17 +35,15 @@ function when(ms: number): string {
 }
 
 export function Comments({
-  boardId,
   cardId,
   members,
   user,
 }: {
-  boardId: string;
   cardId: string;
   members: readonly BoardMemberProfile[];
   user: SessionUser;
 }) {
-  const comments = useComments(boardId, cardId);
+  const comments = useComments(cardId);
   const t = useTheme();
   const [draft, setDraft] = useState('');
   const draftRef = useRef<TextInput>(null);
@@ -119,7 +117,7 @@ export function Comments({
                       icon="delete-outline"
                       label="Delete comment"
                       danger
-                      onPress={() => run(() => deleteComment(boardId, cardId, c.id))}
+                      onPress={() => run(() => deleteComment(cardId, c.id))}
                     />
                   ) : null}
                 </Row>
@@ -136,7 +134,6 @@ export function Comments({
                     onPress={() =>
                       run(async () => {
                         await editComment({
-                          boardId,
                           cardId,
                           commentId: c.id,
                           body: editDraft,
@@ -221,7 +218,7 @@ export function Comments({
             setDraft('');
             void run(async () => {
               try {
-                await addComment({ boardId, cardId, body, candidates, user });
+                await addComment({ cardId, body, candidates, user });
               } catch (e) {
                 setDraft(body);
                 throw e;

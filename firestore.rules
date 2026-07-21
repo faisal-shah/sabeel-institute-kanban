@@ -159,82 +159,105 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ---- Cards ----
-    match /boards/{boardId}/cards/{cardId} {
+    // ---- Cards (TOP-LEVEL collection) ----
+    // Cards live at `cards/{cardId}` with a `boardId` field, not under the board.
+    // That makes a cross-board MOVE a single `boardId` update — comments/activity
+    // ride along under the card — instead of a delete+recreate, and it is what
+    // lets any board MEMBER move a card, since a move is an edit, not a delete.
+    //
+    // `boardId` is client-supplied, so the whole model rests on these rules:
+    // every read/write resolves the board FROM the field and checks membership.
+    // `boardId` is mutable-but-constrained — a move may change it, but only to a
+    // board the caller is a member of, with a column and assignees valid for THAT
+    // board. `createdBy`/`createdAt` are history; `updatedBy` is pinned so the
+    // recorded actor (activity log, move notifications) cannot be forged.
+    match /cards/{cardId} {
 
-      function board() {
-        return get(/databases/$(database)/documents/boards/$(boardId)).data;
+      function boardById(id) {
+        return get(/databases/$(database)/documents/boards/$(id)).data;
       }
-      function onBoard() {
-        return isActive() && (isManager() || request.auth.uid in board().memberUids);
+      // Membership of a board. The manager/admin arm short-circuits with no read.
+      function memberOf(boardData) {
+        return isManager() || request.auth.uid in boardData.memberUids;
       }
-      function card() {
-        return request.resource.data;
-      }
+      function newCard() { return request.resource.data; }
+      function oldCard() { return resource.data; }
+      // The board a card is being written INTO: the destination on a move, or the
+      // board on a plain create/edit.
+      function destBoard() { return boardById(newCard().boardId); }
 
-      // Assignees MUST be board members. This is load-bearing, not tidiness:
-      // the read rule below lets an assignee read a card without consulting the
-      // parent board, which is what makes the cross-board "My Work"
-      // collection-group query legal. If someone could be assigned without being
-      // a member, that rule would hand out access to boards they are not on.
-      // See docs/PRODUCT_BRIEF.md § Cross-board "My Work".
+      // Assignees MUST be members of the card's board — load-bearing, not
+      // tidiness. The read rule lets an assignee read a card without consulting
+      // the board (the arm that powers "My Work"); if someone could be assigned
+      // without being a member, that arm would hand out access to boards they are
+      // not on. See docs/PRODUCT_BRIEF.md § Cross-board "My Work".
       function assigneesAreMembers() {
-        return card().assigneeUids is list
-          && card().assigneeUids.hasOnly(board().memberUids);
+        return newCard().assigneeUids is list
+          && newCard().assigneeUids.hasOnly(destBoard().memberUids);
       }
-
-      // Clients cannot invent columns. `columnIds` exists on the board purely so
-      // this check is one cheap expression — rules cannot search a list of maps.
+      // Clients cannot invent columns. `columnIds` is the board's flat id list.
       function columnExists() {
-        return card().columnId in board().columnIds;
+        return newCard().columnId in destBoard().columnIds;
       }
-
       function wellFormed() {
-        return card().title is string
-          && card().title.size() > 0
-          && card().title.size() <= 200
-          && card().description is string
-          && card().rank is string
-          && card().rank.size() > 0
-          && card().archived is bool
-          && card().labelIds is list
-          && card().priority in ['none', 'low', 'medium', 'high', 'urgent']
-          && (!('dueDate' in card()) || card().dueDate is string)
+        return newCard().boardId is string
+          && newCard().title is string
+          && newCard().title.size() > 0
+          && newCard().title.size() <= 200
+          && newCard().description is string
+          && newCard().rank is string
+          && newCard().rank.size() > 0
+          && newCard().archived is bool
+          && newCard().labelIds is list
+          && newCard().priority in ['none', 'low', 'medium', 'high', 'urgent']
+          && (!('dueDate' in newCard()) || newCard().dueDate is string)
           && columnExists()
           && assigneesAreMembers();
       }
 
-      // Board members and managers read every card on the board. An ASSIGNEE can
-      // also read their own cards — the arm that makes the collection-group
-      // query work. Because assignment implies membership, this grants nothing
-      // wider than the first arm; it just avoids the parent lookup.
-      allow get, list: if onBoard()
-        || (isActive() && request.auth.uid in resource.data.assigneeUids);
+      // Assignee arm FIRST so "My Work" (`where assigneeUids array-contains me`)
+      // is authorized with ZERO board reads; the board-view query falls through
+      // to the membership arm, whose board read is cached across the whole list
+      // (all rows share one boardId). Managers match the membership arm with no
+      // read (they see every board).
+      allow get, list: if (isActive() && request.auth.uid in resource.data.assigneeUids)
+        || (isActive() && memberOf(boardById(resource.data.boardId)));
 
-      allow create: if onBoard()
+      allow create: if isActive()
+        && memberOf(destBoard())
         && wellFormed()
-        && card().createdBy == request.auth.uid
-        && card().archived == false;
+        && newCard().createdBy == request.auth.uid
+        && newCard().updatedBy == request.auth.uid
+        && newCard().archived == false;
 
-      allow update: if onBoard()
+      // Edit AND move. A move mutates `boardId`; require membership of BOTH the
+      // board the card is on now and the destination, validating column and
+      // assignees against the destination (wellFormed → destBoard). When boardId
+      // is unchanged both reads resolve the same board → one cached read.
+      allow update: if isActive()
+        && memberOf(boardById(oldCard().boardId))
+        && memberOf(destBoard())
         && wellFormed()
-        // Authorship is history, not state.
-        && card().createdBy == resource.data.createdBy
-        && card().createdAt == resource.data.createdAt;
+        && newCard().createdBy == oldCard().createdBy
+        && newCard().createdAt == oldCard().createdAt
+        && newCard().updatedBy == request.auth.uid;
 
-      // Members archive; permanent deletion is managers and admins only. A
-      // mis-tap on a bulk selection should not be unrecoverable for most people.
-      allow delete: if isActive() && isManager()
-        && (isManager() || request.auth.uid in board().memberUids);
+      // Members archive (an update setting archived=true); permanent deletion is
+      // managers/admins only. A move is an update, so it is NOT gated here.
+      allow delete: if isActive() && isManager();
     }
 
     // ---- Comments ----
     // Anyone who can see the board can comment, including viewers-by-membership.
-    // Comments are the one place where being present matters more than rank.
-    match /boards/{boardId}/cards/{cardId}/comments/{commentId} {
+    // boardId is no longer in the path, so resolve it card → board (both gets are
+    // cached across a comment-list query: same card, same board).
+    match /cards/{cardId}/comments/{commentId} {
 
+      function cardBoardId() {
+        return get(/databases/$(database)/documents/cards/$(cardId)).data.boardId;
+      }
       function board() {
-        return get(/databases/$(database)/documents/boards/$(boardId)).data;
+        return get(/databases/$(database)/documents/boards/$(cardBoardId())).data;
       }
       function onBoard() {
         return isActive() && (isManager() || request.auth.uid in board().memberUids);
@@ -275,36 +298,24 @@ service cloud.firestore {
     // ---- Activity ----
     // Read-only to every client, always. The log is trustworthy precisely
     // because nobody can write it: "Sara moved this to Done" means the server
-    // saw Sara move it. Written only by the onCardWritten trigger.
-    match /boards/{boardId}/cards/{cardId}/activity/{activityId} {
+    // saw Sara move it. Written only by the onCardWritten trigger. boardId is
+    // resolved card → board, same as comments.
+    match /cards/{cardId}/activity/{activityId} {
+      function cardBoardId() {
+        return get(/databases/$(database)/documents/cards/$(cardId)).data.boardId;
+      }
       function board() {
-        return get(/databases/$(database)/documents/boards/$(boardId)).data;
+        return get(/databases/$(database)/documents/boards/$(cardBoardId())).data;
       }
       allow get, list: if isActive()
         && (isManager() || request.auth.uid in board().memberUids);
       allow create, update, delete: if false;
     }
 
-    // ---- Cards, as a COLLECTION GROUP ----
-    // The board-scoped rule above does not apply to collection-group queries;
-    // they need a rule matching this shape. This is what powers cross-board
-    // "My Work": every card assigned to me, wherever it lives.
-    //
-    // It deliberately does NOT consult the parent board — a collection-group
-    // query cannot afford a document read per candidate, and Firestore could not
-    // prove such a query safe anyway. Instead it keys on the card's own
-    // `assigneeUids`, which is sound only because assignment implies board
-    // membership (enforced on every card write above). Break that invariant and
-    // this rule starts handing out cards from boards people are not on.
-    //
-    // Firestore only permits a LIST here when the query is provably restricted
-    // to the caller — i.e. it carries
-    // `where('assigneeUids', 'array-contains', <own uid>)`. An unconstrained
-    // collectionGroup('cards') is rejected outright, which is exactly right:
-    // that would be every card in the organisation.
-    match /{path=**}/cards/{cardId} {
-      allow read: if isActive() && request.auth.uid in resource.data.assigneeUids;
-    }
+    // Note: there is no collection-group `cards` rule any more. Cards are a
+    // top-level collection, so "My Work" (`collection('cards') where assigneeUids
+    // array-contains me`) is authorized by the assignee arm of the card read rule
+    // above — no parent lookup, exactly as before, but now a plain query.
 
     // ---- Everything else ----
     // Comments, activity and notifications arrive with their phases. This

@@ -37,7 +37,7 @@ const comment = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const CARD = 'boards/b1/cards/card1';
+const CARD = 'cards/card1';
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -69,10 +69,24 @@ beforeEach(async () => {
       createdAt: 1,
       createdBy: 'manager1',
     });
-    await setDoc(doc(db, CARD), {
+    // A second board member1 is NOT on, to prove comment rules resolve the
+    // card's OWN boardId rather than assuming one.
+    await setDoc(doc(db, 'boards/b2'), {
+      name: 'Private',
+      description: '',
+      archived: false,
+      columns: [{ id: 'x1', name: 'To Do' }],
+      columnIds: ['x1'],
+      labels: [],
+      memberUids: ['outsider'],
+      createdAt: 1,
+      createdBy: 'manager1',
+    });
+    const cardDoc = (boardId: string) => ({
+      boardId,
       title: 'Fix signup',
       description: '',
-      columnId: 'c1',
+      columnId: boardId === 'b1' ? 'c1' : 'x1',
       rank: 'V',
       assigneeUids: [],
       priority: 'none',
@@ -84,6 +98,10 @@ beforeEach(async () => {
       updatedAt: 1,
       updatedBy: 'member1',
     });
+    await setDoc(doc(db, CARD), cardDoc('b1'));
+    // A card on b2 (member1 can't see it) with its own comment.
+    await setDoc(doc(db, 'cards/card2'), cardDoc('b2'));
+    await setDoc(doc(db, 'cards/card2/comments/c2existing'), comment());
     await setDoc(doc(db, `${CARD}/comments/existing`), comment());
     await setDoc(doc(db, `${CARD}/activity/a1`), {
       type: 'created',
@@ -109,6 +127,14 @@ describe('reading comments', () => {
   it('a manager can, without being a member', async () => {
     await assertSucceeds(
       getDocs(collection(ctx('manager1', 'manager'), `${CARD}/comments`)),
+    );
+  });
+
+  it("resolves the card's OWN board — a member of b1 cannot read a b2 card's thread", async () => {
+    // card2.boardId is b2; member1 is on b1, not b2. The rule must resolve the
+    // card→board link, not assume the reader's board.
+    await assertFails(
+      getDocs(collection(ctx('member1', 'member'), 'cards/card2/comments')),
     );
   });
 });

@@ -16,7 +16,7 @@ import { diffCard, type CardSnapshot } from '@sabeel/shared';
  * notably that a rank-only change (a reorder within a column) produces NO entry.
  */
 export const onCardWritten = onDocumentWritten(
-  { document: 'boards/{boardId}/cards/{cardId}', secrets: [sentryDsn] },
+  { document: 'cards/{cardId}', secrets: [sentryDsn] },
   guardedEvent(async (event) => {
     const before = (event.data?.before?.data() ?? null) as CardSnapshot | null;
     const after = (event.data?.after?.data() ?? null) as CardSnapshot | null;
@@ -24,14 +24,15 @@ export const onCardWritten = onDocumentWritten(
     const entries = diffCard(before, after);
     if (entries.length === 0) return;
 
-    const { boardId, cardId } = event.params;
+    const { cardId } = event.params;
+    const boardId = (after?.boardId ?? before?.boardId ?? '') as string;
     const actorUid = (after?.updatedBy ?? after?.createdBy ?? 'unknown') as string;
     const at = Date.now();
 
     const db = getFirestore();
     const batch = db.batch();
     for (const entry of entries) {
-      const ref = db.collection(`boards/${boardId}/cards/${cardId}/activity`).doc();
+      const ref = db.collection(`cards/${cardId}/activity`).doc();
       batch.set(ref, {
         type: entry.type,
         actorUid,

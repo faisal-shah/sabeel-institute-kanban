@@ -160,18 +160,21 @@ async function notify(params: {
 /** A comment: notifies mentioned people, and the card's assignees. */
 export const onCommentCreated = onDocumentCreated(
   {
-    document: 'boards/{boardId}/cards/{cardId}/comments/{commentId}',
+    document: 'cards/{cardId}/comments/{commentId}',
     secrets: [sentryDsn],
   },
   guardedEvent(async (event) => {
     const data = event.data?.data();
     if (!data) return;
 
-    const { boardId, cardId } = event.params;
+    const { cardId } = event.params;
     const authorUid = data.authorUid as string;
     const mentionUids = (data.mentionUids as string[]) ?? [];
 
-    const card = await db().doc(`boards/${boardId}/cards/${cardId}`).get();
+    // boardId is now a field on the card, not the path — read it from the card
+    // (which we fetch anyway for title/assignees). It gates the board-mute check.
+    const card = await db().doc(`cards/${cardId}`).get();
+    const boardId = (card.data()?.boardId as string) ?? '';
     const cardTitle = card.data()?.title as string | undefined;
     const assignees = (card.data()?.assigneeUids as string[]) ?? [];
 
@@ -205,13 +208,18 @@ export const onCommentCreated = onDocumentCreated(
 
 /** Assignment and moves on a card someone owns. */
 export const onCardNotify = onDocumentWritten(
-  { document: 'boards/{boardId}/cards/{cardId}', secrets: [sentryDsn] },
+  { document: 'cards/{cardId}', secrets: [sentryDsn] },
   guardedEvent(async (event) => {
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();
     if (!after) return;
 
-    const { boardId, cardId } = event.params;
+    const { cardId } = event.params;
+    // boardId is a field now. Note: a cross-board move changes it AND columnId,
+    // so remaining assignees (members of both boards) get the 'myCardMoved'
+    // notification below; assignees dropped by the move are simply removed from
+    // `after.assigneeUids` and get nothing (the intended "drop silently" behaviour).
+    const boardId = (after.boardId as string) ?? '';
     const actorUid = (after.updatedBy ?? after.createdBy ?? '') as string;
     if (!actorUid) return;
 
@@ -285,7 +293,7 @@ export const dueSoonReminders = onSchedule(
     const horizon = addDays(today, 1);
 
     const due = await db()
-      .collectionGroup('cards')
+      .collection('cards')
       .where('archived', '==', false)
       .where('dueDate', '>=', today)
       .where('dueDate', '<=', horizon)
@@ -297,7 +305,9 @@ export const dueSoonReminders = onSchedule(
       const assignees = (card.data().assigneeUids as string[]) ?? [];
       if (assignees.length === 0) continue;
 
-      const boardId = card.ref.parent.parent?.id ?? '';
+      // boardId is a field now (cards are top-level, so there is no parent board
+      // to read it from).
+      const boardId = (card.data().boardId as string) ?? '';
       await notify({
         event: 'dueSoon',
         recipients: await loadRecipients(assignees),
