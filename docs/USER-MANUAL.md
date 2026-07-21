@@ -104,6 +104,13 @@ Select multiple cards — tick the boxes in a browser (hold **Shift** to select 
 range), or long-press on a phone and then tap. With a selection active you can
 **move**, **assign**, **archive** or (managers) **delete** them all together.
 
+You can also **copy or move the selection to another board** — pick one of your
+boards, then a column in it. A move takes the cards over as they are (comments and
+history included); a copy leaves the originals where they are and starts fresh
+cards with no comments. Either way the cards' **labels are cleared** (labels belong
+to a board), and anyone **not a member of the destination board is unassigned** —
+the sheet says so before you confirm.
+
 ## My work
 
 Everything assigned to you, across every board, grouped by urgency: overdue

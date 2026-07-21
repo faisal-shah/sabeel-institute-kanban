@@ -341,4 +341,26 @@ the team.
 
 ## Deploy log
 
-_(empty — first entry at Phase 13)_
+### 2026-07-21 — Cards become a top-level collection + cross-board move/copy
+
+Two-phase change shipped to production (project `sabeel-institute-kanban`).
+
+- **Phase A (data model, invisible).** Cards moved from the per-board
+  subcollection `boards/{boardId}/cards/{cardId}` to a **top-level `cards/{cardId}`
+  collection** with a `boardId` field; comments/activity ride along under the card.
+  Deployed in order — indexes (waited for the board-view index to build) → migration
+  **copy + verify** (32 cards, 23 comments, 65 activity, 0 problems) while functions
+  still triggered the old paths → re-pathed functions + rules + client together →
+  live-verified → migration **--purge** (0 old, 32 top-level). Rules rewritten to
+  resolve a card's board from its `boardId`; the collection-group My Work rule was
+  deleted (My Work is now a plain collection query, still gated by the assignee
+  read arm). 136 emulator rules tests + 201 unit tests green.
+
+- **Phase B (feature) — v0.1.11.** Cross-board move & copy: long-press a card →
+  the bulk bar's folder-arrow action → pick a destination board and column → Copy
+  or Move. A move is one batched `update` per card (board/column/rank; labels
+  cleared; non-member assignees dropped); a copy is a fresh card, no comments. No
+  new rules/functions/indexes — Phase A's card update rule already authorises the
+  board change. Verified on the emulator on **web and native** (the native
+  long-press → sheet → native Select pickers → Move all exercised and the data
+  confirmed). Shipped to Hosting + the Android release APK.
