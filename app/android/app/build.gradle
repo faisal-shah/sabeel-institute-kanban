@@ -5,6 +5,25 @@ apply plugin: "com.facebook.react"
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**
+ * Single source of version truth: app.json.
+ *
+ * versionName / versionCode used to be the Gradle scaffold defaults ("0.1.0", 1)
+ * and were never bumped, so every release shipped from here reported to Sentry
+ * as com.sabeelinstitute.kanban@0.1.0+1 — seven builds indistinguishable, and
+ * release-health tracking dead. Deriving both from app.json means a version bump
+ * happens in exactly one place and cannot silently desync again.
+ *
+ * versionCode is computed from the semver so it increases monotonically:
+ * major*10000 + minor*100 + patch (0.1.7 -> 107). Fine while minor/patch stay
+ * below 100; if this ever ships to Play, that assumption is worth revisiting.
+ * Any pre-release suffix (e.g. -beta.3) is dropped for the numeric code.
+ */
+def expoVersion = new groovy.json.JsonSlurper()
+    .parse(file("$projectRoot/app.json")).expo.version
+def (vMajor, vMinor, vPatch) = expoVersion.split('-')[0].tokenize('.').collect { it.toInteger() }
+def computedVersionCode = vMajor * 10000 + vMinor * 100 + vPatch
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
@@ -92,8 +111,8 @@ android {
         applicationId 'com.sabeelinstitute.kanban'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "0.1.0"
+        versionCode computedVersionCode
+        versionName expoVersion
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
