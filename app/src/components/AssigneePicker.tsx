@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Caption, Row } from './ui';
+import { Body, Button, Caption, Hint, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
 
 /**
@@ -50,14 +50,14 @@ export function AssigneePicker({
   return (
     <View style={styles.wrap}>
       {assigned.length === 0 && orphaned.length === 0 ? (
-        <Caption>Nobody is assigned.</Caption>
+        <Hint>Nobody is assigned.</Hint>
       ) : null}
 
       {assigned.map((m) => (
         <Row key={m.uid} style={styles.between}>
           <View style={styles.grow}>
             <Body>{m.displayName}</Body>
-            <Caption>{m.email}</Caption>
+            <Hint>{m.email}</Hint>
           </View>
           <Button
             label="Remove"
@@ -72,7 +72,7 @@ export function AssigneePicker({
         <Row key={uid} style={styles.between}>
           <View style={styles.grow}>
             <Body>Someone no longer on this board</Body>
-            <Caption>Assigned before they were removed</Caption>
+            <Hint>Assigned before they were removed</Hint>
           </View>
           <Button
             label="Remove"
@@ -117,7 +117,7 @@ export function AssigneePicker({
                 ]}
               >
                 <Body>{m.displayName}</Body>
-                <Caption>{m.email}</Caption>
+                <Hint>{m.email}</Hint>
               </Pressable>
             ))}
           </ScrollView>

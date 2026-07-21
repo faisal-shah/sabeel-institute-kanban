@@ -13,7 +13,7 @@ import { Select } from './Select';
 import type { Selection } from '../useSelection';
 import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Caption, IconAction, Row } from './ui';
+import { Body, Button, Caption, Hint, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
 import { toUserMessage } from '../errors';
 
@@ -152,7 +152,7 @@ export function BulkBar({
         <>
           <Caption>Assign or unassign across the selection</Caption>
           {members.length === 0 ? (
-            <Caption>No board members available.</Caption>
+            <Hint>No board members available.</Hint>
           ) : null}
           {members.map((m) => {
             const allHave = chosen.every((c) => c.assigneeUids.includes(m.uid));

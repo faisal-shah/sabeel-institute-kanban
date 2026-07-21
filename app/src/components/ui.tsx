@@ -119,9 +119,30 @@ export function Body({ children, muted }: { children: ReactNode; muted?: boolean
   );
 }
 
+/**
+ * Small METADATA — timestamps, counts, "N assigned", placeholders. Muted (true
+ * taupe) on purpose: this is text you could delete without losing information,
+ * which is the only job muted's ~2.7:1 contrast is legible enough for.
+ *
+ * If the small text CONVEYS content — an empty-state message, a field label, an
+ * email, a helper sentence — it is not a caption. Use `Hint`, which is the same
+ * size at a readable colour. See docs/BRAND.md / the sabeel-color-scheme skill.
+ */
 export function Caption({ children }: { children: ReactNode }) {
   const t = useTheme();
   return <Text style={[type.caption, { color: t.text.muted }]}>{children}</Text>;
+}
+
+/**
+ * Small CONTENT — caption-sized, but `text.secondary` (~5.8:1) because it
+ * carries meaning and must actually read: empty states ("No comments yet."),
+ * field labels ("Title"), emails, short helper sentences. The muted/content
+ * split is a brand rule, not a preference — muted body-weight content was the
+ * legibility bug the colour-scheme verification pass found.
+ */
+export function Hint({ children }: { children: ReactNode }) {
+  const t = useTheme();
+  return <Text style={[type.caption, { color: t.text.secondary }]}>{children}</Text>;
 }
 
 export function Card({

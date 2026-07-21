@@ -23,6 +23,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card,
   Heading,
   Row,
@@ -163,10 +164,10 @@ export function BoardSettingsScreen({
             </Row>
           </Row>
         ))}
-        <Caption>
+        <Hint>
           Columns are removed from the board screen, and only once they are
           empty — so no cards can vanish with them.
-        </Caption>
+        </Hint>
         <TextField
           value={newColumn}
           onChangeText={setNewColumn}
@@ -178,7 +179,7 @@ export function BoardSettingsScreen({
 
       <Heading>Labels</Heading>
       <Card>
-        {b.labels.length === 0 ? <Caption>No labels yet.</Caption> : null}
+        {b.labels.length === 0 ? <Hint>No labels yet.</Hint> : null}
         {b.labels.map((l) => (
           <Row key={l.id} style={styles.between}>
             <Row>
@@ -246,7 +247,7 @@ export function BoardSettingsScreen({
           <Row key={m.uid} style={styles.between}>
             <View style={styles.grow}>
               <Body>{m.displayName}</Body>
-              <Caption>{m.email}</Caption>
+              <Hint>{m.email}</Hint>
             </View>
             <Row>
               {/* The board knows who its members are, not what org role they
@@ -262,10 +263,10 @@ export function BoardSettingsScreen({
           </Row>
         ))}
         {allUsers.status === 'error' ? (
-          <Caption>
+          <Hint>
             Only admins can browse the full directory. Ask an admin to add
             people to this board.
-          </Caption>
+          </Hint>
         ) : null}
       </Card>
 
@@ -325,7 +326,7 @@ export function BoardSettingsScreen({
             <Row key={u.uid} style={styles.between}>
               <View style={styles.grow}>
                 <Body>{u.displayName}</Body>
-                <Caption>{u.email}</Caption>
+                <Hint>{u.email}</Hint>
               </View>
               <Button
           busy={busy}

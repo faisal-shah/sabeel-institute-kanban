@@ -4,7 +4,7 @@ import { describeActivity, type ActivityType, type BoardColumn } from '@sabeel/s
 import { db } from '../firebase';
 import { useLiveQuery } from '../liveQuery';
 import type { BoardMemberProfile } from '../boards';
-import { Caption, Row, Spinner } from './ui';
+import { Caption, Hint, Row, Spinner } from './ui';
 import { StyleSheet, View } from 'react-native';
 import { radius, space, useTheme } from '../theme';
 
@@ -79,7 +79,7 @@ export function ActivityLog({
   if (log.status === 'loading') return <Spinner />;
 
   const entries = log.data ?? [];
-  if (entries.length === 0) return <Caption>No activity recorded yet.</Caption>;
+  if (entries.length === 0) return <Hint>No activity recorded yet.</Hint>;
 
   return (
     <View style={styles.list}>

@@ -8,7 +8,7 @@ import { useNav } from '../nav';
 import {
   Body,
   Button,
-  Caption,
+  Hint,
   Card,
   Row,
   Screen,
@@ -77,10 +77,10 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
         <Title>People</Title>
         <Button label="Back" variant="secondary" onPress={nav.pop} />
       </Row>
-      <Caption>
+      <Hint>
         Only admins approve accounts and change roles. Managers create boards and
         may join any board; members see only the boards they&rsquo;re added to.
-      </Caption>
+      </Hint>
 
       {error ? (
         <Card>
@@ -89,10 +89,10 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
       ) : null}
 
       {pending.length > 0 ? (
-        <Caption>
+        <Hint>
           {pending.length} waiting for approval — they cannot see anything until
           you approve them.
-        </Caption>
+        </Hint>
       ) : null}
 
       {sorted.map((u) => (
@@ -105,7 +105,7 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
         />
       ))}
 
-      {sorted.length === 0 ? <Caption>Nobody has signed in yet.</Caption> : null}
+      {sorted.length === 0 ? <Hint>Nobody has signed in yet.</Hint> : null}
 
     </Screen>
   );
@@ -137,17 +137,17 @@ function UserCard({
         {user.displayName}
         {isSelf ? '  (you)' : ''}
       </Body>
-      <Caption>{user.email}</Caption>
+      <Hint>{user.email}</Hint>
       <Row style={styles.wrap}>
         <Badge label={user.status} tone={active ? 'good' : 'muted'} />
         <Badge label={user.role} tone={user.role === 'admin' ? 'accent' : 'muted'} />
       </Row>
 
       {isSelf ? (
-        <Caption>
+        <Hint>
           You cannot change your own access — ask another admin. That guard also
           stops an admin locking themselves out.
-        </Caption>
+        </Hint>
       ) : null}
 
       {/* Pending is a decision, not a state to edit: approve or reject. */}

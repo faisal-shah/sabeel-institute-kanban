@@ -14,6 +14,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card as Panel,
   IconAction,
   Row,
@@ -82,7 +83,7 @@ export function Comments({
         </Panel>
       ) : null}
 
-      {list.length === 0 ? <Caption>No comments yet.</Caption> : null}
+      {list.length === 0 ? <Hint>No comments yet.</Hint> : null}
 
       {list.map((c) => {
         const mine = c.authorUid === user.uid;

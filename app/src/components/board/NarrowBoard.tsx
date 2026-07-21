@@ -42,6 +42,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card as Panel,
   Row,
   Screen,
@@ -224,7 +225,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     return (
       <Screen>
         <Title>Board not found</Title>
-        <Caption>It may have been archived, or you may not be a member.</Caption>
+        <Hint>It may have been archived, or you may not be a member.</Hint>
         <Button label="Back to boards" onPress={() => nav.reset({ name: 'boards' })} />
       </Screen>
     );
@@ -333,7 +334,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                     onLongPress={() => selection.toggle(item.id)}
                   />
                 )}
-                ListEmptyComponent={<Caption>No cards in {col.name}.</Caption>}
+                ListEmptyComponent={<Hint>No cards in {col.name}.</Hint>}
                 contentContainerStyle={styles.listContent}
               />
 

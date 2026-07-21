@@ -9,6 +9,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card as Panel,
   Heading,
   Row,
@@ -59,11 +60,11 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
             anywhere else. `pop` no-ops at the root, so it is safe regardless. */}
         <Button label="Back" variant="secondary" onPress={nav.pop} />
       </Row>
-      <Caption>
+      <Hint>
         {total === 0
           ? 'Nothing is assigned to you right now.'
           : `${total} card${total === 1 ? '' : 's'} assigned to you across all your boards.`}
-      </Caption>
+      </Hint>
 
       {groups.map((g) => (
         <View key={g.bucket}>

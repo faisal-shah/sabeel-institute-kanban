@@ -18,6 +18,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card as Panel,
   Row,
   Screen,
@@ -220,7 +221,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                     </Pressable>
                   );
                 })}
-                {colCards.length === 0 ? <Caption>No cards.</Caption> : null}
+                {colCards.length === 0 ? <Hint>No cards.</Hint> : null}
               </ScrollView>
 
               {adding === col.id ? (

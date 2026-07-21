@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Button, Caption, Row } from './ui';
+import { Button, Hint, Row } from './ui';
 import { space } from '../theme';
 
 /**
@@ -49,7 +49,7 @@ export function DateField({
       {value ? (
         <Button label="Clear" variant="secondary" onPress={() => onChange(undefined)} />
       ) : (
-        <Caption>No due date</Caption>
+        <Hint>No due date</Hint>
       )}
 
       {open ? (

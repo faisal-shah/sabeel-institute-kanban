@@ -24,6 +24,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card as Panel,
   Heading,
   Row,
@@ -86,7 +87,7 @@ export function CardScreen({
     return (
       <Screen>
         <Title>Card not found</Title>
-        <Caption>It may have been deleted.</Caption>
+        <Hint>It may have been deleted.</Hint>
         <Button label="Back" onPress={nav.pop} />
       </Screen>
     );
@@ -114,7 +115,7 @@ export function CardScreen({
       ) : null}
 
       <Panel>
-        <Caption>Title</Caption>
+        <Hint>Title</Hint>
         <TextField value={title} onChangeText={(v) => { setTitle(v); setDirty(true); }} />
         {/* Only once the title actually differs. A permanently visible
             full-width button that is disabled 99% of the time is pure cost: it
@@ -139,7 +140,7 @@ export function CardScreen({
             and using a separate move action — for the one property you most
             often change while reading a card. */}
         <Row>
-          <Caption>in</Caption>
+          <Hint>in</Hint>
           <Select
             label="Column"
             value={c.columnId}
@@ -222,7 +223,7 @@ export function CardScreen({
             {c.description ? (
               <Body>{c.description}</Body>
             ) : (
-              <Caption>No description yet.</Caption>
+              <Hint>No description yet.</Hint>
             )}
           </>
         )}
@@ -367,10 +368,10 @@ export function CardScreen({
         )}
         {sessionCan.manageBoards(user) ? (
           <>
-            <Caption>
+            <Hint>
               Deleting is permanent and cannot be undone. Members can only
               archive.
-            </Caption>
+            </Hint>
             <Button
           busy={busy}
               label="Delete permanently"
