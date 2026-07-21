@@ -165,3 +165,11 @@ Playwright for web) — never claim a screen works because the code looks right.
 - Live Firestore reads in `app/src` go through a single `useLiveQuery`/`useLiveDoc`
   module — never hand-roll `onSnapshot` state in a hook (lint-enforced). See
   `docs/INHERITED-STACK.md` for why this is non-negotiable.
+- **Publishing the APK: Release asset, NEVER committed.** The public download is a
+  GitHub **Release asset** on the pages repo (`faisal-shah.github.io`), on the
+  fixed rolling tag `kanban-latest` — the download URL never changes. Publish with
+  `scripts/publish-apk.sh`; it uploads the asset, bumps only the version *label*
+  on the page, and asserts the pages repo holds **zero** `.apk` blobs. **Never
+  `git add` a binary** to any repo — committing per-release APKs bloated the pages
+  history (~31 MB each) and had to be rewritten out. `*.apk` is gitignored in the
+  pages repo as the backstop. Same rule holds in the sibling time-tracker.
