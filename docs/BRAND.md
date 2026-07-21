@@ -1,19 +1,37 @@
 # Sabeel Institute brand colors
 
-**Source of truth: `docs/brand/sabeel-color-usage-guide.jpg`** (the official
-Brand & Website Color Usage Guide). Consult it before any design or color
-decision. This file is the machine-readable restatement plus the decisions
-needed to apply it to an app with a dark mode, which the guide does not cover.
+**Source of truth: the designer's "Option 1" palette (2026-07-21).** This is a
+deliberate *revision* of the original `docs/brand/sabeel-color-usage-guide.jpg`,
+not a re-measure of it — the guide JPG is **superseded** and kept only for
+history. This file is the machine-readable restatement plus the decisions needed
+to apply it to an app with a dark mode, which the palette does not cover.
+
+**Both apps share this palette exactly** — the Kanban board and the sibling
+`sabeel-institute-time-tracker`. It is one identity across two products; the
+values here are the authority for both.
 
 ## The palette
 
 | Color | Hex | Share | Role | Where |
 |---|---|---|---|---|
-| Warm Ivory | `#F9F1E7` | 35% | Foundation | Main backgrounds, cards, content areas, forms |
-| Soft Sage | `#B4C4AA` | 30% | Calm & community | Alternate sections, highlights, footer, decor |
-| Dark Raspberry | `#8A1538` | 20% | Brand identity | Logo, headings, buttons, links, CTAs, titles |
-| Antique Gold | `#C89B3C` | 10% | Elegance | Icons, dividers, borders, accents, hover states |
-| Mushroom Taupe | `#9C8B7A` | 5% | Support | Secondary text, borders, shadows, captions |
+| Warm Ivory | `#F6EBDD` | 35% | Foundation | Main backgrounds, cards, content areas, forms |
+| Soft Sage | `#A8B89A` | 30% | Calm & community | Alternate sections, highlights, footer, decor |
+| Dark Raspberry | `#83114F` | 20% | Brand identity | Logo, headings, buttons, links, CTAs, titles |
+| Antique Gold | `#C6A15B` | 10% | Elegance | Icons, dividers, borders, accents, hover states |
+| Mushroom Taupe | `#A58D7A` | 5% | Support | Secondary text, borders, shadows, captions |
+
+### What changed from the old guide, and why it matters
+
+Two colours moved far enough to reread as different colours; the other three
+barely shifted. Both apps had shipped the *old* values, so adopting Option 1 was
+a coordinated change to both — not a correction of one against the other.
+
+- **Raspberry `#8A1538` → `#83114F`** (ΔE ~17): brick red to plum. This is the
+  most visible change in either app — it is every primary button, heading and
+  link. Anything that hand-tuned a tint of the old red (a soft accent
+  background, a dark-mode lift) had to be re-derived, not nudged.
+- **Gold `#C89B3C` → `#C6A15B`** (ΔE ~13): a brighter yellow-gold to a muted tan.
+- Ivory, sage and taupe shifted only slightly (ΔE 3–5).
 
 The guide's stated principles, which the app follows:
 
@@ -27,29 +45,34 @@ The guide's stated principles, which the app follows:
 ## Two deliberate departures, and why
 
 **1. Body text is a darkened taupe, not Mushroom Taupe.**
-The guide lists Mushroom Taupe (`#9C8B7A`) for body text. On Warm Ivory that is
-roughly **2.3:1** contrast — well below the WCAG AA minimum of 4.5:1 for body
+The palette lists Mushroom Taupe (`#A58D7A`) for support text. On Warm Ivory that
+is roughly **2.7:1** contrast — well below the WCAG AA minimum of 4.5:1 for body
 text, and genuinely hard to read on a phone outdoors. Since the guide *also*
 insists on accessibility, the two instructions conflict, and legibility wins:
 
 - Primary text: `#3A2F28` — a deep warm brown that reads as the same family.
-- Secondary text: `#6B5D51` — a darkened taupe, ~5.6:1 on ivory.
+- Secondary text: `#6A5748` — a darkened taupe, ~5.8:1 on ivory.
 - Mushroom Taupe itself is kept for **borders, dividers, shadows and muted
   captions**, exactly where its softness is an asset and contrast is not
   load-bearing.
 
-Raspberry on ivory is ~9:1, so headings and links are comfortably fine as
-specified.
+Raspberry on ivory is ~8.3:1, so headings and links are comfortably fine as
+specified. A second, quieter case of the same rule: **gold as a functional
+signal is deepened** — `#C6A15B` is ~2.1:1 on ivory, so the `warning` token uses
+`#977535`. True gold stays true where it is decoration (dividers, borders), not
+signal.
 
-**2. Dark mode is derived, because the guide does not define one.**
+**2. Dark mode is derived, because neither the guide nor Option 1 defines one.**
 The app follows the OS setting, so a dark palette is required. Rather than invent
 new hues, each brand color is lifted to stay recognisable on a dark ground:
 
 - Backgrounds become deep warm browns rather than neutral greys, so the palette
   keeps its warmth instead of turning clinical.
-- Raspberry lightens to `#E0577F` — the brand hue at a luminance that reads on
-  dark. The true `#8A1538` is near-invisible against a dark background.
-- Gold and sage lighten slightly for the same reason.
+- Raspberry lifts to `#D85A9F` — the new **plum** hue (327°) at a luminance that
+  reads on dark. Note this is NOT the old dark-accent `#E0577F`, which was a
+  lighter version of the brick-red raspberry; re-deriving off the new hue was
+  the whole point, since a pink lift of a plum is subtly wrong.
+- Gold and sage lift slightly for the same reason.
 
 If the brand ever publishes an official dark palette, replace
 `palette.dark` in `app/src/theme/palette.ts` and nothing else needs to change.

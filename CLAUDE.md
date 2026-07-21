@@ -36,12 +36,14 @@ Key product invariants (do not silently change):
   breaking it breaks My Work's security model.
 - **No WIP limits, no watchers, no card start dates.** All considered, all
   declined.
-- **BRAND COLORS ARE FIXED.** `docs/brand/sabeel-color-usage-guide.jpg` is the
-  official Sabeel Institute Brand & Website Color Usage Guide, and
-  `docs/BRAND.md` restates it for code. **Consult both before ANY design or
-  color decision** — new screens, components, illustrations, charts, anything.
-  Warm Ivory (foundation) / Soft Sage (calm) / Dark Raspberry (brand identity,
-  used with purpose) / Antique Gold (sparingly) / Mushroom Taupe (support).
+- **BRAND COLORS ARE FIXED.** `docs/BRAND.md` is the authority — it restates the
+  designer's **Option 1** palette (2026-07-21), which **supersedes** the older
+  `docs/brand/sabeel-color-usage-guide.jpg` (kept for history only). The same
+  palette is shared exactly with the sibling time-tracker. **Consult BRAND.md
+  before ANY design or color decision** — new screens, components, illustrations,
+  charts, anything. Warm Ivory `#F6EBDD` (foundation) / Soft Sage `#A8B89A`
+  (calm) / Dark Raspberry `#83114F` (brand identity, used with purpose) / Antique
+  Gold `#C6A15B` (sparingly) / Mushroom Taupe `#A58D7A` (support).
 - **Ordinary actions are icons, not labelled buttons.** Edit, delete, move,
   archive, assign, close — these have settled conventions, and a full-width
   labelled button for each costs a row of vertical space every time. This was

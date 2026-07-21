@@ -21,14 +21,14 @@ export function localId(prefix: string): string {
  * rest are muted, earthy tones rather than saturated primaries.
  */
 export const LABEL_COLORS = [
-  '#8A1538', // Dark Raspberry — brand
-  '#C89B3C', // Antique Gold — brand
+  '#83114F', // Dark Raspberry — brand (Option 1)
+  '#C6A15B', // Antique Gold — brand (Option 1)
   '#4E7A43', // Sage, darkened to read on ivory
-  '#9C8B7A', // Mushroom Taupe — brand
+  '#A58D7A', // Mushroom Taupe — brand (Option 1)
   '#A32218', // clay red
   '#C2611F', // burnt orange
   '#3E6B8A', // slate blue
-  '#6B4C8A', // plum
+  '#6B4C8A', // violet plum (kept distinct from the raspberry plum above)
 ] as const;
 
 export function defaultColumns(): BoardColumn[] {

@@ -342,8 +342,9 @@ On mobile this is the board-switcher bottom sheet; on web, the sidebar.
 
 ## Theming
 
-**The palette is the Sabeel Institute brand palette** — see `docs/BRAND.md` and
-the official guide at `docs/brand/sabeel-color-usage-guide.jpg`. Warm Ivory is
+**The palette is the Sabeel Institute brand palette** — see `docs/BRAND.md`, the
+authority (the designer's Option 1 revision; the JPG guide at
+`docs/brand/sabeel-color-usage-guide.jpg` is superseded). Warm Ivory is
 the foundation, Soft Sage the calm secondary, Dark Raspberry the brand identity
 used with purpose for key actions and headings, Antique Gold sparingly for
 accents, Mushroom Taupe for support. Consult the guide before any color decision.
