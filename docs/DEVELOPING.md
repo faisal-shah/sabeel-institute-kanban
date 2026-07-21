@@ -190,6 +190,41 @@ both orientations) plus 1366/1920/2560 desktops. For each it asserts the
 breakpoint read from the source) and that there is **no horizontal overflow** —
 the classic responsive failure a top-of-page screenshot would never reveal.
 
+### Looking at EVERY screen (not just the board)
+
+`device-shots.mjs` captures the boards list and the board. For a change that
+touches every screen — a theme, a shared component, colours — that is not
+enough: the bug is usually on a screen it never opens (an empty state, a form, a
+card detail). Use the authenticated tour:
+
+```sh
+scripts/dev.sh web            # emulators + web + seed
+node scripts/screen-tour.mjs  # signs in, walks Alerts / People / My work /
+                              # board / Settings / a card, desktop + phone widths
+                              # → shots/colors/
+```
+
+This exists because a colour change once shipped **blind** and had to be redone:
+content text had drifted to `text.muted` (~2.7:1) and only the *rendered* screen
+showed it — the token values were all correct. An unauthenticated screenshot
+(the sign-in screen) proves nothing about the app.
+
+**Native is a separate check** — web is not evidence about native rendering. To
+look at the real Android app against seeded data:
+
+```sh
+npm run dev:android           # debug build, emulator-backed (dev sign-in row)
+scripts/emulator.sh shot NAME
+```
+
+Two traps that cost time here: a debug build loads its JS **from Metro at
+launch**, so `EXPO_PUBLIC_USE_EMULATORS` must be set when Metro starts and Metro
+must be restarted with `--clear` after config changes; and `expo run:android`
+printing BUILD SUCCESSFUL is **not** proof the APK installed (if the shared AVD
+drops mid-run, a stale build stays on the device). Confirm with
+`adb shell dumpsys package com.sabeelinstitute.kanban | grep versionName` before
+trusting a native screenshot.
+
 ## A five-minute tour
 
 With the emulators running and the app open:
@@ -200,8 +235,8 @@ With the emulators running and the app open:
 3. **New board** → it starts with To Do / In Progress / Done.
 4. Add a few cards. On web, drag them between columns. On Android, long-press a
    card for the "Move to…" sheet.
-5. Tap a card for the detail screen: markdown description with a formatting
-   toolbar, assignees, due date, priority, labels.
+5. Tap a card for the detail screen: plain-text description, assignees, due date,
+   priority, labels.
 6. **Settings** on the board → add a column, add a label, add a member. Try
    deleting a column that still has cards; it refuses and says why.
 7. Sign in as **sara** in a second browser (or private window), approve her under
