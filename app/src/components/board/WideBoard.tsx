@@ -151,6 +151,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       ) : null}
 
       <BulkBar
+        currentBoardId={boardId}
         columns={columns}
         allCards={cards.data ?? []}
         selection={selection}

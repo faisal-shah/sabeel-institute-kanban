@@ -4,15 +4,17 @@ import type { BoardColumn } from '@sabeel/shared';
 import {
   bulkArchive,
   bulkAssign,
+  bulkCopyToBoard,
   bulkDelete,
   bulkMove,
+  bulkMoveToBoard,
   cardsInColumn,
   type Card,
 } from '../cards';
 import { Select } from './Select';
 import type { Selection } from '../useSelection';
 import { sessionCan, type SessionUser } from '../session';
-import type { BoardMemberProfile } from '../boards';
+import { useMyBoards, type BoardMemberProfile } from '../boards';
 import { Body, Button, Caption, Hint, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
 import { toUserMessage } from '../errors';
@@ -26,6 +28,7 @@ import { toUserMessage } from '../errors';
  * dismiss dialogs.
  */
 export function BulkBar({
+  currentBoardId,
   columns,
   allCards,
   selection,
@@ -33,6 +36,7 @@ export function BulkBar({
   user,
   onError,
 }: {
+  currentBoardId: string;
   columns: readonly BoardColumn[];
   allCards: readonly Card[];
   selection: Selection;
@@ -41,14 +45,20 @@ export function BulkBar({
   onError: (message: string) => void;
 }) {
   const t = useTheme();
-  const [mode, setMode] = useState<'idle' | 'move' | 'assign' | 'confirmDelete'>(
-    'idle',
-  );
+  const [mode, setMode] = useState<
+    'idle' | 'move' | 'assign' | 'confirmDelete' | 'moveToBoard'
+  >('idle');
   const [busy, setBusy] = useState(false);
+  const [destBoardId, setDestBoardId] = useState('');
+  const [destColumnId, setDestColumnId] = useState('');
+  // The boards you could move/copy to (members see their own; managers see all).
+  const boards = useMyBoards(user);
 
   if (!selection.active) return null;
 
   const chosen = selection.selected;
+  const otherBoards = (boards.data ?? []).filter((b) => b.id !== currentBoardId);
+  const dest = otherBoards.find((b) => b.id === destBoardId);
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -84,6 +94,15 @@ export function BulkBar({
                 icon="swap-horiz"
                 label="Move selected cards"
                 onPress={() => setMode('move')}
+              />
+              <IconAction
+                icon="drive-file-move"
+                label="Copy or move to another board"
+                onPress={() => {
+                  setDestBoardId('');
+                  setDestColumnId('');
+                  setMode('moveToBoard');
+                }}
               />
               <IconAction
                 icon="person-add"
@@ -142,6 +161,85 @@ export function BulkBar({
             />
             <Button label="Cancel" variant="secondary" onPress={() => setMode('idle')} />
           </Row>
+        </>
+      ) : null}
+
+      {mode === 'moveToBoard' ? (
+        <>
+          <Caption>Copy or move the selection to another board</Caption>
+          <Hint>
+            Labels are cleared, and anyone not on the destination board is
+            unassigned.
+          </Hint>
+          {otherBoards.length === 0 ? (
+            <Hint>You are not on any other board.</Hint>
+          ) : null}
+          <Row style={styles.wrap}>
+            <Select
+              label="Destination board"
+              value={destBoardId}
+              options={[
+                { value: '', label: 'Choose a board…' },
+                ...otherBoards.map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              disabled={busy}
+              onChange={(id) => {
+                setDestBoardId(id);
+                setDestColumnId('');
+              }}
+            />
+          </Row>
+          {dest ? (
+            <Row style={styles.wrap}>
+              <Select
+                label="Destination column"
+                value={destColumnId}
+                options={[
+                  { value: '', label: 'Choose a column…' },
+                  ...dest.columns.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                disabled={busy}
+                onChange={setDestColumnId}
+              />
+            </Row>
+          ) : null}
+          {dest && destColumnId ? (
+            <Row style={styles.wrap}>
+              <Button
+                label={`Copy ${selection.count}`}
+                variant="secondary"
+                busy={busy}
+                onPress={() =>
+                  run(() =>
+                    bulkCopyToBoard({
+                      cards: chosen,
+                      destBoardId: dest.id,
+                      destColumnId,
+                      destMemberUids: dest.memberUids,
+                      user,
+                    }),
+                  )
+                }
+              />
+              <Button
+                label={`Move ${selection.count}`}
+                variant="primary"
+                busy={busy}
+                onPress={() =>
+                  run(() =>
+                    bulkMoveToBoard({
+                      cards: chosen,
+                      destBoardId: dest.id,
+                      destColumnId,
+                      destMemberUids: dest.memberUids,
+                      user,
+                    }),
+                  )
+                }
+              />
+            </Row>
+          ) : null}
+          <Button label="Cancel" variant="secondary" onPress={() => setMode('idle')} />
         </>
       ) : null}
 

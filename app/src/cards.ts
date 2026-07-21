@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   orderBy,
   query,
   deleteField,
@@ -262,6 +263,108 @@ export async function bulkAssign(params: {
       updatedAt: Date.now(),
       updatedBy: params.user.uid,
     });
+  }
+  await batch.commit();
+}
+
+// ---- Cross-board move & copy ----------------------------------------------
+//
+// A move is now just an `update` of `boardId` (the card doc, and its comments/
+// activity underneath it, stay put) — so any board member may do it and the
+// delete gate never applies. A copy is a fresh card. In both cases labels are
+// cleared (they belong to the source board) and assignees are filtered to
+// members of the destination (the invariant that keeps "My Work" secure). Rules
+// enforce membership of both boards, the destination column, and the assignee
+// subset; the filtering here is what makes the write pass.
+
+/** The rank of the last card in a destination column, so arrivals land at the
+ *  bottom. Reuses the (boardId, archived, rank) board-view index. */
+async function destColumnLastRank(
+  destBoardId: string,
+  destColumnId: string,
+): Promise<string | null> {
+  const snap = await getDocs(
+    query(
+      cardsRef(),
+      where('boardId', '==', destBoardId),
+      where('archived', '==', false),
+      orderBy('rank'),
+    ),
+  );
+  // The query is orderBy('rank') ascending, so after filtering to the column the
+  // last entry holds the greatest rank — no re-sort needed.
+  const ranks = snap.docs
+    .map((d) => d.data())
+    .filter((c) => c.columnId === destColumnId)
+    .map((c) => c.rank as string)
+    .filter(Boolean);
+  return ranks[ranks.length - 1] ?? null;
+}
+
+const keepMembers = (uids: readonly string[], members: readonly string[]) =>
+  uids.filter((u) => members.includes(u));
+
+/** Move a selection to a column on another board — one batched write. */
+export async function bulkMoveToBoard(params: {
+  cards: readonly Card[];
+  destBoardId: string;
+  destColumnId: string;
+  destMemberUids: readonly string[];
+  user: SessionUser;
+}): Promise<void> {
+  const moving = [...params.cards].sort(compareRank);
+  let prev = await destColumnLastRank(params.destBoardId, params.destColumnId);
+  const now = Date.now();
+  const batch = writeBatch(db);
+  for (const card of moving) {
+    const rank = rankBetween(prev, null);
+    prev = rank;
+    batch.update(cardRef(card.id), {
+      boardId: params.destBoardId,
+      columnId: params.destColumnId,
+      rank,
+      labelIds: [],
+      assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
+      updatedAt: now,
+      updatedBy: params.user.uid,
+    });
+  }
+  await batch.commit();
+}
+
+/** Copy a selection to a column on another board — fresh cards, no comments. */
+export async function bulkCopyToBoard(params: {
+  cards: readonly Card[];
+  destBoardId: string;
+  destColumnId: string;
+  destMemberUids: readonly string[];
+  user: SessionUser;
+}): Promise<void> {
+  const copying = [...params.cards].sort(compareRank);
+  let prev = await destColumnLastRank(params.destBoardId, params.destColumnId);
+  const now = Date.now();
+  const batch = writeBatch(db);
+  for (const card of copying) {
+    const rank = rankBetween(prev, null);
+    prev = rank;
+    const data = {
+      boardId: params.destBoardId,
+      title: card.title,
+      description: card.description,
+      columnId: params.destColumnId,
+      rank,
+      assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
+      priority: card.priority,
+      labelIds: [],
+      archived: false,
+      commentCount: 0,
+      createdAt: now,
+      createdBy: params.user.uid,
+      updatedAt: now,
+      updatedBy: params.user.uid,
+      ...(card.dueDate ? { dueDate: card.dueDate } : {}),
+    };
+    batch.set(doc(cardsRef()), data);
   }
   await batch.commit();
 }

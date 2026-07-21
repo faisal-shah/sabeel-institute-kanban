@@ -338,6 +338,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
       {selection.active ? (
         <BulkBar
+          currentBoardId={boardId}
           columns={b.columns}
           allCards={cards.data ?? []}
           selection={selection}

@@ -269,6 +269,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       ) : null}
 
       <BulkBar
+        currentBoardId={boardId}
         columns={columns}
         allCards={cards.data ?? []}
         selection={selection}
