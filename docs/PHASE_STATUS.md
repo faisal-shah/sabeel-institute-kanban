@@ -44,7 +44,7 @@ Phases 0-12 are complete. Everything below runs against the emulators:
 - Notifications: in-app inbox with unread badge, per-event preferences,
   per-board mute, and a daily due-soon sweep.
 - My Work across every board, and global search across the boards you belong to.
-- Sabeel brand palette and logo, light and dark, following the OS.
+- Sabeel brand palette (Option 1) and logo; single light theme, no dark mode.
 
 **Tests: 196 unit + 124 emulator integration + 46 browser e2e checks.**
 
@@ -76,7 +76,7 @@ Scope: npm-workspaces monorepo (`app`, `functions`, `packages/shared`);
 firestore + hosting + emulators (**no storage**); `.firebaserc` placeholder;
 Vitest wired for shared + functions; GitHub Actions CI (lint → typecheck → unit →
 emulator); `scripts/emulator.sh` + `test-emulator.sh`; Expo app with
-react-native-web; **semantic theme tokens with light/dark following the OS**.
+react-native-web; **semantic theme tokens, single light theme (no dark mode)**.
 
 **Exit criteria**
 - [x] `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:emulator` all
@@ -191,7 +191,7 @@ switcher bottom sheet.
 
 Scope: markdown description + formatting toolbar + rendered display (sanitized,
 no raw HTML); assignees (**restricted to board members**); all-day due date
-picker; priority; per-board labels with light/dark-legible colors.
+picker; priority; per-board labels with legible fixed colors.
 
 **Exit criteria**
 - Rules reject assigning a non-member. Tested.

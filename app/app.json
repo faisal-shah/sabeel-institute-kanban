@@ -5,7 +5,7 @@
     "version": "0.1.8",
     "orientation": "portrait",
     "scheme": "sabeelkanban",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "android": {
       "package": "com.sabeelinstitute.kanban",

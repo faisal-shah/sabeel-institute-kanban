@@ -1,7 +1,8 @@
-// Screenshot the exported web build in both color schemes.
+// Screenshot the exported web build.
 //
-// UI changes are verified by LOOKING, not by reading code — and light/dark ship
-// together, so both get captured. Run after `npm run web:export -w @sabeel/app`.
+// UI changes are verified by LOOKING, not by reading code. The app is a single
+// light theme (no dark mode), so one capture is the whole story. Run after
+// `npm run web:export -w @sabeel/app`.
 //
 //   node scripts/web-shot.mjs [outDirName]
 import { chromium } from 'playwright';
@@ -42,7 +43,7 @@ await mkdir(OUT, { recursive: true });
 
 const browser = await chromium.launch();
 try {
-  for (const scheme of ['light', 'dark']) {
+  for (const scheme of ['light']) {
     const ctx = await browser.newContext({
       colorScheme: scheme,
       viewport: { width: 1280, height: 900 },

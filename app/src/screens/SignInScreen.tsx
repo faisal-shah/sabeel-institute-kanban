@@ -4,13 +4,11 @@ import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
 import { signInWithGoogle, googleSignInAvailable } from '../auth/google';
 import { DEV_ACCOUNTS, devSignIn, devSignInAvailable } from '../auth/devSignIn';
 import { Body, Button, Caption, Card, Row, Screen, Title } from '../components/ui';
-import { radius, space, useTheme } from '../theme';
+import { radius, space } from '../theme';
 import sabeelLogo from '../../assets/brand/sabeel-logo.png';
-import sabeelLogoReverse from '../../assets/brand/sabeel-logo-reverse.png';
 import { toUserMessage } from '../errors';
 
 export function SignInScreen() {
-  const t = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,11 +38,10 @@ export function SignInScreen() {
         */}
         <View style={styles.logoPlate}>
           <Image
-            // Two assets rather than a plate or a tint: the reverse mark has
-            // light calligraphy and KEEPS the gold accents, which a flat
-            // tintColor would flatten away. Same approach as the sibling
-            // time-tracker app.
-            source={t.name === 'dark' ? sabeelLogoReverse : sabeelLogo}
+            // The dark (ivory) calligraphy on warm ivory. No tint or plate: a
+            // flat tintColor would throw away the gold accent strokes. The app
+            // is light-only, so the single asset is all we need.
+            source={sabeelLogo}
             style={styles.logo}
             resizeMode="contain"
             accessibilityRole="image"

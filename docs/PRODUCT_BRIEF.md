@@ -51,7 +51,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Board list | **Favorites + recents**, then everything else alphabetically. No folders. |
 | Card deletion | Members **archive** only. Permanent **delete is managers/admins**. |
 | Offboarding | A disabled user **keeps their assignments**, rendered as inactive; managers get a review list to reassign. |
-| Theming | **Light and dark, following the OS setting.** Built in Phase 0, not retrofitted. |
+| Theming | **Single light theme, no dark mode** (decided 2026-07-21). Semantic tokens throughout, so a re-theme stays a one-file change. |
 | Explicitly NOT in v1 | **File attachments** (dropped — no Cloud Storage at all), checklists/subtasks, custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
 | Layout | **Chosen by available WIDTH, not platform** (breakpoint 768px). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
 | Drag and drop | A web **capability** layered on the wide layout. Native has no HTML5 drag API, so a wide native surface (a tablet) offers the same explicit "Move to…" the narrow layout uses. |
@@ -351,16 +351,18 @@ accents, Mushroom Taupe for support. Consult the guide before any color decision
 
 Two documented departures live in `docs/BRAND.md`: body text uses a darkened
 taupe (the specified Mushroom Taupe fails WCAG AA on ivory), and the dark palette
-is derived because the guide defines none.
+defines none.
 
-Light and dark, following the OS setting, with **no manual override** in v1.
+**Single light theme — no dark mode** (decided 2026-07-21). The app pins
+`userInterfaceStyle: "light"`; a derived dark palette existed and was removed.
 
-This is a **Phase 0 obligation, not polish**. Every color goes through semantic
-tokens (`bg.surface`, `text.muted`, `border.subtle`, `priority.high`) from the
-first screen. Retrofitting dark mode after fifteen screens have hardcoded colors
-is a genuinely miserable, error-prone job; doing it from the start costs almost
-nothing. Label colors are the one user-chosen palette, so pick swatches that stay
-legible on both backgrounds.
+Every color goes through semantic tokens (`bg.surface`, `text.muted`,
+`border.subtle`, `priority.high`) — no screen holds a raw hex, enforced by
+ESLint. There is no dark mode, but the discipline still earns its keep: the brand
+palette lives in one file, so the Option 1 refresh was a single-file change, and
+a future re-theme (or a dark mode, if that decision is ever reversed) stays one.
+Label colors are the one user-chosen palette, so pick swatches that stay legible
+on the warm-ivory surfaces.
 
 ## Activity history
 
@@ -494,7 +496,7 @@ also the live build tracker. Summary:
 
 | Phase | What |
 |---|---|
-| 0 | Monorepo scaffold, CI green, theme tokens + light/dark, hello screen both surfaces |
+| 0 | Monorepo scaffold, CI green, semantic theme tokens (single light theme), hello screen both surfaces |
 | 1 | Google auth (domain-restricted) + admin approval + role management |
 | 2 | Boards: CRUD, membership, rules + rules tests |
 | 3 | Columns + cards: create, edit, move, `rankBetween`, web drag-and-drop |

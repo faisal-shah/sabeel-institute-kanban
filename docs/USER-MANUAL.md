@@ -60,7 +60,7 @@ Progress and Done — rename or replace them in **Settings**.
   empty, so no cards can disappear with it. To clear one quickly, select its
   cards and move or archive them in one go.
 - **Labels** — a short, shared vocabulary for the board. Colours are chosen from
-  a fixed palette so they stay readable in both light and dark themes.
+  a fixed palette so they stay readable on the app's warm-ivory surfaces.
 - **Members** — who can see the board. Removing someone also unassigns them from
   that board's cards; you are told how many before it happens.
 - **Archive** — hides the board from everyone's list. Boards are never deleted

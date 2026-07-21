@@ -207,7 +207,7 @@ With the emulators running and the app open:
 7. Sign in as **sara** in a second browser (or private window), approve her under
    **People**, add her to the board, and assign her a card. Her view updates live.
 8. **My work** → everything assigned to you across every board, overdue first.
-9. Toggle your OS between light and dark and watch the brand palette follow.
+9. Confirm the brand palette renders correctly (the app is light-only).
 
 ## Where things live
 

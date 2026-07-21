@@ -55,10 +55,11 @@ Key product invariants (do not silently change):
   screen and for anything destructive-and-unusual.
 - **A control that floats over content must fit on one row.** The bulk bar sits
   on top of the board: every row it takes is a row of board the user cannot see.
-- **All color goes through semantic theme tokens** from the first screen — light
-  and dark ship together, following the OS. Never hardcode a color; the ESLint
-  rule will reject it. `app/src/theme/palette.ts` is the only exception and is
-  where the brand palette lives.
+- **All color goes through semantic theme tokens.** The app is a **single light
+  theme — no dark mode** (decided 2026-07-21; the derived dark palette was
+  removed, not disabled). Never hardcode a color; the ESLint rule will reject it.
+  `app/src/theme/palette.ts` is the only exception and is where the brand palette
+  lives.
 - **Boards archive, never hard-delete. Cards can be deleted, but only by
   managers/admins** — members archive.
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one
@@ -127,7 +128,7 @@ carries over and, more importantly, what was learned the hard way there.
   Symptom if bypassed: a red screen quoting *another repo's* module paths after a
   perfectly successful build.
 - Web screenshots: `node scripts/web-shot.mjs` after a web export — captures
-  light and dark and fails on any page error.
+  the (light-only) UI and fails on any page error.
 - Web: `npx expo start --web` in `app/` (emulator-backed via env flag).
 - CI (GitHub Actions): lint + typecheck + unit + emulator tests on every push.
   Keep it green. No deploys from CI.

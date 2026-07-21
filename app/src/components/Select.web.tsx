@@ -1,5 +1,4 @@
 import { getTheme, radius, space } from '../theme';
-import { useColorScheme } from 'react-native';
 
 export type SelectOption = { value: string; label: string };
 
@@ -29,8 +28,7 @@ export function Select({
   label: string;
   disabled?: boolean;
 }) {
-  const scheme = useColorScheme();
-  const t = getTheme(scheme === 'dark' ? 'dark' : 'light');
+  const t = getTheme();
 
   return (
     <select
@@ -48,8 +46,9 @@ export function Select({
         fontSize: 15,
         maxWidth: '100%',
         opacity: disabled ? 0.5 : 1,
-        // Without this the browser draws its dropdown arrow dark-on-dark.
-        colorScheme: scheme === 'dark' ? 'dark' : 'light',
+        // The app is light-only; pin the native control so the browser does
+        // not tint the dropdown arrow to a dark scheme.
+        colorScheme: 'light',
       }}
     >
       {options.map((o) => (

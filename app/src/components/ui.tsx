@@ -1,6 +1,6 @@
 /**
  * Themed primitives. Screens compose these rather than styling from scratch, so
- * light/dark stays coherent and no screen ever needs a color literal.
+ * styling stays coherent and no screen ever needs a color literal.
  */
 import { forwardRef, type ComponentProps, type ReactNode } from 'react';
 import {

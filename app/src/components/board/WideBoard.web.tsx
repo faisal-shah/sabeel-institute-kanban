@@ -32,7 +32,6 @@ import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import { useListenerError } from '../../liveQuery';
 import { getTheme, radius, space, type Theme } from '../../theme';
-import { useColorScheme } from 'react-native';
 
 type DragState = { cardId: string; fromColumnId: string } | null;
 
@@ -41,8 +40,7 @@ const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
 
 function useWebTheme(): Theme {
-  const scheme = useColorScheme();
-  return getTheme(scheme === 'dark' ? 'dark' : 'light');
+  return getTheme();
 }
 
 function CardTile({

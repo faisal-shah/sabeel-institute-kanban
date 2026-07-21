@@ -1,28 +1,24 @@
 /**
  * Semantic theme tokens. Every color in the app comes from here.
  *
- * Light and dark ship together from Phase 0 by decision (docs/PRODUCT_BRIEF.md,
- * "Theming") — the app follows the OS setting. Building it now costs almost
- * nothing; retrofitting it after fifteen screens have hardcoded colors is a
- * miserable, error-prone job.
+ * SINGLE LIGHT THEME — no dark mode (decided 2026-07-21, docs/PRODUCT_BRIEF.md
+ * "Theming"). `useTheme()` returns the one theme; it is a hook so a stored
+ * preference or a second theme could be layered in here later without any screen
+ * changing.
  *
  * Usage:
  *   const t = useTheme();
  *   <View style={{ backgroundColor: t.bg.surface }}>
  *
- * Names describe ROLE, not appearance — `text.muted`, never `text.grey`. That is
- * what lets dark mode invert without every reference becoming a lie.
+ * Names describe ROLE, not appearance — `text.muted`, never `text.grey`. That
+ * keeps every reference honest and makes a future re-theme a one-file change.
  */
-import { useColorScheme } from 'react-native';
 import { palette } from './palette';
 import type { Priority } from '@sabeel/shared';
 
-export type ThemeName = 'light' | 'dark';
-
-function build(name: ThemeName) {
-  const p = palette[name];
+function build() {
+  const p = palette;
   return {
-    name,
     bg: {
       /** App background, behind everything. */
       canvas: p.canvas,
@@ -78,24 +74,20 @@ function build(name: ThemeName) {
 
 export type Theme = ReturnType<typeof build>;
 
-const themes: Record<ThemeName, Theme> = {
-  light: build('light'),
-  dark: build('dark'),
-};
+const theme: Theme = build();
 
 /**
- * Follows the OS appearance. No manual override in v1 — decided in the brief;
- * if that changes, this hook is the single place to layer a stored preference
- * on top, and no screen needs touching.
+ * The app theme. A hook by design: if a manual override or a second theme is
+ * ever added, this is the single place it layers in and no screen needs
+ * touching.
  */
 export function useTheme(): Theme {
-  const scheme = useColorScheme();
-  return scheme === 'dark' ? themes.dark : themes.light;
+  return theme;
 }
 
-/** Non-hook access, for the rare module that cannot use hooks. */
-export function getTheme(name: ThemeName): Theme {
-  return themes[name];
+/** Non-hook access, for the rare module (or `.web` seam) that cannot use hooks. */
+export function getTheme(): Theme {
+  return theme;
 }
 
 /** Spacing scale, in points. Use these rather than ad-hoc numbers. */

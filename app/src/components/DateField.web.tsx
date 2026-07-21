@@ -1,6 +1,5 @@
 import { Button, Caption, Row } from './ui';
 import { getTheme, radius, space } from '../theme';
-import { useColorScheme } from 'react-native';
 
 /**
  * All-day date picker — WEB (native sibling: DateField.tsx).
@@ -22,8 +21,7 @@ export function DateField({
   onChange: (next: string | undefined) => void;
   label?: string;
 }) {
-  const scheme = useColorScheme();
-  const t = getTheme(scheme === 'dark' ? 'dark' : 'light');
+  const t = getTheme();
 
   return (
     <Row style={{ flexWrap: 'wrap', gap: space.sm }}>
@@ -41,7 +39,7 @@ export function DateField({
           minHeight: 44,
           fontSize: 15,
           // Without this the browser renders its calendar glyph dark-on-dark.
-          colorScheme: scheme === 'dark' ? 'dark' : 'light',
+          colorScheme: 'light',
         }}
       />
       {value ? (
