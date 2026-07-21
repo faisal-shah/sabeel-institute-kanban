@@ -99,6 +99,14 @@ large displays and at print sizes.
   (`bg.canvas`, `text.primary`, `accent.base`, …), never brand names. That way a
   brand refresh is a one-file change, and no screen needs to know that "accent"
   currently means raspberry.
+- **`Caption` vs `Hint` (`components/ui.tsx`) — small text is not all the same.**
+  `Caption` is `text.muted` (true taupe, ~2.7:1) and is for METADATA you could
+  delete without losing information: timestamps, counts, "N assigned". `Hint` is
+  the same size at `text.secondary` (~5.8:1) and is for small CONTENT that must
+  read: empty-state messages, field labels, emails, short helper sentences.
+  Muted-weight content was the legibility bug the colour-scheme verification pass
+  found (empty states washed out on a phone); see the `sabeel-color-scheme`
+  skill's muted-vs-secondary test.
 - Card **priority** colors are a functional scale, not brand colors: red/amber/
   green must read as urgency and cannot be replaced by the brand palette without
   losing that meaning. They are tuned to sit harmoniously beside the brand
