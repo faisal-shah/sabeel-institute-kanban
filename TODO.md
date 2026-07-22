@@ -126,19 +126,16 @@ lives in a personal Google account — a continuity risk independent of OAuth.
 - [x] **`sabeel-kanban-functions` project created** (the UI stall cleared on a
       retry; it was never a plan limit — all Sentry plans include unlimited
       projects).
-- [ ] **Rotate the functions DSN first.** It was pasted into a chat transcript
-      on 2026-07-19. A DSN is send-only — it cannot read Sentry or app data —
-      so the realistic risk is quota abuse rather than disclosure, but rotating
-      costs nothing: Sentry → project → Settings → Client Keys (DSN) → revoke,
-      then Generate New Key.
-- [ ] **Server DSN** → run:
-
-      ```sh
-      firebase functions:secrets:set SENTRY_DSN
-      ```
-
-      Paste the value into that prompt, **not into chat**. Then redeploy
-      functions so the binding picks it up.
+- [x] **Server DSN set + verified.** `firebase functions:secrets:set SENTRY_DSN`
+      is done; the binding is live (every function deploy binds it), and the
+      pipeline was confirmed end-to-end — the `functions-sentry-check` marker
+      landed in the functions project 2026-07-20. The client paths were likewise
+      verified via a deliberate-error test build.
+- [x] **Rotation: decided AGAINST (2026-07-22).** A DSN is send-only — it cannot
+      read Sentry or app data — so the only realistic risk is someone submitting
+      noise events. For an internal app that is not worth the churn. Left as-is by
+      choice. (To set it via the CLI if ever needed: `firebase functions:secrets:set
+      SENTRY_DSN`, paste at the prompt, **never in chat**, then redeploy functions.)
 
 **Do NOT run `npx @sentry/wizard`.** It rewrites committed native files and
 metro config and writes a `sentry.properties` containing a real auth token. The
