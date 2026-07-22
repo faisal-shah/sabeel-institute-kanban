@@ -341,6 +341,31 @@ the team.
 
 ## Deploy log
 
+### 2026-07-21 — Navigation shell + move/copy panel polish — v0.1.12
+
+Client-only UI change (no rules/functions/indexes), from the team's feedback on
+v0.1.11.
+
+- **A persistent navigation shell** (`app/src/components/AppNav.tsx`) replaces the
+  per-screen row of header buttons that wrapped and scattered: a **bottom tab bar
+  on a phone**, a **VSCode-style left rail on wide/web** — Boards · My Work ·
+  Search · Alerts (+ unread badge) and an Account menu (People for admins, Sign
+  out). The bottom bar shows only on the tab roots and steps aside on the
+  immersive board/card screens; the left rail persists everywhere. Safe-areas go
+  through `react-native-safe-area-context` (real per-device insets, floored), and
+  `Screen` drops whichever edge the chrome claimed (`NavClaimedEdgesContext`) so
+  insets never double.
+- **Move/copy panel** rebuilt: board/column dropdowns and Copy·Move on one
+  left-aligned wrapping row, dropdowns only as wide as their text (`field-sizing:
+  content` on web so the box hugs the current value, not the widest option), no
+  redundant counts or Cancel. Reflows with the buttons paired when it can't fit.
+- **Board/card headers**: titles truncate and Settings/Back became icons, so a
+  long board name no longer displaces them.
+
+Verified on the emulator, web (rail) and native (bottom bar clearing the gesture
+pill; board immersive; the redesigned panel). Shipped to Hosting + the Android
+release APK.
+
 ### 2026-07-21 — Cards become a top-level collection + cross-board move/copy
 
 Two-phase change shipped to production (project `sabeel-institute-kanban`).
