@@ -44,6 +44,11 @@ export function Select({
         padding: space.md,
         minHeight: 44,
         fontSize: 15,
+        // Size to the CURRENT selection, not the widest option — a native
+        // <select> otherwise reserves room for its longest option, so a short
+        // board sat in a box wide enough for the longest one. Capped at the
+        // container width; unsupported browsers fall back to the old sizing.
+        fieldSizing: 'content',
         maxWidth: '100%',
         opacity: disabled ? 0.5 : 1,
         // The app is light-only; pin the native control so the browser does
