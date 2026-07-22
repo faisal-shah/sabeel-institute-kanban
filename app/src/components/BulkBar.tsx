@@ -174,13 +174,16 @@ export function BulkBar({
           {otherBoards.length === 0 ? (
             <Hint>You are not on any other board.</Hint>
           ) : null}
-          {/* Board and column stacked full-width. A column View defaults to
-              alignItems:'stretch', so each Select fills the width whatever the
-              board and column names turn out to be — you cannot know in advance. */}
-          <View style={styles.stack}>
+          {/* One left-aligned row that reflows. The dropdowns are only as wide as
+              their text (no full-width stretch — on a wide monitor that would blow
+              them across the screen and push the buttons out of sight), and Copy +
+              Move sit right after them. If it cannot fit, the row wraps — and the
+              two buttons wrap together, never split, because they share a Row. No
+              counts (the "N selected" caption says how many); the persistent ✕ in
+              the top row cancels. */}
+          <Row style={styles.controls}>
             <Select
               label="Destination board"
-              block
               value={destBoardId}
               options={[
                 { value: '', label: 'Choose a board…' },
@@ -195,7 +198,6 @@ export function BulkBar({
             {dest ? (
               <Select
                 label="Destination column"
-                block
                 value={destColumnId}
                 options={[
                   { value: '', label: 'Choose a column…' },
@@ -205,45 +207,43 @@ export function BulkBar({
                 onChange={setDestColumnId}
               />
             ) : null}
-          </View>
-          {/* One row of actions, no counts — the "N selected" caption above
-              already says how many. Cancel is the persistent ✕ in the top row. */}
-          {dest && destColumnId ? (
-            <Row style={styles.actionRow}>
-              <Button
-                label="Copy"
-                variant="secondary"
-                busy={busy}
-                onPress={() =>
-                  run(() =>
-                    bulkCopyToBoard({
-                      cards: chosen,
-                      destBoardId: dest.id,
-                      destColumnId,
-                      destMemberUids: dest.memberUids,
-                      user,
-                    }),
-                  )
-                }
-              />
-              <Button
-                label="Move"
-                variant="primary"
-                busy={busy}
-                onPress={() =>
-                  run(() =>
-                    bulkMoveToBoard({
-                      cards: chosen,
-                      destBoardId: dest.id,
-                      destColumnId,
-                      destMemberUids: dest.memberUids,
-                      user,
-                    }),
-                  )
-                }
-              />
-            </Row>
-          ) : null}
+            {dest && destColumnId ? (
+              <Row>
+                <Button
+                  label="Copy"
+                  variant="secondary"
+                  busy={busy}
+                  onPress={() =>
+                    run(() =>
+                      bulkCopyToBoard({
+                        cards: chosen,
+                        destBoardId: dest.id,
+                        destColumnId,
+                        destMemberUids: dest.memberUids,
+                        user,
+                      }),
+                    )
+                  }
+                />
+                <Button
+                  label="Move"
+                  variant="primary"
+                  busy={busy}
+                  onPress={() =>
+                    run(() =>
+                      bulkMoveToBoard({
+                        cards: chosen,
+                        destBoardId: dest.id,
+                        destColumnId,
+                        destMemberUids: dest.memberUids,
+                        user,
+                      }),
+                    )
+                  }
+                />
+              </Row>
+            ) : null}
+          </Row>
         </>
       ) : null}
 
@@ -313,8 +313,6 @@ const styles = StyleSheet.create({
   between: { justifyContent: 'space-between', alignItems: 'center' },
   actions: { gap: space.lg, alignItems: 'center' },
   wrap: { flexWrap: 'wrap' },
-  // Full-width stacked Selects (board over column).
-  stack: { gap: space.sm },
-  // Copy + Move on one row, pushed to the right.
-  actionRow: { gap: space.sm, justifyContent: 'flex-end' },
+  // Board · column · [Copy Move] on one left-aligned row that wraps as needed.
+  controls: { flexWrap: 'wrap' },
 });

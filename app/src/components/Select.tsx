@@ -20,15 +20,12 @@ export function Select({
   onChange,
   label,
   disabled,
-  block,
 }: {
   value: string;
   options: readonly SelectOption[];
   onChange: (next: string) => void;
   label: string;
   disabled?: boolean;
-  /** Fill the container width instead of sizing to content (stacked layouts). */
-  block?: boolean;
 }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
@@ -44,7 +41,6 @@ export function Select({
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.field,
-          block ? styles.block : null,
           {
             backgroundColor: pressed ? t.bg.surface : t.bg.inset,
             borderColor: t.border.subtle,
@@ -52,7 +48,10 @@ export function Select({
           },
         ]}
       >
-        <Text style={[type.body, { color: t.text.primary }]} numberOfLines={1}>
+        <Text
+          style={[type.body, styles.fieldLabel, { color: t.text.primary }]}
+          numberOfLines={1}
+        >
           {current?.label ?? '—'}
         </Text>
         {/* U+25BE, a text-presentation triangle. Deliberately not an emoji
@@ -87,6 +86,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: space.md,
     minHeight: 44,
+    // Content-width, but never wider than the row it sits in; a long board name
+    // then truncates (fieldLabel shrinks) instead of overflowing the screen.
+    maxWidth: '100%',
   },
-  block: { alignSelf: 'stretch' },
+  // Let the label ellipsize within a width-capped field, keeping the ▾ visible.
+  fieldLabel: { flexShrink: 1 },
 });
