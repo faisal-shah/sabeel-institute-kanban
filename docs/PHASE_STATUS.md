@@ -341,6 +341,29 @@ the team.
 
 ## Deploy log
 
+### 2026-07-22 — Production-readiness hardening — v0.1.14
+
+Shipped the two-phase hardening pass (see the commits "Production-readiness
+hardening Phase 1/2"). Server AND client change here, deployed together:
+
+- **Rules** (`firestore.rules`): card/board/comment writes restricted to their
+  known key set (`keys().hasOnly`) and card `description` capped at 20000.
+  Backward-compatible — verified against live prod before deploy: all 32 cards /
+  4 boards / 23 comments were already within the new key sets, longest
+  description 1583 chars. v0.1.13 installs keep working (write shapes unchanged).
+- **Functions**: new `onCardDeleted` cascade (deletes a hard-deleted card's
+  orphaned comments/activity, guarded against a re-created live card);
+  `removeBoardMember` now attributes its unassignment activity to the manager.
+- **Client**: input length caps (board name / card title / comment body /
+  description) so a normal edit no longer fails with a raw permission-denied;
+  Search consolidated to a `boardId in [...]` query (reuses the existing
+  `(boardId, archived, rank)` index — confirmed built in prod via
+  `scripts/probe-indexes.mjs`); double-submit + markRead-drift fixes; sign-out
+  clears the live-query cache.
+
+Verified: lint, typecheck, web export, and the split emulator suite (149 tests,
+5× green) plus CI. Shipped to Hosting + the Android release APK.
+
 ### 2026-07-21 — Widescreen layout pass — v0.1.13
 
 Client-only UI change (no rules/functions/indexes). The wide/desktop view was the
