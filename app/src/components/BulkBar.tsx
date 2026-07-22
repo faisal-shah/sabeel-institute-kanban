@@ -174,9 +174,13 @@ export function BulkBar({
           {otherBoards.length === 0 ? (
             <Hint>You are not on any other board.</Hint>
           ) : null}
-          <Row style={styles.wrap}>
+          {/* Board and column stacked full-width. A column View defaults to
+              alignItems:'stretch', so each Select fills the width whatever the
+              board and column names turn out to be — you cannot know in advance. */}
+          <View style={styles.stack}>
             <Select
               label="Destination board"
+              block
               value={destBoardId}
               options={[
                 { value: '', label: 'Choose a board…' },
@@ -188,11 +192,10 @@ export function BulkBar({
                 setDestColumnId('');
               }}
             />
-          </Row>
-          {dest ? (
-            <Row style={styles.wrap}>
+            {dest ? (
               <Select
                 label="Destination column"
+                block
                 value={destColumnId}
                 options={[
                   { value: '', label: 'Choose a column…' },
@@ -201,12 +204,14 @@ export function BulkBar({
                 disabled={busy}
                 onChange={setDestColumnId}
               />
-            </Row>
-          ) : null}
+            ) : null}
+          </View>
+          {/* One row of actions, no counts — the "N selected" caption above
+              already says how many. Cancel is the persistent ✕ in the top row. */}
           {dest && destColumnId ? (
-            <Row style={styles.wrap}>
+            <Row style={styles.actionRow}>
               <Button
-                label={`Copy ${selection.count}`}
+                label="Copy"
                 variant="secondary"
                 busy={busy}
                 onPress={() =>
@@ -222,7 +227,7 @@ export function BulkBar({
                 }
               />
               <Button
-                label={`Move ${selection.count}`}
+                label="Move"
                 variant="primary"
                 busy={busy}
                 onPress={() =>
@@ -239,7 +244,6 @@ export function BulkBar({
               />
             </Row>
           ) : null}
-          <Button label="Cancel" variant="secondary" onPress={() => setMode('idle')} />
         </>
       ) : null}
 
@@ -309,4 +313,8 @@ const styles = StyleSheet.create({
   between: { justifyContent: 'space-between', alignItems: 'center' },
   actions: { gap: space.lg, alignItems: 'center' },
   wrap: { flexWrap: 'wrap' },
+  // Full-width stacked Selects (board over column).
+  stack: { gap: space.sm },
+  // Copy + Move on one row, pushed to the right.
+  actionRow: { gap: space.sm, justifyContent: 'flex-end' },
 });

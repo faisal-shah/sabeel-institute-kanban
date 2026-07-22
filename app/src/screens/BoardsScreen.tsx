@@ -9,8 +9,7 @@ import {
   useMyBoards,
   type BoardListItem,
 } from '../boards';
-import { useUnreadCount } from '../notifications';
-import { sessionCan, signOut, type SessionUser } from '../session';
+import { sessionCan, type SessionUser } from '../session';
 import { useArchivedBoards } from '../boards';
 import { useNav } from '../nav';
 import {
@@ -76,8 +75,6 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const boards = useMyBoards(user);
   const prefs = useMyBoardPrefs(user);
-  const unreadDoc = useUnreadCount(user);
-  const unread = unreadDoc.data ?? 0;
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -123,38 +120,10 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
   return (
     <Screen>
-      {/*
-        The header actions WRAP. On a phone, five buttons on one line pushed
-        "Sign out" off the right edge entirely — there was no way to sign out on
-        Android. Wrapping costs a line of vertical space and keeps every action
-        reachable at any width.
-      */}
+      {/* Section actions (Search, My work, Alerts, People, Sign out) live in the
+          app-wide nav bar now — bottom bar on a phone, left rail on wide. This
+          screen keeps only its own title and the create-board control. */}
       <Title>Boards</Title>
-      <Row style={styles.actions}>
-          <Button
-            label="Search"
-            variant="secondary"
-            onPress={() => nav.push({ name: 'search' })}
-          />
-          <Button
-            label="My work"
-            variant="secondary"
-            onPress={() => nav.push({ name: 'myWork' })}
-          />
-          <Button
-            label={unread > 0 ? `Alerts (${unread > 9 ? '9+' : unread})` : 'Alerts'}
-            variant={unread > 0 ? 'primary' : 'secondary'}
-            onPress={() => nav.push({ name: 'notifications' })}
-          />
-          {sessionCan.administerUsers(user) ? (
-            <Button
-              label="People"
-              variant="secondary"
-              onPress={() => nav.push({ name: 'users' })}
-            />
-          ) : null}
-          <Button label="Sign out" variant="secondary" onPress={signOut} />
-      </Row>
 
       {sessionCan.manageBoards(user) ? (
         creating ? (
@@ -336,7 +305,6 @@ function ArchivedBoards({
 const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
   /** Wraps so no action can be pushed off a narrow screen. */
-  actions: { flexWrap: 'wrap' },
   grow: { flex: 1, gap: space.xs },
   star: { width: 20, height: 20, borderRadius: radius.pill, borderWidth: 2 },
   input: {

@@ -21,12 +21,15 @@ export function Select({
   onChange,
   label,
   disabled,
+  block,
 }: {
   value: string;
   options: readonly SelectOption[];
   onChange: (next: string) => void;
   label: string;
   disabled?: boolean;
+  /** Fill the container width instead of sizing to content (stacked layouts). */
+  block?: boolean;
 }) {
   const t = getTheme();
 
@@ -45,6 +48,7 @@ export function Select({
         minHeight: 44,
         fontSize: 15,
         maxWidth: '100%',
+        ...(block ? { width: '100%' } : null),
         opacity: disabled ? 0.5 : 1,
         // The app is light-only; pin the native control so the browser does
         // not tint the dropdown arrow to a dark scheme.

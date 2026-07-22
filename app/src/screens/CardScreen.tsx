@@ -25,6 +25,7 @@ import {
   Button,
   Caption,
   Hint,
+  IconAction,
   Card as Panel,
   Heading,
   Row,
@@ -105,7 +106,7 @@ export function CardScreen({
     <Screen>
       <Row style={styles.between}>
         <Title>Card</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
+        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
 
       {error ? (

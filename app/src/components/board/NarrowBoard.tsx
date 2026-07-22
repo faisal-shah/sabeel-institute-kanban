@@ -43,6 +43,7 @@ import {
   Button,
   Caption,
   Hint,
+  IconAction,
   Card as Panel,
   Row,
   Screen,
@@ -236,16 +237,20 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   return (
     <Screen scroll={false}>
       <Row style={styles.between}>
-        <Title>{b.name}</Title>
-        <Row>
+        {/* The title shrinks and truncates so the icons keep their place —
+            a long board name used to shove them off the row. */}
+        <Title numberOfLines={1} style={styles.headerTitle}>
+          {b.name}
+        </Title>
+        <Row style={styles.headerActions}>
           {sessionCan.manageBoards(user) ? (
-            <Button
-              label="Settings"
-              variant="secondary"
+            <IconAction
+              icon="settings"
+              label="Board settings"
               onPress={() => nav.push({ name: 'boardSettings', boardId })}
             />
           ) : null}
-          <Button label="Back" variant="secondary" onPress={nav.pop} />
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
       </Row>
 
@@ -398,6 +403,8 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
+  headerTitle: { flexShrink: 1 },
+  headerActions: { gap: space.md },
   grow: { flex: 1 },
   pager: { justifyContent: 'space-between', paddingVertical: space.sm },
   pagerLabel: { alignItems: 'center', flex: 1 },

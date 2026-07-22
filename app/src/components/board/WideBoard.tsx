@@ -19,6 +19,7 @@ import {
   Button,
   Caption,
   Hint,
+  IconAction,
   Card as Panel,
   Row,
   Screen,
@@ -130,16 +131,18 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   return (
     <Screen scroll={false} width="full">
       <Row style={styles.between}>
-        <Title>{b.name}</Title>
-        <Row style={styles.wrap}>
+        <Title numberOfLines={1} style={styles.headerTitle}>
+          {b.name}
+        </Title>
+        <Row style={styles.headerActions}>
           {sessionCan.manageBoards(user) ? (
-            <Button
-              label="Settings"
-              variant="secondary"
+            <IconAction
+              icon="settings"
+              label="Board settings"
               onPress={() => nav.push({ name: 'boardSettings', boardId })}
             />
           ) : null}
-          <Button label="Back" variant="secondary" onPress={nav.pop} />
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
       </Row>
 
@@ -300,6 +303,8 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
+  headerTitle: { flexShrink: 1 },
+  headerActions: { gap: space.md },
   wrap: { flexWrap: 'wrap' },
   column: {
     width: 300,

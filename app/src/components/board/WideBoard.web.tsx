@@ -27,6 +27,7 @@ import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { useSelection } from '../../useSelection';
 import { createAutoScroller } from './autoScroll';
 import { BulkBar } from '../BulkBar';
+import { IconAction } from '../ui';
 import { columnsPatch, type BoardColumn } from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
@@ -320,19 +321,30 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
           marginBottom: space.md,
         }}
       >
-        <h1 style={{ color: t.text.primary, margin: 0, fontSize: 22 }}>{b.name}</h1>
-        <div style={{ display: 'flex', gap: space.sm }}>
+        <h1
+          style={{
+            color: t.text.primary,
+            margin: 0,
+            fontSize: 22,
+            // Truncate a long board name instead of shoving the icons aside.
+            minWidth: 0,
+            flexShrink: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {b.name}
+        </h1>
+        <div style={{ display: 'flex', gap: space.md, flexShrink: 0 }}>
           {isManager ? (
-            <button
-              onClick={() => nav.push({ name: 'boardSettings', boardId })}
-              style={btn(t)}
-            >
-              Settings
-            </button>
+            <IconAction
+              icon="settings"
+              label="Board settings"
+              onPress={() => nav.push({ name: 'boardSettings', boardId })}
+            />
           ) : null}
-          <button onClick={nav.pop} style={btn(t)}>
-            Back
-          </button>
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </div>
       </div>
 

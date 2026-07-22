@@ -20,12 +20,15 @@ export function Select({
   onChange,
   label,
   disabled,
+  block,
 }: {
   value: string;
   options: readonly SelectOption[];
   onChange: (next: string) => void;
   label: string;
   disabled?: boolean;
+  /** Fill the container width instead of sizing to content (stacked layouts). */
+  block?: boolean;
 }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
@@ -41,6 +44,7 @@ export function Select({
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.field,
+          block ? styles.block : null,
           {
             backgroundColor: pressed ? t.bg.surface : t.bg.inset,
             borderColor: t.border.subtle,
@@ -84,4 +88,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     minHeight: 44,
   },
+  block: { alignSelf: 'stretch' },
 });

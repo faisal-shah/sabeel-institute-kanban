@@ -33,8 +33,9 @@ is actually archived, so it costs nothing when you are not using it.
 
 ### For admins: the People screen
 
-**People** lists everyone who has signed in. A new account waits on **pending**
-and sees nothing until an admin approves it.
+**People** (open the **Account** button in the navigation bar) lists everyone who
+has signed in. A new account waits on **pending** and sees nothing until an admin
+approves it.
 
 Each person's role and access are shown as controls set to their *current* value
 — a role segment and an **Active** toggle — rather than buttons you press. You
@@ -44,6 +45,21 @@ change your own access; that is what stops an admin locking themselves out.
 
 Disabling someone signs them out immediately but **keeps their card
 assignments**, so nothing is left ownerless — a manager can reassign at leisure.
+
+## Finding your way around
+
+A slim navigation bar is always in reach — **along the bottom on a phone**, and
+**down the left side in a browser**. It carries the places you move between:
+
+- **Boards** — your board list, the home screen.
+- **My work** — everything assigned to you, across every board.
+- **Search** — find a card by its words.
+- **Alerts** — what you have been told about; a badge shows how many are unread.
+- **Account** — People (admins only) and Sign out.
+
+Open a board or a card and the phone's bottom bar steps aside, giving the board the
+whole screen; it returns when you go back to a list. In a browser the left bar
+stays put — it is narrow enough to keep out of the way.
 
 ## Boards
 

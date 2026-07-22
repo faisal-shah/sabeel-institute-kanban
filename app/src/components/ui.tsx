@@ -2,7 +2,13 @@
  * Themed primitives. Screens compose these rather than styling from scratch, so
  * styling stays coherent and no screen ever needs a color literal.
  */
-import { forwardRef, type ComponentProps, type ReactNode } from 'react';
+import {
+  createContext,
+  forwardRef,
+  useContext,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,11 +17,12 @@ import {
   TextInput,
   View,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { KeyboardScroll } from './KeyboardScroll';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { radius, space, type, useTheme } from '../theme';
 
 /** Any MaterialIcons glyph name, without re-listing them here. */
@@ -31,6 +38,17 @@ type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 const KEYBOARD_BOTTOM_OFFSET = 96;
 import { CONTENT_MAX_WIDTH, useLayout } from '../theme/layout';
 import { useListenerError } from '../liveQuery';
+
+/**
+ * Safe-area edges the app-wide nav chrome has already claimed, so a Screen does
+ * not inset them a second time and double the gap. `AppNav` sets this via App.tsx:
+ * `['bottom']` on a phone (the bottom bar owns the gesture-pill inset) and
+ * `['left']` on wide (the left rail owns that edge). Empty by default, so a
+ * chrome-less screen insets all four edges itself.
+ */
+export const NavClaimedEdgesContext = createContext<readonly Edge[]>([]);
+
+const ALL_EDGES: readonly Edge[] = ['top', 'right', 'bottom', 'left'];
 
 export function Screen({
   children,
@@ -49,6 +67,8 @@ export function Screen({
   const t = useTheme();
   const error = useListenerError();
   const { isWide } = useLayout();
+  const claimedEdges = useContext(NavClaimedEdgesContext);
+  const edges = ALL_EDGES.filter((e) => !claimedEdges.includes(e));
 
   // Only cap on wide screens: on a phone the content column IS the screen, and
   // a maxWidth there would just add dead margin.
@@ -75,7 +95,7 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView style={[styles.fill, { backgroundColor: t.bg.canvas }]}>
+    <SafeAreaView edges={edges} style={[styles.fill, { backgroundColor: t.bg.canvas }]}>
       {scroll ? (
         <KeyboardScroll
           contentContainerStyle={styles.scrollContent}
@@ -96,9 +116,25 @@ export function Screen({
 }
 
 
-export function Title({ children }: { children: ReactNode }) {
+export function Title({
+  children,
+  numberOfLines,
+  style,
+}: {
+  children: ReactNode;
+  /** Clamp to N lines (e.g. a long board name beside header icons). */
+  numberOfLines?: number;
+  style?: StyleProp<TextStyle>;
+}) {
   const t = useTheme();
-  return <Text style={[type.title, { color: t.text.primary }]}>{children}</Text>;
+  return (
+    <Text
+      style={[type.title, { color: t.text.primary }, style]}
+      numberOfLines={numberOfLines}
+    >
+      {children}
+    </Text>
+  );
 }
 
 export function Heading({ children }: { children: ReactNode }) {

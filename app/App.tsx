@@ -7,12 +7,15 @@
  * claimsUpdatedAt — so an admin approval un-gates the app live.
  */
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { KeyboardHost } from './src/components/KeyboardHost';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, type Edge } from 'react-native-safe-area-context';
 import { useSession, type SessionUser } from './src/session';
 import { initErrorReporting, setErrorUser } from './src/sentry';
-import { useNav, useHardwareBack } from './src/nav';
+import { useNav, useHardwareBack, type Route } from './src/nav';
+import { useLayout } from './src/theme/layout';
+import { AppNav, isTabRoot } from './src/components/AppNav';
 import { SignInScreen } from './src/screens/SignInScreen';
 import {
   DisabledScreen,
@@ -29,11 +32,9 @@ import { MyWorkScreen } from './src/screens/MyWorkScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
-import { Screen, Spinner } from './src/components/ui';
+import { NavClaimedEdgesContext, Screen, Spinner } from './src/components/ui';
 
-function SignedInRoutes({ user }: { user: SessionUser }) {
-  const { route } = useNav();
-
+function renderScreen(route: Route, user: SessionUser) {
   switch (route.name) {
     case 'board':
       return <BoardScreen boardId={route.boardId} user={user} />;
@@ -52,6 +53,45 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
     default:
       return <BoardsScreen user={user} />;
   }
+}
+
+const NO_EDGES: readonly Edge[] = [];
+const BOTTOM_CLAIMED: readonly Edge[] = ['bottom'];
+const LEFT_CLAIMED: readonly Edge[] = ['left'];
+
+/**
+ * The signed-in shell: the app-wide nav chrome plus the current screen. Wide gets
+ * a persistent left rail (which owns the left safe-area edge); a phone gets a
+ * bottom bar on the tab-root screens only (which owns the bottom edge), and none
+ * on the immersive board/card screens. Each layout tells `Screen`, via
+ * `NavClaimedEdgesContext`, which edge the chrome already inset so it is not
+ * doubled.
+ */
+function SignedInRoutes({ user }: { user: SessionUser }) {
+  const { route } = useNav();
+  const { isWide } = useLayout();
+  const screen = renderScreen(route, user);
+
+  if (isWide) {
+    return (
+      <View style={styles.row}>
+        <AppNav user={user} variant="rail" />
+        <NavClaimedEdgesContext.Provider value={LEFT_CLAIMED}>
+          <View style={styles.fill}>{screen}</View>
+        </NavClaimedEdgesContext.Provider>
+      </View>
+    );
+  }
+
+  const showBar = isTabRoot(route.name);
+  return (
+    <View style={styles.fill}>
+      <NavClaimedEdgesContext.Provider value={showBar ? BOTTOM_CLAIMED : NO_EDGES}>
+        <View style={styles.fill}>{screen}</View>
+      </NavClaimedEdgesContext.Provider>
+      {showBar ? <AppNav user={user} variant="bar" /> : null}
+    </View>
+  );
 }
 
 function Routes() {
@@ -124,3 +164,8 @@ export default function App() {
     </KeyboardHost>
   );
 }
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  row: { flex: 1, flexDirection: 'row' },
+});

@@ -61,6 +61,9 @@ for (const who of ['sara', 'omar']) {
   const p = await open(browser);
   await signIn(p, who);
 }
+// Section/account actions live in the app-wide nav now: People is inside the
+// Account menu (bottom of the left rail on wide, where this seed runs).
+await admin.getByRole('button', { name: 'Account' }).click();
 await admin.getByRole('button', { name: 'People' }).click();
 await admin.getByText('People', { exact: true }).waitFor({ timeout: 25000 });
 for (;;) {
@@ -89,7 +92,7 @@ if (await existing.isVisible().catch(() => false)) {
 }
 await admin.getByText('To Do').first().waitFor({ timeout: 30000 });
 
-await admin.getByRole('button', { name: 'Settings' }).click();
+await admin.getByRole('button', { name: 'Board settings' }).click();
 await admin.getByText('Board settings').waitFor({ timeout: 25000 });
 for (const name of COLUMNS) {
   if (await admin.getByText(name).first().isVisible().catch(() => false)) continue;
