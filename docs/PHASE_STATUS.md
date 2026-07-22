@@ -341,6 +341,28 @@ the team.
 
 ## Deploy log
 
+### 2026-07-21 — Widescreen layout pass — v0.1.13
+
+Client-only UI change (no rules/functions/indexes). The wide/desktop view was the
+phone layout stretched sideways — full-width buttons and list rows in an 840px
+column. Fixed systematically with responsive primitives (`app/src/theme/layout.ts`,
+`app/src/components/ui.tsx`):
+
+- `Button` sizes to its content on a wide screen (full-width still on a phone), so
+  standalone buttons stop stretching into bars everywhere at once.
+- `Screen` `width` gains `read` (~640 reading column for text/forms) and `list` (a
+  wide 1160 column for grids), alongside `content`/`full`.
+- `CardGrid` — a responsive grid (as many ~250px columns as fit; one column on a
+  phone).
+
+Applied: Boards is a grid of cards with a real **star** favourite icon (was a
+filled dot); My work and Search are grids; Card detail, Board settings,
+Notifications, People, sign-in and gate screens use the reading column. Dropped
+the redundant Back button from the nav-bar tab roots (My work / Search / Alerts).
+The widescreen reasoning was also written into the public `expo-firebase-stack`
+skill. Verified on the emulator at desktop (1500px) and phone (390px) widths;
+shipped to Hosting + the Android release APK.
+
 ### 2026-07-21 — Navigation shell + move/copy panel polish — v0.1.12
 
 Client-only UI change (no rules/functions/indexes), from the team's feedback on
