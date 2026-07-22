@@ -112,6 +112,7 @@ export function BulkBar({
               <IconAction
                 icon="archive"
                 label="Archive selected cards"
+                disabled={busy}
                 onPress={() => run(() => bulkArchive(chosen, user))}
               />
               {/* Members archive; only managers and admins destroy. */}

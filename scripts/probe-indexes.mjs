@@ -34,47 +34,51 @@ const db = getFirestore();
 /** A placeholder id is fine: index requirements are validated per query shape. */
 const ANY = 'index-probe-placeholder';
 
+// Cards are a TOP-LEVEL collection (`cards/{cardId}` with a `boardId` field), not
+// a per-board subcollection — so every card query below is a plain `collection`
+// query, and these shapes must stay in step with firestore.indexes.json.
 const probes = [
   {
-    name: 'board cards (archived + rank)',
-    used_by: 'opening a board',
+    name: 'board view (boardId + archived + rank)',
+    used_by: 'opening a board — useBoardCards',
     run: () =>
       db
-        .collection(`boards/${ANY}/cards`)
+        .collection('cards')
+        .where('boardId', '==', ANY)
         .where('archived', '==', false)
         .orderBy('rank')
         .limit(1)
         .get(),
   },
   {
-    name: 'my work (collection-group assigneeUids)',
-    used_by: 'My work',
+    name: 'my work (assigneeUids array-contains)',
+    used_by: 'My work — a single-field auto index, no composite',
     run: () =>
       db
-        .collectionGroup('cards')
+        .collection('cards')
         .where('assigneeUids', 'array-contains', ANY)
         .limit(1)
         .get(),
   },
   {
-    name: 'my work, due-sorted (assigneeUids + archived + dueDate)',
-    used_by: 'My work, and the due-soon reminder job',
+    name: 'member removal (boardId + assigneeUids)',
+    used_by: 'removeBoardMember / countMemberAssignments callables',
     run: () =>
       db
-        .collectionGroup('cards')
+        .collection('cards')
+        .where('boardId', '==', ANY)
         .where('assigneeUids', 'array-contains', ANY)
-        .where('archived', '==', false)
-        .orderBy('dueDate')
         .limit(1)
         .get(),
   },
   {
-    name: 'due soon sweep (archived + dueDate)',
-    used_by: 'dueSoonReminders',
+    name: 'due soon sweep (archived + dueDate range)',
+    used_by: 'dueSoonReminders scheduled job',
     run: () =>
       db
-        .collectionGroup('cards')
+        .collection('cards')
         .where('archived', '==', false)
+        .where('dueDate', '>=', '2000-01-01')
         .orderBy('dueDate')
         .limit(1)
         .get(),

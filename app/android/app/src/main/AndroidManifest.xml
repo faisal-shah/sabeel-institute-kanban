@@ -1,9 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+  <!-- Only what the app actually uses: INTERNET (Firebase) and VIBRATE
+       (notification buzz). No storage or overlay permissions — there is no file,
+       attachment, or draw-over-apps feature (see docs/PRODUCT_BRIEF.md, "No file
+       attachments"). These were Expo scaffold defaults; a future `expo prebuild`
+       would re-add them, so they must be suppressed in app.json if this native
+       project is ever regenerated (android/ is committed, not regenerated now). -->
   <uses-permission android:name="android.permission.INTERNET"/>
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
-  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>

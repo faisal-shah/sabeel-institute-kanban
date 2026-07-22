@@ -27,3 +27,13 @@ export const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Done'] as const;
 
 /** Recent boards kept on the user doc, so the list syncs between phone and web. */
 export const MAX_RECENT_BOARDS = 10;
+
+/**
+ * Field-length caps. These MUST match the sizes hard-coded in `firestore.rules`
+ * (rules cannot import TypeScript). The rules remain the enforcement; the client
+ * uses these to cap inputs so a normal action never fails with a raw
+ * `permission-denied`. `BOARD_NAME_MAX` lives in `boards.ts` next to
+ * `validateBoardName`.
+ */
+export const CARD_TITLE_MAX = 200;
+export const COMMENT_BODY_MAX = 5000;

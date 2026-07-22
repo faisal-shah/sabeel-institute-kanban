@@ -36,5 +36,11 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # A build-only break (a bad import, a bundler-config slip) passes lint,
+      # typecheck and tests but fails the web export — which otherwise only
+      # surfaces at deploy time. Exporting here catches it in CI.
+      - name: Web export (catch build-only breaks)
+        run: npm run web:export -w @sabeel/app
+
       - name: Emulator integration tests
         run: npm run test:emulator

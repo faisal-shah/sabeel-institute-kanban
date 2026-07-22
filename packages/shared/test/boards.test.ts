@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   BOARD_NAME_MAX,
   LABEL_COLORS,
+  columnsPatch,
   defaultColumns,
   newBoard,
+  newLabel,
   pushRecent,
   sortBoardsForList,
   validateBoardName,
@@ -114,6 +116,52 @@ describe('sortBoardsForList', () => {
     const { favourites, recents } = sortBoardsForList(boards, ['deleted'], ['gone']);
     expect(favourites).toEqual([]);
     expect(recents).toEqual([]);
+  });
+});
+
+describe('columnsPatch', () => {
+  // The invariant: columnIds must always be exactly the ids of columns, in order.
+  // firestore.rules validates card writes against columnIds, so a desynced pair
+  // would reject valid cards or accept invented columns.
+  it('derives columnIds as the columns ids, in order', () => {
+    const columns = [
+      { id: 'c1', name: 'To Do' },
+      { id: 'c3', name: 'Doing' },
+      { id: 'c2', name: 'Done' },
+    ];
+    expect(columnsPatch(columns)).toEqual({
+      columns,
+      columnIds: ['c1', 'c3', 'c2'],
+    });
+  });
+
+  it('handles an empty column list', () => {
+    expect(columnsPatch([])).toEqual({ columns: [], columnIds: [] });
+  });
+
+  it('keeps columnIds in sync after a column is removed', () => {
+    const columns = [
+      { id: 'c1', name: 'To Do' },
+      { id: 'c2', name: 'Done' },
+    ];
+    const { columnIds } = columnsPatch(columns.filter((c) => c.id !== 'c1'));
+    expect(columnIds).toEqual(['c2']);
+  });
+});
+
+describe('newLabel', () => {
+  it('trims the name and keeps the given colour', () => {
+    const label = newLabel('  Urgent  ', '#83114F');
+    expect(label.name).toBe('Urgent');
+    expect(label.color).toBe('#83114F');
+  });
+
+  it('assigns an id with the lbl prefix', () => {
+    expect(newLabel('x', '#000000').id).toMatch(/^lbl_/);
+  });
+
+  it('gives two labels distinct ids', () => {
+    expect(newLabel('a', '#000000').id).not.toBe(newLabel('a', '#000000').id);
   });
 });
 

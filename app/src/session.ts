@@ -20,6 +20,7 @@ import { onAuthStateChanged, signOut as fbSignOut, type User } from 'firebase/au
 import { googleSignOut } from './auth/google';
 import { registerPush, unregisterPush } from './notify';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
+import { clearLiveResultCache } from './liveQuery';
 import { canAdministerUsers, canManageBoards, canUseApp } from '@sabeel/shared';
 import type { Role, UserStatus } from '@sabeel/shared';
 import { auth, db } from './firebase';
@@ -226,6 +227,9 @@ function watchUserDoc(fbUser: User) {
 onAuthStateChanged(auth, (fbUser) => {
   if (!fbUser) {
     stopWatchingUserDoc();
+    // Drop any cached live-query results so a shared device does not flash the
+    // previous user's board to whoever signs in next.
+    clearLiveResultCache();
     emit({ state: 'signed-out' });
     return;
   }

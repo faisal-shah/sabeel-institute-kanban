@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, TextInput } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { sortBoardsForList } from '@sabeel/shared';
+import { BOARD_NAME_MAX, sortBoardsForList } from '@sabeel/shared';
 import {
   createBoard,
   noteBoardOpened,
@@ -76,6 +76,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = useTheme();
 
@@ -99,7 +100,10 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
   async function create() {
     const name = newName.trim();
-    if (!name) return;
+    // The `busy` guard stops a second fast tap from creating a duplicate board
+    // in the window before the await resolves and the form closes.
+    if (!name || busy) return;
+    setBusy(true);
     setError(null);
     try {
       const id = await createBoard(name, user);
@@ -108,6 +112,8 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       nav.push({ name: 'board', boardId: id });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -133,6 +139,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
               placeholder="Board name"
               placeholderTextColor={t.text.muted}
               autoFocus
+              maxLength={BOARD_NAME_MAX}
               onSubmitEditing={create}
               style={[
                 styles.input,
@@ -144,7 +151,12 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
               ]}
             />
             <Row>
-              <Button label="Create" onPress={create} disabled={!newName.trim()} />
+              <Button
+                label="Create"
+                onPress={create}
+                busy={busy}
+                disabled={!newName.trim() || busy}
+              />
               <Button
                 label="Cancel"
                 variant="secondary"

@@ -15,11 +15,20 @@
 //   - Comments → real comments, authored by the importer, each body prefixed
 //     with the original author + date (no @mention resolution).
 //
-// Usage (emulator dry run):
-//   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
-//   GCLOUD_PROJECT=demo-sabeel-kanban node scripts/import-clickup.mjs [--dry]
+// Usage:
+//   # DRY RUN (default): parses + prints the plan, writes NOTHING, needs no project.
+//   node scripts/import-clickup.mjs
 //
-// --dry parses + prints the plan and writes nothing.
+//   # APPLY to the emulators:
+//   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+//   GCLOUD_PROJECT=demo-sabeel-kanban node scripts/import-clickup.mjs --apply
+//
+//   # APPLY to production (needs gcloud ADC / GOOGLE_APPLICATION_CREDENTIALS):
+//   GCLOUD_PROJECT=<prod-project-id> node scripts/import-clickup.mjs --apply
+//
+// Writing is OPT-IN: without --apply this is a preview. --apply also requires
+// GCLOUD_PROJECT to be set explicitly, so it can never fall back to whatever
+// project gcloud ADC happens to point at.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { initializeApp } from 'firebase-admin/app';
@@ -35,7 +44,9 @@ import {
   DEFAULT_COLUMNS,
 } from '@sabeel/shared';
 
-const DRY = process.argv.includes('--dry');
+// Dry-run is the DEFAULT. Writing to Firestore requires an explicit --apply, so a
+// bare `node scripts/import-clickup.mjs` can never mutate data by accident.
+const DRY = !process.argv.includes('--apply');
 const CSV = resolve(process.cwd(), process.env.CLICKUP_CSV ?? 'migration/clickup-export.csv');
 const ADMIN_EMAIL = process.env.IMPORT_ADMIN_EMAIL ?? 'faisal@oursabeel.com';
 
@@ -171,12 +182,29 @@ if (DRY) {
     const d = buildDescription(r);
     console.log(d ? d.split('\n').map((l) => '   ' + l).join('\n') : '   (no description)');
   }
-  console.log('\n(dry run — nothing written)');
+  console.log('\n(dry run — nothing written). Re-run with --apply to write.');
   process.exit(0);
 }
 
 // ---- Write ------------------------------------------------------------------
-initializeApp({ projectId: process.env.GCLOUD_PROJECT });
+// Require the project id explicitly rather than letting the Admin SDK fall back
+// to gcloud ADC (which points at PRODUCTION on a dev machine), and announce the
+// target loudly before writing. Mirrors scripts/grant-admin.mjs.
+const projectId = process.env.GCLOUD_PROJECT;
+if (!projectId) {
+  console.error(
+    'Refusing to --apply without GCLOUD_PROJECT set. Use demo-sabeel-kanban for ' +
+      'the emulators, or the real project id for production.',
+  );
+  process.exit(1);
+}
+const usingEmulators = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+console.log(
+  `\nAPPLYING import to project ${projectId}` +
+    `${usingEmulators ? ' (EMULATORS)' : ' (PRODUCTION)'}\n`,
+);
+
+initializeApp({ projectId });
 const db = getFirestore();
 const auth = getAuth();
 

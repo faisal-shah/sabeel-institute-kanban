@@ -6,6 +6,7 @@ import {
   limit,
   orderBy,
   query,
+  runTransaction,
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
@@ -59,15 +60,20 @@ export function useUnreadCount(user: SessionUser) {
 
 export async function markRead(user: SessionUser, item: InboxItem): Promise<void> {
   if (item.read) return;
-  const batch = writeBatch(db);
-  batch.update(doc(db, 'users', user.uid, 'notifications', item.id), { read: true });
-  // Decremented here rather than by a trigger: rules already let the client flip
-  // `read`, and a trigger racing that write would double-count. `increment` is
-  // atomic, so two tabs marking different items both land.
-  batch.update(doc(db, 'users', user.uid), {
-    unreadNotifCount: increment(-1),
+  const notifRef = doc(db, 'users', user.uid, 'notifications', item.id);
+  const userRef = doc(db, 'users', user.uid);
+  // A transaction, not a batch: it RE-READS `read` inside the transaction and
+  // only decrements if the entry was genuinely still unread. Two rapid taps (or
+  // two tabs) on the same item both see the stale `read: false` on the passed-in
+  // snapshot; without the re-read each would `increment(-1)` and drift the badge
+  // negative. The decrement stays on the client — rules let it flip `read` and
+  // adjust its own `unreadNotifCount`, and a trigger racing that would double-count.
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(notifRef);
+    if (!snap.exists() || snap.data().read === true) return;
+    tx.update(notifRef, { read: true });
+    tx.update(userRef, { unreadNotifCount: increment(-1) });
   });
-  await batch.commit();
 }
 
 /** Mark everything read in one batch, and zero the badge. */

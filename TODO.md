@@ -216,9 +216,12 @@ Android push is wired and ships in the next APK. Two items are console work.
       within a few seconds. An emulator cannot prove this — it needs the phone.
       If nothing arrives, say so and I'll read the function logs.
 
-- [ ] **Web push — generate a VAPID key.** My half is written and committed:
-      the service worker is in place and verified to land at the site root on
-      export. This is the only thing left.
+- [ ] **Web push — confirm the VAPID key is live** (was "generate a key"). A key
+      is already present in `app/.env.local` as `EXPO_PUBLIC_FCM_VAPID_KEY` (added
+      mid-session). What remains is to confirm it is the REAL key from the Firebase
+      console (not a placeholder), that a web deploy since then carried it into the
+      bundle, and that a web push actually arrives. The service worker half is
+      written, committed, and verified to land at the site root on export.
 
       A VAPID key is a public/private pair identifying *your server* to the
       browser's push service (Google's for Chrome, Mozilla's for Firefox). The

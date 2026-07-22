@@ -355,20 +355,29 @@ export function IconAction({
   label,
   onPress,
   danger,
+  disabled,
 }: {
   icon: MaterialIconName;
   label: string;
   onPress: () => void;
   danger?: boolean;
+  /** Disable while a write it triggers is in flight, so it cannot re-fire. */
+  disabled?: boolean;
 }) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
+      disabled={disabled}
       hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
-      style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}
+      style={({ pressed }) => [
+        styles.action,
+        disabled && { opacity: 0.4 },
+        pressed && { opacity: 0.6 },
+      ]}
     >
       <MaterialIcons
         name={icon}
@@ -397,8 +406,10 @@ export const TextField = forwardRef<TextInput, {
   multiline?: boolean;
   autoFocus?: boolean;
   label?: string;
+  /** Cap input length so a write never exceeds what firestore.rules allows. */
+  maxLength?: number;
 }>(function TextField(
-  { value, onChangeText, placeholder, onSubmit, multiline, autoFocus, label },
+  { value, onChangeText, placeholder, onSubmit, multiline, autoFocus, label, maxLength },
   ref,
 ) {
   const t = useTheme();
@@ -415,6 +426,7 @@ export const TextField = forwardRef<TextInput, {
       onSubmitEditing={onSubmit}
       multiline={multiline}
       autoFocus={autoFocus}
+      maxLength={maxLength}
       accessibilityLabel={label ?? placeholder}
       style={[
         styles.input,

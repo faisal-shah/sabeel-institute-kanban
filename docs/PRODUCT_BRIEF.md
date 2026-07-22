@@ -140,20 +140,21 @@ boards/{boardId}
   labels:  [ { id, name, color } ]               # embedded: per-board, small
   memberUids: [uid, …]                           # for `array-contains` queries
 
-boards/{boardId}/cards/{cardId}
+cards/{cardId}                                   # TOP-LEVEL collection; keyed to a board by a FIELD
+  boardId                                        # which board this card is on — client-supplied, rule-validated, changed by a cross-board move
   title, description                             # plain text
   columnId, rank: string
-  assigneeUids: [uid, …]                         # MUST be board members (rule-enforced)
+  assigneeUids: [uid, …]                         # MUST be members of boardId's board (rule-enforced)
   dueDate?: string                               # 'YYYY-MM-DD' — an all-day date, NOT a timestamp
   priority: none|low|med|high|urgent
   labelIds: [id, …], archived: bool, archivedAt?
   commentCount                                   # denormalized for the card face
   createdAt/By, updatedAt/By
 
-boards/{boardId}/cards/{cardId}/comments/{commentId}
+cards/{cardId}/comments/{commentId}              # under the CARD, so they travel with a move
   authorUid, body, mentionUids: [uid, …], createdAt, editedAt?
 
-boards/{boardId}/cards/{cardId}/activity/{activityId}
+cards/{cardId}/activity/{activityId}
   type: created|moved|assigned|unassigned|due|priority|labels|edited|archived
   actorUid, at, from?, to?
   # Written ONLY by a Firestore trigger. Clients have no write access at all,
@@ -163,9 +164,14 @@ boards/{boardId}/cards/{cardId}/activity/{activityId}
 No Cloud Storage bucket, no `storage` section in `firebase.json`, no storage
 rules — attachments are out.
 
-**Why cards are a subcollection of the board:** every query the app makes is
-board-scoped ("cards in this board, this column, by rank"), and it lets the rules
-resolve permission from exactly one parent `get()`.
+**Why cards are a TOP-LEVEL collection (a `boardId` field, not a subcollection of
+the board):** it makes a cross-board MOVE a single `boardId` update — comments and
+activity ride along under the same card doc — instead of delete-from-A +
+recreate-in-B. That lets any board MEMBER move a card (a move is an edit, not a
+delete) and turns "My Work" into a plain collection query. The rules resolve each
+card's board FROM its `boardId` and check membership there; `boardId` is
+mutable-but-constrained — a move may change it, but only to a board the caller is a
+member of, with a column and assignees valid for that board.
 
 Note that `memberRoles` from the earlier draft is **gone** — with org-wide roles,
 `memberUids` alone is enough.
@@ -195,24 +201,25 @@ concept in the app.
 ## Cross-board "My Work"
 
 This is the phone's default landing screen and the main reason the app beats
-opening five boards in turn. It is a **Firestore collection-group query**:
+opening five boards in turn. Since cards are a top-level collection, it is a plain
+**Firestore collection query**:
 
 ```ts
-collectionGroup('cards')
+collection('cards')
   .where('assigneeUids', 'array-contains', uid)
-  .where('archived', '==', false)
-  .orderBy('dueDate')
+// `archived` is filtered client-side, so this needs only the automatic
+// single-field array-contains index — no composite index at all.
 ```
 
-Two things follow, and both are why this had to be decided before Phase 2 rather
-than bolted on later:
+Two things follow, and both are why this had to be decided before the card model
+was settled rather than bolted on later:
 
-**1. Assignees must be board members (rules-enforced).** A collection-group query
-cannot cheaply consult each card's parent board to check membership, so the read
-rule keys on the card itself: you may read a card if you are in its
-`assigneeUids`. That is only coherent if assignment implies membership — so a
-write adding someone to `assigneeUids` is rejected unless they are in the parent
-board's `memberUids`.
+**1. Assignees must be board members (rules-enforced).** The read rule's assignee
+arm keys on the card itself — you may read a card if you are in its `assigneeUids`
+— so the My Work query needs no parent-board lookup at all. That is only coherent
+if assignment implies membership, so a write adding someone to `assigneeUids` is
+rejected unless they are in that card's board's `memberUids` (the rule resolves the
+board from the card's `boardId`).
 
 This constraint pays for itself twice. It also means **every board named in My
 Work is already a board the user belongs to**, so the client has all the board
@@ -225,9 +232,12 @@ therefore a **callable**, not a raw client write: it removes the uid from
 `memberUids` and strips it from every card's `assigneeUids` in one batch, and the
 UI warns how many cards will be unassigned.
 
-Required composite index: collection group `cards` on
-`(archived, assigneeUids array-contains, dueDate)`. The emulator will not enforce
-this — verify in production (see `docs/INHERITED-STACK.md`, lesson 6).
+Required indexes (all COLLECTION scope on the top-level `cards`): `(boardId,
+archived, rank)` for the board view, `(boardId, assigneeUids array-contains)` for
+board-member removal, and `(archived, dueDate)` for the due-soon sweep. My Work
+itself needs only the automatic single-field `assigneeUids` array-contains index.
+The emulator does not enforce composite indexes — verify in production (see
+`docs/INHERITED-STACK.md`, lesson 6, and `scripts/probe-indexes.mjs`).
 
 ## Why plain text (2026-07-20)
 

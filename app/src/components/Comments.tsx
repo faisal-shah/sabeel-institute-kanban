@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, type TextInput } from 'react-native';
 import {
+  COMMENT_BODY_MAX,
   activeMentionQuery,
   completeMention,
   handleFor,
@@ -126,10 +127,16 @@ export function Comments({
 
             {editing === c.id ? (
               <>
-                <TextField value={editDraft} onChangeText={setEditDraft} multiline />
+                <TextField
+                  value={editDraft}
+                  onChangeText={setEditDraft}
+                  multiline
+                  maxLength={COMMENT_BODY_MAX}
+                />
                 <Row>
                   <Button
-          busy={busy}
+                    busy={busy}
+                    disabled={editDraft.trim().length === 0 || busy}
                     label="Save"
                     onPress={() =>
                       run(async () => {
@@ -171,6 +178,7 @@ export function Comments({
           onChangeText={setDraft}
           placeholder="Add a comment — @ to mention someone"
           multiline
+          maxLength={COMMENT_BODY_MAX}
         />
 
         {suggestions.length > 0 ? (

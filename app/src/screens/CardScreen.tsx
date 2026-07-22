@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ORG_TIMEZONE, type Priority } from '@sabeel/shared';
+import { CARD_TITLE_MAX, ORG_TIMEZONE, type Priority } from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -117,7 +117,11 @@ export function CardScreen({
 
       <Panel>
         <Hint>Title</Hint>
-        <TextField value={title} onChangeText={(v) => { setTitle(v); setDirty(true); }} />
+        <TextField
+          value={title}
+          onChangeText={(v) => { setTitle(v); setDirty(true); }}
+          maxLength={CARD_TITLE_MAX}
+        />
         {/* Only once the title actually differs. A permanently visible
             full-width button that is disabled 99% of the time is pure cost: it
             takes a row on every card, and a control you can never press teaches

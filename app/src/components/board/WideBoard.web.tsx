@@ -28,7 +28,7 @@ import { useSelection } from '../../useSelection';
 import { createAutoScroller } from './autoScroll';
 import { BulkBar } from '../BulkBar';
 import { IconAction } from '../ui';
-import { columnsPatch, type BoardColumn } from '@sabeel/shared';
+import { CARD_TITLE_MAX, columnsPatch, type BoardColumn } from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import { useListenerError } from '../../liveQuery';
@@ -526,6 +526,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                     autoFocus
                     value={newTitle}
                     placeholder="Card title"
+                    maxLength={CARD_TITLE_MAX}
                     onChange={(e) => setNewTitle(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') void addCard(col.id);

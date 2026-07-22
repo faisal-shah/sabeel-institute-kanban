@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { columnsPatch, compareRank, type BoardColumn } from '@sabeel/shared';
+import { CARD_TITLE_MAX, columnsPatch, compareRank, type BoardColumn } from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -233,6 +233,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                     onChangeText={setNewTitle}
                     placeholder="Card title"
                     autoFocus
+                    maxLength={CARD_TITLE_MAX}
                     onSubmit={() => addCard(col.id)}
                   />
                   <Row>

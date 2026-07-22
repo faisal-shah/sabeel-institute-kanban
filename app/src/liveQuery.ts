@@ -88,6 +88,16 @@ function cachedState<T>(key: string): LiveState<T> {
     : { status: 'ready', data: hit as T, error: undefined };
 }
 
+/**
+ * Drop every cached result. Called on sign-out: the cache is keyed by query
+ * shape (e.g. boardId), not by user, so on a SHARED device the next person to
+ * sign in could otherwise see a one-frame flash of the previous user's board
+ * before their own listeners deliver.
+ */
+export function clearLiveResultCache(): void {
+  lastResults.clear();
+}
+
 // ---- Listener-error visibility -------------------------------------------
 // Errors are broadcast so a screen-level banner can show them. A later success
 // from the same source clears it.

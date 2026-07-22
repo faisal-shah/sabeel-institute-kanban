@@ -101,10 +101,11 @@ export default tseslint.config(
     },
   },
   {
-    // Light and dark ship together (docs/PRODUCT_BRIEF.md, "Theming"). Every
-    // color must come from a semantic theme token, so a hardcoded literal is an
-    // error everywhere except the token module that defines them. Retrofitting
-    // dark mode across screens that hardcode colors is the job this prevents.
+    // Every color must come from a semantic theme token, so a hardcoded literal
+    // is an error everywhere except the token module that defines them. The app
+    // is a single light theme (dark mode was removed 2026-07-21), but routing all
+    // color through tokens is what keeps the palette coherent and changeable from
+    // one place — and it caught the legibility bugs the colour-scheme pass found.
     files: ['app/src/**/*.{ts,tsx}'],
     ignores: ['app/src/theme/**'],
     rules: {
@@ -114,12 +115,12 @@ export default tseslint.config(
           selector:
             "Literal[value=/^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
           message:
-            'Hardcoded color. Use a semantic token from src/theme (e.g. t.bg.surface, t.text.muted) so light and dark both work.',
+            'Hardcoded color. Use a semantic token from src/theme (e.g. t.bg.surface, t.text.muted) so the palette stays in one place.',
         },
         {
           selector: "Literal[value=/^(?:rgb|rgba|hsl|hsla)\\(/]",
           message:
-            'Hardcoded color. Use a semantic token from src/theme so light and dark both work.',
+            'Hardcoded color. Use a semantic token from src/theme so the palette stays in one place.',
         },
       ],
     },

@@ -25,7 +25,25 @@ const DRY = process.argv.includes('--dry');
 const VERIFY_ONLY = process.argv.includes('--verify-only');
 const PURGE = process.argv.includes('--purge');
 
-initializeApp({ projectId: process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT });
+// Require the target project explicitly and announce it, so a copy/purge can
+// never silently run against whatever project gcloud ADC points at (production
+// on a dev machine). Mirrors scripts/grant-admin.mjs.
+const projectId = process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT;
+if (!projectId) {
+  console.error(
+    'Set GCLOUD_PROJECT (demo-sabeel-kanban for the emulators, or the real ' +
+      'project id for production) before running this migration.',
+  );
+  process.exit(1);
+}
+const usingEmulators = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+console.log(
+  `Migration against project ${projectId}` +
+    `${usingEmulators ? ' (EMULATORS)' : ' (PRODUCTION)'}` +
+    `${DRY ? ' — DRY RUN' : ''}\n`,
+);
+
+initializeApp({ projectId });
 const db = getFirestore();
 
 const SUBS = ['comments', 'activity'];

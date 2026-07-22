@@ -26,7 +26,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { columnsPatch, type BoardColumn } from '@sabeel/shared';
+import { CARD_TITLE_MAX, columnsPatch, type BoardColumn } from '@sabeel/shared';
 import {
   cardsInColumn,
   createCard,
@@ -361,6 +361,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                       onChangeText={setNewTitle}
                       placeholder="Card title"
                       autoFocus
+                      maxLength={CARD_TITLE_MAX}
                       onSubmit={() => addCard(col.id)}
                     />
                     <Row>

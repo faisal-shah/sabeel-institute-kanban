@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
+  BOARD_NAME_MAX,
   LABEL_COLORS,
   columnsPatch,
   localId,
@@ -378,7 +379,12 @@ function BoardNameEditor({
   const [name, setName] = useState(initial);
   return (
     <>
-      <TextField value={name} onChangeText={setName} placeholder="Board name" />
+      <TextField
+        value={name}
+        onChangeText={setName}
+        placeholder="Board name"
+        maxLength={BOARD_NAME_MAX}
+      />
       <Button
         label="Save name"
         onPress={() => onSave(name)}
