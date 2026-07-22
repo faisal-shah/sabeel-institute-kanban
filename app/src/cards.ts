@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -95,6 +96,21 @@ export function useCard(cardId: string) {
 
 export function cardsInColumn(cards: readonly Card[], columnId: string): Card[] {
   return cards.filter((c) => c.columnId === columnId).sort(compareRank);
+}
+
+/**
+ * Read a card once to find which board it lives on — for opening a shared link,
+ * where we hold only the (board-stable) card id. Returns null when the card is
+ * gone OR unreadable: a non-member's read is denied by the rules, and to them a
+ * card they cannot see is indistinguishable from one that no longer exists.
+ */
+export async function findCardBoard(cardId: string): Promise<string | null> {
+  try {
+    const snap = await getDoc(cardRef(cardId));
+    return snap.exists() ? ((snap.data().boardId as string | undefined) ?? null) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function createCard(params: {

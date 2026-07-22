@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   CARD_DESCRIPTION_MAX,
@@ -20,6 +20,8 @@ import {
 import { useBoard } from '../boards';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
+import { shareLink, WEB_ORIGIN } from '../share';
+import { cardPath } from '../links';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
 import { AssigneePicker } from '../components/AssigneePicker';
@@ -39,7 +41,7 @@ import {
   TextField,
   Title,
 } from '../components/ui';
-import { radius, space, useTheme } from '../theme';
+import { radius, space, type, useTheme } from '../theme';
 import { useAction } from '../useAction';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
@@ -74,6 +76,7 @@ export function CardScreen({
   const [editingDesc, setEditingDesc] = useState(false);
   const { run, busy, error } = useAction('card');
   const [dirty, setDirty] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
 
   // Seed the local editors once the card arrives, but never stomp on typing.
   useEffect(() => {
@@ -107,11 +110,44 @@ export function CardScreen({
   // who they can assign.
   const assignable = b.members;
 
+  // Share an https link to this card. The receiver opens it — desktop lands in
+  // the web app, a phone opens the browser (or, once App Links ship, the app) —
+  // and the link resolves the card's board live, so it survives a cross-board
+  // move. The link is built from the card id, never from the address bar.
+  const onShare = async () => {
+    const result = await shareLink(`${WEB_ORIGIN}${cardPath(cardId)}`, c.title);
+    if (result === 'copied') {
+      setShareNote('Link copied');
+      setTimeout(() => setShareNote(null), 2200);
+    }
+  };
+
   return (
     <Screen width="read">
       <Row style={styles.between}>
-        <Title>Card</Title>
-        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        <View style={styles.crumbCol}>
+          {/* Which board this card lives on — and a one-tap way back to it.
+              Cards are top-level docs, so without this the detail view gives no
+              hint of its board. Accent-coloured because it navigates. */}
+          <Pressable
+            onPress={() => nav.push({ name: 'board', boardId })}
+            accessibilityRole="link"
+            accessibilityLabel={`Open board ${b.name}`}
+            hitSlop={8}
+            style={styles.crumb}
+          >
+            <MaterialIcons name="dashboard" size={13} color={t.accent.base} />
+            <Text style={[type.caption, { color: t.accent.base }]} numberOfLines={1}>
+              {b.name}
+            </Text>
+          </Pressable>
+          <Title>Card</Title>
+        </View>
+        <View style={styles.headerActions}>
+          {shareNote ? <Caption>{shareNote}</Caption> : null}
+          <IconAction icon="share" label="Share card" onPress={onShare} />
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        </View>
       </Row>
 
       {error ? (
@@ -400,6 +436,9 @@ export function CardScreen({
 
 const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
+  crumbCol: { flex: 1, gap: space.xs },
+  crumb: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   grow: { flex: 1, gap: space.xs },
   wrap: { flexWrap: 'wrap' },
   chip: {

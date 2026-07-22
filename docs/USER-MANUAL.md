@@ -104,6 +104,17 @@ Open a card for the full view:
 - **Activity** — who changed what, and when. Written by the system, so it cannot
   be edited by anyone.
 
+### Sharing a card
+
+The top of every card shows **which board it's on** — tap it to jump straight to
+that board. Beside the back arrow is a **Share** button. It hands the card's link
+to your phone's share sheet — WhatsApp, Google Chat, a text, whatever you use — or,
+on a computer, copies the link to paste anywhere.
+
+Whoever opens the link lands directly on that card, as long as they're signed in
+and a member of its board. If they aren't a member, or the card has been deleted,
+the link says so instead of opening a blank screen.
+
 ### Moving cards
 
 **In a browser**, drag a card between columns.

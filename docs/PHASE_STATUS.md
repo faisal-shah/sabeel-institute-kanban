@@ -341,6 +341,30 @@ the team.
 
 ## Deploy log
 
+### 2026-07-22 — Share a card + board breadcrumb — v0.1.15
+
+Client-only (no rules/functions/index change):
+
+- **Board breadcrumb** on the card view — cards are top-level docs, so the detail
+  screen previously never named its board. Now a tappable accent breadcrumb at
+  the top shows the board and jumps to it.
+- **Share a card** (v1): a Share button on the card view hands an `https://…/c/{cardId}`
+  link to the native share sheet (Android) or the Web Share API / clipboard (web).
+  Opening the link resolves the card's board **live** (`findCardBoard`) and opens
+  the card — the link is `/c/{cardId}` alone, with no board baked in, so it
+  survives a cross-board move (which reuses the same card id). A non-member or a
+  deleted card gets a plain "unavailable" notice, not a blank screen. New platform
+  seams: `links.ts`, `deeplink.ts(.web)`, `share.ts(.web)`, `alert.ts(.web)`,
+  `pendingLink.ts`, `useDeepLinks.ts`.
+- **Deferred to v2** (needs the release keystore's SHA-256 → `assetlinks.json`):
+  Android **App Links** so a phone opens the link in the installed app instead of
+  the browser. v1 opens the web app in the browser on a phone — fully functional.
+  See TODO.md § F (release signing) — the two share the signing fingerprint.
+
+Verified: lint + typecheck clean; link parser proven against URL/path/query cases;
+authenticated web tour (desktop + phone) — breadcrumb renders, Share copies the
+correct `/c/{id}` link, and loading `/c/{id}` fresh resolves + opens the right card.
+
 ### 2026-07-22 — Production-readiness hardening — v0.1.14
 
 Shipped the two-phase hardening pass (see the commits "Production-readiness
