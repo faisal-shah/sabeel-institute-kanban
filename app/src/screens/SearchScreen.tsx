@@ -15,6 +15,7 @@ import {
   Body,
   Button,
   Caption,
+  CardGrid,
   Card as Panel,
   Heading,
   Row,
@@ -23,7 +24,7 @@ import {
   TextField,
   Title,
 } from '../components/ui';
-import { radius, useTheme } from '../theme';
+import { radius, space, useTheme } from '../theme';
 
 /**
  * Search across every board you belong to.
@@ -112,28 +113,30 @@ export function SearchScreen({ user }: { user: SessionUser }) {
   }, [cards, text, includeArchived]);
 
   return (
-    <Screen>
-      <Row style={styles.between}>
-        <Title>Search</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
-      </Row>
+    <Screen width="list">
+      {/* No Back button: Search is a tab root reached from the nav bar. */}
+      <Title>Search</Title>
 
-      <TextField
-        value={text}
-        onChangeText={setText}
-        placeholder="Search cards across your boards"
-        autoFocus
-      />
-      <Row>
-        <Button
-          label={includeArchived ? 'Including archived' : 'Excluding archived'}
-          variant="secondary"
-          onPress={() => setIncludeArchived((v) => !v)}
+      {/* The search box and its toggle are a form: keep them a comfortable width
+          rather than stretched across the results grid. */}
+      <View style={styles.searchBar}>
+        <TextField
+          value={text}
+          onChangeText={setText}
+          placeholder="Search cards across your boards"
+          autoFocus
         />
-      </Row>
+        <Row>
+          <Button
+            label={includeArchived ? 'Including archived' : 'Excluding archived'}
+            variant="secondary"
+            onPress={() => setIncludeArchived((v) => !v)}
+          />
+        </Row>
+      </View>
 
       {error ? (
-        <Panel>
+        <Panel style={styles.searchBar}>
           <Body>{error}</Body>
         </Panel>
       ) : null}
@@ -155,29 +158,31 @@ export function SearchScreen({ user }: { user: SessionUser }) {
         </Heading>
       ) : null}
 
-      {results.map((c) => (
-        <Pressable
-          key={`${c.boardId}/${c.id}`}
-          accessibilityRole="button"
-          accessibilityLabel={c.title}
-          onPress={() => nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })}
-        >
-          <Panel>
-            <Body>{c.title}</Body>
-            <Row>
-              <View style={[styles.dot, { backgroundColor: t.priority[c.priority] }]} />
-              <Caption>{boardNames.get(c.boardId) ?? 'a board'}</Caption>
-              {c.archived ? <Caption>· archived</Caption> : null}
-              {c.dueDate ? <Caption>· due {c.dueDate}</Caption> : null}
-            </Row>
-          </Panel>
-        </Pressable>
-      ))}
+      <CardGrid>
+        {results.map((c) => (
+          <Pressable
+            key={`${c.boardId}/${c.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={c.title}
+            onPress={() => nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })}
+          >
+            <Panel>
+              <Body>{c.title}</Body>
+              <Row>
+                <View style={[styles.dot, { backgroundColor: t.priority[c.priority] }]} />
+                <Caption>{boardNames.get(c.boardId) ?? 'a board'}</Caption>
+                {c.archived ? <Caption>· archived</Caption> : null}
+                {c.dueDate ? <Caption>· due {c.dueDate}</Caption> : null}
+              </Row>
+            </Panel>
+          </Pressable>
+        ))}
+      </CardGrid>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  between: { justifyContent: 'space-between' },
+  searchBar: { maxWidth: 520, gap: space.sm },
   dot: { width: 10, height: 10, borderRadius: radius.pill },
 });

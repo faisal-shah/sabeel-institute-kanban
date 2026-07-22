@@ -72,7 +72,7 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
   const pending = sorted.filter((u) => u.status === 'pending');
 
   return (
-    <Screen>
+    <Screen width="read">
       <Row style={styles.between}>
         <Title>People</Title>
         <Button label="Back" variant="secondary" onPress={nav.pop} />

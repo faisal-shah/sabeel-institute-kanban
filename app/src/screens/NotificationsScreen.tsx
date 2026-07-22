@@ -72,17 +72,15 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const unread = items.filter((i) => !i.read).length;
 
   return (
-    <Screen>
+    <Screen width="read">
+      {/* No Back button: Alerts is a tab root reached from the nav bar. */}
       <Row style={styles.between}>
         <Title>Notifications</Title>
-        <Row>
-          <Button
-            label={showSettings ? 'Inbox' : 'Settings'}
-            variant="secondary"
-            onPress={() => setShowSettings((s) => !s)}
-          />
-          <Button label="Back" variant="secondary" onPress={nav.pop} />
-        </Row>
+        <Button
+          label={showSettings ? 'Inbox' : 'Settings'}
+          variant="secondary"
+          onPress={() => setShowSettings((s) => !s)}
+        />
       </Row>
 
       {error ? (

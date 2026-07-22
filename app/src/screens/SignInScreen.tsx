@@ -25,7 +25,7 @@ export function SignInScreen() {
   }
 
   return (
-    <Screen>
+    <Screen width="read">
       {/* A sign-in form has one job; stretching it across a monitor makes it
           harder to use, not grander. Capped narrower than the general content
           column. */}

@@ -62,7 +62,7 @@ export function BoardSettingsScreen({
   const b = board.data;
   if (!b) {
     return (
-      <Screen>
+      <Screen width="read">
         <Title>Board not found</Title>
         <Button label="Back" variant="secondary" onPress={nav.pop} />
       </Screen>
@@ -112,7 +112,7 @@ export function BoardSettingsScreen({
   );
 
   return (
-    <Screen>
+    <Screen width="read">
       <Row style={styles.between}>
         <Title>Board settings</Title>
         <Button label="Back" variant="secondary" onPress={nav.pop} />

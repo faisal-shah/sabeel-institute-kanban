@@ -7,8 +7,8 @@ import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
   Body,
-  Button,
   Caption,
+  CardGrid,
   Hint,
   Card as Panel,
   Heading,
@@ -49,17 +49,10 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
   const total = work.data?.length ?? 0;
 
   return (
-    <Screen>
-      <Row style={styles.between}>
-        <Title>My work</Title>
-        {/* Back, like every other screen. This used to be a "Boards" button
-            that RESET the stack — it happened to land in the right place
-            because My work is only ever pushed from Boards, but it read as a
-            different kind of control than the Back on every sibling screen, and
-            it would silently become wrong the moment My work is reachable from
-            anywhere else. `pop` no-ops at the root, so it is safe regardless. */}
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
-      </Row>
+    <Screen width="list">
+      {/* No Back button: My work is a tab root reached from the nav bar, never
+          pushed, so there is nothing to go back to. */}
+      <Title>My work</Title>
       <Hint>
         {total === 0
           ? 'Nothing is assigned to you right now.'
@@ -71,29 +64,31 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
           <Heading>
             {g.label} ({g.cards.length})
           </Heading>
-          {g.cards.map((c: MyWorkCard) => (
-            <Pressable
-              key={`${c.boardId}/${c.id}`}
-              accessibilityRole="button"
-              accessibilityLabel={c.title}
-              onPress={() =>
-                nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })
-              }
-            >
-              <Panel>
-                <Body>{c.title}</Body>
-                <Row>
-                  <View
-                    style={[styles.dot, { backgroundColor: t.priority[c.priority] }]}
-                  />
-                  <Caption>{boardNames.get(c.boardId) ?? 'a board'}</Caption>
-                  {c.dueDate ? (
-                    <Caption>· {describeDue(c.dueDate, today)}</Caption>
-                  ) : null}
-                </Row>
-              </Panel>
-            </Pressable>
-          ))}
+          <CardGrid>
+            {g.cards.map((c: MyWorkCard) => (
+              <Pressable
+                key={`${c.boardId}/${c.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={c.title}
+                onPress={() =>
+                  nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })
+                }
+              >
+                <Panel>
+                  <Body>{c.title}</Body>
+                  <Row>
+                    <View
+                      style={[styles.dot, { backgroundColor: t.priority[c.priority] }]}
+                    />
+                    <Caption>{boardNames.get(c.boardId) ?? 'a board'}</Caption>
+                    {c.dueDate ? (
+                      <Caption>· {describeDue(c.dueDate, today)}</Caption>
+                    ) : null}
+                  </Row>
+                </Panel>
+              </Pressable>
+            ))}
+          </CardGrid>
         </View>
       ))}
     </Screen>
@@ -101,6 +96,5 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
 }
 
 const styles = StyleSheet.create({
-  between: { justifyContent: 'space-between' },
   dot: { width: 10, height: 10, borderRadius: radius.pill },
 });

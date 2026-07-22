@@ -86,7 +86,7 @@ export function CardScreen({
   const b = board.data;
   if (!c || !b) {
     return (
-      <Screen>
+      <Screen width="read">
         <Title>Card not found</Title>
         <Hint>It may have been deleted.</Hint>
         <Button label="Back" onPress={nav.pop} />
@@ -103,7 +103,7 @@ export function CardScreen({
   const assignable = b.members;
 
   return (
-    <Screen>
+    <Screen width="read">
       <Row style={styles.between}>
         <Title>Card</Title>
         <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />

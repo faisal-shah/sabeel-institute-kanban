@@ -13,7 +13,7 @@ import { Body, Button, Card, Screen, Spinner, Title } from '../components/ui';
 
 export function ProvisioningScreen() {
   return (
-    <Screen scroll={false}>
+    <Screen scroll={false} width="read">
       <Spinner label="Setting up your account…" />
     </Screen>
   );
@@ -21,7 +21,7 @@ export function ProvisioningScreen() {
 
 export function PendingScreen({ user }: { user: SessionUser }) {
   return (
-    <Screen>
+    <Screen width="read">
       <Title>Waiting for approval</Title>
       <Card>
         <Body>
@@ -40,7 +40,7 @@ export function PendingScreen({ user }: { user: SessionUser }) {
 
 export function RejectedScreen({ user }: { user: SessionUser }) {
   return (
-    <Screen>
+    <Screen width="read">
       <Title>Access not granted</Title>
       <Card>
         <Body>
@@ -55,7 +55,7 @@ export function RejectedScreen({ user }: { user: SessionUser }) {
 
 export function DisabledScreen({ user }: { user: SessionUser }) {
   return (
-    <Screen>
+    <Screen width="read">
       <Title>Account disabled</Title>
       <Card>
         <Body>
@@ -71,7 +71,7 @@ export function DisabledScreen({ user }: { user: SessionUser }) {
 /** Shown when someone signs in with an address outside the Workspace. */
 export function WrongDomainScreen() {
   return (
-    <Screen>
+    <Screen width="read">
       <Title>Wrong account</Title>
       <Card>
         <Body>

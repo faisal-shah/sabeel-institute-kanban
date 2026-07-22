@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { sortBoardsForList } from '@sabeel/shared';
 import {
   createBoard,
@@ -17,6 +18,7 @@ import {
   Button,
   Caption,
   Card,
+  CardGrid,
   Heading,
   Row,
   Screen,
@@ -56,14 +58,10 @@ function BoardRow({
           accessibilityLabel={isFavourite ? `Unstar ${board.name}` : `Star ${board.name}`}
           hitSlop={10}
         >
-          <View
-            style={[
-              styles.star,
-              {
-                borderColor: isFavourite ? t.accent.base : t.border.strong,
-                backgroundColor: isFavourite ? t.accent.base : 'transparent',
-              },
-            ]}
+          <MaterialIcons
+            name={isFavourite ? 'star' : 'star-border'}
+            size={24}
+            color={isFavourite ? t.accent.base : t.text.muted}
           />
         </Pressable>
       </Row>
@@ -119,7 +117,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
     sections.favourites.length + sections.recents.length + sections.others.length > 0;
 
   return (
-    <Screen>
+    <Screen width="list">
       {/* Section actions (Search, My work, Alerts, People, Sign out) live in the
           app-wide nav bar now — bottom bar on a phone, left rail on wide. This
           screen keeps only its own title and the create-board control. */}
@@ -127,7 +125,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
       {sessionCan.manageBoards(user) ? (
         creating ? (
-          <Card>
+          <Card style={styles.form}>
             <Caption>New board</Caption>
             <TextInput
               value={newName}
@@ -163,7 +161,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       ) : null}
 
       {error ? (
-        <Card>
+        <Card style={styles.form}>
           <Body>{error}</Body>
         </Card>
       ) : null}
@@ -176,6 +174,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           placeholderTextColor={t.text.muted}
           style={[
             styles.input,
+            styles.form,
             {
               backgroundColor: t.bg.inset,
               color: t.text.primary,
@@ -186,7 +185,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       ) : null}
 
       {!hasAny ? (
-        <Card>
+        <Card style={styles.form}>
           <Body muted>
             {sessionCan.manageBoards(user)
               ? 'No boards yet. Create one to get started.'
@@ -198,30 +197,34 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       {sections.favourites.length > 0 ? (
         <>
           <Heading>Starred</Heading>
-          {sections.favourites.map((b) => (
-            <BoardRow
-              key={b.id}
-              board={b}
-              isFavourite
-              onOpen={() => open(b)}
-              onToggleFavourite={() => toggleFavourite(user, b.id, favourites)}
-            />
-          ))}
+          <CardGrid>
+            {sections.favourites.map((b) => (
+              <BoardRow
+                key={b.id}
+                board={b}
+                isFavourite
+                onOpen={() => open(b)}
+                onToggleFavourite={() => toggleFavourite(user, b.id, favourites)}
+              />
+            ))}
+          </CardGrid>
         </>
       ) : null}
 
       {sections.recents.length > 0 ? (
         <>
           <Heading>Recent</Heading>
-          {sections.recents.map((b) => (
-            <BoardRow
-              key={b.id}
-              board={b}
-              isFavourite={false}
-              onOpen={() => open(b)}
-              onToggleFavourite={() => toggleFavourite(user, b.id, favourites)}
-            />
-          ))}
+          <CardGrid>
+            {sections.recents.map((b) => (
+              <BoardRow
+                key={b.id}
+                board={b}
+                isFavourite={false}
+                onOpen={() => open(b)}
+                onToggleFavourite={() => toggleFavourite(user, b.id, favourites)}
+              />
+            ))}
+          </CardGrid>
         </>
       ) : null}
 
@@ -232,15 +235,17 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
               ? 'All boards'
               : 'Boards'}
           </Heading>
-          {sections.others.map((b) => (
-            <BoardRow
-              key={b.id}
-              board={b}
-              isFavourite={false}
-              onOpen={() => open(b)}
-              onToggleFavourite={() => toggleFavourite(user, b.id, favourites)}
-            />
-          ))}
+          <CardGrid>
+            {sections.others.map((b) => (
+              <BoardRow
+                key={b.id}
+                board={b}
+                isFavourite={false}
+                onOpen={() => open(b)}
+                onToggleFavourite={() => toggleFavourite(user, b.id, favourites)}
+              />
+            ))}
+          </CardGrid>
         </>
       ) : null}
 
@@ -287,15 +292,17 @@ function ArchivedBoards({
             Archived boards are hidden from everyone. Open one and use Restore in
             its settings to bring it back.
           </Caption>
-          {list.map((b) => (
-            <BoardRow
-              key={b.id}
-              board={b}
-              isFavourite={false}
-              onOpen={() => onOpen(b)}
-              onToggleFavourite={() => {}}
-            />
-          ))}
+          <CardGrid>
+            {list.map((b) => (
+              <BoardRow
+                key={b.id}
+                board={b}
+                isFavourite={false}
+                onOpen={() => onOpen(b)}
+                onToggleFavourite={() => {}}
+              />
+            ))}
+          </CardGrid>
         </>
       ) : null}
     </>
@@ -306,7 +313,8 @@ const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
   /** Wraps so no action can be pushed off a narrow screen. */
   grow: { flex: 1, gap: space.xs },
-  star: { width: 20, height: 20, borderRadius: radius.pill, borderWidth: 2 },
+  /** Forms and messages stay a readable width inside the wide board grid. */
+  form: { maxWidth: 520 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,

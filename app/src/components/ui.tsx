@@ -3,6 +3,7 @@
  * styling stays coherent and no screen ever needs a color literal.
  */
 import {
+  Children,
   createContext,
   forwardRef,
   useContext,
@@ -36,7 +37,13 @@ type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
  * be visible too.
  */
 const KEYBOARD_BOTTOM_OFFSET = 96;
-import { CONTENT_MAX_WIDTH, useLayout } from '../theme/layout';
+import {
+  CONTENT_MAX_WIDTH,
+  GRID_CARD_MIN_WIDTH,
+  LIST_MAX_WIDTH,
+  READ_MAX_WIDTH,
+  useLayout,
+} from '../theme/layout';
 import { useListenerError } from '../liveQuery';
 
 /**
@@ -58,11 +65,15 @@ export function Screen({
   children: ReactNode;
   scroll?: boolean;
   /**
-   * `content` caps and centres the column — forms, lists and card detail become
-   * unreadable when a button stretches across a 2560px monitor.
-   * `full` lets the screen use every pixel, which the board needs.
+   * How wide the content may grow on a WIDE screen (ignored on a phone, where the
+   * column is the whole screen). Capping-and-centring is what stops a phone-first
+   * layout from looking like a phone screen stretched sideways on a desktop:
+   *  - `read`    a narrow reading column — text, forms, card detail, settings.
+   *  - `content` the default mid column — simple pages.
+   *  - `list`    a wide column for card GRIDS that should fill a laptop/desktop.
+   *  - `full`    no cap — the board, which uses every pixel.
    */
-  width?: 'content' | 'full';
+  width?: 'read' | 'content' | 'list' | 'full';
 }) {
   const t = useTheme();
   const error = useListenerError();
@@ -70,9 +81,16 @@ export function Screen({
   const claimedEdges = useContext(NavClaimedEdgesContext);
   const edges = ALL_EDGES.filter((e) => !claimedEdges.includes(e));
 
-  // Only cap on wide screens: on a phone the content column IS the screen, and
-  // a maxWidth there would just add dead margin.
-  const capped = width === 'content' && isWide;
+  // Cap and centre on wide screens; on a phone the column IS the screen, so a
+  // maxWidth there would just add dead margin.
+  const maxWidth =
+    !isWide || width === 'full'
+      ? undefined
+      : width === 'read'
+        ? READ_MAX_WIDTH
+        : width === 'list'
+          ? LIST_MAX_WIDTH
+          : CONTENT_MAX_WIDTH;
 
   // `fill` when not scrolling is load-bearing, not decoration. This wrapper sits
   // between the flex:1 container and the screen's content, and a View with no
@@ -83,7 +101,7 @@ export function Screen({
   // react-native-web resolves the same tree differently, so web looked correct
   // throughout. Verified on a device 2026-07-19.
   const body = (
-    <View style={[!scroll && styles.fill, capped ? styles.capped : null]}>
+    <View style={[!scroll && styles.fill, maxWidth ? [styles.capped, { maxWidth }] : null]}>
       {/* Live-data errors are shown, never left to a console nobody reads. */}
       {error ? (
         <View style={[styles.banner, { backgroundColor: t.bg.dangerSoft }]}>
@@ -202,6 +220,27 @@ export function Card({
   );
 }
 
+/**
+ * A responsive grid for card-like list items (boards, search results). On a wide
+ * screen the cards flow into as many columns as fit (each ~GRID_CARD_MIN_WIDTH,
+ * capped so a lone card on the last row does not stretch); on a phone it is a
+ * single full-width column. Give it plain cards as children — it wraps each.
+ */
+export function CardGrid({ children }: { children: ReactNode }) {
+  const { isWide } = useLayout();
+  return (
+    <View style={styles.grid}>
+      {Children.map(children, (child) =>
+        child == null || child === false ? null : (
+          <View style={isWide ? styles.gridItemWide : styles.gridItemNarrow}>
+            {child}
+          </View>
+        ),
+      )}
+    </View>
+  );
+}
+
 export function Button({
   label,
   onPress,
@@ -216,6 +255,7 @@ export function Button({
   busy?: boolean;
 }) {
   const t = useTheme();
+  const { isWide } = useLayout();
   const bg =
     variant === 'primary'
       ? t.accent.base
@@ -233,6 +273,11 @@ export function Button({
       disabled={disabled || busy}
       style={({ pressed }) => [
         styles.button,
+        // Full-width is a good primary-action shape on a phone, but on a desktop
+        // it stretches into a bar; there, size to the label and sit left. In a
+        // Row the button is already content-width, so this only affects the
+        // stretched column-child case.
+        { alignSelf: isWide ? 'flex-start' : 'stretch' },
         { backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
       ]}
     >
@@ -408,13 +453,17 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },
-  /** Centred reading column on wide screens. */
+  /** Centred column on wide screens; the caller supplies the maxWidth. */
   capped: {
     width: '100%',
-    maxWidth: CONTENT_MAX_WIDTH,
     alignSelf: 'center',
     gap: space.sm,
   },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  // Grow to fill the row but stay near the target width so a lone last card
+  // does not stretch across the whole grid.
+  gridItemWide: { flexGrow: 1, flexBasis: GRID_CARD_MIN_WIDTH, maxWidth: 380 },
+  gridItemNarrow: { width: '100%' },
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,

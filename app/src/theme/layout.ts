@@ -31,6 +31,23 @@ export const WIDE_BREAKPOINT = 700;
 /** Where a single column of forms and lists stops being comfortable to read. */
 export const CONTENT_MAX_WIDTH = 840;
 
+/**
+ * A narrow column for text and forms (card detail, settings, sign-in). Long
+ * lines are tiring to read, and a form field or button stretched across a
+ * desktop looks like a phone screen someone pulled sideways. ~68 characters.
+ */
+export const READ_MAX_WIDTH = 640;
+
+/**
+ * The cap for card GRIDS (boards, search, my work). Wide enough to lay several
+ * cards across a laptop or desktop, capped so an ultra-wide monitor does not
+ * stretch the grid into one enormous row.
+ */
+export const LIST_MAX_WIDTH = 1160;
+
+/** Target width of one card in a responsive grid; the grid fits as many as it can. */
+export const GRID_CARD_MIN_WIDTH = 250;
+
 export interface Layout {
   width: number;
   height: number;
