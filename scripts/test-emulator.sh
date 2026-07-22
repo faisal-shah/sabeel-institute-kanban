@@ -20,11 +20,25 @@ fi
 # gets deployed, not the TypeScript sources.
 npm run build -w functions
 
-# `functions` is in the emulator set so the auth-create trigger and the
-# setUserAccess callable are tested for real, not just their extracted logic.
-# The domain rejection is a security boundary; asserting it against the actual
-# trigger is the point.
+# The integration suite runs in TWO passes against DIFFERENT emulator sets:
+#
+#  1. RULES tests (firestore only). They use rules-unit-testing + clearFirestore,
+#     and need no functions. Running them with NO functions emulator is the point:
+#     otherwise clearFirestore's mass-deletes fire onCardDeleted, whose async
+#     recursiveDelete can race a reused card id and delete a freshly-seeded card
+#     mid-test. No functions running → no such trigger → no flake. (concurrentMoves
+#     rides along here: it only writes cards via the Admin SDK and asserts ranking.)
+#
+#  2. FN tests (firestore + auth + functions). These exercise the auth-create
+#     trigger, the callables, and the notification/activity/cleanup triggers for
+#     real — the whole reason functions are in an emulator set at all. They use
+#     unique ids and never clearFirestore, so the trigger above cannot collide.
+firebase emulators:exec \
+  --project demo-sabeel-kanban \
+  --only firestore \
+  "npm run test:integration:rules -w functions"
+
 exec firebase emulators:exec \
   --project demo-sabeel-kanban \
   --only firestore,auth,functions \
-  "npm run test:integration -w functions"
+  "npm run test:integration:fn -w functions"

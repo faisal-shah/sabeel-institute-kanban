@@ -164,6 +164,15 @@ describe('writing comments', () => {
     }
   });
 
+  it('rejects an unknown field on the comment', async () => {
+    await assertFails(
+      setDoc(
+        doc(ctx('member1', 'member'), `${CARD}/comments/new3b`),
+        comment({ smuggled: 'x' }),
+      ),
+    );
+  });
+
   it('rejects mentioning someone who is not on the board', async () => {
     // A mention that notifies someone who cannot open the card is a dead end.
     await assertFails(

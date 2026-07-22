@@ -189,6 +189,15 @@ describe('creating a board', () => {
       );
     }
   });
+
+  it('rejects an unknown field on the board', async () => {
+    await assertFails(
+      setDoc(
+        doc(ctx('manager1', 'manager'), 'boards/new7'),
+        baseBoard({ createdBy: 'manager1', memberUids: ['manager1'], smuggled: 'x' }),
+      ),
+    );
+  });
 });
 
 describe('updating a board', () => {

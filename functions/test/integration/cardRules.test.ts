@@ -121,6 +121,9 @@ beforeEach(async () => {
       doc(db, 'cards/m2card'),
       card({ boardId: 'b2', columnId: 'x1', assigneeUids: ['member2'] }),
     );
+    // A card carrying a ClickUp `sourceId` — the key-set restriction must not
+    // make imported cards uneditable.
+    await setDoc(doc(db, 'cards/imported'), card({ sourceId: 'clickup-99' }));
   });
 });
 
@@ -266,6 +269,32 @@ describe('creating cards', () => {
       setDoc(doc(ctx('member1', 'member'), 'cards/new10'), card({ archived: true })),
     );
   });
+
+  it('rejects an unknown field on the card', async () => {
+    // No arbitrary keys: an approved member could otherwise pad a card with a
+    // large field that every board viewer then re-downloads.
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/new11'), card({ smuggled: 'x' })),
+    );
+  });
+
+  it('rejects an over-long description', async () => {
+    await assertFails(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/new12'),
+        card({ description: 'x'.repeat(20001) }),
+      ),
+    );
+  });
+
+  it('allows a card carrying a sourceId (ClickUp import shape)', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/new13'),
+        card({ sourceId: 'clickup-123' }),
+      ),
+    );
+  });
 });
 
 describe('updating cards (in-board)', () => {
@@ -328,6 +357,24 @@ describe('updating cards (in-board)', () => {
         title: 'Hijacked',
         updatedBy: 'stranger',
       }),
+    );
+  });
+
+  it('can move a card that carries a sourceId (imported cards stay editable)', async () => {
+    // The key-set restriction lists sourceId, or every imported card would become
+    // read-only the moment someone tried to move or edit it.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/imported'), {
+        ...card({ sourceId: 'clickup-99' }),
+        columnId: 'c2',
+        rank: 'W',
+      }),
+    );
+  });
+
+  it('rejects adding an unknown field on update', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), { ...card(), smuggled: 'x' }),
     );
   });
 });
@@ -416,6 +463,31 @@ describe('listing cards on a board', () => {
     await assertFails(
       getDocs(
         query(collection(ctx('member1', 'member'), 'cards'), where('boardId', '==', 'b2')),
+      ),
+    );
+  });
+
+  it('a member can list across their boards with a boardId in-query (Search)', async () => {
+    // The consolidated Search query. member1 is on both b1 and b3.
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(ctx('member1', 'member'), 'cards'),
+          where('boardId', 'in', ['b1', 'b3']),
+          where('archived', '==', false),
+        ),
+      ),
+    );
+  });
+
+  it('a member cannot in-query a board they are not on', async () => {
+    // b2 is not member1's, so the whole in-query must be refused.
+    await assertFails(
+      getDocs(
+        query(
+          collection(ctx('member1', 'member'), 'cards'),
+          where('boardId', 'in', ['b1', 'b2']),
+        ),
       ),
     );
   });

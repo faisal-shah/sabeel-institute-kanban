@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { CARD_TITLE_MAX, ORG_TIMEZONE, type Priority } from '@sabeel/shared';
+import {
+  CARD_DESCRIPTION_MAX,
+  CARD_TITLE_MAX,
+  ORG_TIMEZONE,
+  type Priority,
+} from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -198,6 +203,7 @@ export function CardScreen({
               }}
               placeholder="Write a description"
               multiline
+              maxLength={CARD_DESCRIPTION_MAX}
             />
             <Row>
               <Button

@@ -129,6 +129,8 @@ service cloud.firestore {
       // authorship and must include themselves, so a board can never be born
       // orphaned with no one able to see it.
       allow create: if isManager()
+        && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
+            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'createdAt', 'createdBy'])
         && incoming().createdBy == request.auth.uid
         && incoming().archived == false
         && incoming().memberUids is list
@@ -145,6 +147,8 @@ service cloud.firestore {
       // removing themselves, which would look like leaving but would strand
       // their card assignments (see the removeBoardMember callable).
       allow update: if isManager()
+        && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
+            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'createdAt', 'createdBy'])
         && incoming().createdBy == existing().createdBy
         && incoming().memberUids is list
         && incoming().columns is list
@@ -200,17 +204,32 @@ service cloud.firestore {
         return newCard().columnId in destBoard().columnIds;
       }
       function wellFormed() {
-        return newCard().boardId is string
+        // No unknown keys: a card may hold ONLY these fields (the CardDoc type in
+        // @sabeel/shared). Without this an approved member could bloat a card with
+        // an arbitrary field, and every board viewer re-downloads it. `sourceId`
+        // (ClickUp import) and `archivedAt` are legitimate optionals and MUST be
+        // listed, or writes to those cards would break.
+        return newCard().keys().hasOnly([
+            'boardId', 'title', 'description', 'columnId', 'rank', 'assigneeUids',
+            'dueDate', 'priority', 'labelIds', 'archived', 'archivedAt',
+            'commentCount', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy',
+            'sourceId',
+          ])
+          && newCard().boardId is string
           && newCard().title is string
           && newCard().title.size() > 0
           && newCard().title.size() <= 200
           && newCard().description is string
+          // Bounded so one paste cannot inflate a card toward the 1MB doc limit.
+          && newCard().description.size() <= 20000
           && newCard().rank is string
           && newCard().rank.size() > 0
           && newCard().archived is bool
           && newCard().labelIds is list
           && newCard().priority in ['none', 'low', 'medium', 'high', 'urgent']
           && (!('dueDate' in newCard()) || newCard().dueDate is string)
+          && (!('sourceId' in newCard())
+              || (newCard().sourceId is string && newCard().sourceId.size() <= 200))
           && columnExists()
           && assigneesAreMembers();
       }
@@ -269,6 +288,8 @@ service cloud.firestore {
       allow get, list: if onBoard();
 
       allow create: if onBoard()
+        // Only the known CommentDoc fields — no arbitrary padding.
+        && comment().keys().hasOnly(['authorUid', 'body', 'mentionUids', 'createdAt', 'editedAt'])
         // Authorship cannot be forged: you comment as yourself or not at all.
         && comment().authorUid == request.auth.uid
         && comment().body is string
@@ -282,6 +303,7 @@ service cloud.firestore {
       // Only the author edits — a manager rewriting someone's words under their
       // name would be worse than useless.
       allow update: if onBoard()
+        && comment().keys().hasOnly(['authorUid', 'body', 'mentionUids', 'createdAt', 'editedAt'])
         && resource.data.authorUid == request.auth.uid
         && comment().authorUid == resource.data.authorUid
         && comment().createdAt == resource.data.createdAt

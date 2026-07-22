@@ -9,6 +9,7 @@ export { setUserAccess } from './users';
 export { removeBoardMember, countMemberAssignments } from './boards';
 export { onCommentWritten } from './comments';
 export { onCardWritten } from './activity';
+export { onCardDeleted } from './cleanup';
 export {
   onCommentCreated,
   onCardNotify,

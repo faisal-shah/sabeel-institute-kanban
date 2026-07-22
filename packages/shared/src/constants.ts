@@ -37,3 +37,5 @@ export const MAX_RECENT_BOARDS = 10;
  */
 export const CARD_TITLE_MAX = 200;
 export const COMMENT_BODY_MAX = 5000;
+/** Generous, but bounded — a card is re-downloaded on every board-list snapshot. */
+export const CARD_DESCRIPTION_MAX = 20000;

@@ -59,8 +59,11 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     return m;
   }, [boards.data]);
 
-  // Load card metadata for the user's boards once, then filter in memory as
-  // they type — refetching per keystroke would be pointless traffic.
+  // Load card metadata for the user's boards, then filter in memory as they
+  // type — refetching per keystroke would be pointless traffic. This used to be
+  // ONE query per board; consolidating to a `boardId in [...]` query cuts it to a
+  // handful of round trips, and archived cards are dropped server-side unless the
+  // toggle asks for them, instead of fetching every card ever and filtering.
   useEffect(() => {
     let cancelled = false;
     const ids = boardIds ? boardIds.split(',') : [];
@@ -70,12 +73,19 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     }
 
     setLoading(true);
+    // Firestore `in` takes at most 30 values, so chunk — still far fewer queries
+    // than one per board. Uses the (boardId, archived, rank) index's prefix.
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+
     Promise.all(
-      ids.map((boardId) =>
-        getDocs(query(collection(db, 'cards'), where('boardId', '==', boardId))).then((snap) =>
+      chunks.map((chunk) => {
+        const filters = [where('boardId', 'in', chunk)];
+        if (!includeArchived) filters.push(where('archived', '==', false));
+        return getDocs(query(collection(db, 'cards'), ...filters)).then((snap) =>
           snap.docs.map<SearchableCard>((d) => ({
             id: d.id,
-            boardId,
+            boardId: (d.data().boardId as string) ?? '',
             title: (d.data().title as string) ?? '',
             description: (d.data().description as string) ?? '',
             columnId: (d.data().columnId as string) ?? '',
@@ -85,8 +95,8 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             dueDate: d.data().dueDate as string | undefined,
             archived: Boolean(d.data().archived),
           })),
-        ),
-      ),
+        );
+      }),
     )
       .then((per) => {
         if (!cancelled) setCards(per.flat());
@@ -101,7 +111,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     return () => {
       cancelled = true;
     };
-  }, [boardIds]);
+  }, [boardIds, includeArchived]);
 
   const results = useMemo(() => {
     if (!cards || text.trim().length === 0) return [];

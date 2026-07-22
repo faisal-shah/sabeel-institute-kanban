@@ -64,7 +64,14 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
     [`memberProfiles.${uid}`]: FieldValue.delete(),
   });
   for (const card of assigned.docs) {
-    batch.update(card.ref, { assigneeUids: FieldValue.arrayRemove(uid) });
+    batch.update(card.ref, {
+      assigneeUids: FieldValue.arrayRemove(uid),
+      // Attribute the resulting `unassigned` activity entry to the manager who
+      // ran the removal. Without this, onCardWritten reads the card's existing
+      // `updatedBy` — whoever last edited it — and the log names the wrong actor.
+      updatedBy: auth.uid,
+      updatedAt: Date.now(),
+    });
   }
   await batch.commit();
 
