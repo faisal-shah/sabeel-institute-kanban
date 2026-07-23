@@ -59,6 +59,9 @@ export function SignInScreen() {
           onPress={() => run(signInWithGoogle)}
           busy={busy}
           disabled={!googleSignInAvailable && !devSignInAvailable}
+          // The sign-in screen is the exception to content-width buttons on wide:
+          // its single primary action reads better spanning the card.
+          block
         />
         <Caption>
           New accounts need an administrator&rsquo;s approval before you can use

@@ -247,12 +247,16 @@ export function Button({
   variant = 'primary',
   disabled,
   busy,
+  block,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
   busy?: boolean;
+  /** Force full width even on wide screens. For the rare screen whose primary
+   *  action should span its container — e.g. the sign-in screen. */
+  block?: boolean;
 }) {
   const t = useTheme();
   const { isWide } = useLayout();
@@ -276,8 +280,9 @@ export function Button({
         // Full-width is a good primary-action shape on a phone, but on a desktop
         // it stretches into a bar; there, size to the label and sit left. In a
         // Row the button is already content-width, so this only affects the
-        // stretched column-child case.
-        { alignSelf: isWide ? 'flex-start' : 'stretch' },
+        // stretched column-child case. `block` opts back into full width for the
+        // rare screen (sign-in) whose action should span its container.
+        { alignSelf: block || !isWide ? 'stretch' : 'flex-start' },
         { backgroundColor: bg, opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
       ]}
     >
