@@ -33,6 +33,7 @@ import {
   TextField,
   Title,
 } from '../components/ui';
+import { ReorderList } from '../components/ReorderList';
 import { radius, space, useTheme } from '../theme';
 import { useAction } from '../useAction';
 
@@ -132,39 +133,15 @@ export function BoardSettingsScreen({
 
       <Heading>Columns</Heading>
       <Card>
-        {b.columns.map((c, i) => (
-          <Row key={c.id} style={styles.between}>
-            <Body>{c.name}</Body>
-            <Row>
-              <Button
-          busy={busy}
-                label="↑"
-                variant="secondary"
-                disabled={i === 0}
-                onPress={() =>
-                  run(() => {
-                    const next = [...b.columns];
-                    [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                    return updateBoard(boardId, columnsPatch(next));
-                  })
-                }
-              />
-              <Button
-          busy={busy}
-                label="↓"
-                variant="secondary"
-                disabled={i === b.columns.length - 1}
-                onPress={() =>
-                  run(() => {
-                    const next = [...b.columns];
-                    [next[i + 1], next[i]] = [next[i], next[i + 1]];
-                    return updateBoard(boardId, columnsPatch(next));
-                  })
-                }
-              />
-            </Row>
-          </Row>
-        ))}
+        {/* Drag the handle to reorder. One document write per drop
+            (columnsPatch keeps columns/columnIds in sync — never a bare
+            `columns` write, or card rules reject the new column). */}
+        <ReorderList
+          items={b.columns}
+          keyOf={(c) => c.id}
+          renderItem={(c) => <Body>{c.name}</Body>}
+          onReorder={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
+        />
         <Hint>
           Columns are removed from the board screen, and only once they are
           empty — so no cards can vanish with them.
