@@ -341,6 +341,20 @@ the team.
 
 ## Deploy log
 
+### 2026-07-23 — Reorder handle, build stamp, sign-in button — v0.1.16
+
+Client-only:
+
+- **Board columns reorder by drag handle**, not ↑/↓ buttons. New `ReorderList`
+  (HTML5 drag on web, hand-rolled PanResponder on native — no gesture library).
+  Columns is the only button-reordered list. Verified on **both** web and native
+  (handle renders, drag reorders, one `columnsPatch` write per drop, persists).
+- **Sign-in screen stamps the running build** — `v<version> · <commit>` footer,
+  injected at build time by `scripts/gen-build-info.mjs` (wired into `prepare`,
+  `web:export`, and `build:apk`). Durable requirement.
+- **Sign-in button spans its card** — `Button` gained a `block` prop; the one
+  screen that's the exception to content-width-on-wide.
+
 ### 2026-07-22 — Share a card + board breadcrumb — v0.1.15
 
 Client-only (no rules/functions/index change):
