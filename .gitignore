@@ -37,3 +37,4 @@ functions/.secret.local
 
 # Kotlin compiler session files from Gradle builds
 app/android/.kotlin/
+app/src/build-info.ts

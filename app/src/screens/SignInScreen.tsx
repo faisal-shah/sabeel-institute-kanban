@@ -7,6 +7,7 @@ import { Body, Button, Caption, Card, Row, Screen, Title } from '../components/u
 import { radius, space } from '../theme';
 import sabeelLogo from '../../assets/brand/sabeel-logo.png';
 import { toUserMessage } from '../errors';
+import { BUILD_INFO } from '../build-info';
 
 export function SignInScreen() {
   const [busy, setBusy] = useState(false);
@@ -96,6 +97,15 @@ export function SignInScreen() {
           </Caption>
         </Card>
       ) : null}
+
+      {/* Which build is running — so "what version are you on?" is answerable
+          from the screen everyone sees. Injected at build time by
+          scripts/gen-build-info.mjs. */}
+      <View style={styles.build}>
+        <Caption>
+          v{BUILD_INFO.version} &middot; {BUILD_INFO.commit}
+        </Caption>
+      </View>
       </View>
     </Screen>
   );
@@ -113,4 +123,5 @@ const styles = StyleSheet.create({
   },
   logo: { width: 260, height: 130 },
   wrap: { flexWrap: 'wrap' },
+  build: { marginTop: space.lg, alignItems: 'center' },
 });

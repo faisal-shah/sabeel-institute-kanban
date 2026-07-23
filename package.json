@@ -12,7 +12,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "prepare": "npm run build -w @sabeel/shared",
+    "prepare": "npm run build -w @sabeel/shared && node scripts/gen-build-info.mjs",
     "lint": "eslint .",
     "pretypecheck": "npm run build -w @sabeel/shared",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -24,6 +24,7 @@
     "emulators": "bash scripts/emulators.sh",
     "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 8086",
     "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android",
+    "build:apk": "node scripts/gen-build-info.mjs && cd app/android && ./gradlew assembleRelease --no-daemon",
     "grant-admin": "bash scripts/grant-admin.sh",
     "seed": "node scripts/seed-dev.mjs",
     "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs",
