@@ -56,6 +56,8 @@ export function newBoard(params: {
     memberProfiles: params.createdByProfile
       ? { [params.createdBy]: params.createdByProfile }
       : {},
+    // A fresh board has no cards; the onCardBoardCount trigger takes it from here.
+    activeCardCount: 0,
     createdAt: params.now,
     createdBy: params.createdBy,
   };

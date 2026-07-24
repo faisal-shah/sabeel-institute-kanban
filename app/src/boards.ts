@@ -41,6 +41,8 @@ export interface BoardListItem {
   members: BoardMemberProfile[];
   columns: BoardColumn[];
   labels: BoardLabel[];
+  /** Non-archived cards on the board (server-maintained; shown in the Boards list). */
+  activeCardCount: number;
 }
 
 function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
@@ -65,6 +67,7 @@ function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     columns: (data.columns as BoardColumn[]) ?? [],
     labels: (data.labels as BoardLabel[]) ?? [],
+    activeCardCount: (data.activeCardCount as number) ?? 0,
   };
 }
 

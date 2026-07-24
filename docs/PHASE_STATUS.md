@@ -341,6 +341,25 @@ the team.
 
 ## Deploy log
 
+### 2026-07-24 — Boards list shows active card count — v0.1.18
+
+The Boards list now shows **N cards · N members** per board (non-archived card
+count) instead of **N columns** — column count isn't useful there; the live card
+count is. Server + client:
+
+- **New `activeCardCount` on the board doc**, maintained by a new
+  `onCardBoardCount` trigger (functions) — the same denormalised-count pattern as
+  a card's `commentCount`. One delta covers create / archive / unarchive /
+  cross-board move / delete. `newBoard` seeds it to 0; `firestore.rules` allows
+  the key on board writes.
+- **Backfill** (`scripts/backfill-board-card-count.mjs`) recomputes the count for
+  boards that predate the trigger — run against prod at deploy.
+- Integration test (`boardCardCount.test.ts`) covers the whole lifecycle.
+
+Verified: emulator suite green (rules + triggers incl. the new one); web shows
+"6 cards · 1 member" after a seed. Deployed rules + functions, backfilled prod,
+then web + APK.
+
 ### 2026-07-24 — Card faces at a glance (badges + assignees) — v0.1.17
 
 Client-only. Replaces the bare priority color dot with a proper card face —

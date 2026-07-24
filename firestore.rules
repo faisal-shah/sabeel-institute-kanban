@@ -130,7 +130,8 @@ service cloud.firestore {
       // orphaned with no one able to see it.
       allow create: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
-            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'createdAt', 'createdBy'])
+            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'activeCardCount',
+            'createdAt', 'createdBy'])
         && incoming().createdBy == request.auth.uid
         && incoming().archived == false
         && incoming().memberUids is list
@@ -148,7 +149,8 @@ service cloud.firestore {
       // their card assignments (see the removeBoardMember callable).
       allow update: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
-            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'createdAt', 'createdBy'])
+            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'activeCardCount',
+            'createdAt', 'createdBy'])
         && incoming().createdBy == existing().createdBy
         && incoming().memberUids is list
         && incoming().columns is list

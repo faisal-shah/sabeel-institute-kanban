@@ -78,6 +78,13 @@ export interface BoardDoc {
    * clears both.
    */
   memberProfiles: Record<string, { displayName: string; email: string }>;
+  /**
+   * Number of non-archived cards on this board, denormalised so the Boards list
+   * can show it without counting cards per board per render. Server-maintained
+   * by the `onCardBoardCount` trigger — never written by a client (same trust
+   * model as a card's `commentCount`).
+   */
+  activeCardCount: number;
   createdAt: number;
   createdBy: string;
 }

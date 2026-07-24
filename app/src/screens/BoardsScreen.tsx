@@ -48,8 +48,8 @@ function BoardRow({
         <Pressable onPress={onOpen} style={styles.grow} accessibilityRole="button">
           <Body>{board.name}</Body>
           <Caption>
-            {board.columns.length} columns · {board.memberUids.length} member
-            {board.memberUids.length === 1 ? '' : 's'}
+            {board.activeCardCount} card{board.activeCardCount === 1 ? '' : 's'} ·{' '}
+            {board.memberUids.length} member{board.memberUids.length === 1 ? '' : 's'}
           </Caption>
         </Pressable>
         <Pressable
