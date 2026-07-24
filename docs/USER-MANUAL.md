@@ -91,9 +91,11 @@ A board is columns of cards. **In a browser** you see every column at once. **On
 phone** one column fills the screen — swipe left and right to move between them,
 and the header tells you where you are ("In Progress, 2 of 4").
 
-Each card face shows its title, a **priority dot**, its **due date** (red if
-overdue), and how many people are **assigned**. Tap **+ Add card** at the bottom
-of a column, type a title, press Enter — that's a new card.
+Each card shows, at a glance: its **title**, a **priority badge**, its **labels**,
+its **due date** (red if overdue), and the **people assigned** (as name chips) —
+so you can read a card without opening it. A card with no priority set shows no
+badge. Tap **+ Add card** at the bottom of a column, type a title, press Enter —
+that's a new card.
 
 ## 1.5 Working with a card
 
@@ -109,13 +111,14 @@ Tap any card to open the full view.
   without leaving it.
 - **Description** — plain text. Type whatever you like; it appears to everyone
   exactly as you typed it. **Save** to keep it, **Cancel** to discard.
-- **Priority** — none / low / medium / high / urgent, shown as a coloured dot on
-  the card face.
+- **Priority** — none / low / medium / high / urgent, shown as a coloured
+  **badge** on the card face (e.g. *Urgent*); *none* shows no badge.
 - **Due date** — a whole day, not a time. Pick it from a calendar; **Clear**
   removes it. An overdue card shows in red and says *Overdue*.
-- **Assignees** — anyone on the board. Assigned cards appear in that person's **My
-  Work**, and they're notified.
-- **Labels** — a short, shared vocabulary defined per board.
+- **Assignees** — anyone on the board. They show as **name chips** on the card
+  face, the card lands in each person's **My Work**, and they're notified.
+- **Labels** — a short, shared vocabulary defined per board, shown as coloured
+  **badges** on the card face.
 - **Comments** — discuss the work. Type **@** followed by a name to pull someone
   in; they're notified.
 - **Activity** — who changed what, and when. Written by the system, so no one can
@@ -308,7 +311,7 @@ until an admin lets you in (it updates by itself).
 Open the board → **+ Add card** at the foot of a column → type a title → Enter.
 
 **…change a card's priority, due date, or assignees?**
-Open the card → tap the priority dot / due date / **Assign someone** → choose.
+Open the card → tap a priority / due date / **Assign someone** → choose.
 
 **…move a card to another column?**
 In a browser, drag it. On a phone, long-press it and pick the column — or open the
