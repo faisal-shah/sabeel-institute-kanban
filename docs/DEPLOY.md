@@ -176,8 +176,18 @@ Before sharing a build:
 2. Install the release APK and **screenshot the sign-in screen**: the dev
    sign-in row must be absent. The e2e suite asserts this for the web bundle on
    every run; the APK deserves the same one-off check.
-3. Distribute via a GitHub release, never ad-hoc file sharing:
-   `gh release create vX.Y.Z --notes "..." path/to/app.apk`
+3. Publish with `scripts/publish-apk.sh` — never ad-hoc file sharing. It does
+   **both**: replaces the rolling `kanban-latest` asset on the pages repo (the
+   constant public download URL) **and** cuts the versioned GitHub Release on
+   THIS repo (all four ABI splits + notes pulled from the deploy log via
+   `scripts/deploy-notes.mjs`). Release assets are not git blobs, so this does
+   not bloat history; the script still guards the pages repo against apk blobs.
+
+   Caveat: tagging a release at a commit whose `.github/workflows` differs from
+   the default branch needs the `workflow` token scope. A normal ship tags HEAD
+   (its workflow always matches), so it never hits this — but **backfilling old
+   versions does**, and needs a one-time `gh auth refresh -h github.com -s
+   workflow` first.
 
 ## Rollback
 

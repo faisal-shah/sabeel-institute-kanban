@@ -12,10 +12,16 @@
 # on the page does.
 #
 #   scripts/publish-apk.sh [path/to/arm64-release.apk]
+#
+# It ALSO cuts the versioned GitHub Release on the app's OWN repo (all four ABI
+# splits + notes from the deploy log) — the changelog/archive convention that
+# lapsed after v0.1.10. A Release ASSET is not a git blob, so this does not bloat
+# history the way a committed binary did; the guardrail above is about git blobs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 REPO="faisal-shah/faisal-shah.github.io"
+APP_REPO="faisal-shah/sabeel-institute-kanban"
 TAG="kanban-latest"
 ASSET="sabeel-kanban-arm64-v8a.apk"
 APK="${1:-app/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk}"
@@ -49,4 +55,27 @@ if [ -d "$PAGES_DIR/.git" ]; then
     exit 1
   }
 fi
+
+# 4) Cut the versioned Release on the APP repo (per-version changelog + archived
+#    ABI splits). Idempotent: updates in place if v$VERSION already exists.
+RELDIR="$(dirname "$APK")"
+astage="$(mktemp -d)"
+assets=()
+for abi in arm64-v8a armeabi-v7a universal x86_64; do
+  src="$RELDIR/app-${abi}-release.apk"
+  [ -f "$src" ] || { echo "missing ABI split $src — build all four (npm run build:apk)" >&2; exit 1; }
+  cp "$src" "$astage/sabeel-kanban-${abi}.apk"
+  assets+=("$astage/sabeel-kanban-${abi}.apk")
+done
+title="$(node scripts/deploy-notes.mjs "$VERSION" --title 2>/dev/null || echo "v${VERSION}")"
+node scripts/deploy-notes.mjs "$VERSION" > "$astage/notes.md" 2>/dev/null || echo "Release v${VERSION}." > "$astage/notes.md"
+if gh release view "v$VERSION" --repo "$APP_REPO" >/dev/null 2>&1; then
+  gh release edit "v$VERSION" --repo "$APP_REPO" --title "$title" --notes-file "$astage/notes.md"
+  gh release upload "v$VERSION" "${assets[@]}" --clobber --repo "$APP_REPO"
+else
+  gh release create "v$VERSION" "${assets[@]}" --repo "$APP_REPO" \
+    --title "$title" --notes-file "$astage/notes.md" --target "$(git rev-parse HEAD)"
+fi
+echo "Cut $APP_REPO release v$VERSION (${#assets[@]} ABI splits)."
+
 echo "Published kanban v${VERSION}."
