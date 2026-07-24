@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
@@ -55,10 +55,14 @@ export function BoardSettingsScreen({
   const [newLabelName, setNewLabelName] = useState('');
   const [labelColor, setLabelColor] = useState<string>(LABEL_COLORS[0]);
   const { run, busy, error, setError } = useAction('boardSettings');
-  const [pendingRemoval, setPendingRemoval] = useState<{
-    uid: string;
-    cards: number;
-  } | null>(null);
+  // The pending remove/leave confirmation. `cards` is looked up in the
+  // background for removing SOMEONE ELSE (null = still counting); self-leave
+  // never counts, so the dialog can open instantly with no round-trip.
+  const [pending, setPending] = useState<{ uid: string; self: boolean } | null>(
+    null,
+  );
+  const [pendingCards, setPendingCards] = useState<number | null>(null);
+  const countReq = useRef(0);
 
   if (board.status === 'loading') return <Spinner label="Loading board…" />;
   const b = board.data;
@@ -99,11 +103,28 @@ export function BoardSettingsScreen({
     await run(() => updateBoard(boardId, { name: name.trim() }));
   }
 
-  async function askRemove(uid: string) {
-    // "Remove Sara?" and "Remove Sara, unassigning 12 cards?" are different
-    // questions — find out which one we are asking before asking it.
-    const cards = await countMemberAssignments(boardId, uid).catch(() => 0);
-    setPendingRemoval({ uid, cards });
+  function ask(uid: string) {
+    // Open the confirmation IMMEDIATELY — the dialog is the feedback. Waiting on
+    // a callable before showing anything read as a frozen button, and on a real
+    // phone the count cold-started for seconds.
+    const self = uid === user.uid;
+    setPending({ uid, self });
+    setPendingCards(null);
+    // Self-leave skips the count entirely (one round-trip, not two);
+    // removeBoardMember already reports how many cards it unassigned. For
+    // removing SOMEONE ELSE the count is worth showing, so fetch it in the
+    // background and drop it into the already-open dialog when it lands. The
+    // req token ignores a stale count if the dialog has since changed.
+    if (!self) {
+      const req = ++countReq.current;
+      countMemberAssignments(boardId, uid)
+        .then((n) => {
+          if (countReq.current === req) setPendingCards(n);
+        })
+        .catch(() => {
+          if (countReq.current === req) setPendingCards(0);
+        });
+    }
   }
 
   // Current members come from the board (everyone can see them); the ADD picker
@@ -114,7 +135,6 @@ export function BoardSettingsScreen({
   // directory read — a manager can join any board without admin rights to list
   // users, and anyone can step out of a board they no longer work.
   const isMember = b.memberUids.includes(user.uid);
-  const leavingSelf = pendingRemoval?.uid === user.uid;
   const nonMembers = (allUsers.data ?? []).filter(
     (u) =>
       !b.memberUids.includes(u.uid) &&
@@ -266,7 +286,7 @@ export function BoardSettingsScreen({
                 busy={busy}
                 label={m.uid === user.uid ? 'Leave' : 'Remove'}
                 variant="secondary"
-                onPress={() => askRemove(m.uid)}
+                onPress={() => ask(m.uid)}
               />
             </Row>
           </Row>
@@ -279,42 +299,43 @@ export function BoardSettingsScreen({
         ) : null}
       </Card>
 
-      {pendingRemoval ? (
+      {pending ? (
         <Card>
           <Body>
-            {leavingSelf
-              ? 'Leave this board?'
-              : 'Remove this person from the board?'}
-            {pendingRemoval.cards > 0
-              ? ` ${leavingSelf ? 'You are' : 'They are'} assigned to ${
-                  pendingRemoval.cards
-                } card${
-                  pendingRemoval.cards === 1 ? '' : 's'
-                }, and will be unassigned from ${
-                  pendingRemoval.cards === 1 ? 'it' : 'them'
-                }.`
-              : ` ${leavingSelf ? 'You are' : 'They are'} not assigned to any cards.`}
+            {pending.self
+              ? 'Leave this board? Any cards assigned to you on this board will be unassigned.'
+              : pendingCards === null
+                ? 'Remove this person from the board? Checking how many cards they are assigned to…'
+                : pendingCards > 0
+                  ? `Remove this person from the board? They are assigned to ${
+                      pendingCards
+                    } card${
+                      pendingCards === 1 ? '' : 's'
+                    }, and will be unassigned from ${
+                      pendingCards === 1 ? 'it' : 'them'
+                    }.`
+                  : 'Remove this person from the board? They are not assigned to any cards.'}
           </Body>
           <Row>
             <Button
               busy={busy}
-              label={leavingSelf ? 'Leave' : 'Remove'}
+              label={pending.self ? 'Leave' : 'Remove'}
               variant="danger"
               onPress={() =>
                 run(async () => {
-                  const leaving = pendingRemoval.uid === user.uid;
-                  await removeBoardMember(boardId, pendingRemoval.uid);
-                  setPendingRemoval(null);
+                  const { uid, self } = pending;
+                  await removeBoardMember(boardId, uid);
+                  setPending(null);
                   // After leaving, step out to the boards list. (A manager still
                   // SEES the board, but the point of leaving is to be off it.)
-                  if (leaving) nav.reset({ name: 'boards' });
+                  if (self) nav.reset({ name: 'boards' });
                 })
               }
             />
             <Button
               label="Cancel"
               variant="secondary"
-              onPress={() => setPendingRemoval(null)}
+              onPress={() => setPending(null)}
             />
           </Row>
         </Card>

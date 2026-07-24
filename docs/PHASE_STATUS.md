@@ -341,6 +341,31 @@ the team.
 
 ## Deploy log
 
+### 2026-07-24 — Instant Leave/Remove feedback + quieter slow-write alerts — v0.1.20
+
+Follow-up to v0.1.19, prompted by a real phone: leaving a board took seconds with
+no feedback (a Cloud Function cold-started *before* the confirm dialog even
+showed), and the slow-write monitor then emailed the team an error-level issue for
+it.
+
+- **The confirm dialog now opens instantly.** Tapping Leave/Remove no longer waits
+  on `countMemberAssignments` first. Self-leave skips that callable entirely (one
+  round-trip, not two — `removeBoardMember` already reports what it unassigned);
+  removing someone else opens the dialog immediately and fills the card count in
+  the background ("Checking…" → "assigned to N cards"), guarded by a request token
+  against a stale count landing in the wrong dialog.
+- **Slow-write monitor tuned.** `slowWrites` now reports at **warning**, not error
+  (via a new optional `level` on `captureError`, both sentry seams), and the
+  threshold moves 3s → **5s**. The two unavoidable causes — a cold-started callable
+  and a Firestore write on a poor connection — are latency, not defects, and every
+  action already shows a spinner while it runs; recording them is useful, paging
+  the team is not. (Console-side: the alert rule should page on error/high-priority
+  only.)
+
+Client only. Verified end-to-end on **web** (self-leave dialog in 62ms; remove-
+other count fills in, no page errors) **and native** (AVD: dialog instant, full
+leave → member count drops to 2). Typecheck + lint clean.
+
 ### 2026-07-24 — Self-service board membership: Join / Leave — v0.1.19
 
 Managers and admins can now **join** and **leave** a board themselves, from the

@@ -16,8 +16,16 @@ import { captureError } from './sentry';
  *
  * Deliberately not a console log: the whole problem is that this happens on
  * someone else's phone.
+ *
+ * Reported at WARNING, not error. A slow write is worth *recording* but not
+ * worth *paging the whole team* over: the two unavoidable causes here — a Cloud
+ * Function cold-starting after idle, and a Firestore write on a poor mobile
+ * connection — are latency, not defects, and every user action already shows a
+ * spinner while it runs. The threshold sits above a typical cold start so the
+ * signal is the genuinely painful writes, not routine first-call latency; the
+ * console still needs an alert rule that only pages on error-level issues.
  */
-const SLOW_MS = 3000;
+const SLOW_MS = 5000;
 
 export async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
   const started = Date.now();
@@ -26,11 +34,11 @@ export async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> 
   } finally {
     const ms = Date.now() - started;
     if (ms >= SLOW_MS) {
-      captureError(new Error(`Slow write: ${label} took ${ms}ms`), {
-        source: 'slowWrite',
-        label,
-        ms,
-      });
+      captureError(
+        new Error(`Slow write: ${label} took ${ms}ms`),
+        { source: 'slowWrite', label, ms },
+        'warning',
+      );
     }
   }
 }

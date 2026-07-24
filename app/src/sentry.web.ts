@@ -39,14 +39,21 @@ export function initErrorReporting(): void {
   });
 }
 
-export function captureError(error: unknown, context?: Record<string, unknown>): void {
+export function captureError(
+  error: unknown,
+  context?: Record<string, unknown>,
+  // `warning` for things worth recording but not paging anyone about — e.g. a
+  // slow-but-successful write (see slowWrites.ts). Still an exception, so it
+  // groups by stack rather than fragmenting per message; only the level differs.
+  level: 'error' | 'warning' = 'error',
+): void {
   if (!DSN) {
     // Without a DSN this is still the ONE place errors are funnelled, so a
     // developer sees them in the console rather than nowhere.
     console.warn('[error]', error, context ?? '');
     return;
   }
-  Sentry.captureException(error, { extra: context });
+  Sentry.captureException(error, { level, extra: context });
 }
 
 /**
