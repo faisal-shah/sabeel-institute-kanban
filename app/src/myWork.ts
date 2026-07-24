@@ -11,6 +11,8 @@ export interface MyWorkCard {
   columnId: string;
   dueDate?: string;
   priority: Priority;
+  labelIds: string[];
+  assigneeUids: string[];
   archived: boolean;
 }
 
@@ -49,6 +51,8 @@ export function useMyWork(user: SessionUser) {
           columnId: (d.data.columnId as string) ?? '',
           dueDate: d.data.dueDate as string | undefined,
           priority: (d.data.priority as Priority) ?? 'none',
+          labelIds: (d.data.labelIds as string[]) ?? [],
+          assigneeUids: (d.data.assigneeUids as string[]) ?? [],
           archived: Boolean(d.data.archived),
         }))
         .filter((c) => !c.archived),

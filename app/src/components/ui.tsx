@@ -24,6 +24,7 @@ import {
 import { KeyboardScroll } from './KeyboardScroll';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { readableInkOn, type Priority } from '@sabeel/shared';
 import { radius, space, type, useTheme } from '../theme';
 
 /** Any MaterialIcons glyph name, without re-listing them here. */
@@ -197,6 +198,61 @@ export function Caption({ children }: { children: ReactNode }) {
 export function Hint({ children }: { children: ReactNode }) {
   const t = useTheme();
   return <Text style={[type.caption, { color: t.text.secondary }]}>{children}</Text>;
+}
+
+/**
+ * A small colored badge: a word on a fill of `color`, with the ink chosen for
+ * contrast so it reads on ANY color. The one "text over an arbitrary color"
+ * primitive — used for priority and labels (which is why the contrast is
+ * computed, not hardcoded white).
+ */
+export function ColorBadge({ color, label }: { color: string; label: string }) {
+  const t = useTheme();
+  const ink = readableInkOn(color, t.text.inverse, t.text.primary) === 'light'
+    ? t.text.inverse
+    : t.text.primary;
+  return (
+    <View style={[styles.badge, { backgroundColor: color }]}>
+      <Text style={[type.caption, styles.badgeText, { color: ink }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+/** A card's priority as a badge. `none` renders nothing — an unset priority is
+ *  not worth a chip. */
+export function PriorityBadge({ priority }: { priority: Priority }) {
+  const t = useTheme();
+  if (priority === 'none') return null;
+  const label = priority[0].toUpperCase() + priority.slice(1);
+  return <ColorBadge color={t.priority[priority]} label={label} />;
+}
+
+/**
+ * An assignee as a neutral name chip — deliberately NOT a colored badge, so
+ * people don't read as labels. A small initials disc anchors who it is.
+ */
+export function AssigneeChip({ name }: { name: string }) {
+  const t = useTheme();
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || '?';
+  return (
+    <View style={[styles.assignee, { backgroundColor: t.bg.inset, borderColor: t.border.subtle }]}>
+      <View style={[styles.assigneeDisc, { backgroundColor: t.bg.surface }]}>
+        <Text style={[styles.assigneeInitials, { color: t.text.secondary }]}>{initials}</Text>
+      </View>
+      <Text style={[type.caption, { color: t.text.secondary }]} numberOfLines={1}>
+        {name}
+      </Text>
+    </View>
+  );
 }
 
 export function Card({
@@ -502,6 +558,32 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     alignSelf: 'flex-start',
   },
+  badge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+  badgeText: { fontWeight: '600' },
+  assignee: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.pill,
+    paddingLeft: 2,
+    paddingRight: space.sm,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+  assigneeDisc: {
+    width: 18,
+    height: 18,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assigneeInitials: { fontSize: 9, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.sm },
   banner: {

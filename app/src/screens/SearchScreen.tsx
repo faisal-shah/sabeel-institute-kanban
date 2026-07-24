@@ -5,10 +5,11 @@ import {
   filterCards,
   rankMatches,
   todayInOrgTz,
+  type BoardLabel,
   type SearchableCard,
 } from '@sabeel/shared';
 import { db } from '../firebase';
-import { useMyBoards } from '../boards';
+import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boards';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
@@ -24,7 +25,11 @@ import {
   TextField,
   Title,
 } from '../components/ui';
-import { radius, space, useTheme } from '../theme';
+import { CardFace } from '../components/CardFace';
+import { space } from '../theme';
+
+const NO_LABELS: BoardLabel[] = [];
+const NO_MEMBERS: BoardMemberProfile[] = [];
 
 /**
  * Search across every board you belong to.
@@ -41,7 +46,6 @@ import { radius, space, useTheme } from '../theme';
 export function SearchScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const boards = useMyBoards(user);
-  const t = useTheme();
 
   const [text, setText] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -53,9 +57,9 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     () => (boards.data ?? []).map((b) => b.id).join(','),
     [boards.data],
   );
-  const boardNames = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const b of boards.data ?? []) m.set(b.id, b.name);
+  const boardById = useMemo(() => {
+    const m = new Map<string, BoardListItem>();
+    for (const b of boards.data ?? []) m.set(b.id, b);
     return m;
   }, [boards.data]);
 
@@ -169,24 +173,29 @@ export function SearchScreen({ user }: { user: SessionUser }) {
       ) : null}
 
       <CardGrid>
-        {results.map((c) => (
-          <Pressable
-            key={`${c.boardId}/${c.id}`}
-            accessibilityRole="button"
-            accessibilityLabel={c.title}
-            onPress={() => nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })}
-          >
-            <Panel>
-              <Body>{c.title}</Body>
-              <Row>
-                <View style={[styles.dot, { backgroundColor: t.priority[c.priority] }]} />
-                <Caption>{boardNames.get(c.boardId) ?? 'a board'}</Caption>
-                {c.archived ? <Caption>· archived</Caption> : null}
-                {c.dueDate ? <Caption>· due {c.dueDate}</Caption> : null}
-              </Row>
-            </Panel>
-          </Pressable>
-        ))}
+        {results.map((c) => {
+          const board = boardById.get(c.boardId);
+          return (
+            <Pressable
+              key={`${c.boardId}/${c.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={c.title}
+              onPress={() => nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })}
+            >
+              <Panel>
+                <CardFace
+                  card={c}
+                  boardLabels={board?.labels ?? NO_LABELS}
+                  boardMembers={board?.members ?? NO_MEMBERS}
+                />
+                <Caption>
+                  in {board?.name ?? 'a board'}
+                  {c.archived ? ' · archived' : ''}
+                </Caption>
+              </Panel>
+            </Pressable>
+          );
+        })}
       </CardGrid>
     </Screen>
   );
@@ -194,5 +203,4 @@ export function SearchScreen({ user }: { user: SessionUser }) {
 
 const styles = StyleSheet.create({
   searchBar: { maxWidth: 520, gap: space.sm },
-  dot: { width: 10, height: 10, borderRadius: radius.pill },
 });

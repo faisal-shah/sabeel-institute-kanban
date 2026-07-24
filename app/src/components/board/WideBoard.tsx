@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { CARD_TITLE_MAX, columnsPatch, compareRank, type BoardColumn } from '@sabeel/shared';
+import { CARD_TITLE_MAX, columnsPatch, compareRank, type BoardColumn, type BoardLabel } from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -10,6 +10,7 @@ import {
   type Card,
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
+import { CardFace } from '../CardFace';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
 import { sessionCan, type SessionUser } from '../../session';
@@ -47,6 +48,7 @@ import { useAction } from '../../useAction';
 const NO_COLUMNS: BoardColumn[] = [];
 const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
+const NO_LABELS: BoardLabel[] = [];
 
 export function WideBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
@@ -62,6 +64,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   const columns = board.data?.columns ?? NO_COLUMNS;
   const members = board.data?.members ?? NO_MEMBERS;
+  const labels = board.data?.labels ?? NO_LABELS;
 
   const byColumn = useMemo(() => {
     const map = new Map<string, Card[]>();
@@ -207,19 +210,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                         },
                       ]}
                     >
-                      <Body>{card.title}</Body>
-                      <Row>
-                        <View
-                          style={[
-                            styles.dot,
-                            { backgroundColor: t.priority[card.priority] },
-                          ]}
-                        />
-                        {card.dueDate ? <Caption>{card.dueDate}</Caption> : null}
-                        {card.assigneeUids.length > 0 ? (
-                          <Caption>{card.assigneeUids.length} assigned</Caption>
-                        ) : null}
-                      </Row>
+                      <CardFace card={card} boardLabels={labels} boardMembers={members} />
                     </Pressable>
                   );
                 })}
@@ -320,7 +311,6 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
     gap: space.sm,
   },
-  dot: { width: 10, height: 10, borderRadius: radius.pill },
   sheet: {
     position: 'absolute',
     left: space.xl,

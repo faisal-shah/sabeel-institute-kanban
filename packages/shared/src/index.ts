@@ -3,6 +3,7 @@ export * from './activity';
 export * from './auth';
 export * from './autoScroll';
 export * from './boards';
+export * from './color';
 export * from './due';
 export * from './mentions';
 export * from './migration';

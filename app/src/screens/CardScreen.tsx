@@ -5,6 +5,7 @@ import {
   CARD_DESCRIPTION_MAX,
   CARD_TITLE_MAX,
   ORG_TIMEZONE,
+  readableInkOn,
   type Priority,
 } from '@sabeel/shared';
 import {
@@ -278,24 +279,46 @@ export function CardScreen({
       <Heading>Priority</Heading>
       <Panel>
         <Row style={styles.wrap}>
-          {PRIORITIES.map((p) => (
-            <Pressable
-              key={p}
-              onPress={() => run(() => updateCard(cardId, { priority: p }, user))}
-              accessibilityRole="button"
-              accessibilityLabel={`Priority ${p}`}
-              style={[
-                styles.chip,
-                {
-                  borderColor: c.priority === p ? t.priority[p] : t.border.subtle,
-                  backgroundColor: c.priority === p ? t.bg.accentSoft : 'transparent',
-                },
-              ]}
-            >
-              <View style={[styles.dot, { backgroundColor: t.priority[p] }]} />
-              <Caption>{p}</Caption>
-            </Pressable>
-          ))}
+          {PRIORITIES.map((p) => {
+            const selected = c.priority === p;
+            const label = p[0].toUpperCase() + p.slice(1);
+            // Selected looks like the card-face badge: filled color + readable ink.
+            // `none` has no badge color, so it fills a neutral chip. Unselected is
+            // an outline tinted with the priority color as a hint.
+            const fill = p === 'none' ? t.bg.inset : t.priority[p];
+            const ink =
+              p === 'none'
+                ? t.text.secondary
+                : readableInkOn(fill, t.text.inverse, t.text.primary) === 'light'
+                  ? t.text.inverse
+                  : t.text.primary;
+            return (
+              <Pressable
+                key={p}
+                onPress={() => run(() => updateCard(cardId, { priority: p }, user))}
+                accessibilityRole="button"
+                accessibilityLabel={`Priority ${p}`}
+                style={[
+                  styles.chip,
+                  selected
+                    ? { backgroundColor: fill, borderColor: fill }
+                    : {
+                        backgroundColor: 'transparent',
+                        borderColor: p === 'none' ? t.border.subtle : t.priority[p],
+                      },
+                ]}
+              >
+                <Text
+                  style={[
+                    type.caption,
+                    { color: selected ? ink : t.text.secondary, fontWeight: selected ? '600' : '400' },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </Row>
       </Panel>
 
@@ -367,7 +390,23 @@ export function CardScreen({
                       { borderColor: l.color, backgroundColor: on ? l.color : 'transparent' },
                     ]}
                   >
-                    <Caption>{l.name}</Caption>
+                    <Text
+                      style={[
+                        type.caption,
+                        {
+                          // Readable ON the fill when selected; muted-but-legible
+                          // on transparent when not.
+                          color: on
+                            ? readableInkOn(l.color, t.text.inverse, t.text.primary) === 'light'
+                              ? t.text.inverse
+                              : t.text.primary
+                            : t.text.secondary,
+                          fontWeight: on ? '600' : '400',
+                        },
+                      ]}
+                    >
+                      {l.name}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -450,5 +489,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
-  dot: { width: 10, height: 10, borderRadius: radius.pill },
 });

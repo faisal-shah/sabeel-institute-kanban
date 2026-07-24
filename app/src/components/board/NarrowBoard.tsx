@@ -26,7 +26,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { CARD_TITLE_MAX, columnsPatch, type BoardColumn } from '@sabeel/shared';
+import { CARD_TITLE_MAX, columnsPatch, type BoardColumn, type BoardLabel } from '@sabeel/shared';
 import {
   cardsInColumn,
   createCard,
@@ -34,6 +34,7 @@ import {
   type Card,
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
+import { CardFace } from '../CardFace';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
 import { sessionCan, type SessionUser } from '../../session';
@@ -59,15 +60,20 @@ import { useAction } from '../../useAction';
 const NO_COLUMNS: BoardColumn[] = [];
 const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
+const NO_LABELS: BoardLabel[] = [];
 
 function CardTile({
   card,
+  boardLabels,
+  boardMembers,
   selected,
   selectionActive,
   onOpen,
   onLongPress,
 }: {
   card: Card;
+  boardLabels: readonly BoardLabel[];
+  boardMembers: readonly BoardMemberProfile[];
   selected: boolean;
   selectionActive: boolean;
   onOpen: () => void;
@@ -90,17 +96,10 @@ function CardTile({
         },
       ]}
     >
-      <Body>{card.title}</Body>
-      <Row>
-        <View style={[styles.dot, { backgroundColor: t.priority[card.priority] }]} />
-        {card.dueDate ? <Caption>{card.dueDate}</Caption> : null}
-        {card.assigneeUids.length > 0 ? (
-          <Caption>{card.assigneeUids.length} assigned</Caption>
-        ) : null}
-        {selectionActive ? (
-          <Caption>{selected ? '✓ selected' : 'tap to select'}</Caption>
-        ) : null}
-      </Row>
+      <CardFace card={card} boardLabels={boardLabels} boardMembers={boardMembers} />
+      {selectionActive ? (
+        <Caption>{selected ? '✓ selected' : 'tap to select'}</Caption>
+      ) : null}
     </Pressable>
   );
 }
@@ -150,6 +149,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   // users, so reading the directory here would show every non-admin a
   // permission-denied banner and leave them unable to assign anyone.
   const members = board.data?.members ?? NO_MEMBERS;
+  const labels = board.data?.labels ?? NO_LABELS;
 
   // `?? []` would allocate a new array each render, defeating the memo below.
   const columns = board.data?.columns ?? NO_COLUMNS;
@@ -326,6 +326,8 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                 renderItem={({ item }) => (
                   <CardTile
                     card={item}
+                    boardLabels={labels}
+                    boardMembers={members}
                     selected={selection.isSelected(item.id)}
                     selectionActive={selection.active}
                     // Once anything is selected, tapping toggles rather than
@@ -417,7 +419,6 @@ const styles = StyleSheet.create({
     padding: space.md,
     gap: space.sm,
   },
-  dot: { width: 10, height: 10, borderRadius: radius.pill },
   footer: { gap: space.sm },
   wrap: { flexWrap: 'wrap' },
   sheet: {

@@ -24,11 +24,12 @@ import {
   type Card,
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
+import { CardFace } from '../CardFace';
 import { useSelection } from '../../useSelection';
 import { createAutoScroller } from './autoScroll';
 import { BulkBar } from '../BulkBar';
 import { IconAction } from '../ui';
-import { CARD_TITLE_MAX, columnsPatch, type BoardColumn } from '@sabeel/shared';
+import { CARD_TITLE_MAX, columnsPatch, type BoardColumn, type BoardLabel } from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import { useListenerError } from '../../liveQuery';
@@ -39,6 +40,7 @@ type DragState = { cardId: string; fromColumnId: string } | null;
 /** Stable empty, so the selection hook does not churn on every render. */
 const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
+const NO_LABELS: BoardLabel[] = [];
 
 function useWebTheme(): Theme {
   return getTheme();
@@ -46,6 +48,8 @@ function useWebTheme(): Theme {
 
 function CardTile({
   card,
+  boardLabels,
+  boardMembers,
   t,
   canEdit,
   selected,
@@ -57,6 +61,8 @@ function CardTile({
   dragging,
 }: {
   card: Card;
+  boardLabels: readonly BoardLabel[];
+  boardMembers: readonly BoardMemberProfile[];
   t: Theme;
   canEdit: boolean;
   selected: boolean;
@@ -101,34 +107,12 @@ function CardTile({
           onChange={() => {}}
           style={{ marginTop: 3, accentColor: t.accent.base, cursor: 'pointer' }}
         />
-        <div style={{ color: t.text.primary, fontSize: 15, flex: 1 }}>{card.title}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <CardFace card={card} boardLabels={boardLabels} boardMembers={boardMembers} />
+        </div>
       </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: space.sm,
-          marginTop: space.sm,
-        }}
-      >
-        <span
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            background: t.priority[card.priority],
-            display: 'inline-block',
-          }}
-        />
-        {card.dueDate ? (
-          <span style={{ color: t.text.muted, fontSize: 12 }}>{card.dueDate}</span>
-        ) : null}
-        {card.assigneeUids.length > 0 ? (
-          <span style={{ color: t.text.muted, fontSize: 12 }}>
-            {card.assigneeUids.length} assigned
-          </span>
-        ) : null}
-        {canEdit ? (
+      {canEdit ? (
+        <div style={{ display: 'flex', marginTop: space.sm }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -146,8 +130,8 @@ function CardTile({
           >
             Archive
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -193,6 +177,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   // From the BOARD, not the user directory — only admins may list users.
   const members = board.data?.members ?? NO_MEMBERS;
+  const labels = board.data?.labels ?? NO_LABELS;
 
   const canEdit = true; // any board member may edit cards
   const isManager = sessionCan.manageBoards(user);
@@ -489,6 +474,8 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   ) : null}
                   <CardTile
                     card={card}
+                    boardLabels={labels}
+                    boardMembers={members}
                     t={t}
                     canEdit={canEdit}
                     selected={selection.isSelected(card.id)}
