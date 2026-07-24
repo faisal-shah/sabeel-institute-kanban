@@ -341,6 +341,27 @@ the team.
 
 ## Deploy log
 
+### 2026-07-24 — Card faces at a glance (badges + assignees) — v0.1.17
+
+Client-only. Replaces the bare priority color dot with a proper card face —
+title · priority · labels · due · assignees — everywhere, via **one shared
+`CardFace`** (the face had been hand-inlined in five places; the greenfield fix
+was to extract it, not edit five copies).
+
+- Priority + labels are colored **badges**; assignees are **name chips**. Badge
+  text ink is picked for contrast by a new pure, unit-tested `readableInkOn` WCAG
+  helper in `@sabeel/shared` (goldenrod/gold → dark text, the rest ivory). `none`
+  priority shows no badge.
+- Labels + assignees now render on **all** surfaces (board ×3, My Work, Search),
+  resolved against the already-loaded board `labels`/`members` (My Work's mapper
+  stopped dropping the ids).
+- CardScreen priority + label pickers restyled to the same badges (fixes the
+  label picker's muted-text-on-fill).
+
+Verified on **web** (board desktop+phone, card detail, My Work, Search) **and
+native** (AVD: board face + label picker) — badges readable on every color,
+assignee chips flow, `none` shows nothing.
+
 ### 2026-07-23 — Reorder handle, build stamp, sign-in button — v0.1.16
 
 Client-only:
