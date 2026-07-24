@@ -225,6 +225,18 @@ describe('updating a board', () => {
     );
   });
 
+  it('a manager can JOIN a board they are not on by adding their own uid', async () => {
+    // The Join button. Adding only your OWN uid needs no directory read, so a
+    // manager can step onto any board — the membership half of "managers may
+    // join any board" from the brief.
+    await assertSucceeds(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_other'), {
+        memberUids: ['someone_else', 'manager1'],
+        createdBy: 'manager1',
+      }),
+    );
+  });
+
   it('a member cannot add themselves to a board they are not on', async () => {
     // The escalation path this model has to close.
     await assertFails(

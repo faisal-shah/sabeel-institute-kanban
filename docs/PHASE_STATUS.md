@@ -341,6 +341,29 @@ the team.
 
 ## Deploy log
 
+### 2026-07-24 — Self-service board membership: Join / Leave — v0.1.19
+
+Managers and admins can now **join** and **leave** a board themselves, from the
+board's **Members** settings — no new screen. This completes the brief's
+"managers may join any board", which the UI could not actually do before (adding
+members needs the admin-only user directory; adding *yourself* does not).
+
+- **Leave** — your own row in Members now offers **Leave** (it was blank before).
+  It runs the existing `removeBoardMember` callable, so card assignments clear
+  atomically; you are told how many first, then sent back to your boards.
+- **Join** — open the settings of a board you are not on (managers/admins may view
+  any board) and a **Join this board** button sits at the top of Members. It adds
+  only *your own* uid, so it needs no directory read — a manager can join any
+  board without admin rights to list users.
+- Others' membership is unchanged: still added/removed by managers/admins. Only
+  your *own* membership is self-service.
+- Rules test added (`boardRules.test.ts`): a manager can add their own uid to a
+  board they are not on.
+
+Client + one rules test; no schema or index change. Verified on web (desktop +
+phone) end-to-end against the emulator: Leave → the board flips to the Join card →
+Join restores membership, through real rules and callables, no errors.
+
 ### 2026-07-24 — Boards list shows active card count — v0.1.18
 
 The Boards list now shows **N cards · N members** per board (non-archived card

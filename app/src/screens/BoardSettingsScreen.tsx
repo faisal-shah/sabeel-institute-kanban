@@ -109,8 +109,18 @@ export function BoardSettingsScreen({
   // Current members come from the board (everyone can see them); the ADD picker
   // needs the directory, which only admins may list.
   const members = b.members;
+  // You reach this screen only as a manager/admin, and may be viewing a board
+  // you have not joined. Join/Leave touch only your OWN uid, so they need no
+  // directory read — a manager can join any board without admin rights to list
+  // users, and anyone can step out of a board they no longer work.
+  const isMember = b.memberUids.includes(user.uid);
+  const leavingSelf = pendingRemoval?.uid === user.uid;
   const nonMembers = (allUsers.data ?? []).filter(
-    (u) => !b.memberUids.includes(u.uid) && u.status === 'active',
+    (u) =>
+      !b.memberUids.includes(u.uid) &&
+      u.status === 'active' &&
+      // You add yourself with Join, not from the add-someone list.
+      u.uid !== user.uid,
   );
 
   return (
@@ -220,6 +230,27 @@ export function BoardSettingsScreen({
       </Card>
 
       <Heading>Members ({b.memberUids.length})</Heading>
+      {!isMember ? (
+        <Card>
+          <Body muted>
+            You are not a member of this board. Join to be assignable to its
+            cards and to see it under your own boards.
+          </Body>
+          <Button
+            busy={busy}
+            label="Join this board"
+            onPress={() =>
+              run(() =>
+                addBoardMember(boardId, {
+                  uid: user.uid,
+                  displayName: user.displayName,
+                  email: user.email,
+                }),
+              )
+            }
+          />
+        </Card>
+      ) : null}
       <Card>
         {members.map((m) => (
           <Row key={m.uid} style={styles.between}>
@@ -229,14 +260,14 @@ export function BoardSettingsScreen({
             </View>
             <Row>
               {/* The board knows who its members are, not what org role they
-                  hold — that lives in users/*, which only admins may read. */}
-              {m.uid === user.uid ? null : (
-                <Button
-                  label="Remove"
-                  variant="secondary"
-                  onPress={() => askRemove(m.uid)}
-                />
-              )}
+                  hold — that lives in users/*, which only admins may read. Your
+                  own row offers Leave (self-removal); everyone else, Remove. */}
+              <Button
+                busy={busy}
+                label={m.uid === user.uid ? 'Leave' : 'Remove'}
+                variant="secondary"
+                onPress={() => askRemove(m.uid)}
+              />
             </Row>
           </Row>
         ))}
@@ -251,24 +282,32 @@ export function BoardSettingsScreen({
       {pendingRemoval ? (
         <Card>
           <Body>
-            Remove this person from the board?
+            {leavingSelf
+              ? 'Leave this board?'
+              : 'Remove this person from the board?'}
             {pendingRemoval.cards > 0
-              ? ` They are assigned to ${pendingRemoval.cards} card${
+              ? ` ${leavingSelf ? 'You are' : 'They are'} assigned to ${
+                  pendingRemoval.cards
+                } card${
                   pendingRemoval.cards === 1 ? '' : 's'
                 }, and will be unassigned from ${
                   pendingRemoval.cards === 1 ? 'it' : 'them'
                 }.`
-              : ' They are not assigned to any cards.'}
+              : ` ${leavingSelf ? 'You are' : 'They are'} not assigned to any cards.`}
           </Body>
           <Row>
             <Button
-          busy={busy}
-              label="Remove"
+              busy={busy}
+              label={leavingSelf ? 'Leave' : 'Remove'}
               variant="danger"
               onPress={() =>
                 run(async () => {
+                  const leaving = pendingRemoval.uid === user.uid;
                   await removeBoardMember(boardId, pendingRemoval.uid);
                   setPendingRemoval(null);
+                  // After leaving, step out to the boards list. (A manager still
+                  // SEES the board, but the point of leaving is to be off it.)
+                  if (leaving) nav.reset({ name: 'boards' });
                 })
               }
             />

@@ -243,9 +243,18 @@ Open a board and tap its **settings** (the gear). From here:
 - **Labels** — a short, shared vocabulary for the board. Colours come from a fixed
   palette so they stay readable on the app's warm surfaces.
 - **Members** — who can see the board. Removing someone also **unassigns them from
-  that board's cards**; you're told how many before it happens.
+  that board's cards**; you're told how many before it happens. Your **own** row
+  shows **Leave** instead of Remove — use it to step off a board you no longer
+  work.
 - **Archive** — hides the board from everyone's list. Boards are never deleted
   outright.
+
+**Joining or leaving a board yourself.** Because managers and admins can open
+**any** board's settings, a board you haven't joined shows a **Join this board**
+button at the top of **Members**. Joining makes you assignable to its cards and
+lists the board under your own boards; **Leave** reverses both. Only your *own*
+membership is self-service — everyone else is added and removed by a manager or
+admin.
 
 ## 2.3 Archiving a board
 
