@@ -17,3 +17,4 @@ export {
   onUserPending,
   dueSoonReminders,
 } from './notifications';
+export { healthCheck } from './health';

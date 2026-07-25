@@ -299,6 +299,24 @@ describe('push tokens', () => {
   });
 });
 
+describe('operator state (meta/*)', () => {
+  // The healthCheck canary stores its baseline at `meta/health`. It is operator
+  // state, not app data, and is reachable only by the Admin SDK (which bypasses
+  // rules). Nothing in firestore.rules matches `meta/**`, so the catch-all
+  // `match /{document=**} { allow read, write: if false; }` is what denies it —
+  // this pins that the catch-all really is in force, rather than assuming it.
+  it('no client may read or write the health baseline, at any role', async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'meta/health'), { counts: { cards: 1 } });
+    });
+    for (const role of ['member', 'manager', 'admin']) {
+      const db = ctx(`${role}1`, role, 'active');
+      await assertFails(getDoc(doc(db, 'meta/health')));
+      await assertFails(setDoc(doc(db, 'meta/health'), { counts: { cards: 0 } }));
+    }
+  });
+});
+
 describe('test harness', () => {
   it('can bypass rules via withSecurityRulesDisabled', async () => {
     // If this failed, every assertFails above would be vacuously true.

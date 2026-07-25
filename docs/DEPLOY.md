@@ -192,6 +192,125 @@ Before sharing a build:
 ## Rollback
 
 Hosting keeps previous releases — roll back from the console in one click.
-Functions and rules do not: redeploy the previous commit. Firestore data has no
-undo, which is why boards archive rather than delete and only managers can
-permanently remove cards.
+Functions and rules do not: redeploy the previous commit. For Firestore data, see
+disaster recovery below — boards still archive rather than delete, and only
+managers may permanently remove cards, because prevention beats restoring.
+
+## Backups and disaster recovery
+
+Two native Firestore layers, both Google-managed settings with no code to
+maintain. They do different jobs and compose:
+
+| Layer | Window | What it answers |
+|---|---|---|
+| **PITR** | rolling **7 days** | "someone deleted it this morning" — rewind to any microsecond |
+| **Daily backup** (98-day retention) | **14 weeks** | "we noticed in September that something broke in July" |
+
+98 days is Firestore's **maximum** retention — it will not keep a backup longer.
+Both PITR and backup data are **excluded from the free tier** and need billing
+enabled (this project is on Blaze); at this data size they bill as fractions of a
+cent, but they are a real line item, not zero.
+
+**Delete protection is ENABLED**, so the database itself cannot be deleted until
+someone deliberately turns it off.
+
+```sh
+# enable (one-time)
+firebase firestore:databases:update "(default)" --point-in-time-recovery ENABLED
+firebase firestore:backups:schedules:create --recurrence DAILY --retention 98d
+firebase firestore:databases:update "(default)" --delete-protection ENABLED
+
+# inspect
+firebase firestore:databases:get "(default)"   # PITR + delete-protection state
+firebase firestore:backups:schedules:list      # schedule + retention
+firebase firestore:backups:list                # backups actually taken
+```
+
+### Restoring — read this BEFORE you need it
+
+A restore **always creates a NEW database**. There is no restore-in-place, and
+the destination id *cannot be one already in use* — so you can never restore
+directly over `(default)`, the database every client is configured for.
+
+**Do not plan to "just repoint the app."** Repointing the web is a redeploy, but
+repointing an installed Android client is a **new build every user has to
+install** — recovery time becomes an app-store round trip. Bring the data back to
+the id the clients already use instead:
+
+1. **Restore to a scratch database.**
+   `firebase firestore:databases:restore --database recovery-YYYYMMDD --backup <backup-name>`
+   (For PITR, recover using a `--snapshot-time` within the last 7 days.)
+2. **Verify the scratch copy** actually contains what you expect before touching
+   anything live — count boards/cards/users, spot-check a board.
+3. **Managed-export the scratch database** to a Cloud Storage bucket, then
+   **import it back into `(default)`**.
+4. **Delete the scratch database.** Clients never notice any of this.
+
+Two things that bite mid-incident:
+
+- **Import merges by document id.** It recreates what was deleted, but it does
+  **not** remove anything that was wrongly added — a clean fix for a deletion,
+  only a partial one for a corruption.
+- **Backups do not contain security rules, indexes, IAM or TTL policies.** A
+  restored database comes up needing them reapplied. Cheap here, because they are
+  config-as-code: `firebase deploy --only firestore` puts them back.
+
+### Firebase Auth is NOT in any backup
+
+Firestore backups cover Firestore only. Auth is a separate system, and a uid is
+not cosmetic — `memberUids`, `assigneeUids`, `createdBy` and `authorUid` all
+reference it. Letting people simply sign in again would mint **new random uids**
+and leave a database that restores "successfully" while being quietly wrong
+everywhere.
+
+No separate Auth backup is needed, because the roster already lives in Firestore:
+`onUserCreate` writes `users/{uid}` with displayName, email, role and status, and
+the **doc id is the uid**. So restore Firestore first, then:
+
+```sh
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/restore-auth.mjs           # dry run
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/restore-auth.mjs --apply
+```
+
+It recreates each account with its **original uid** and re-applies the `role` /
+`status` **custom claims** — which matter because `firestore.rules` trusts the
+token, not the user doc; an account restored without claims can sign in and then
+do nothing. It is idempotent and never deletes. Everyone must sign in again
+afterwards to pick up a token carrying their claims.
+
+**Unproven step:** whether a Google sign-in attaches cleanly to a restored
+account with a matching email and uid has not been exercised yet — it is the main
+thing the restore drill (TODO.md) is meant to settle. If it refuses to link, the
+fallback is `firebase auth:export`, which preserves provider linkage explicitly.
+
+### Detection — the `healthCheck` canary
+
+Retention only helps if the problem is noticed while a good backup still exists.
+The bad case is a corruption just before a quiet period: every later backup
+faithfully captures the broken state, and by the time anyone looks the last good
+one has aged out. `functions/src/health.ts` runs daily at 03:15 (org timezone)
+and:
+
+- counts documents per collection using `count()` aggregations, never full reads
+  (subcollections — comments, activity, notifications — go through
+  `collectionGroup`);
+- compares against the previous run stored at `meta/health` (operator state; the
+  rules catch-all denies all client access, pinned by a rules test);
+- raises to Sentry when a collection shrinks past its tolerance. `boards`,
+  `activity` and `users` have **zero tolerance** (the rules forbid deleting the
+  first two outright; users go only by deliberate admin action), while `cards`,
+  `comments` and `notifications` tolerate `max(5, 20%)` since routine deletion is
+  normal there;
+- sends a Sentry **cron check-in**, so the job going *silent* is itself an alert.
+
+Tune the thresholds in `DROP_RULES`. It always re-baselines, so a single bad day
+alerts once rather than forever. Known limitation: it compares run-to-run, so a
+slow bleed of a few documents a day stays under the threshold — it is built to
+catch sudden loss, which is what accidents and bad deploys look like.
+
+**When it fires:** check PITR first (`earliestVersionTime` tells you how far back
+you can still go), decide whether the drop was legitimate, and if not, follow the
+restore steps above while the 7-day window is still open.
+
+**Remaining gap.** Beyond 14 weeks Firestore cannot retain natively; the cheap
+mitigation is a deliberate managed export to Cloud Storage before a long break.

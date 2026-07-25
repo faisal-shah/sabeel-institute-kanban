@@ -243,6 +243,36 @@ Android push is wired and ships in the next APK. Two items are console work.
       newly-wrapped background triggers deliver, not just the callables. All
       three surfaces now have an observed event, none inferred.
 
+## J. Backups and disaster recovery
+
+- [ ] **Enable the three native protections on production.** I have the code and
+      docs in place (`docs/DEPLOY.md`, "Backups and disaster recovery"), but the
+      commands themselves mutate the production database, so they need either
+      your hand or a permission rule for me. Verified state before these run:
+      **PITR disabled, 0 backup schedules, 0 backups, delete protection off** —
+      version retention is **1 hour**.
+
+      ```sh
+      firebase firestore:databases:update "(default)" --point-in-time-recovery ENABLED
+      firebase firestore:backups:schedules:create --recurrence DAILY --retention 98d
+      firebase firestore:databases:update "(default)" --delete-protection ENABLED
+      ```
+
+      Then I'll verify with `firebase firestore:databases:get "(default)"` and
+      `firebase firestore:backups:schedules:list`, and confirm a real backup
+      appears within a day. Note both PITR and backup data are **excluded from
+      the free tier** — expect a new (tiny) line item on the bill.
+
+- [ ] **Rehearse a restore once, against a scratch database.** An unrehearsed
+      restore path is a hope, not a plan, and the step that surprises people is
+      that the destination id can *never* be the one the app is configured for.
+      Walk the numbered procedure in `docs/DEPLOY.md`.
+
+      This drill also settles the one open question in the Auth recovery story:
+      whether a **Google sign-in attaches cleanly to a restored account** with a
+      matching email and uid. If it does not, we add `firebase auth:export` as a
+      belt-and-braces artifact; until then we are not guessing either way.
+
 ## Answered — kept for reference
 
 - [x] **Sign-in domain is `oursabeel.com`**, a Google Workspace domain

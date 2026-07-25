@@ -341,6 +341,53 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Disaster recovery: native protection + a detection canary
+
+Backend and ops only — **no client change**, so nothing here gated on an app
+release. Production had no data safety whatsoever: PITR disabled (version
+retention **1 hour**), zero backup schedules, zero backups, delete protection off.
+The only backup in existence was a 65 KB JSON file on one laptop, written by a
+throwaway script that was deleted immediately after — and it had no reader.
+
+- **Native Firestore protection**: PITR (rolling 7 days) + a **daily** backup
+  schedule at 98-day retention (Firestore's maximum) + delete protection. These
+  are Google-managed settings with no code to maintain. Chose daily over the
+  sibling's weekly; both layers are excluded from the free tier.
+- **`healthCheck` canary** (`functions/src/health.ts`), ported from the sibling
+  time-tracker: daily `count()` aggregations per collection, compared against a
+  baseline at `meta/health`, raising to Sentry when a collection shrinks past its
+  tolerance — zero tolerance for `boards`/`activity`/`users` (the rules forbid
+  deleting the first two at all), `max(5, 20%)` for `cards`/`comments`/
+  `notifications`. Sends a Sentry **cron check-in**, so the job going silent is
+  itself an alert. Retention is worthless if nobody notices in time.
+  - Kanban-specific: `comments`/`activity`/`notifications` are **subcollections**,
+    so they must be counted with `collectionGroup`. A bare `collection('comments')`
+    would count a non-existent top-level path and report perfect health forever.
+  - New `COLLECTIONS` in `@sabeel/shared`; `reportMessage`/`startCheckIn`/
+    `finishCheckIn` ported into `functions/src/sentry.ts`.
+- **`scripts/restore-auth.mjs`** — Firestore backups do not cover Firebase Auth,
+  and recreated accounts get **new uids**, which would silently break every
+  `memberUids`/`assigneeUids`/`createdBy` reference. No separate Auth backup is
+  needed because `users/{uid}` already holds the roster (the doc id *is* the uid),
+  so this rebuilds accounts with their original uids and re-applies role/status
+  custom claims. Dry-run by default, idempotent, never deletes.
+- **`docs/DEPLOY.md`** gained a full runbook, replacing the old "Firestore data
+  has no undo" line: the two layers, inspect commands, and the numbered restore
+  procedure — restore to a scratch db → verify → export → **import back into the
+  original database id**. You can never restore into an id already in use, and
+  repointing installed Android clients would mean a new build for every user.
+
+Verified: 26 unit tests (15 new, policy exhaustively pinned), emulator suite green
+(121 rules tests incl. a new one proving `meta/health` is client-denied by the
+catch-all; 35 function tests incl. a new one proving the collectionGroup counting
+and the re-baseline). `restore-auth.mjs` verified both ways — dry-run against
+production (5 accounts, nothing written) and apply against emulators (uids
+preserved, claims applied, idempotent on re-run).
+
+Outstanding, tracked in `TODO.md` §J: the three production commands, and a restore
+drill — which is also what settles whether a Google sign-in re-attaches to a
+restored account.
+
 ### 2026-07-24 — Instant Leave/Remove feedback + quieter slow-write alerts — v0.1.20
 
 Follow-up to v0.1.19, prompted by a real phone: leaving a board took seconds with
@@ -428,6 +475,23 @@ was to extract it, not edit five copies).
 Verified on **web** (board desktop+phone, card detail, My Work, Search) **and
 native** (AVD: board face + label picker) — badges readable on every color,
 assignee chips flow, `none` shows nothing.
+
+### 2026-07-23 — Production reset and fresh ClickUp re-import (data op, logged late)
+
+No release — recorded here retrospectively because it was a **production data
+operation** and the log had no entry for it, which is exactly the kind of gap that
+makes an incident harder to reason about later.
+
+Ahead of inviting the former ClickUp users, production was backed up, wiped down
+to Faisal's admin account, and re-imported from the ClickUp export: **3 boards, 27
+cards, 15 comments**. The backup landed at
+`migration/backups/prod-20260723-143703.json` (gitignored, ~65 KB, and it captured
+auth users + claims as well as Firestore).
+
+The backup and wipe scripts were written as throwaway heredocs, run once, and
+deleted — so the snapshot has **no reader**, and the operation is not repeatable
+as written. That, plus production having no PITR or backups at all, is what
+prompted the disaster-recovery work on 2026-07-25.
 
 ### 2026-07-23 — Reorder handle, build stamp, sign-in button — v0.1.16
 

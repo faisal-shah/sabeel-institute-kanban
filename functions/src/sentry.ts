@@ -48,6 +48,62 @@ export async function reportError(e: unknown): Promise<void> {
 }
 
 /**
+ * Report something WRONG that did not throw.
+ *
+ * The canary spotting that document counts dropped is not an error — nothing
+ * failed — so `captureException` would be misleading and would carry a stack
+ * pointing at the reporting code rather than the problem. This raises a message
+ * at error level with the structured findings attached instead.
+ */
+export async function reportMessage(
+  message: string,
+  context: Record<string, unknown> = {},
+): Promise<void> {
+  if (ensureSentry(process.env.SENTRY_DSN)) {
+    Sentry.captureMessage(message, { level: 'error', extra: context });
+    await Sentry.flush(2000).catch(() => undefined);
+  }
+}
+
+/**
+ * Cron check-ins for a scheduled job.
+ *
+ * Sentry alerts when a check-in does NOT arrive on schedule, which is the only
+ * way to notice a job that has silently stopped running — a job that never runs
+ * also never reports its own failure. The monitor config travels with each
+ * check-in, which upserts the monitor, so there is no console setup step to
+ * forget.
+ *
+ * Two-phase by design: `start` opens the check-in and `finish` closes it, which
+ * also tells Sentry how long the run took.
+ */
+function monitorConfig(schedule: string) {
+  return {
+    schedule: { type: 'crontab' as const, value: schedule },
+    // Generous margins: a cold start or a slow aggregation must not page anyone.
+    checkinMargin: 60,
+    maxRuntime: 10,
+  };
+}
+
+/** Returns a check-in id to pass to `finishCheckIn`, or null if Sentry is off. */
+export function startCheckIn(monitorSlug: string, schedule: string): string | null {
+  if (!ensureSentry(process.env.SENTRY_DSN)) return null;
+  return Sentry.captureCheckIn({ monitorSlug, status: 'in_progress' }, monitorConfig(schedule));
+}
+
+export async function finishCheckIn(
+  checkInId: string | null,
+  monitorSlug: string,
+  status: 'ok' | 'error',
+  schedule: string,
+): Promise<void> {
+  if (!checkInId) return;
+  Sentry.captureCheckIn({ checkInId, monitorSlug, status }, monitorConfig(schedule));
+  await Sentry.flush(2000).catch(() => undefined);
+}
+
+/**
  * Wrap a BACKGROUND TRIGGER: failures reach Sentry, then rethrow.
  *
  * Triggers need this more than callables do, not less. A callable that fails
