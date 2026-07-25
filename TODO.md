@@ -245,23 +245,25 @@ Android push is wired and ships in the next APK. Two items are console work.
 
 ## J. Backups and disaster recovery
 
-- [ ] **Enable the three native protections on production.** I have the code and
-      docs in place (`docs/DEPLOY.md`, "Backups and disaster recovery"), but the
-      commands themselves mutate the production database, so they need either
-      your hand or a permission rule for me. Verified state before these run:
-      **PITR disabled, 0 backup schedules, 0 backups, delete protection off** —
-      version retention is **1 hour**.
+- [x] **Native protections enabled 2026-07-25** (you authorised me to run them).
+      Before: PITR disabled, version retention **1 hour**, 0 schedules, 0 backups,
+      delete protection off. Verified after, by reading the database back rather
+      than trusting the success messages:
 
-      ```sh
-      firebase firestore:databases:update "(default)" --point-in-time-recovery ENABLED
-      firebase firestore:backups:schedules:create --recurrence DAILY --retention 98d
-      firebase firestore:databases:update "(default)" --delete-protection ENABLED
-      ```
+      | Setting | Value |
+      |---|---|
+      | `pointInTimeRecoveryEnablement` | `POINT_IN_TIME_RECOVERY_ENABLED` |
+      | `versionRetentionPeriod` | `604800s` (7 days) |
+      | `deleteProtectionState` | `DELETE_PROTECTION_ENABLED` |
+      | backup schedule | daily, retention `8467200s` (98 days) |
 
-      Then I'll verify with `firebase firestore:databases:get "(default)"` and
-      `firebase firestore:backups:schedules:list`, and confirm a real backup
-      appears within a day. Note both PITR and backup data are **excluded from
-      the free tier** — expect a new (tiny) line item on the bill.
+      Both PITR and backup data are **excluded from the free tier** — expect a new
+      (tiny) line item on the bill.
+
+- [ ] **Confirm the first scheduled backup actually landed.** The schedule exists,
+      but no backup is taken until it first fires (within 24h of 2026-07-25).
+      `firebase firestore:backups:list` should show one — a schedule with no
+      backup behind it is not yet protection. I'll check on the next session.
 
 - [ ] **Rehearse a restore once, against a scratch database.** An unrehearsed
       restore path is a hope, not a plan, and the step that surprises people is

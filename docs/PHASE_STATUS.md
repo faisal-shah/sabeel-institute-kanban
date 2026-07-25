@@ -349,10 +349,13 @@ retention **1 hour**), zero backup schedules, zero backups, delete protection of
 The only backup in existence was a 65 KB JSON file on one laptop, written by a
 throwaway script that was deleted immediately after — and it had no reader.
 
-- **Native Firestore protection**: PITR (rolling 7 days) + a **daily** backup
-  schedule at 98-day retention (Firestore's maximum) + delete protection. These
-  are Google-managed settings with no code to maintain. Chose daily over the
-  sibling's weekly; both layers are excluded from the free tier.
+- **Native Firestore protection, enabled and verified in production**: PITR
+  (`versionRetentionPeriod` 3600s → **604800s**, 7 days) + a **daily** backup
+  schedule at **98-day** retention (Firestore's maximum) + `DELETE_PROTECTION_
+  ENABLED`. Google-managed settings, no code to maintain. Chose daily over the
+  sibling's weekly; both layers are excluded from the free tier. State was read
+  back from the database afterwards rather than inferred from the CLI's success
+  messages.
 - **`healthCheck` canary** (`functions/src/health.ts`), ported from the sibling
   time-tracker: daily `count()` aggregations per collection, compared against a
   baseline at `meta/health`, raising to Sentry when a collection shrinks past its
@@ -384,9 +387,10 @@ and the re-baseline). `restore-auth.mjs` verified both ways — dry-run against
 production (5 accounts, nothing written) and apply against emulators (uids
 preserved, claims applied, idempotent on re-run).
 
-Outstanding, tracked in `TODO.md` §J: the three production commands, and a restore
-drill — which is also what settles whether a Google sign-in re-attaches to a
-restored account.
+Outstanding, tracked in `TODO.md` §J: confirming the first scheduled backup lands
+(a schedule with no backup behind it is not yet protection), and a restore drill —
+which is also what settles whether a Google sign-in re-attaches to a restored
+account.
 
 ### 2026-07-24 — Instant Leave/Remove feedback + quieter slow-write alerts — v0.1.20
 
