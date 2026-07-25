@@ -85,13 +85,67 @@ export function validateBoardName(name: string): string | null {
   return null;
 }
 
+export const COLUMN_NAME_MAX = 60;
+
 export function validateColumnName(name: string, existing: BoardColumn[]): string | null {
   const trimmed = name.trim();
   if (trimmed.length === 0) return 'Give the column a name.';
-  if (trimmed.length > 60) return 'Keep the column name under 60 characters.';
+  if (trimmed.length > COLUMN_NAME_MAX)
+    return `Keep the column name under ${COLUMN_NAME_MAX} characters.`;
   if (existing.some((c) => c.name.toLowerCase() === trimmed.toLowerCase()))
     return 'There is already a column with that name.';
   return null;
+}
+
+/**
+ * Rename one column, or explain why not.
+ *
+ * The subtlety this exists to contain: `validateColumnName` rejects a name any
+ * existing column already has — and the column being renamed is itself one of
+ * those. Validating against the whole list would reject re-saving a column's own
+ * name, and (less obviously) reject fixing only its CAPITALISATION, because the
+ * duplicate check is case-insensitive. So the column being renamed is excluded
+ * from the comparison, and every surface offering a rename goes through here
+ * rather than re-deriving that.
+ *
+ * Returns the full column array so the caller can hand it straight to
+ * `columnsPatch` — renaming must never write `columns` without `columnIds`.
+ */
+/**
+ * Why this column cannot be deleted yet, or null if it can.
+ *
+ * A column delete is irreversible and would strand whatever is in it, so the
+ * rule is: empty first, then confirm. All three board surfaces asked this
+ * question with their own slightly different wording; it belongs in one place so
+ * the answer — and the sentence explaining it — cannot drift between them.
+ */
+export function columnDeleteBlocked(name: string, cardCount: number): string | null {
+  if (cardCount <= 0) return null;
+  return (
+    `“${name}” still has ${cardCount} card${cardCount === 1 ? '' : 's'}. ` +
+    'Move or archive them first — deleting a column must never take cards with it.'
+  );
+}
+
+export type RenameColumnResult =
+  | { ok: true; columns: BoardColumn[] }
+  | { ok: false; error: string };
+
+export function renameColumn(
+  columns: readonly BoardColumn[],
+  columnId: string,
+  rawName: string,
+): RenameColumnResult {
+  const problem = validateColumnName(
+    rawName,
+    columns.filter((c) => c.id !== columnId),
+  );
+  if (problem) return { ok: false, error: problem };
+  const trimmed = rawName.trim();
+  return {
+    ok: true,
+    columns: columns.map((c) => (c.id === columnId ? { ...c, name: trimmed } : c)),
+  };
 }
 
 export function newLabel(name: string, color: string): BoardLabel {

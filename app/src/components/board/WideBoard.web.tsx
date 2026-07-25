@@ -25,11 +25,18 @@ import {
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { CardFace } from '../CardFace';
+import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { createAutoScroller } from './autoScroll';
 import { BulkBar } from '../BulkBar';
 import { IconAction } from '../ui';
-import { CARD_TITLE_MAX, columnsPatch, type BoardColumn, type BoardLabel } from '@sabeel/shared';
+import {
+  CARD_TITLE_MAX,
+  columnDeleteBlocked,
+  columnsPatch,
+  type BoardColumn,
+  type BoardLabel,
+} from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import { useListenerError } from '../../liveQuery';
@@ -150,6 +157,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const [adding, setAdding] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Which column is mid-rename. Its delete button steps aside while editing, so
+  // the cancel ✕ and the delete ✕ are never sitting next to each other.
+  const [renamingCol, setRenamingCol] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<BoardColumn | null>(null);
   const selection = useSelection(cards.data ?? EMPTY_CARDS);
 
   // Auto-scroll during drag. The HTML5 drag API will not scroll a container
@@ -247,21 +258,33 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     }
   }
 
-  async function removeColumn(col: BoardColumn) {
-    const inCol = byColumn.get(col.id) ?? [];
-    if (inCol.length > 0) {
-      setError(
-        `“${col.name}” still has ${inCol.length} card${inCol.length === 1 ? '' : 's'}. ` +
-          'Move or archive them first — deleting a column must never take cards with it.',
-      );
-      return;
-    }
-    const next = (board.data?.columns ?? []).filter((c) => c.id !== col.id);
+  async function saveColumns(next: BoardColumn[]) {
+    // Same shape as removeColumn below: this surface reports failures through its
+    // own `error` banner rather than useAction.
     try {
       await updateBoard(boardId, columnsPatch(next));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+  }
+
+  /**
+   * Deleting a column is irreversible and sits one click away, so it ASKS.
+   * Emptiness is not consent — an empty column can still be one someone just
+   * cleared and is about to refill.
+   */
+  function askRemoveColumn(col: BoardColumn) {
+    const blocked = columnDeleteBlocked(col.name, (byColumn.get(col.id) ?? []).length);
+    if (blocked) {
+      setError(blocked);
+      return;
+    }
+    setPendingDelete(col);
+  }
+
+  async function confirmRemoveColumn(col: BoardColumn) {
+    setPendingDelete(null);
+    await saveColumns((board.data?.columns ?? []).filter((c) => c.id !== col.id));
   }
 
   if (board.status === 'loading' || cards.status === 'loading') {
@@ -348,6 +371,26 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       {listenerError ? (
         <div style={banner(t)}>{listenerError}</div>
       ) : null}
+      {/* Destructive and irreversible, so it gets a labelled button and a
+          sentence — not an icon you can brush past. */}
+      {pendingDelete ? (
+        <div style={banner(t)}>
+          Delete the column “{pendingDelete.name}”? It is empty, but this cannot be
+          undone.{' '}
+          <button
+            onClick={() => confirmRemoveColumn(pendingDelete)}
+            style={{ ...btn(t), marginLeft: 8, color: t.text.danger }}
+          >
+            Delete column
+          </button>
+          <button
+            onClick={() => setPendingDelete(null)}
+            style={{ ...btn(t), marginLeft: 8 }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <div style={banner(t)}>
           {error}{' '}
@@ -419,15 +462,22 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   marginBottom: space.sm,
                 }}
               >
-                <strong style={{ color: t.text.primary, fontSize: 14 }}>
-                  {col.name}{' '}
-                  <span style={{ color: t.text.muted, fontWeight: 400 }}>
-                    ({colCards.length})
-                  </span>
-                </strong>
-                {isManager ? (
+                {/* The same RN editor the other three surfaces use — renders to
+                    DOM through react-native-web, as CardFace already does inside
+                    this very column. One rename implementation, not four. */}
+                <ColumnNameEditor
+                  column={col}
+                  columns={b.columns}
+                  canEdit={isManager}
+                  suffix={` (${colCards.length})`}
+                  bold
+                  onError={setError}
+                  onRename={saveColumns}
+                  onEditingChange={(on) => setRenamingCol(on ? col.id : null)}
+                />
+                {isManager && renamingCol !== col.id ? (
                   <button
-                    onClick={() => removeColumn(col)}
+                    onClick={() => askRemoveColumn(col)}
                     aria-label={`Delete column ${col.name}`}
                     style={{ ...btn(t), fontSize: 12 }}
                   >

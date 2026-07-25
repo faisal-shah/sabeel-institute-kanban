@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   BOARD_NAME_MAX,
+  COLUMN_NAME_MAX,
   LABEL_COLORS,
+  columnDeleteBlocked,
   columnsPatch,
   defaultColumns,
   newBoard,
   newLabel,
   pushRecent,
+  renameColumn,
   sortBoardsForList,
   validateBoardName,
   validateColumnName,
@@ -176,5 +179,90 @@ describe('pushRecent', () => {
 
   it('caps the list', () => {
     expect(pushRecent(['a', 'b', 'c'], 'd', 3)).toEqual(['d', 'a', 'b']);
+  });
+});
+
+describe('renameColumn', () => {
+  const cols = () => [
+    { id: 'c1', name: 'To Do' },
+    { id: 'c2', name: 'In Progress' },
+    { id: 'c3', name: 'Done' },
+  ];
+
+  it('renames the target and leaves the others alone', () => {
+    const r = renameColumn(cols(), 'c2', 'Doing');
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.columns).toEqual([
+      { id: 'c1', name: 'To Do' },
+      { id: 'c2', name: 'Doing' },
+      { id: 'c3', name: 'Done' },
+    ]);
+  });
+
+  it('trims', () => {
+    const r = renameColumn(cols(), 'c1', '  Backlog  ');
+    expect(r.ok && r.columns[0].name).toBe('Backlog');
+  });
+
+  // The whole reason this helper exists: the column being renamed is itself in
+  // the list, so a naive duplicate check rejects its own name.
+  it('accepts re-saving a column with the name it already has', () => {
+    expect(renameColumn(cols(), 'c1', 'To Do').ok).toBe(true);
+  });
+
+  it('accepts a CASE-ONLY change, which a naive check would reject', () => {
+    const r = renameColumn(cols(), 'c1', 'TO DO');
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.columns[0].name).toBe('TO DO');
+  });
+
+  it('still rejects colliding with a DIFFERENT column, case-insensitively', () => {
+    for (const name of ['Done', 'done']) {
+      const r = renameColumn(cols(), 'c1', name);
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.error).toBe('There is already a column with that name.');
+    }
+  });
+
+  it('rejects an empty or whitespace-only name', () => {
+    const r = renameColumn(cols(), 'c1', '   ');
+    expect(!r.ok && r.error).toBe('Give the column a name.');
+  });
+
+  it('rejects an over-long name', () => {
+    const r = renameColumn(cols(), 'c1', 'x'.repeat(COLUMN_NAME_MAX + 1));
+    expect(!r.ok && r.error).toContain(`under ${COLUMN_NAME_MAX}`);
+  });
+
+  it('returns columns that survive columnsPatch with ids intact', () => {
+    // Renaming must never desync columns from columnIds — rules validate card
+    // writes against the flat mirror.
+    const r = renameColumn(cols(), 'c2', 'Doing');
+    expect(r.ok && columnsPatch(r.columns).columnIds).toEqual(['c1', 'c2', 'c3']);
+  });
+
+  it('is a no-op for an unknown column id', () => {
+    const r = renameColumn(cols(), 'nope', 'Whatever');
+    expect(r.ok && r.columns).toEqual(cols());
+  });
+});
+
+describe('columnDeleteBlocked', () => {
+  it('allows deleting an empty column', () => {
+    expect(columnDeleteBlocked('To Do', 0)).toBeNull();
+  });
+
+  it('blocks a column that still holds cards, and says how many', () => {
+    expect(columnDeleteBlocked('To Do', 3)).toContain('still has 3 cards');
+  });
+
+  it('singularises one card', () => {
+    const msg = columnDeleteBlocked('To Do', 1)!;
+    expect(msg).toContain('still has 1 card.');
+    expect(msg).not.toContain('1 cards');
+  });
+
+  it('names the column so the message is actionable', () => {
+    expect(columnDeleteBlocked('Waiting on donor', 2)).toContain('Waiting on donor');
   });
 });

@@ -33,6 +33,7 @@ import {
   TextField,
   Title,
 } from '../components/ui';
+import { ColumnNameEditor } from '../components/ColumnNameEditor';
 import { ReorderList } from '../components/ReorderList';
 import { radius, space, useTheme } from '../theme';
 import { useAction } from '../useAction';
@@ -166,10 +167,21 @@ export function BoardSettingsScreen({
         {/* Drag the handle to reorder. One document write per drop
             (columnsPatch keeps columns/columnIds in sync — never a bare
             `columns` write, or card rules reject the new column). */}
+        {/* The name is editable in place. Dragging is the handle's job, so a tap
+            on the pencil cannot start a reorder. */}
         <ReorderList
           items={b.columns}
           keyOf={(c) => c.id}
-          renderItem={(c) => <Body>{c.name}</Body>}
+          renderItem={(c) => (
+            <ColumnNameEditor
+              column={c}
+              columns={b.columns}
+              canEdit
+              busy={busy}
+              onError={setError}
+              onRename={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
+            />
+          )}
           onReorder={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
         />
         <Hint>

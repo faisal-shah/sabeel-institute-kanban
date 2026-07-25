@@ -26,7 +26,13 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { CARD_TITLE_MAX, columnsPatch, type BoardColumn, type BoardLabel } from '@sabeel/shared';
+import {
+  CARD_TITLE_MAX,
+  columnDeleteBlocked,
+  columnsPatch,
+  type BoardColumn,
+  type BoardLabel,
+} from '@sabeel/shared';
 import {
   cardsInColumn,
   createCard,
@@ -35,6 +41,7 @@ import {
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { CardFace } from '../CardFace';
+import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
 import { sessionCan, type SessionUser } from '../../session';
@@ -125,7 +132,10 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   const [page, setPage] = useState(() => lastPageByBoard.get(boardId) ?? 0);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const { run, error, setError } = useAction('narrowBoard');
+  const { run, busy, error, setError } = useAction('narrowBoard');
+  // Editing the column name takes over the pager row (see the header below).
+  const [renaming, setRenaming] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<BoardColumn | null>(null);
   const scroller = useRef<ScrollView>(null);
   // Measured, not Dimensions.get('window'): this pager sits inside the Screen's
   // horizontal padding, so sizing pages to the WINDOW made every page wider than
@@ -203,15 +213,22 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   }
 
 
-  async function removeColumn(col: BoardColumn) {
-    const inCol = byColumn.get(col.id) ?? [];
-    if (inCol.length > 0) {
-      setError(
-        `“${col.name}” still has ${inCol.length} card${inCol.length === 1 ? '' : 's'}. ` +
-          'Move or archive them first.',
-      );
+  /**
+   * Deleting a column is irreversible and sits one tap away, so it ASKS.
+   * Emptiness is not consent — an empty column can still be one someone just
+   * cleared and is about to refill.
+   */
+  function askRemoveColumn(col: BoardColumn) {
+    const blocked = columnDeleteBlocked(col.name, (byColumn.get(col.id) ?? []).length);
+    if (blocked) {
+      setError(blocked);
       return;
     }
+    setPendingDelete(col);
+  }
+
+  async function confirmRemoveColumn(col: BoardColumn) {
+    setPendingDelete(null);
     await run(() =>
       updateBoard(boardId, columnsPatch(columns.filter((c) => c.id !== col.id))),
     );
@@ -254,22 +271,68 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         </Row>
       </Row>
 
-      {/* Column pager header: which column, and where it sits in the board. */}
+      {/* Column pager header: which column, and where it sits in the board.
+          While the name is being edited the Prev/Next buttons step aside — on a
+          phone they leave barely 130px between them, which is not a text field
+          you can type a column name into. */}
       <Row style={styles.pager}>
-        <Button label="‹ Prev" variant="secondary" onPress={() => goTo(page - 1)} />
+        {!renaming ? (
+          <Button label="‹ Prev" variant="secondary" onPress={() => goTo(page - 1)} />
+        ) : null}
         <View style={styles.pagerLabel}>
-          <Body>{current?.name ?? '—'}</Body>
-          <Caption>
-            {columns.length > 0 ? `${page + 1} of ${columns.length}` : 'No columns'}
-          </Caption>
+          {current ? (
+            <ColumnNameEditor
+              column={current}
+              columns={columns}
+              canEdit={sessionCan.manageBoards(user)}
+              center
+              busy={busy}
+              onError={setError}
+              onEditingChange={setRenaming}
+              onRename={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
+            />
+          ) : (
+            <Body>—</Body>
+          )}
+          {!renaming ? (
+            <Caption>
+              {columns.length > 0 ? `${page + 1} of ${columns.length}` : 'No columns'}
+            </Caption>
+          ) : null}
         </View>
-        <Button label="Next ›" variant="secondary" onPress={() => goTo(page + 1)} />
+        {!renaming ? (
+          <Button label="Next ›" variant="secondary" onPress={() => goTo(page + 1)} />
+        ) : null}
       </Row>
 
       {error ? (
         <Panel>
           <Body>{error}</Body>
           <Button label="Dismiss" variant="secondary" onPress={() => setError(null)} />
+        </Panel>
+      ) : null}
+
+      {/* Destructive and irreversible, so it gets a labelled button and a
+          sentence — not an icon you can brush past. */}
+      {pendingDelete ? (
+        <Panel>
+          <Body>
+            Delete the column “{pendingDelete.name}”? It is empty, but this cannot
+            be undone.
+          </Body>
+          <Row>
+            <Button
+              busy={busy}
+              label="Delete column"
+              variant="danger"
+              onPress={() => confirmRemoveColumn(pendingDelete)}
+            />
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => setPendingDelete(null)}
+            />
+          </Row>
         </Panel>
       ) : null}
 
@@ -388,7 +451,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                     <Button
                       label="Delete column"
                       variant="secondary"
-                      onPress={() => removeColumn(col)}
+                      onPress={() => askRemoveColumn(col)}
                     />
                   ) : null}
                 </Row>

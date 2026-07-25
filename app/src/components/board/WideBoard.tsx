@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { CARD_TITLE_MAX, columnsPatch, compareRank, type BoardColumn, type BoardLabel } from '@sabeel/shared';
+import {
+  CARD_TITLE_MAX,
+  columnDeleteBlocked,
+  columnsPatch,
+  compareRank,
+  type BoardColumn,
+  type BoardLabel,
+} from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -11,6 +18,7 @@ import {
 } from '../../cards';
 import { updateBoard, useBoard, type BoardMemberProfile } from '../../boards';
 import { CardFace } from '../CardFace';
+import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
 import { sessionCan, type SessionUser } from '../../session';
@@ -59,6 +67,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const [adding, setAdding] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [moving, setMoving] = useState<Card | null>(null);
+  // Which column is mid-rename — its delete icon steps aside while editing, so
+  // the cancel ✕ and the delete ✕ are never adjacent.
+  const [renamingCol, setRenamingCol] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<BoardColumn | null>(null);
   const { run, busy, error, setError } = useAction('wideBoard');
   const selection = useSelection(cards.data ?? EMPTY_CARDS);
 
@@ -103,15 +115,22 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     );
   }
 
-  async function removeColumn(col: BoardColumn) {
-    const inCol = byColumn.get(col.id) ?? [];
-    if (inCol.length > 0) {
-      setError(
-        `“${col.name}” still has ${inCol.length} card${inCol.length === 1 ? '' : 's'}. ` +
-          'Move or archive them first.',
-      );
+  /**
+   * Deleting a column is irreversible and sits one tap away, so it ASKS.
+   * Emptiness is not consent — an empty column can still be one someone just
+   * cleared and is about to refill.
+   */
+  function askRemoveColumn(col: BoardColumn) {
+    const blocked = columnDeleteBlocked(col.name, (byColumn.get(col.id) ?? []).length);
+    if (blocked) {
+      setError(blocked);
       return;
     }
+    setPendingDelete(col);
+  }
+
+  async function confirmRemoveColumn(col: BoardColumn) {
+    setPendingDelete(null);
     await run(() =>
       updateBoard(boardId, columnsPatch(columns.filter((c) => c.id !== col.id))),
     );
@@ -156,6 +175,30 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
         </Panel>
       ) : null}
 
+      {/* Destructive and irreversible, so it gets a labelled button and a
+          sentence — not an icon you can brush past. */}
+      {pendingDelete ? (
+        <Panel>
+          <Body>
+            Delete the column “{pendingDelete.name}”? It is empty, but this cannot
+            be undone.
+          </Body>
+          <Row>
+            <Button
+              busy={busy}
+              label="Delete column"
+              variant="danger"
+              onPress={() => confirmRemoveColumn(pendingDelete)}
+            />
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => setPendingDelete(null)}
+            />
+          </Row>
+        </Panel>
+      ) : null}
+
       <BulkBar
         currentBoardId={boardId}
         columns={columns}
@@ -175,14 +218,25 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               style={[styles.column, { backgroundColor: t.bg.inset }]}
             >
               <Row style={styles.between}>
-                <Body>
-                  {col.name} ({colCards.length})
-                </Body>
-                {sessionCan.manageBoards(user) ? (
-                  <Button
-                    label="✕"
-                    variant="secondary"
-                    onPress={() => removeColumn(col)}
+                <ColumnNameEditor
+                  column={col}
+                  columns={columns}
+                  canEdit={sessionCan.manageBoards(user)}
+                  suffix={` (${colCards.length})`}
+                  bold
+                  busy={busy}
+                  onError={setError}
+                  onRename={(next) =>
+                    run(() => updateBoard(boardId, columnsPatch(next)))
+                  }
+                  onEditingChange={(on) => setRenamingCol(on ? col.id : null)}
+                />
+                {sessionCan.manageBoards(user) && renamingCol !== col.id ? (
+                  <IconAction
+                    icon="close"
+                    label={`Delete column ${col.name}`}
+                    danger
+                    onPress={() => askRemoveColumn(col)}
                   />
                 ) : null}
               </Row>

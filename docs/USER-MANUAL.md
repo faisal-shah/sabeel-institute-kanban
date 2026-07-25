@@ -237,9 +237,11 @@ replace in Settings.
 
 Open a board and tap its **settings** (the gear). From here:
 
-- **Columns** — add, rename, and reorder. A column can only be deleted once it's
-  **empty**, so no cards vanish with it. To clear one quickly, select its cards
-  and move or archive them in one go.
+- **Columns** — add, rename, and reorder. Tap the **pencil** beside a column's
+  name to rename it; drag the handle to reorder. A column can only be deleted
+  once it's **empty**, so no cards vanish with it, and deleting one **asks first**
+  because it cannot be undone. To clear a column quickly, select its cards and
+  move or archive them in one go.
 - **Labels** — a short, shared vocabulary for the board. Colours come from a fixed
   palette so they stay readable on the app's warm surfaces.
 - **Members** — who can see the board. Removing someone also **unassigns them from
@@ -248,6 +250,11 @@ Open a board and tap its **settings** (the gear). From here:
   work.
 - **Archive** — hides the board from everyone's list. Boards are never deleted
   outright.
+
+**Renaming a column without opening Settings.** Column names are editable from
+the board itself too — tap the **pencil** beside the column name (on a phone, in
+the column header at the top; on a wide screen, at the top of each column). Only
+managers and admins see it; everyone else just sees the name.
 
 **Joining or leaving a board yourself.** Because managers and admins can open
 **any** board's settings, a board you haven't joined shows a **Join this board**

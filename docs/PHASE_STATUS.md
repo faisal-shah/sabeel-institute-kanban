@@ -341,6 +341,45 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Editable column names, and column delete now asks — v0.1.21
+
+Column names are editable **everywhere a column name appears** — board settings
+and all three board layouts — and deleting a column now takes a confirmation
+instead of firing on one tap.
+
+- **One shared `ColumnNameEditor`** (`app/src/components/ColumnNameEditor.tsx`)
+  rather than four copies of the same edit state; it renders through
+  react-native-web inside the web board's DOM header, exactly as `CardFace`
+  already does. Idle shows the name plus a pencil; editing swaps in a field with
+  save/cancel. Manager/admin only, matching the board-update rule.
+- **The rename rule lives in `@sabeel/shared`** (`renameColumn`), because it has a
+  trap: `validateColumnName` rejects a name any existing column holds — and the
+  column being renamed is one of those. Validating against the whole list would
+  reject re-saving a column's own name and, less obviously, reject fixing only its
+  **capitalisation**, since the duplicate check is case-insensitive. Unit-tested,
+  including that case-only rename.
+- **Phone layout gets its own treatment**: the pager's Prev/Next buttons step
+  aside while editing (they leave barely 130px between them, which is not a field
+  you can type a column name into), via an `onEditingChange` callback.
+- **Delete now confirms.** It was one tap from gone for an empty column;
+  emptiness is not consent. A named confirmation ("Delete the column “Done”? It is
+  empty, but this cannot be undone.") with a labelled destructive button, per the
+  convention that destructive-and-unusual actions get words, not icons. The wide
+  boards also hide the delete ✕ while a rename is open, so the cancel ✕ and the
+  delete ✕ are never adjacent.
+- **`columnDeleteBlocked` moved to `@sabeel/shared`** — the "still has N cards"
+  guard was triplicated across the three boards with drifting wording.
+- Tidy-up while in the file: WideBoard's column delete was a `Button label="✕"`,
+  now an `IconAction`, per the icons-not-labelled-buttons convention.
+
+Verified on **web** (desktop + 390px phone, all four surfaces): rename persists,
+duplicate names rejected, delete asks and cancels cleanly, non-empty columns still
+blocked, no page errors. And on **native** (AVD): pencil renders, the field takes
+the full pager row with the soft keyboard up, the rename persisted with
+`columnIds` **still in sync** with `columns`, and the delete confirmation appeared
+instead of deleting. 225 shared unit tests, emulator suite green (121 rules + 35
+functions).
+
 ### 2026-07-25 — Disaster recovery: native protection + a detection canary
 
 Backend and ops only — **no client change**, so nothing here gated on an app
