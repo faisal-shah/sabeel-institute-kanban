@@ -408,22 +408,40 @@ export function Toggle({
  * icon carries the meaning at a fraction of the space.
  *
  * `accessibilityLabel` carries the word the icon replaces, so nothing is lost
- * for screen readers, and `hitSlop` keeps the tap target finger-sized while the
- * ink stays small.
+ * for screen readers, and the target stays finger-sized while the ink stays
+ * small.
+ *
+ * The target is a real 44×44 BOX, not `hitSlop`. That distinction is the whole
+ * point: hitSlop paints invisible margin *outside* the element, so two icons
+ * sitting a few pixels apart had touch areas that OVERLAPPED — 12px of slop each
+ * side across a 4px gap meant a 20px band belonging to both, and which one you
+ * hit was arbitrary. Reported from a real phone as "you have to use the very tip
+ * of your finger" to tell save from cancel. Laid-out boxes cannot overlap, so
+ * adjacent icons are always unambiguous, and 44 is the platform accessibility
+ * minimum rather than a number picked to feel right.
+ *
+ * Because the box supplies its own spacing, rows of these want a SMALL gap
+ * (space.xs), not a large one — the separation is already inside the target.
  */
 export function IconAction({
   icon,
   label,
   onPress,
   danger,
+  accent,
   disabled,
+  size = 18,
 }: {
   icon: MaterialIconName;
   label: string;
   onPress: () => void;
   danger?: boolean;
+  /** The affirmative half of a pair, so it cannot be mistaken for its sibling. */
+  accent?: boolean;
   /** Disable while a write it triggers is in flight, so it cannot re-fire. */
   disabled?: boolean;
+  /** Ink size. Larger for a high-stakes pair like save/cancel. */
+  size?: number;
 }) {
   const t = useTheme();
   return (
@@ -433,7 +451,6 @@ export function IconAction({
       accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}
       disabled={disabled}
-      hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
       style={({ pressed }) => [
         styles.action,
         disabled && { opacity: 0.4 },
@@ -442,8 +459,8 @@ export function IconAction({
     >
       <MaterialIcons
         name={icon}
-        size={18}
-        color={danger ? t.text.danger : t.text.muted}
+        size={size}
+        color={danger ? t.text.danger : accent ? t.accent.base : t.text.muted}
       />
     </Pressable>
   );
@@ -522,7 +539,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleThumb: { width: 26, height: 26, borderRadius: radius.pill },
-  action: { paddingVertical: 2 },
+  // A real 44x44 target, the platform accessibility minimum. NOT hitSlop — see
+  // IconAction: slop overlaps between neighbours, laid-out boxes cannot.
+  action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },

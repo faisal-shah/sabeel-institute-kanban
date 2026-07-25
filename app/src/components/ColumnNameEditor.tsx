@@ -89,11 +89,22 @@ export function ColumnNameEditor({
             maxLength={COLUMN_NAME_MAX}
           />
         </View>
-        <IconAction icon="check" label="Save column name" onPress={commit} disabled={busy} />
+        {/* Save is the affirmative and is tinted; cancel stays quiet. Two muted
+            18px glyphs side by side were reported as indistinguishable on a real
+            phone — shape alone is not enough to tell them apart in a hurry. */}
+        <IconAction
+          icon="check"
+          label="Save column name"
+          onPress={commit}
+          accent
+          size={24}
+          disabled={busy}
+        />
         <IconAction
           icon="close"
           label="Cancel rename"
           onPress={close}
+          size={24}
           disabled={busy}
         />
       </Row>

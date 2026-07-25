@@ -470,7 +470,8 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
   headerTitle: { flexShrink: 1 },
-  headerActions: { gap: space.md },
+  // Small: IconAction's 44px box already separates these.
+  headerActions: { gap: space.xs },
   grow: { flex: 1 },
   pager: { justifyContent: 'space-between', paddingVertical: space.sm },
   pagerLabel: { alignItems: 'center', flex: 1 },

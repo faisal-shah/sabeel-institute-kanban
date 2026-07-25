@@ -350,7 +350,8 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
   headerTitle: { flexShrink: 1 },
-  headerActions: { gap: space.md },
+  // Small: IconAction's 44px box already separates these.
+  headerActions: { gap: space.xs },
   wrap: { flexWrap: 'wrap' },
   column: {
     width: 300,

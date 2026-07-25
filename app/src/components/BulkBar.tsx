@@ -312,7 +312,9 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
   },
   between: { justifyContent: 'space-between', alignItems: 'center' },
-  actions: { gap: space.lg, alignItems: 'center' },
+  // IconAction is a 44px box that carries its own separation, so the gap here
+  // is small on purpose — a large one would push this bar past one row on a phone.
+  actions: { gap: space.xs, alignItems: 'center' },
   wrap: { flexWrap: 'wrap' },
   // Board · column · [Copy Move] on one left-aligned row that wraps as needed.
   controls: { flexWrap: 'wrap' },

@@ -341,6 +341,37 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Icon targets are real 44px boxes, not hitSlop — v0.1.22
+
+Reported from a real phone: the save/cancel icons when renaming a column were
+"too small and close to one another… you have to use the very tip of your
+finger."
+
+The cause was **app-wide**, not local to that editor. `IconAction` sized its
+target with `hitSlop` — invisible margin painted OUTSIDE the element — 12px each
+side. Two icons separated by a 4px gap therefore had touch areas overlapping by
+**20px**, a band belonging to both, where which one you hit was arbitrary. The
+same defect was in every adjacent icon pair in the app: the board header's
+gear/back (12px gap → 12px overlap) and the bulk bar's six icons (16px gap → 8px
+overlap). Only the rename pair was tight enough — and high-stakes enough, save vs
+discard — for anyone to notice.
+
+- **`IconAction` now lays out a real 44×44 box** (`minWidth`/`minHeight`, centred
+  ink) instead of using `hitSlop`. Laid-out boxes cannot overlap, so adjacent
+  icons are always unambiguous, and 44 is the platform accessibility minimum
+  rather than a number that felt right. Fixes every icon row at once.
+- Because the box now carries its own separation, the gaps in the bulk bar
+  (`space.lg`) and both board headers (`space.md`) drop to `space.xs` — otherwise
+  the bulk bar, which must stay on ONE row, would have grown past a phone's width.
+- The rename pair also gets **bigger ink (24) and a colour distinction**: save is
+  accent-tinted as the affirmative, cancel stays muted. Two muted 18px glyphs are
+  hard to tell apart in a hurry regardless of target size.
+
+Verified on **web** by measuring: both targets are exactly 44×44 with a 4px gap
+and zero overlap, and the phone page has no horizontal overflow (bulk bar still
+one row at 390px). And on **native** (AVD): targets measure 115×115px — 44dp at
+that density — non-overlapping, with the accent check clearly distinguishable.
+
 ### 2026-07-25 — Editable column names, and column delete now asks — v0.1.21
 
 Column names are editable **everywhere a column name appears** — board settings
