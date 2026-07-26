@@ -4,6 +4,7 @@ import {
   CARD_TITLE_MAX,
   columnDeleteBlocked,
   columnsPatch,
+  subtaskCounts,
   compareRank,
   type BoardColumn,
   type BoardLabel,
@@ -77,6 +78,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const columns = board.data?.columns ?? NO_COLUMNS;
   const members = board.data?.members ?? NO_MEMBERS;
   const labels = board.data?.labels ?? NO_LABELS;
+
+  // Derived, not stored: every card of the board is already loaded, so the count
+  // costs nothing and can never drift from reality.
+  const subtasksBy = useMemo(() => subtaskCounts(cards.data ?? EMPTY_CARDS), [cards.data]);
 
   const byColumn = useMemo(() => {
     const map = new Map<string, Card[]>();
@@ -264,7 +269,12 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                         },
                       ]}
                     >
-                      <CardFace card={card} boardLabels={labels} boardMembers={members} />
+                      <CardFace
+                        card={card}
+                        boardLabels={labels}
+                        boardMembers={members}
+                        subtaskCount={subtasksBy.get(card.id)}
+                      />
                     </Pressable>
                   );
                 })}

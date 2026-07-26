@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.1.15 · July 2026*
+*For app version 0.1.23 · July 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -111,6 +111,7 @@ Tap any card to open the full view.
   without leaving it.
 - **Description** — plain text. Type whatever you like; it appears to everyone
   exactly as you typed it. **Save** to keep it, **Cancel** to discard.
+- **Subtasks** — see below.
 - **Priority** — none / low / medium / high / urgent, shown as a coloured
   **badge** on the card face (e.g. *Urgent*); *none* shows no badge.
 - **Due date** — a whole day, not a time. Pick it from a calendar; **Clear**
@@ -126,6 +127,27 @@ Tap any card to open the full view.
 
 Ordinary actions — move, archive, assign, delete — are **icons**, not big
 buttons, so a card stays compact. Each icon has a label for screen readers.
+
+### Subtasks — breaking a card down
+
+A card can be broken into **subtasks**, which are simply other cards on the same
+board, linked to it.
+
+- Type a title under **Subtasks** and tap **+** to create one. It's made in the
+  same column as the card you're on.
+- **Link an existing card** attaches a card that's already on the board. There's
+  a filter box, because a board can hold a lot of cards.
+- Tap any subtask to **jump straight to it**; it opens like any other card, with
+  its own column, assignees, due date and comments. The subtask shows
+  **Subtask of** at the top — tap that to come back up.
+- The unlink icon separates the two cards again. **It does not delete anything** —
+  the subtask stays on the board as an ordinary card.
+- A parent card shows a small **N subtasks** marker on the board, so you can tell
+  at a glance that it breaks down further.
+
+A subtask is a real card, not a checklist item: it moves through columns, gets
+assigned, and can be discussed like anything else. A card can be a subtask of only
+one other card, and both must be on the same board.
 
 ### Sharing a card
 

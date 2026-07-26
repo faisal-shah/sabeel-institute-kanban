@@ -11,12 +11,14 @@ import {
 import {
   archiveCard,
   cardsInColumn,
+  createCard,
   deleteCard,
   moveCard,
   restoreCard,
   updateCard,
   useCard,
   useBoardCards,
+  type Card,
 } from '../cards';
 import { useBoard } from '../boards';
 import { sessionCan, type SessionUser } from '../session';
@@ -26,6 +28,7 @@ import { cardPath } from '../links';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
 import { AssigneePicker } from '../components/AssigneePicker';
+import { Subtasks } from '../components/Subtasks';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
 import {
@@ -56,6 +59,9 @@ function todayInOrgTz(): string {
     day: '2-digit',
   }).format(new Date());
 }
+
+/** Stable empty, so Subtasks' memos don't churn while the board loads. */
+const NO_CARDS: Card[] = [];
 
 export function CardScreen({
   boardId,
@@ -111,6 +117,14 @@ export function CardScreen({
   // who they can assign.
   const assignable = b.members;
 
+  // The card this one is a subtask of, resolved against the board's LIVE cards.
+  // Resolving here rather than fetching means a parent that was archived, moved
+  // to another board or deleted simply resolves to undefined and the link is not
+  // rendered — a dead link is worse than no link.
+  const parent = c.parentId
+    ? (boardCards.data ?? NO_CARDS).find((x) => x.id === c.parentId)
+    : undefined;
+
   // Share an https link to this card. The receiver opens it — desktop lands in
   // the web app, a phone opens the browser (or, once App Links ship, the app) —
   // and the link resolves the card's board live, so it survives a cross-board
@@ -158,6 +172,21 @@ export function CardScreen({
       ) : null}
 
       <Panel>
+        {/* The way back UP a subtask chain. Only shown when the parent is
+            actually on this board's live card list — a parent that was moved
+            away, archived or deleted resolves to nothing, and a dead link is
+            worse than no link. */}
+        {parent ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open parent card ${parent.title}`}
+            onPress={() => nav.push({ name: 'card', boardId, cardId: parent.id })}
+            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+          >
+            <Hint>Subtask of</Hint>
+            <Body>{parent.title}</Body>
+          </Pressable>
+        ) : null}
         <Hint>Title</Hint>
         <TextField
           value={title}
@@ -274,6 +303,35 @@ export function CardScreen({
             )}
           </>
         )}
+      </Panel>
+
+      <Heading>Subtasks</Heading>
+      <Panel>
+        <Subtasks
+          parentId={cardId}
+          boardCards={boardCards.data ?? NO_CARDS}
+          columns={b.columns}
+          busy={busy}
+          onOpen={(id) => nav.push({ name: 'card', boardId, cardId: id })}
+          onCreate={(childTitle) =>
+            run(async () => {
+              // Created in the PARENT's column, so a breakdown starts wherever
+              // the work currently sits rather than always at To Do.
+              const newId = await createCard({
+                boardId,
+                columnId: c.columnId,
+                title: childTitle,
+                user,
+                columnCards: cardsInColumn(boardCards.data ?? [], c.columnId),
+              });
+              await updateCard(newId, { parentId: cardId }, user);
+            })
+          }
+          onLink={(id) => run(() => updateCard(id, { parentId: cardId }, user))}
+          // `undefined` is how updateCard clears a field (deleteField), so an
+          // unlink leaves the card intact and merely unparented.
+          onUnlink={(id) => run(() => updateCard(id, { parentId: undefined }, user))}
+        />
       </Panel>
 
       <Heading>Priority</Heading>

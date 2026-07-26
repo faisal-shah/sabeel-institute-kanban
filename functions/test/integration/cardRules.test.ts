@@ -295,6 +295,32 @@ describe('creating cards', () => {
       ),
     );
   });
+
+  it('allows a card carrying a parentId (a subtask)', async () => {
+    // The key-set restriction lists parentId, or every subtask would become
+    // uneditable the moment it was linked.
+    await assertSucceeds(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/new14'),
+        card({ parentId: 'some-other-card' }),
+      ),
+    );
+  });
+
+  it('rejects a non-string parentId', async () => {
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/new15'), card({ parentId: 42 })),
+    );
+  });
+
+  it('rejects an over-long parentId', async () => {
+    await assertFails(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/new16'),
+        card({ parentId: 'x'.repeat(201) }),
+      ),
+    );
+  });
 });
 
 describe('updating cards (in-board)', () => {
@@ -369,6 +395,24 @@ describe('updating cards (in-board)', () => {
         columnId: 'c2',
         rank: 'W',
       }),
+    );
+  });
+
+  it('can move a card that carries a parentId (subtasks stay editable)', async () => {
+    // Same trap as sourceId: omit parentId from the key list and a card becomes
+    // read-only the moment it is made a subtask.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        ...card({ parentId: 'parent-card' }),
+        columnId: 'c2',
+        rank: 'W',
+      }),
+    );
+  });
+
+  it('can UNLINK a subtask by dropping parentId', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), { ...card() }),
     );
   });
 

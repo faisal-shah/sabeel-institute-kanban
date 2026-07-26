@@ -42,7 +42,21 @@ function renderScreen(route: Route, user: SessionUser) {
     case 'boardSettings':
       return <BoardSettingsScreen boardId={route.boardId} user={user} />;
     case 'card':
-      return <CardScreen boardId={route.boardId} cardId={route.cardId} user={user} />;
+      // KEYED BY CARD ID, deliberately. Only the top of the stack renders, so a
+      // card → card push (which subtasks make routine) puts the same component
+      // type in the same position and React KEEPS its local state. Without the
+      // key: start editing card A's title — `dirty` is now true, so the seeding
+      // effect `if (card.data && !dirty)` stops re-seeding — tap a subtask, and
+      // card B renders showing A's typed title. Pressing "Save title" then writes
+      // A's text onto B. The key forces a fresh mount per card.
+      return (
+        <CardScreen
+          key={route.cardId}
+          boardId={route.boardId}
+          cardId={route.cardId}
+          user={user}
+        />
+      );
     case 'myWork':
       return <MyWorkScreen user={user} />;
     case 'notifications':

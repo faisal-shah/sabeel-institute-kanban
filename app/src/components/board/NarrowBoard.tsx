@@ -30,6 +30,7 @@ import {
   CARD_TITLE_MAX,
   columnDeleteBlocked,
   columnsPatch,
+  subtaskCounts,
   type BoardColumn,
   type BoardLabel,
 } from '@sabeel/shared';
@@ -73,6 +74,7 @@ function CardTile({
   card,
   boardLabels,
   boardMembers,
+  subtaskCount,
   selected,
   selectionActive,
   onOpen,
@@ -81,6 +83,7 @@ function CardTile({
   card: Card;
   boardLabels: readonly BoardLabel[];
   boardMembers: readonly BoardMemberProfile[];
+  subtaskCount?: number;
   selected: boolean;
   selectionActive: boolean;
   onOpen: () => void;
@@ -103,7 +106,12 @@ function CardTile({
         },
       ]}
     >
-      <CardFace card={card} boardLabels={boardLabels} boardMembers={boardMembers} />
+      <CardFace
+        card={card}
+        boardLabels={boardLabels}
+        boardMembers={boardMembers}
+        subtaskCount={subtaskCount}
+      />
       {selectionActive ? (
         <Caption>{selected ? '✓ selected' : 'tap to select'}</Caption>
       ) : null}
@@ -163,6 +171,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 
   // `?? []` would allocate a new array each render, defeating the memo below.
   const columns = board.data?.columns ?? NO_COLUMNS;
+  // Derived, not stored — the board already holds every card it needs.
+  const subtasksBy = useMemo(() => subtaskCounts(cards.data ?? EMPTY_CARDS), [cards.data]);
+
   const byColumn = useMemo(() => {
     const map = new Map<string, Card[]>();
     for (const col of columns) map.set(col.id, cardsInColumn(cards.data ?? [], col.id));
@@ -391,6 +402,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                     card={item}
                     boardLabels={labels}
                     boardMembers={members}
+                    subtaskCount={subtasksBy.get(item.id)}
                     selected={selection.isSelected(item.id)}
                     selectionActive={selection.active}
                     // Once anything is selected, tapping toggles rather than

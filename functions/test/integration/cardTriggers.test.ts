@@ -80,6 +80,33 @@ describe('onCardDeleted cascade', () => {
   });
 });
 
+describe('onCardDeleted unlinks subtasks', () => {
+  it("clears parentId on a deleted card's children", async () => {
+    // parentId lives on the CHILD, so nothing else would ever clear it. Left
+    // set, those cards point at a card that no longer exists AND become
+    // permanently unlinkable — `canBeSubtaskOf` refuses a card that already has
+    // a parent, so they could never be attached anywhere else.
+    await adminDb().doc('cards/ct_parent').set(card());
+    await adminDb().doc('cards/ct_kid1').set(card({ parentId: 'ct_parent' }));
+    await adminDb().doc('cards/ct_kid2').set(card({ parentId: 'ct_parent' }));
+    // An unrelated subtask of a DIFFERENT parent must survive untouched.
+    await adminDb().doc('cards/ct_other').set(card({ parentId: 'someone_else' }));
+
+    await adminDb().doc('cards/ct_parent').delete();
+
+    await waitFor('subtasks unlinked', async () => {
+      const a = await adminDb().doc('cards/ct_kid1').get();
+      const b = await adminDb().doc('cards/ct_kid2').get();
+      return a.data()?.parentId === undefined && b.data()?.parentId === undefined
+        ? true
+        : undefined;
+    });
+
+    const other = await adminDb().doc('cards/ct_other').get();
+    expect(other.data()?.parentId).toBe('someone_else');
+  });
+});
+
 describe('removeBoardMember activity attribution', () => {
   it('attributes the unassignment to the manager who removed the member', async () => {
     // A card assigned to MEM, last touched by MEM — so the ONLY way the activity

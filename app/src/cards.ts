@@ -39,6 +39,8 @@ export interface Card {
   labelIds: string[];
   archived: boolean;
   commentCount: number;
+  /** The card this one is a subtask of. Board-scoped — see CardDoc.parentId. */
+  parentId?: string;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -58,6 +60,7 @@ function toCard(id: string, d: Record<string, unknown>): Card {
     labelIds: (d.labelIds as string[]) ?? [],
     archived: Boolean(d.archived),
     commentCount: (d.commentCount as number) ?? 0,
+    parentId: d.parentId as string | undefined,
     createdBy: (d.createdBy as string) ?? '',
     createdAt: (d.createdAt as number) ?? 0,
     updatedAt: (d.updatedAt as number) ?? 0,
@@ -341,6 +344,11 @@ export async function bulkMoveToBoard(params: {
       rank,
       labelIds: [],
       assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
+      // A subtask link is board-scoped exactly like labels are: the parent stays
+      // behind on the old board, so carrying the id across would leave a link
+      // that resolves to nothing. Cleared, not migrated — moving one card out of
+      // a family does not move the family.
+      parentId: deleteField(),
       updatedAt: now,
       updatedBy: params.user.uid,
     });
@@ -374,6 +382,10 @@ export async function bulkCopyToBoard(params: {
       labelIds: [],
       archived: false,
       commentCount: 0,
+      // NOTE: `parentId` is deliberately absent — a copy is a new, independent
+      // card and must not inherit a subtask link to the SOURCE board's parent.
+      // This literal is untyped, so nothing but this comment stops someone
+      // spreading `...card` here and reintroducing it.
       createdAt: now,
       createdBy: params.user.uid,
       updatedAt: now,

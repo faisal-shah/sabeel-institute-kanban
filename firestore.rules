@@ -214,8 +214,8 @@ service cloud.firestore {
         return newCard().keys().hasOnly([
             'boardId', 'title', 'description', 'columnId', 'rank', 'assigneeUids',
             'dueDate', 'priority', 'labelIds', 'archived', 'archivedAt',
-            'commentCount', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy',
-            'sourceId',
+            'commentCount', 'parentId', 'createdAt', 'createdBy', 'updatedAt',
+            'updatedBy', 'sourceId',
           ])
           && newCard().boardId is string
           && newCard().title is string
@@ -232,6 +232,15 @@ service cloud.firestore {
           && (!('dueDate' in newCard()) || newCard().dueDate is string)
           && (!('sourceId' in newCard())
               || (newCard().sourceId is string && newCard().sourceId.size() <= 200))
+          // The card this one is a subtask of. Shape only: checking that the
+          // parent EXISTS and is on the same board would need a card -> card
+          // get() — the first in this block — costing a read per write and
+          // racing a concurrent delete. It is not a security boundary either:
+          // this is an opaque string, and a child's read access comes from its
+          // own boardId. Same-board is enforced by the picker, and a stale link
+          // renders as nothing. See CardDoc.parentId.
+          && (!('parentId' in newCard())
+              || (newCard().parentId is string && newCard().parentId.size() <= 200))
           && columnExists()
           && assigneesAreMembers();
       }

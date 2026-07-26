@@ -10,5 +10,6 @@ export * from './migration';
 export * from './notify';
 export * from './rank';
 export * from './search';
+export * from './subtasks';
 export * from './constants';
 export * from './types';

@@ -17,6 +17,7 @@ export function CardFace({
   card,
   boardLabels,
   boardMembers,
+  subtaskCount,
 }: {
   card: {
     title: string;
@@ -25,6 +26,14 @@ export function CardFace({
     labelIds: string[];
     assigneeUids: string[];
   };
+  /**
+   * How many subtasks this card has, shown as a chip so a parent card is
+   * distinguishable from a leaf at a glance. Optional and computed by the caller
+   * from the board's own cards (see `subtaskCounts`) — the board layouts pass it;
+   * My Work and Search do not, because those are cross-board flat lists that
+   * never load a card's siblings.
+   */
+  subtaskCount?: number;
   boardLabels: readonly BoardLabel[];
   boardMembers: readonly BoardMemberProfile[];
 }) {
@@ -40,7 +49,9 @@ export function CardFace({
 
   const overdue = bucketFor(card.dueDate, today) === 'overdue';
   const dueColor = overdue ? t.text.danger : t.text.muted;
-  const hasMeta = card.priority !== 'none' || labels.length > 0 || !!card.dueDate;
+  const subtasks = subtaskCount ?? 0;
+  const hasMeta =
+    card.priority !== 'none' || labels.length > 0 || !!card.dueDate || subtasks > 0;
 
   return (
     <View style={styles.face}>
@@ -52,6 +63,14 @@ export function CardFace({
           {labels.map((l) => (
             <ColorBadge key={l.id} color={l.color} label={l.name} />
           ))}
+          {subtasks > 0 ? (
+            <View style={styles.due}>
+              <MaterialIcons name="account-tree" size={13} color={t.text.muted} />
+              <Text style={[type.caption, { color: t.text.muted }]}>
+                {subtasks} subtask{subtasks === 1 ? '' : 's'}
+              </Text>
+            </View>
+          ) : null}
           {card.dueDate ? (
             <View style={styles.due}>
               <MaterialIcons name="event" size={13} color={dueColor} />

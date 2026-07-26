@@ -122,6 +122,20 @@ export interface CardDoc {
   archived: boolean;
   archivedAt?: number;
   commentCount: number;
+  /**
+   * The card this one is a subtask OF. The link lives on the CHILD so there is a
+   * single source of truth: a `subtaskIds` array on the parent could disagree
+   * with reality, and every reparent would be a two-document write.
+   *
+   * BOARD-SCOPED by convention, not by rule. Enforcing "the parent is on the same
+   * board" would need the first card → card `get()` in firestore.rules — a read
+   * per write plus a delete/write race — and it is not a security boundary, since
+   * this is an opaque string and a child's read access comes from its own
+   * `boardId`. So the picker only ever offers same-board cards, and a link that
+   * goes stale (parent moved or deleted) simply renders as nothing. A cross-board
+   * move clears it, the same way it clears `labelIds`.
+   */
+  parentId?: string;
   createdAt: number;
   createdBy: string;
   updatedAt: number;

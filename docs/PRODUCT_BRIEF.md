@@ -52,7 +52,8 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Card deletion | Members **archive** only. Permanent **delete is managers/admins**. |
 | Offboarding | A disabled user **keeps their assignments**, rendered as inactive; managers get a review list to reassign. |
 | Theming | **Single light theme, no dark mode** (decided 2026-07-21). Semantic tokens throughout, so a re-theme stays a one-file change. |
-| Explicitly NOT in v1 | **File attachments** (dropped — no Cloud Storage at all), checklists/subtasks, custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
+| Subtasks | A card may be a **subtask of one other card on the same board** (`parentId` on the child). The parent's detail view lists them and links straight through; the child shows "Subtask of". Deliberately NOT a checklist: a subtask is an ordinary card, with its own column, assignees and comments. Added 2026-07-25 — the ClickUp import had been faking it in description text. |
+| Explicitly NOT in v1 | **File attachments** (dropped — no Cloud Storage at all), checklists (as a separate item type — see Subtasks), custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
 | Layout | **Chosen by available WIDTH, not platform** (breakpoint 768px). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
 | Drag and drop | A web **capability** layered on the wide layout. Native has no HTML5 drag API, so a wide native surface (a tablet) offers the same explicit "Move to…" the narrow layout uses. |
 | Card ordering | **Fractional string ranks** (LexoRank-style, base-62) in `@sabeel/shared`. A move is a single-document write. |
@@ -149,6 +150,8 @@ cards/{cardId}                                   # TOP-LEVEL collection; keyed t
   priority: none|low|med|high|urgent
   labelIds: [id, …], archived: bool, archivedAt?
   commentCount                                   # denormalized for the card face
+  parentId?                                      # the card this is a SUBTASK of — lives on the child, so the parent's list is derived
+                                                 # board-scoped by convention (a cross-board move clears it); rules validate shape only
   createdAt/By, updatedAt/By
 
 cards/{cardId}/comments/{commentId}              # under the CARD, so they travel with a move

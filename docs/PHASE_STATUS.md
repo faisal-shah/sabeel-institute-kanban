@@ -341,6 +341,57 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Subtasks: cards that link to cards — v0.1.23
+
+A card can now be a **subtask of one other card on the same board**. The parent's
+detail view lists its subtasks and links straight through; the child shows
+**Subtask of** to get back up.
+
+**This reverses a locked scope decision** — `PRODUCT_BRIEF` listed
+"checklists/subtasks" under *Explicitly NOT in v1*. Justified: production still
+carries **7 cards with a fake `Subtask of:` line** in their descriptions, written
+by the ClickUp import because the feature didn't exist. What shipped is far
+lighter than what was declined — a link between two ordinary cards, not a
+checklist with its own item type. The brief now says so rather than being
+silently contradicted.
+
+- **`parentId` on the CHILD**, so the parent's list is derived and two documents
+  can never disagree. Not a `subtaskIds[]` array on the parent, which would make
+  every reparent a two-document write with a drift window.
+- **No new query, no new index, no new counter.** `CardScreen` already loads the
+  board's cards for its move-rank maths, and every board layout already groups
+  them — so the subtask list and the `N subtasks` face chip are client-side
+  derivations that cannot go stale. Deliberately unlike `commentCount` /
+  `activeCardCount`, which need triggers only because their source isn't loaded.
+- **Cycle safety in `@sabeel/shared`** (`subtasks.ts`): the picker refuses a card
+  that is itself, already has a parent (no silent stealing), or is an ancestor of
+  the target. `ancestorsOf` walks with a visited set, so data that is already
+  corrupt is traversed once instead of hanging the UI thread.
+- **Rules**: `parentId` added to the card key allowlist — omit it and every
+  subtask becomes uneditable the moment it is linked, the same trap `sourceId`
+  documents. Shape-validated only; enforcing "parent is on the same board" would
+  need the first card→card `get()` in the rules, costing a read per write and
+  racing a delete, and it is not a security boundary.
+- **Lifecycle**: a cross-board move clears `parentId` (board-scoped exactly like
+  `labelIds`); a copy never inherits it; deleting a parent unlinks its children
+  via `onCardDeleted` — without that they would dangle *and* become permanently
+  unlinkable, since the picker refuses an already-parented card.
+
+**Fixed a latent bug this feature would have made routine.** `App.tsx` rendered
+`CardScreen` with **no `key`**, so a card→card push reused the component and kept
+its local state: start editing card A's title, tap a subtask, and card B rendered
+showing **A's typed title** — pressing Save wrote A's text onto B. Now keyed by
+card id. The web verification reproduces exactly that scenario and asserts B shows
+its own title.
+
+Verified on **web** (desktop + 390px): create, link with the filter, tap through,
+unlink (which detaches without deleting — confirmed the card survives on the
+board), the `2 subtasks` chip, and the keying fix. And on **native** (AVD):
+section renders, create via the real soft keyboard, card→card navigation, the
+parent line, and **hardware back** returning to the parent. 245 shared unit tests
+(20 new), emulator suite green — 126 rules tests (+5 for `parentId`) and 36
+function tests (+1 for the orphan sweep).
+
 ### 2026-07-25 — Icon targets are real 44px boxes, not hitSlop — v0.1.22
 
 Reported from a real phone: the save/cancel icons when renaming a column were

@@ -34,6 +34,7 @@ import {
   CARD_TITLE_MAX,
   columnDeleteBlocked,
   columnsPatch,
+  subtaskCounts,
   type BoardColumn,
   type BoardLabel,
 } from '@sabeel/shared';
@@ -57,6 +58,7 @@ function CardTile({
   card,
   boardLabels,
   boardMembers,
+  subtaskCount,
   t,
   canEdit,
   selected,
@@ -70,6 +72,7 @@ function CardTile({
   card: Card;
   boardLabels: readonly BoardLabel[];
   boardMembers: readonly BoardMemberProfile[];
+  subtaskCount?: number;
   t: Theme;
   canEdit: boolean;
   selected: boolean;
@@ -115,7 +118,12 @@ function CardTile({
           style={{ marginTop: 3, accentColor: t.accent.base, cursor: 'pointer' }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <CardFace card={card} boardLabels={boardLabels} boardMembers={boardMembers} />
+          <CardFace
+            card={card}
+            boardLabels={boardLabels}
+            boardMembers={boardMembers}
+            subtaskCount={subtaskCount}
+          />
         </div>
       </div>
       {canEdit ? (
@@ -192,6 +200,9 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   const canEdit = true; // any board member may edit cards
   const isManager = sessionCan.manageBoards(user);
+
+  // Derived, not stored — the board already holds every card it needs.
+  const subtasksBy = useMemo(() => subtaskCounts(cards.data ?? EMPTY_CARDS), [cards.data]);
 
   const byColumn = useMemo(() => {
     const map = new Map<string, Card[]>();
@@ -526,6 +537,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                     card={card}
                     boardLabels={labels}
                     boardMembers={members}
+                    subtaskCount={subtasksBy.get(card.id)}
                     t={t}
                     canEdit={canEdit}
                     selected={selection.isSelected(card.id)}

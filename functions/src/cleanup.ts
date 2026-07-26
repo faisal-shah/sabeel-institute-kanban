@@ -2,10 +2,11 @@ import './setup';
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import { guardedEvent, sentryDsn } from './sentry';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 /**
- * Delete a card's `comments` and `activity` when the card itself is deleted.
+ * Delete a card's `comments` and `activity` when the card itself is deleted, and
+ * unlink any subtasks that pointed at it.
  *
  * Firestore does NOT cascade: deleting `cards/{cardId}` leaves its subcollections
  * behind as orphans forever (unreadable — the rules resolve their board from the
@@ -29,6 +30,32 @@ export const onCardDeleted = onDocumentDeleted(
     // one and its subcollections with it. Only clean up a genuine orphan.
     if ((await ref.get()).exists) return;
     await db.recursiveDelete(ref);
-    logger.info('cleaned up deleted card subcollections', { cardId });
+
+    // Unlink the deleted card's subtasks. `parentId` lives on the CHILD, so
+    // nothing else would ever clear it — the children would keep pointing at a
+    // card that no longer exists. The UI already degrades gracefully (an
+    // unresolvable parent renders nothing), but leaving the field set means the
+    // link silently reappears if that id is ever reused, and it quietly excludes
+    // those cards from every subtask picker, since `canBeSubtaskOf` refuses a
+    // card that already has a parent. So they would be unlinkable forever.
+    //
+    // `where('parentId','==',id)` needs no composite index — the single-field
+    // index Firestore maintains automatically covers it.
+    const children = await db
+      .collection('cards')
+      .where('parentId', '==', cardId)
+      .get();
+    if (!children.empty) {
+      const batch = db.batch();
+      for (const child of children.docs) {
+        batch.update(child.ref, { parentId: FieldValue.delete() });
+      }
+      await batch.commit();
+    }
+
+    logger.info('cleaned up deleted card', {
+      cardId,
+      unlinkedSubtasks: children.size,
+    });
   }),
 );
