@@ -165,6 +165,11 @@ Playwright for web) — never claim a screen works because the code looks right.
 - Live Firestore reads in `app/src` go through a single `useLiveQuery`/`useLiveDoc`
   module — never hand-roll `onSnapshot` state in a hook (lint-enforced). See
   `docs/INHERITED-STACK.md` for why this is non-negotiable.
+- **Deploying needs Faisal's go-ahead** (set 2026-07-25). Do everything up to and
+  including the commit, then **stop and show him what is ready** — he says go
+  before the web deploy, the APK build and the release. Once he does, ship
+  **every** surface in one batch; never ask platform by platform. The gate exists
+  because a release is only reversible *forwards*, through another release.
 - **Publishing the APK: Release asset, NEVER committed.** The public download is a
   GitHub **Release asset** on the pages repo (`faisal-shah.github.io`), on the
   fixed rolling tag `kanban-latest` — the download URL never changes. Publish with
