@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
   LABEL_COLORS,
@@ -27,6 +27,7 @@ import {
   Hint,
   Card,
   Heading,
+  IconAction,
   Row,
   Screen,
   Spinner,
@@ -63,6 +64,8 @@ export function BoardSettingsScreen({
     null,
   );
   const [pendingCards, setPendingCards] = useState<number | null>(null);
+  /** Whether the "add someone" picker is open — its trigger is on the heading. */
+  const [adding, setAdding] = useState(false);
   const countReq = useRef(0);
 
   if (board.status === 'loading') return <Spinner label="Loading board…" />;
@@ -188,13 +191,24 @@ export function BoardSettingsScreen({
           Columns are removed from the board screen, and only once they are
           empty — so no cards can vanish with them.
         </Hint>
-        <TextField
-          value={newColumn}
-          onChangeText={setNewColumn}
-          placeholder="New column name"
-          onSubmit={addColumn}
-        />
-        <Button label="Add column" onPress={addColumn} disabled={!newColumn.trim()} />
+        <Row style={styles.addRow}>
+          <View style={styles.grow}>
+            <TextField
+              value={newColumn}
+              onChangeText={setNewColumn}
+              placeholder="New column name"
+              onSubmit={addColumn}
+            />
+          </View>
+          <IconAction
+            icon="add"
+            label="Add column"
+            accent
+            size={24}
+            onPress={addColumn}
+            disabled={busy || !newColumn.trim()}
+          />
+        </Row>
       </Card>
 
       <Heading>Labels</Heading>
@@ -206,10 +220,10 @@ export function BoardSettingsScreen({
               <View style={[styles.swatch, { backgroundColor: l.color }]} />
               <Body>{l.name}</Body>
             </Row>
-            <Button
-          busy={busy}
-              label="Remove"
-              variant="secondary"
+            <IconAction
+              icon="close"
+              label={`Remove label ${l.name}`}
+              disabled={busy}
               onPress={() =>
                 run(() =>
                   updateBoard(boardId, {
@@ -225,7 +239,10 @@ export function BoardSettingsScreen({
           onChangeText={setNewLabelName}
           placeholder="New label name"
         />
-        <Row style={styles.wrap}>
+        {/* The + sits at the END of the colour row, where the flow finishes:
+            name it, colour it, add it. */}
+        <Row style={styles.addRow}>
+          <Row style={[styles.wrap, styles.grow]}>
           {LABEL_COLORS.map((c) => (
             <Pressable
               key={c}
@@ -245,23 +262,44 @@ export function BoardSettingsScreen({
               />
             </Pressable>
           ))}
+          </Row>
+          <IconAction
+            icon="add"
+            label="Add label"
+            accent
+            size={24}
+            disabled={busy || !newLabelName.trim()}
+            onPress={() =>
+              run(async () => {
+                await updateBoard(boardId, {
+                  labels: [...b.labels, newLabel(newLabelName, labelColor)],
+                });
+                setNewLabelName('');
+              })
+            }
+          />
         </Row>
-        <Button
-          busy={busy}
-          label="Add label"
-          disabled={!newLabelName.trim()}
-          onPress={() =>
-            run(async () => {
-              await updateBoard(boardId, {
-                labels: [...b.labels, newLabel(newLabelName, labelColor)],
-              });
-              setNewLabelName('');
-            })
-          }
-        />
       </Card>
 
-      <Heading>Members ({b.memberUids.length})</Heading>
+      {/* Adding rides on the heading, and the candidate list opens on demand.
+          It used to be a permanent second panel with a labelled Add per person,
+          which grew with the directory and pushed Archive off the screen. */}
+      <Heading
+        action={
+          nonMembers.length > 0 && !adding ? (
+            <IconAction
+              icon="person-add"
+              label={`Add someone (${nonMembers.length} available)`}
+              accent
+              size={22}
+              disabled={busy}
+              onPress={() => setAdding(true)}
+            />
+          ) : null
+        }
+      >
+        Members ({b.memberUids.length})
+      </Heading>
       {!isMember ? (
         <Card>
           <Body muted>
@@ -293,11 +331,16 @@ export function BoardSettingsScreen({
             <Row>
               {/* The board knows who its members are, not what org role they
                   hold — that lives in users/*, which only admins may read. Your
-                  own row offers Leave (self-removal); everyone else, Remove. */}
-              <Button
-                busy={busy}
-                label={m.uid === user.uid ? 'Leave' : 'Remove'}
-                variant="secondary"
+                  own row offers Leave (a door you walk out of); everyone else,
+                  Remove. Both confirm before anything happens. */}
+              <IconAction
+                icon={m.uid === user.uid ? 'logout' : 'person-remove'}
+                label={
+                  m.uid === user.uid
+                    ? 'Leave this board'
+                    : `Remove ${m.displayName} from this board`
+                }
+                disabled={busy}
                 onPress={() => ask(m.uid)}
               />
             </Row>
@@ -308,6 +351,61 @@ export function BoardSettingsScreen({
             Only admins can browse the full directory. Ask an admin to add
             people to this board.
           </Hint>
+        ) : nonMembers.length === 0 ? (
+          /* Said out loud, not left silent: with no add control and no reason
+             given, "why can I only assign myself?" reads as a bug rather than
+             as an account still waiting for approval. */
+          <Hint>
+            Nobody available to add. People must be approved under People before
+            they can join a board.
+          </Hint>
+        ) : null}
+
+        {adding ? (
+          <View
+            style={[
+              styles.picker,
+              { borderColor: t.border.subtle, backgroundColor: t.bg.inset },
+            ]}
+          >
+            <Caption>Add someone</Caption>
+            {/* Capped and scrollable: this section must not grow with the
+                directory. Same shape as the assignee and subtask pickers. */}
+            <ScrollView style={styles.pickerList} nestedScrollEnabled>
+              {nonMembers.map((u) => (
+                <Pressable
+                  key={u.uid}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${u.displayName} to this board`}
+                  disabled={busy}
+                  onPress={() =>
+                    run(() =>
+                      addBoardMember(boardId, {
+                        uid: u.uid,
+                        displayName: u.displayName,
+                        email: u.email,
+                      }),
+                    )
+                  }
+                  style={({ pressed }) => [
+                    styles.option,
+                    {
+                      backgroundColor: pressed ? t.bg.accentSoft : t.bg.surface,
+                      borderColor: t.border.subtle,
+                    },
+                  ]}
+                >
+                  <Body>{u.displayName}</Body>
+                  <Hint>{u.email}</Hint>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Button
+              label="Done"
+              variant="secondary"
+              onPress={() => setAdding(false)}
+            />
+          </View>
         ) : null}
       </Card>
 
@@ -350,49 +448,6 @@ export function BoardSettingsScreen({
               onPress={() => setPending(null)}
             />
           </Row>
-        </Card>
-      ) : null}
-
-      {/*
-        Previously this section simply vanished when there was nobody to add,
-        which read as a bug: the assignee list showed only you, with no clue
-        that people must be APPROVED before they can be added to a board.
-      */}
-      {nonMembers.length === 0 ? (
-        <Card>
-          <Caption>Add someone</Caption>
-          <Body muted>
-            {allUsers.status === 'error'
-              ? 'Only admins can browse the full directory. Ask an admin to add people to this board.'
-              : 'Nobody available to add. People must be approved under People before they can join a board — anyone still pending will not appear here.'}
-          </Body>
-        </Card>
-      ) : null}
-
-      {nonMembers.length > 0 ? (
-        <Card>
-          <Caption>Add someone</Caption>
-          {nonMembers.map((u) => (
-            <Row key={u.uid} style={styles.between}>
-              <View style={styles.grow}>
-                <Body>{u.displayName}</Body>
-                <Hint>{u.email}</Hint>
-              </View>
-              <Button
-          busy={busy}
-                label="Add"
-                onPress={() =>
-                  run(() =>
-                    addBoardMember(boardId, {
-                      uid: u.uid,
-                      displayName: u.displayName,
-                      email: u.email,
-                    }),
-                  )
-                }
-              />
-            </Row>
-          ))}
         </Card>
       ) : null}
 
@@ -447,6 +502,23 @@ const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
   grow: { flex: 1, gap: space.xs },
   wrap: { flexWrap: 'wrap' },
+  /** A tight gap: IconAction is a laid-out 44pt box, not slop. */
+  addRow: { alignItems: 'center', gap: space.xs },
+  picker: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: space.sm,
+    gap: space.sm,
+  },
+  /** Roughly four rows, then it scrolls. */
+  pickerList: { maxHeight: 220 },
+  option: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    padding: space.md,
+    marginBottom: space.xs,
+    gap: space.xs,
+  },
   swatch: { width: 18, height: 18, borderRadius: radius.pill },
   swatchPick: { width: 28, height: 28, borderWidth: 2 },
 });

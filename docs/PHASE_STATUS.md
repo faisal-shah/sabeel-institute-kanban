@@ -341,6 +341,43 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Canonical controls, and a badge that could never come down — v0.1.27
+
+Faisal named one instance ("the settings button should just be a gear sign") and
+asked for the rest of the app to be audited against the same rule, then ruled on
+the list. Words are now reserved for the primary action of a screen and for
+anything destructive *and* unusual; everything else uses the control the world
+already agreed on.
+
+- **Alerts**: gear/inbox to switch sides, `✕` to dismiss one, `✓✓` to mark all
+  read, and a new **dismiss-all** sweep that **asks first** — it empties the
+  inbox and there is no undo. Notification preferences are **real toggles**
+  (Faisal overrode a recommendation to keep them as On/Off words), and muting a
+  board is a bell.
+- **Assignees / members / labels**: person-add, person-remove, and `✕` in place of
+  labelled buttons; a `+` beside the field that adds a column or a label.
+- **Deliberately left alone**: Delete column, Delete permanently, Archive card,
+  Delete N (destructive *and* unusual); New board, Create, Sign in, + Add card,
+  Comment (primary actions); every Cancel; Approve/Reject on People.
+
+**A real bug the work uncovered.** `dismiss()` deleted the notification document
+and nothing else — and there is **no delete trigger** (`functions/src/
+notifications.ts` only ever increments on create). So dismissing an *unread*
+alert left `unreadNotifCount` counting a document that no longer existed: a badge
+showing 3 over an inbox with nothing unread in it, permanently. It is now a
+transaction that re-reads `read` before touching the badge, the same shape
+`markRead` already used and for the same reason. Three rules tests pin that a
+client may both delete its own entry and adjust its own badge.
+
+**Sections carry their own action.** Faisal: "we can save some vertical space by
+putting the add assignee icon in the same row as the assignee's label." The card
+screen already did exactly this for Description, hand-rolled; `Heading` now takes
+an optional `action`, so it is one pattern rather than a per-screen improvisation.
+Board settings gained the most: the standing "Add someone" panel — which grew a
+row per person in the directory — became an icon on the *Members* heading opening
+a capped, scrollable picker. Subtasks and **New board** were considered and left
+as they are: the first saves no height, the second is a screen's primary action.
+
 ### 2026-07-25 — Search browses by default, with filter chips — v0.1.26
 
 Faisal's idea, and it fixes the archive problem from a second direction: Search

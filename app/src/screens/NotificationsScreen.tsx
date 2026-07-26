@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { NOTIFY_EVENTS } from '@sabeel/shared';
 import {
   dismiss,
+  dismissAll,
   markAllRead,
   markRead,
   setNotifyPref,
@@ -20,10 +21,12 @@ import {
   Caption,
   Card as Panel,
   Heading,
+  IconAction,
   Row,
   Screen,
   Spinner,
   Title,
+  Toggle,
 } from '../components/ui';
 import { space, useTheme } from '../theme';
 import { useAction } from '../useAction';
@@ -51,6 +54,9 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const boards = useMyBoards(user);
   const t = useTheme();
   const [showSettings, setShowSettings] = useState(false);
+  // Emptying the inbox cannot be undone, so it asks first — same shape as
+  // deleting a column.
+  const [confirmingDismissAll, setConfirmingDismissAll] = useState(false);
   const { run, busy, error } = useAction('notifications');
 
   const items = inbox.data ?? [];
@@ -76,9 +82,10 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
       {/* No Back button: Alerts is a tab root reached from the nav bar. */}
       <Row style={styles.between}>
         <Title>Notifications</Title>
-        <Button
-          label={showSettings ? 'Inbox' : 'Settings'}
-          variant="secondary"
+        <IconAction
+          icon={showSettings ? 'inbox' : 'settings'}
+          label={showSettings ? 'Back to inbox' : 'Notification settings'}
+          size={24}
           onPress={() => setShowSettings((s) => !s)}
         />
       </Row>
@@ -101,12 +108,14 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                     <Body>{spec.label}</Body>
                     <Caption>{spec.description}</Caption>
                   </View>
-                  <Button
-          busy={busy}
-                    label={on ? 'On' : 'Off'}
-                    variant={on ? 'primary' : 'secondary'}
-                    onPress={() =>
-                      run(() => setNotifyPref(user, spec.event, !on, prefs))
+                  {/* A setting that is on or off is a toggle, not a button that
+                      says which way it is currently pointing. */}
+                  <Toggle
+                    value={on}
+                    disabled={busy}
+                    label={spec.label}
+                    onValueChange={(next) =>
+                      run(() => setNotifyPref(user, spec.event, next, prefs))
                     }
                   />
                 </Row>
@@ -125,10 +134,14 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
               <Panel key={b.id}>
                 <Row style={styles.between}>
                   <Body>{b.name}</Body>
-                  <Button
-          busy={busy}
-                    label={isMuted ? 'Muted' : 'Mute'}
-                    variant={isMuted ? 'danger' : 'secondary'}
+                  {/* The bell says the state and changes it in one tap: struck
+                      through means silenced. */}
+                  <IconAction
+                    icon={isMuted ? 'notifications-off' : 'notifications'}
+                    label={isMuted ? `Unmute ${b.name}` : `Mute ${b.name}`}
+                    danger={isMuted}
+                    size={22}
+                    disabled={busy}
                     onPress={() => run(() => setBoardMuted(user, b.id, !isMuted, muted))}
                   />
                 </Row>
@@ -144,15 +157,57 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                 ? 'Nothing here yet.'
                 : `${unread} unread of ${items.length}`}
             </Caption>
-            {unread > 0 ? (
-              <Button
-          busy={busy}
-                label="Mark all read"
-                variant="secondary"
-                onPress={() => run(() => markAllRead(user, items))}
-              />
-            ) : null}
+            {/* A tight gap: each IconAction is a laid-out 44pt box, so a wide
+                one would push this bar past a narrow phone. */}
+            <Row style={styles.actions}>
+              {unread > 0 ? (
+                <IconAction
+                  icon="done-all"
+                  label="Mark all read"
+                  size={22}
+                  disabled={busy}
+                  onPress={() => run(() => markAllRead(user, items))}
+                />
+              ) : null}
+              {items.length > 0 ? (
+                <IconAction
+                  icon="delete-sweep"
+                  label="Dismiss all"
+                  danger
+                  size={22}
+                  disabled={busy}
+                  onPress={() => setConfirmingDismissAll(true)}
+                />
+              ) : null}
+            </Row>
           </Row>
+
+          {confirmingDismissAll ? (
+            <Panel>
+              <Body>
+                Dismiss all {items.length} notification
+                {items.length === 1 ? '' : 's'}? They cannot be brought back.
+              </Body>
+              <Row>
+                <Button
+                  busy={busy}
+                  label="Dismiss all"
+                  variant="danger"
+                  onPress={() =>
+                    run(async () => {
+                      await dismissAll(user, items);
+                      setConfirmingDismissAll(false);
+                    })
+                  }
+                />
+                <Button
+                  label="Cancel"
+                  variant="secondary"
+                  onPress={() => setConfirmingDismissAll(false)}
+                />
+              </Row>
+            </Panel>
+          ) : null}
 
           {items.map((item) => (
             <Pressable
@@ -176,10 +231,10 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                       {item.read ? '' : ' · unread'}
                     </Caption>
                   </View>
-                  <Button
-          busy={busy}
-                    label="Dismiss"
-                    variant="secondary"
+                  <IconAction
+                    icon="close"
+                    label={`Dismiss: ${item.text}`}
+                    disabled={busy}
                     onPress={() => run(() => dismiss(user, item))}
                   />
                 </Row>
@@ -193,7 +248,8 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
 }
 
 const styles = StyleSheet.create({
-  between: { justifyContent: 'space-between' },
+  between: { justifyContent: 'space-between', alignItems: 'center' },
   grow: { flex: 1, gap: space.xs },
+  actions: { gap: space.xs },
 });
 

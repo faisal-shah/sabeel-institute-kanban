@@ -82,6 +82,9 @@ export function CardScreen({
   const [description, setDescription] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  // Owned here, not in AssigneePicker: the control that opens it lives on the
+  // section heading, outside that component.
+  const [picking, setPicking] = useState(false);
   const { run, busy, error } = useAction('card');
   const [dirty, setDirty] = useState(false);
   const [shareNote, setShareNote] = useState<string | null>(null);
@@ -309,20 +312,19 @@ export function CardScreen({
           A button that wide reads as the section's primary action when it is
           really a secondary one, and it cost a whole row on a screen that is
           already long. */}
-      <Row style={styles.between}>
-        <Heading>Description</Heading>
-        {!editingDesc ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Edit description"
-            onPress={() => setEditingDesc(true)}
-            hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
-            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-          >
-            <MaterialIcons name="edit" size={18} color={t.text.muted} />
-          </Pressable>
-        ) : null}
-      </Row>
+      <Heading
+        action={
+          !editingDesc ? (
+            <IconAction
+              icon="edit"
+              label="Edit description"
+              onPress={() => setEditingDesc(true)}
+            />
+          ) : null
+        }
+      >
+        Description
+      </Heading>
       <Panel>
         {editingDesc ? (
           <>
@@ -457,9 +459,31 @@ export function CardScreen({
         />
       </Panel>
 
-      <Heading>Assignees</Heading>
+      {/* The person-add icon rides on the heading rather than sitting in the
+          panel: a section-level control in its own row costs a row of a screen
+          that is already long. Same shape as Description's edit icon. */}
+      <Heading
+        action={
+          assignable.length > c.assigneeUids.length && !picking ? (
+            <IconAction
+              icon="person-add"
+              label={`Assign someone (${
+                assignable.length - c.assigneeUids.length
+              } available)`}
+              accent
+              size={22}
+              disabled={busy}
+              onPress={() => setPicking(true)}
+            />
+          ) : null
+        }
+      >
+        Assignees
+      </Heading>
       <Panel>
         <AssigneePicker
+          picking={picking}
+          onPickingChange={setPicking}
           members={assignable}
           assignedUids={c.assigneeUids}
           onToggle={(uid, assign) =>

@@ -156,12 +156,36 @@ export function Title({
   );
 }
 
-export function Heading({ children }: { children: ReactNode }) {
+/**
+ * A section title, optionally with that section's own action on the same row.
+ *
+ * The `action` slot exists because a section-level control — add an assignee,
+ * add a member, edit the description — otherwise costs a whole row inside the
+ * panel, and the card screen is long enough that those rows add up to real
+ * scrolling. Put the icon where the section is already named.
+ *
+ * Reserve it for ONE ordinary action per section. Anything destructive, or the
+ * primary action of the screen, still gets a labelled button of its own.
+ */
+export function Heading({
+  children,
+  action,
+}: {
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   const t = useTheme();
-  return (
+  const text = (
     <Text style={[type.heading, { color: t.text.primary, marginTop: space.lg }]}>
       {children}
     </Text>
+  );
+  if (!action) return text;
+  return (
+    <View style={styles.headingRow}>
+      {text}
+      {action}
+    </View>
   );
 }
 
@@ -587,6 +611,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  /** Title left, its one action right, both on the baseline of the section. */
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },

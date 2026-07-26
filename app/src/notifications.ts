@@ -1,6 +1,5 @@
 import {
   collection,
-  deleteDoc,
   doc,
   increment,
   limit,
@@ -76,7 +75,14 @@ export async function markRead(user: SessionUser, item: InboxItem): Promise<void
   });
 }
 
-/** Mark everything read in one batch, and zero the badge. */
+/**
+ * Mark everything read in one batch, and zero the badge.
+ *
+ * The badge goes to 0 rather than down by `unread.length`: the inbox is capped
+ * at 50, so if more than that were ever unread the extras are not in `items` and
+ * a relative decrement would leave a badge pointing at entries nobody can reach.
+ * "Read everything" means the badge is empty.
+ */
 export async function markAllRead(
   user: SessionUser,
   items: readonly InboxItem[],
@@ -90,8 +96,49 @@ export async function markAllRead(
   await batch.commit();
 }
 
+/**
+ * Delete one entry, decrementing the badge if it was still unread.
+ *
+ * The decrement is NOT optional: nothing on the server watches for a deleted
+ * notification (there is no delete trigger — see functions/src/notifications.ts,
+ * which only ever increments on create), so dismissing an unread entry without
+ * this leaves the badge counting a document that no longer exists. The user then
+ * sees "3" forever with an inbox that has nothing unread in it.
+ *
+ * Same transaction shape as markRead, and for the same reason: `item.read` comes
+ * from a snapshot that may be stale, so the truth is re-read inside the
+ * transaction before the badge is touched.
+ */
 export async function dismiss(user: SessionUser, item: InboxItem): Promise<void> {
-  await deleteDoc(doc(db, 'users', user.uid, 'notifications', item.id));
+  const notifRef = doc(db, 'users', user.uid, 'notifications', item.id);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(notifRef);
+    if (!snap.exists()) return;
+    if (snap.data().read !== true) {
+      tx.update(doc(db, 'users', user.uid), { unreadNotifCount: increment(-1) });
+    }
+    tx.delete(notifRef);
+  });
+}
+
+/**
+ * Empty the inbox in one batch, and zero the badge.
+ *
+ * Deletes what is loaded — the same capped 50 `markAllRead` covers — and zeroes
+ * the badge for the reason given there. No undo, which is why the caller
+ * confirms first.
+ */
+export async function dismissAll(
+  user: SessionUser,
+  items: readonly InboxItem[],
+): Promise<void> {
+  if (items.length === 0) return;
+  const batch = writeBatch(db);
+  for (const i of items) {
+    batch.delete(doc(db, 'users', user.uid, 'notifications', i.id));
+  }
+  batch.update(doc(db, 'users', user.uid), { unreadNotifCount: 0 });
+  await batch.commit();
 }
 
 // ---- Preferences ----------------------------------------------------------

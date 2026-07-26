@@ -299,6 +299,53 @@ describe('push tokens', () => {
   });
 });
 
+describe('the notification inbox', () => {
+  async function seedNotif(uid: string, id: string, read: boolean) {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), `users/${uid}/notifications/${id}`), {
+        type: 'mention',
+        boardId: 'b1',
+        actorUid: 'admin1',
+        text: 'Someone mentioned you',
+        read,
+        at: 1,
+      });
+    });
+  }
+
+  // Dismissing is two writes: delete the entry, and — if it was still unread —
+  // decrement the badge. Nothing on the server watches for a DELETED
+  // notification (the trigger only increments on create), so if rules refused
+  // the second write the badge would count entries that no longer exist. This
+  // pins that both halves are permitted from a client.
+  it('you may delete your own entry AND decrement your own badge', async () => {
+    await seedNotif('member1', 'n1', false);
+    const db = ctx('member1', 'member', 'active');
+    await assertSucceeds(deleteDoc(doc(db, 'users/member1/notifications/n1')));
+    await assertSucceeds(updateDoc(doc(db, 'users/member1'), { unreadNotifCount: 0 }));
+  });
+
+  it('you may mark an entry read, but not rewrite what it says', async () => {
+    await seedNotif('member1', 'n1', false);
+    const db = ctx('member1', 'member', 'active');
+    await assertSucceeds(updateDoc(doc(db, 'users/member1/notifications/n1'), { read: true }));
+    // Editing the text would let someone forge what they were told.
+    await assertFails(updateDoc(doc(db, 'users/member1/notifications/n1'), { text: 'nope' }));
+  });
+
+  it("nobody may read or clear SOMEONE ELSE's inbox, an admin included", async () => {
+    await seedNotif('member1', 'n1', false);
+    for (const [uid, role] of [
+      ['manager1', 'manager'],
+      ['admin1', 'admin'],
+    ] as const) {
+      const db = ctx(uid, role, 'active');
+      await assertFails(getDoc(doc(db, 'users/member1/notifications/n1')));
+      await assertFails(deleteDoc(doc(db, 'users/member1/notifications/n1')));
+    }
+  });
+});
+
 describe('operator state (meta/*)', () => {
   // The healthCheck canary stores its baseline at `meta/health`. It is operator
   // state, not app data, and is reachable only by the Admin SDK (which bypasses

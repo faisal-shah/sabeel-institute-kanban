@@ -117,8 +117,10 @@ Tap any card to open the full view.
   **badge** on the card face (e.g. *Urgent*); *none* shows no badge.
 - **Due date** — a whole day, not a time. Pick it from a calendar; **Clear**
   removes it. An overdue card shows in red and says *Overdue*.
-- **Assignees** — anyone on the board. They show as **name chips** on the card
-  face, the card lands in each person's **My Work**, and they're notified.
+- **Assignees** — anyone on the board. Tap the **add-person** icon beside the
+  *Assignees* heading, then pick a name; the **remove-person** icon on a row
+  unassigns them. They show as **name chips** on the card face, the card lands in
+  each person's **My Work**, and they're notified.
 - **Labels** — a short, shared vocabulary defined per board, shown as coloured
   **badges** on the card face.
 - **Comments** — discuss the work. Type **@** followed by a name to pull someone
@@ -241,10 +243,14 @@ to you, when someone **@mentions** you in a comment, and — for admins — when
 **new account** is waiting. Unread items are outlined; tap one to jump straight to
 the card.
 
-Under **Settings** there you can turn each kind of notification on or off, and
-**mute** individual boards. One kind is off by default — "a card assigned to you
-was moved" — because on a busy board it fires constantly. **You are never notified
-about your own actions.**
+Each item has a **✕** to dismiss it. At the top of the list, **✓✓** marks
+everything read and the **sweep** icon empties the inbox — that one asks first,
+because dismissed alerts cannot be brought back.
+
+The **gear** opens notification settings, where each kind of notification has an
+on/off switch and you can **mute** individual boards with the bell. One kind is
+off by default — "a card assigned to you was moved" — because on a busy board it
+fires constantly. **You are never notified about your own actions.**
 
 The app asks for notification permission when you sign in — allow it on each
 device where you want push notifications. Notifications follow the account signed
@@ -286,9 +292,11 @@ Open a board and tap its **settings** (the gear). From here:
   move or archive them in one go.
 - **Labels** — a short, shared vocabulary for the board. Colours come from a fixed
   palette so they stay readable on the app's warm surfaces.
-- **Members** — who can see the board. Removing someone also **unassigns them from
-  that board's cards**; you're told how many before it happens. Your **own** row
-  shows **Leave** instead of Remove — use it to step off a board you no longer
+- **Members** — who can see the board. Tap the **add-person** icon beside the
+  *Members* heading to see who else can be added, and tap a name to add them.
+  Removing someone (the **remove-person** icon on their row) also **unassigns them
+  from that board's cards**; you're told how many before it happens. Your **own**
+  row shows a **leave** icon instead — use it to step off a board you no longer
   work.
 - **Archive** — hides the board from everyone's list. Boards are never deleted
   outright.

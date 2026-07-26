@@ -63,6 +63,26 @@ wait_for() { # wait_for <url> <label>
   echo "  $2 NEVER CAME UP" >&2; return 1
 }
 
+# Wait until the AUTH TRIGGER is registered, not merely until a port answers.
+#
+# This is load-bearing, and its absence cost two debugging sessions. Firestore
+# comes up seconds before the functions emulator finishes loading, so seeding as
+# soon as 8080 answers races `onUserCreate`. A sign-in that lands in that window
+# creates an auth account with NO user doc — and the app reads "auth account,
+# no profile" as a rejected non-org address and shows **Wrong account** forever.
+# Nothing looks broken: the emulators are up, the seed just "times out waiting
+# for New board", and re-running cannot fix it because onCreate never fires
+# twice for the same account.
+wait_for_auth_trigger() {
+  for _ in $(seq 1 60); do
+    grep -q 'onUserCreate.*auth function initialized' /tmp/sk-emulators.log 2>/dev/null \
+      && { echo "  auth trigger registered"; return 0; }
+    sleep 3
+  done
+  echo "  AUTH TRIGGER NEVER REGISTERED — seeding now would strand the account" >&2
+  return 1
+}
+
 case "${1:-status}" in
   status) echo "Ports:"; status ;;
   stop)   echo "Stopping:"; stop ;;
@@ -74,6 +94,7 @@ case "${1:-status}" in
     nohup npm run dev:web     >/tmp/sk-web.log       2>&1 & disown
     wait_for http://127.0.0.1:8080/ firestore || exit 1
     wait_for http://127.0.0.1:8086/ web       || exit 1
+    wait_for_auth_trigger || exit 1
     npm run seed
     echo "Ready: http://127.0.0.1:8086  (logs: /tmp/sk-emulators.log /tmp/sk-web.log)"
     ;;
@@ -81,6 +102,7 @@ case "${1:-status}" in
     echo "Stopping:"; stop || exit 1
     nohup npm run emulators >/tmp/sk-emulators.log 2>&1 & disown
     wait_for http://127.0.0.1:8080/ firestore || exit 1
+    wait_for_auth_trigger || exit 1
     ( cd app && nohup env EXPO_PUBLIC_USE_EMULATORS=1 \
         npx expo start --dev-client --port 8081 >/tmp/sk-metro.log 2>&1 & disown )
     for _ in $(seq 1 40); do ss -ltn 2>/dev/null | grep -q ':8081' && break; sleep 3; done

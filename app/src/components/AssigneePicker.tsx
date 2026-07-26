@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Caption, Hint, Row } from './ui';
+import { Body, Button, Caption, Hint, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
 
 /**
@@ -22,6 +22,8 @@ export function AssigneePicker({
   onToggle,
   busy,
   emptyHint,
+  picking,
+  onPickingChange,
 }: {
   members: readonly BoardMemberProfile[];
   assignedUids: readonly string[];
@@ -29,9 +31,16 @@ export function AssigneePicker({
   busy?: boolean;
   /** Shown when the board has nobody else to assign — explains what to do. */
   emptyHint?: string;
+  /**
+   * Whether the picker is open. CONTROLLED by the parent because the control
+   * that opens it lives on the section heading, outside this component — see
+   * `Heading`'s `action` slot. Keeping the state here would mean the trigger
+   * could not reach it.
+   */
+  picking: boolean;
+  onPickingChange: (next: boolean) => void;
 }) {
   const t = useTheme();
-  const [picking, setPicking] = useState(false);
 
   const assigned = useMemo(
     () => members.filter((m) => assignedUids.includes(m.uid)),
@@ -59,10 +68,10 @@ export function AssigneePicker({
             <Body>{m.displayName}</Body>
             <Hint>{m.email}</Hint>
           </View>
-          <Button
-            label="Remove"
-            variant="secondary"
-            busy={busy}
+          <IconAction
+            icon="person-remove"
+            label={`Unassign ${m.displayName}`}
+            disabled={busy}
             onPress={() => onToggle(m.uid, false)}
           />
         </Row>
@@ -74,10 +83,10 @@ export function AssigneePicker({
             <Body>Someone no longer on this board</Body>
             <Hint>Assigned before they were removed</Hint>
           </View>
-          <Button
-            label="Remove"
-            variant="secondary"
-            busy={busy}
+          <IconAction
+            icon="person-remove"
+            label="Unassign this person"
+            disabled={busy}
             onPress={() => onToggle(uid, false)}
           />
         </Row>
@@ -121,15 +130,13 @@ export function AssigneePicker({
               </Pressable>
             ))}
           </ScrollView>
-          <Button label="Done" variant="secondary" onPress={() => setPicking(false)} />
+          <Button
+            label="Done"
+            variant="secondary"
+            onPress={() => onPickingChange(false)}
+          />
         </View>
-      ) : (
-        <Button
-          label={`Assign someone (${available.length})`}
-          variant="secondary"
-          onPress={() => setPicking(true)}
-        />
-      )}
+      ) : null}
     </View>
   );
 }
