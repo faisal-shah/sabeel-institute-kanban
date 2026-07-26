@@ -341,6 +341,55 @@ the team.
 
 ## Deploy log
 
+### 2026-07-26 — Text that escaped its row — v0.1.31
+
+Reported from the Android app: a long column name printed on top of the pager's
+"‹ Prev" button. One mechanism, three places, and a platform split that hid all
+of them from the browser.
+
+**Text will not shrink unless told to.** A `<Text numberOfLines={1}>` sharing a
+flex row with a sibling is measured against the row's *full* inner width and then
+laid out *beside* that sibling, so the row's content comes out wider than the
+row. `numberOfLines` is no defence: the text still truncates with an ellipsis,
+just at the wrong width, so the result looks deliberate. What happens to the
+overrun is where the platforms part company — react-native-web gives a `View`
+`overflow: hidden` and clips it, while native `View` is `overflow: visible` and
+draws the text straight over its neighbour. Every browser screenshot said the
+screen was fine.
+
+`ColumnNameEditor` applied its shrink as `!center && styles.shrink`, so the
+centred variant — used by exactly one surface, the phone pager — was the only one
+that could not shrink. Shrink is now unconditional, and the pager asks for two
+lines: it is the one place where the name *is* the row, with empty space above
+and below to grow into. Auditing the rest of the codebase for the same shape
+found it once more, in the card detail's board crumb, where a board name (120
+characters are allowed) sits beside a 13px icon and would spill over the Share
+and Back actions.
+
+**Chips are the same bug turned inside out.** A label or assignee chip is a box
+drawn *around* text, so it grows with the name and an over-long one draws wider
+than the card it sits on; `flexWrap` cannot help, because wrapping moves an item
+to the next line and never makes one narrower. The two halves need opposite
+fixes. A label name is ours, so it is capped at the source: `LABEL_NAME_MAX` is
+40 — labels were the one name in the app with no limit anywhere, while board
+names, column names, card titles and comments all had one. Rules are *not* the
+enforcement point and cannot be: rules have no way to iterate a list, so a
+per-entry check on the embedded `labels` array is not expressible. An assignee's
+name is the Google display name, external input with no in-app path to set it, so
+that bound belongs at the render — a `maxWidth` plus the `flexShrink` that turns
+it into an ellipsis instead of an overrun.
+
+**The seed was the reason these reached Faisal first.** Every phone-layout bug
+filmed so far needed either a name too long for its row or a column with more
+cards than fit on a screen, and the dev seed had neither — six short cards in
+tidy columns. It now creates both by default.
+
+Verified on the Android emulator (where the bug was filmed) and on web at 390px
+with measured geometry rather than eyeballing: the column name clears ‹ Prev by
+8px, the crumb ends at x=270 against Share at x=278, and a full 40-character
+label badge is 324px of the 337 available — which is what makes 40 the tight fit
+rather than a guess.
+
 ### 2026-07-26 — Four bugs from a phone browser — v0.1.30
 
 All four came from Faisal using the app on his phone, three of them in the mobile
