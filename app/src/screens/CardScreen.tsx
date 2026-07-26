@@ -167,7 +167,14 @@ export function CardScreen({
             style={styles.crumb}
           >
             <MaterialIcons name="dashboard" size={13} color={t.accent.base} />
-            <Text style={[type.caption, { color: t.accent.base }]} numberOfLines={1}>
+            {/* Shrinks, or a long board name (120 chars are allowed) is laid
+                out at full width beside the icon and spills over the Share and
+                Back actions — invisibly on web, which clips, but not on
+                Android. Same trap as the phone pager's column name. */}
+            <Text
+              style={[type.caption, styles.shrink, { color: t.accent.base }]}
+              numberOfLines={1}
+            >
               {b.name}
             </Text>
           </Pressable>
@@ -636,6 +643,7 @@ const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
   crumbCol: { flex: 1, gap: space.xs },
   crumb: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  shrink: { flexShrink: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   grow: { flex: 1, gap: space.xs },
   wrap: { flexWrap: 'wrap' },
