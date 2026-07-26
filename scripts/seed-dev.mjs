@@ -10,7 +10,17 @@ import { execFileSync } from 'node:child_process';
 
 const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:8086/';
 
-const COLUMNS = ['Blocked', 'Review', 'Ready to ship', 'Waiting on donor', 'Parked'];
+// Seed the shapes that BREAK layouts, not just tidy ones. Every phone-layout bug
+// filmed so far needed one of these two and the seed had neither, so the board
+// looked fine locally and wrong on a real board:
+//
+//   - a column name too long for the phone pager, which used to paint over the
+//     "‹ Prev" button;
+//   - a column with more cards than fit on one screen, which is what exposed a
+//     content-sized list on web (last card clipped, "+ Add card" unreachable,
+//     nothing scrolling).
+const LONG_COLUMN = 'Fundraising Strategy & Community Outreach';
+const COLUMNS = [LONG_COLUMN, 'Blocked', 'Review', 'Ready to ship', 'Waiting on donor', 'Parked'];
 const CARDS = [
   'Book the venue',
   'Confirm the caterer',
@@ -18,6 +28,14 @@ const CARDS = [
   'Design the programme',
   'Chase outstanding pledges',
   'Brief the volunteers',
+  'Confirm exact ask based on rental vs. property',
+  'Set total dollar target for the fundraiser',
+  'Approve suggested giving levels and what each enables',
+  'Reserve the overflow parking',
+  'Order the printed programmes',
+  'Line up the sound system',
+  'Write the thank-you letter template',
+  'Reconcile the pledge spreadsheet',
 ];
 
 async function open(browser) {

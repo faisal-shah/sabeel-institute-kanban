@@ -28,6 +28,7 @@ export function ColumnNameEditor({
   canEdit,
   suffix,
   center,
+  lines = 1,
   bold,
   busy,
   onRename,
@@ -41,6 +42,12 @@ export function ColumnNameEditor({
   /** Trailing metadata shown after the name, e.g. a card count. Not editable. */
   suffix?: string;
   center?: boolean;
+  /**
+   * How many lines the name may occupy before it truncates. One everywhere it
+   * shares a row with other content; two on the phone pager, where the name is
+   * the row and there is empty space above and below it.
+   */
+  lines?: number;
   bold?: boolean;
   busy?: boolean;
   onRename: (columns: BoardColumn[]) => void;
@@ -113,15 +120,19 @@ export function ColumnNameEditor({
 
   return (
     <Row style={[styles.nameRow, center && styles.center]}>
-      {/* Truncates rather than wrapping: a long column name used to push the
-          actions off the row. */}
+      {/* `shrink` is not optional. Without it Yoga measures the name against the
+          whole label cell and then lays it out NEXT TO the edit icon, so the row
+          is wider than its parent. A View clips on web but not on Android, where
+          a long name was filmed painting straight over the pager's ‹ Prev
+          button. It shrinks, then truncates at `lines`. */}
       <Text
-        numberOfLines={1}
+        numberOfLines={lines}
         style={[
           type.body,
           bold && styles.bold,
           { color: t.text.secondary },
-          !center && styles.shrink,
+          styles.shrink,
+          center && styles.centerText,
         ]}
       >
         {column.name}
@@ -142,6 +153,9 @@ export function ColumnNameEditor({
 const styles = StyleSheet.create({
   nameRow: { alignItems: 'center', gap: space.xs },
   center: { justifyContent: 'center' },
+  // Centred so a name that wraps reads as one centred block, not a centred
+  // first line with a ragged second.
+  centerText: { textAlign: 'center' },
   editRow: { alignItems: 'center', gap: space.xs, flex: 1 },
   grow: { flex: 1 },
   shrink: { flexShrink: 1 },

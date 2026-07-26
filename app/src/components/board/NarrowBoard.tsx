@@ -330,6 +330,10 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
               columns={columns}
               canEdit={sessionCan.manageBoards(user)}
               center
+              // Two lines here and nowhere else: the pager squeezes the name
+              // between Prev and Next, and there is nothing above or below it
+              // to displace.
+              lines={2}
               busy={busy}
               onError={setError}
               onEditingChange={setRenaming}
