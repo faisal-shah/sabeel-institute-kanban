@@ -149,7 +149,13 @@ async function notify(params: {
     const res = await getMessaging().sendEachForMulticast({
       tokens: registrations.map((ref) => ref.id),
       notification: { title: 'Sabeel Kanban', body: text },
+      // `type` is what lets a tapped notification open the right screen. It is
+      // the only routing signal a `newUserPending` carries — that event has no
+      // board and no card, so without it the tap has nowhere to go and the app
+      // just opens where it was. Must stay in step with the inbox document
+      // written above; the client maps both through one `routeForNotification`.
       data: {
+        type: params.event,
         boardId: params.boardId,
         ...(params.cardId ? { cardId: params.cardId } : {}),
       },

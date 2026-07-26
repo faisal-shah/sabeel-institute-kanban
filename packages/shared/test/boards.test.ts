@@ -61,17 +61,27 @@ describe('validation', () => {
   });
 
   it('rejects an empty or over-long label name', () => {
-    expect(validateLabelName('')).not.toBeNull();
-    expect(validateLabelName('   ')).not.toBeNull();
-    expect(validateLabelName('donor-facing')).toBeNull();
-    expect(validateLabelName('x'.repeat(LABEL_NAME_MAX))).toBeNull();
-    expect(validateLabelName('x'.repeat(LABEL_NAME_MAX + 1))).not.toBeNull();
+    expect(validateLabelName('', [])).not.toBeNull();
+    expect(validateLabelName('   ', [])).not.toBeNull();
+    expect(validateLabelName('donor-facing', [])).toBeNull();
+    expect(validateLabelName('x'.repeat(LABEL_NAME_MAX), [])).toBeNull();
+    expect(validateLabelName('x'.repeat(LABEL_NAME_MAX + 1), [])).not.toBeNull();
   });
 
   it('measures the label name AFTER trimming', () => {
     // The field caps raw input, so an at-the-limit name padded with spaces is
     // the shape that would otherwise be rejected for being one over.
-    expect(validateLabelName(`  ${'x'.repeat(LABEL_NAME_MAX)}  `)).toBeNull();
+    expect(validateLabelName(`  ${'x'.repeat(LABEL_NAME_MAX)}  `, [])).toBeNull();
+  });
+
+  it('rejects a duplicate label name, case-insensitively', () => {
+    // Two chips reading "Urgent" and "urgent" are indistinguishable on a card
+    // face, so the pair is unusable rather than merely untidy.
+    const labels = [{ id: 'l1', name: 'Urgent', color: '#83114F' }];
+    expect(validateLabelName('urgent', labels)).not.toBeNull();
+    expect(validateLabelName('  URGENT  ', labels)).not.toBeNull();
+    expect(validateLabelName('Urgent', labels)).not.toBeNull();
+    expect(validateLabelName('donor-facing', labels)).toBeNull();
   });
 
   it('rejects a duplicate column name, case-insensitively', () => {

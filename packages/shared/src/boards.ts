@@ -161,11 +161,20 @@ export function renameColumn(
  */
 export const LABEL_NAME_MAX = 40;
 
-export function validateLabelName(name: string): string | null {
+export function validateLabelName(
+  name: string,
+  existing: readonly BoardLabel[],
+): string | null {
   const trimmed = name.trim();
   if (trimmed.length === 0) return 'Give the label a name.';
   if (trimmed.length > LABEL_NAME_MAX)
     return `Keep the label name under ${LABEL_NAME_MAX} characters.`;
+  // Case-insensitively, exactly like columns. Two labels differing only in case
+  // are indistinguishable on a card face — the chip shows the name and nothing
+  // else — so the pair is unusable rather than merely untidy. Labels have no
+  // rename, so unlike renameColumn there is no self-exclusion trap here.
+  if (existing.some((l) => l.name.toLowerCase() === trimmed.toLowerCase()))
+    return 'There is already a label with that name.';
   return null;
 }
 

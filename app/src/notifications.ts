@@ -12,6 +12,7 @@ import {
 import type { NotifyEvent } from '@sabeel/shared';
 import { db } from './firebase';
 import { useLiveDoc, useLiveQuery } from './liveQuery';
+import type { Route } from './nav';
 import type { SessionUser } from './session';
 
 export interface InboxItem {
@@ -26,6 +27,35 @@ export interface InboxItem {
 }
 
 const inboxRef = (uid: string) => collection(db, 'users', uid, 'notifications');
+
+/**
+ * Where a notification takes you when you tap it.
+ *
+ * ONE mapping, deliberately, because there are two places to tap the same
+ * notification: the Alerts list in the app, and the banner in the phone's
+ * notification tray. Those arrive by completely different routes — a Firestore
+ * document versus an FCM data payload — but they must land on the same screen,
+ * so they share this function rather than each deciding for themselves.
+ *
+ * Takes the loose shape both sources can supply, not `InboxItem`: the push
+ * payload is `Record<string, string>` off the wire and has no `id`, `read` or
+ * `at`. Returns null when there is nowhere sensible to go, so a caller can leave
+ * the user where they are instead of navigating somewhere arbitrary.
+ */
+export function routeForNotification(n: {
+  type?: string;
+  boardId?: string;
+  cardId?: string;
+}): Route | null {
+  // Admins only, and it carries no board — the whole point is the person
+  // waiting, who lives on the People screen.
+  if (n.type === 'newUserPending') return { name: 'users' };
+  if (n.cardId && n.boardId) {
+    return { name: 'card', boardId: n.boardId, cardId: n.cardId };
+  }
+  if (n.boardId) return { name: 'board', boardId: n.boardId };
+  return null;
+}
 
 /** The in-app inbox, newest first. Capped — nobody scrolls past 50. */
 export function useInbox(user: SessionUser) {

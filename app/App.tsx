@@ -15,6 +15,7 @@ import { useSession, type SessionUser } from './src/session';
 import { initErrorReporting, setErrorUser } from './src/sentry';
 import { useNav, useHardwareBack, type Route } from './src/nav';
 import { useDeepLinks } from './src/useDeepLinks';
+import { usePushOpens } from './src/usePushOpens';
 import { useLayout } from './src/theme/layout';
 import { AppNav, isTabRoot } from './src/components/AppNav';
 import { SignInScreen } from './src/screens/SignInScreen';
@@ -90,6 +91,8 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
   const { isWide } = useLayout();
   // Open a shared card/board link now that the user is active (see useDeepLinks).
   useDeepLinks();
+  // Same, for a push notification the user tapped (see usePushOpens).
+  usePushOpens();
   const screen = renderScreen(route, user);
 
   if (isWide) {

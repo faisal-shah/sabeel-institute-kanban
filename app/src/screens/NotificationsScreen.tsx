@@ -6,6 +6,7 @@ import {
   dismissAll,
   markAllRead,
   markRead,
+  routeForNotification,
   setNotifyPref,
   useInbox,
   useNotifyPrefs,
@@ -67,11 +68,10 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
 
   function open(item: InboxItem) {
     void markRead(user, item).catch(() => {});
-    if (item.cardId && item.boardId) {
-      nav.push({ name: 'card', boardId: item.boardId, cardId: item.cardId });
-    } else if (item.boardId) {
-      nav.push({ name: 'board', boardId: item.boardId });
-    }
+    // Shared with the push-tap handler so both land on the same screen — see
+    // routeForNotification.
+    const route = routeForNotification(item);
+    if (route) nav.push(route);
   }
 
   if (inbox.status === 'loading') return <Spinner label="Loading notifications…" />;

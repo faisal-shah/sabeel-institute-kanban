@@ -126,7 +126,7 @@ export function BoardSettingsScreen({
   }
 
   async function addLabel() {
-    const problem = validateLabelName(newLabelName);
+    const problem = validateLabelName(newLabelName, b!.labels);
     if (problem) {
       setError(problem);
       return;

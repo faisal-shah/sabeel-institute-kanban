@@ -242,8 +242,10 @@ cutting the list short. Tap a result to open the card.
 **Alerts** shows everything you've been told about, so nothing is lost if a phone
 notification is missed or swiped away. You're alerted when a card is **assigned**
 to you, when someone **@mentions** you in a comment, and — for admins — when a
-**new account** is waiting. Unread items are outlined; tap one to jump straight to
-the card.
+**new account** is waiting. Unread items are outlined; tap one to go straight to
+what it is about — the card for a card alert, **People** for an account waiting
+for approval. Tapping the notification on your phone's lock screen or in its
+notification tray does the same thing, including when the app was not running.
 
 Each item has a **✕** to dismiss it. At the top of the list, **✓✓** marks
 everything read and the **sweep** icon empties the inbox — that one asks first,
@@ -293,7 +295,10 @@ Open a board and tap its **settings** (the gear). From here:
   because it cannot be undone. To clear a column quickly, select its cards and
   move or archive them in one go.
 - **Labels** — a short, shared vocabulary for the board. Colours come from a fixed
-  palette so they stay readable on the app's warm surfaces.
+  palette so they stay readable on the app's warm surfaces. Names are short by
+  design, and two labels can't share a name even in different capitals — a card
+  face shows the name and nothing else, so "Urgent" and "urgent" would be
+  impossible to tell apart.
 - **Members** — who can see the board. Tap the **add-person** icon beside the
   *Members* heading to see who else can be added, and tap a name to add them.
   Removing someone (the **remove-person** icon on their row) also **unassigns them
