@@ -45,17 +45,34 @@ export const onCardDeleted = onDocumentDeleted(
       .collection('cards')
       .where('parentId', '==', cardId)
       .get();
-    if (!children.empty) {
-      const batch = db.batch();
-      for (const child of children.docs) {
-        batch.update(child.ref, { parentId: FieldValue.delete() });
-      }
-      await batch.commit();
-    }
+
+    // One update per child, NOT a batch, and each failure tolerated.
+    //
+    // `update()` on a document that no longer exists fails with NOT_FOUND, and a
+    // batch is atomic — so one child deleted in the window BETWEEN this query and
+    // the commit would take every other unlink down with it, leaving those cards
+    // dangling and permanently unlinkable (the picker refuses an already-parented
+    // card). That is the exact state this sweep exists to prevent, and the unlinks
+    // are independent, so atomicity buys nothing here.
+    //
+    // To be clear about the size of the risk: the ordinary case is already safe.
+    // Deleting a parent together with its subtasks goes through `bulkDelete`, one
+    // batch, so the children are gone BEFORE this query runs and simply are not
+    // returned — measured, not assumed. The window this closes is only the narrow
+    // one where a child is deleted concurrently by someone else mid-sweep. Cheap
+    // insurance against a failure whose signature would be silent and permanent.
+    const results = await Promise.allSettled(
+      children.docs.map((child) =>
+        child.ref.update({ parentId: FieldValue.delete() }),
+      ),
+    );
+    const failed = results.filter((r) => r.status === 'rejected').length;
 
     logger.info('cleaned up deleted card', {
       cardId,
-      unlinkedSubtasks: children.size,
+      unlinkedSubtasks: children.size - failed,
+      // Expected to be non-zero only when a child was deleted concurrently.
+      skippedSubtasks: failed,
     });
   }),
 );

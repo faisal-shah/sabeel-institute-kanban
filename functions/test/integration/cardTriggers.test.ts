@@ -105,6 +105,34 @@ describe('onCardDeleted unlinks subtasks', () => {
     const other = await adminDb().doc('cards/ct_other').get();
     expect(other.data()?.parentId).toBe('someone_else');
   });
+
+  it('still unlinks the survivors when a child was deleted at the same time', () =>
+    // Deleting a parent together with some of its subtasks — what `bulkDelete`
+    // does, in one batch.
+    //
+    // Honest note on what this does and does not prove: it was written expecting
+    // a batched sweep to fail here, and it does NOT — the co-deleted child is
+    // already gone before the sweep queries, so it is never returned and nothing
+    // errors. Verified by running this against the batched implementation, where
+    // it also passed. It is kept because the scenario is real and worth pinning;
+    // the narrow concurrent-delete window that motivated `allSettled` is not
+    // reproducible from a test.
+    (async () => {
+      await adminDb().doc('cards/ct_p2').set(card());
+      await adminDb().doc('cards/ct_gone').set(card({ parentId: 'ct_p2' }));
+      await adminDb().doc('cards/ct_stays').set(card({ parentId: 'ct_p2' }));
+
+      // The parent and one child vanish together.
+      const batch = adminDb().batch();
+      batch.delete(adminDb().doc('cards/ct_p2'));
+      batch.delete(adminDb().doc('cards/ct_gone'));
+      await batch.commit();
+
+      await waitFor('surviving subtask unlinked', async () => {
+        const s = await adminDb().doc('cards/ct_stays').get();
+        return s.data()?.parentId === undefined ? true : undefined;
+      });
+    })());
 });
 
 describe('removeBoardMember activity attribution', () => {
