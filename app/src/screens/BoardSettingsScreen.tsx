@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
@@ -68,6 +68,31 @@ export function BoardSettingsScreen({
   const [adding, setAdding] = useState(false);
   const countReq = useRef(0);
 
+  // Who the ADD picker can offer. Derived up here, ABOVE the early returns
+  // below, because the effect that closes the picker is a hook and hooks cannot
+  // sit after a conditional return.
+  //
+  // Current members come from the board (everyone can see them); this list needs
+  // the directory, which only admins may list.
+  const nonMembers = useMemo(() => {
+    const bd = board.data;
+    if (!bd) return [];
+    return (allUsers.data ?? []).filter(
+      (u) =>
+        !bd.memberUids.includes(u.uid) &&
+        u.status === 'active' &&
+        // You add yourself with Join, not from the add-someone list.
+        u.uid !== user.uid,
+    );
+  }, [board.data, allUsers.data, user.uid]);
+
+  // Adding the LAST candidate empties the picker while it is still open, which
+  // would otherwise render an empty panel directly above the "nobody available
+  // to add" hint, with the heading's trigger hidden because `adding` is true.
+  useEffect(() => {
+    if (adding && nonMembers.length === 0) setAdding(false);
+  }, [adding, nonMembers.length]);
+
   if (board.status === 'loading') return <Spinner label="Loading board…" />;
   const b = board.data;
   if (!b) {
@@ -131,21 +156,14 @@ export function BoardSettingsScreen({
     }
   }
 
-  // Current members come from the board (everyone can see them); the ADD picker
-  // needs the directory, which only admins may list.
+  // Current members come from the board — everyone can see them. (The ADD
+  // picker's candidates are derived above, where the hooks live.)
   const members = b.members;
   // You reach this screen only as a manager/admin, and may be viewing a board
   // you have not joined. Join/Leave touch only your OWN uid, so they need no
   // directory read — a manager can join any board without admin rights to list
   // users, and anyone can step out of a board they no longer work.
   const isMember = b.memberUids.includes(user.uid);
-  const nonMembers = (allUsers.data ?? []).filter(
-    (u) =>
-      !b.memberUids.includes(u.uid) &&
-      u.status === 'active' &&
-      // You add yourself with Join, not from the add-someone list.
-      u.uid !== user.uid,
-  );
 
   return (
     <Screen width="read">

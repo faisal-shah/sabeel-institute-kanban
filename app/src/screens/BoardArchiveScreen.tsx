@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { deleteCard, restoreCard, useArchivedBoardCards } from '../cards';
 import { useBoard } from '../boards';
@@ -42,6 +43,8 @@ export function BoardArchiveScreen({
   const board = useBoard(boardId);
   const cards = useArchivedBoardCards(boardId);
   const { run, busy, error } = useAction('boardArchive');
+  /** Set only when a restore had to land the card somewhere else. */
+  const [note, setNote] = useState<string | null>(null);
 
   if (board.status === 'loading' || cards.status === 'loading') {
     return <Spinner label="Loading archive…" />;
@@ -75,6 +78,12 @@ export function BoardArchiveScreen({
         </Panel>
       ) : null}
 
+      {note ? (
+        <Panel>
+          <Body>{note}</Body>
+        </Panel>
+      ) : null}
+
       {archived.length === 0 ? (
         <Panel>
           <Body muted>Nothing is archived on this board.</Body>
@@ -94,7 +103,17 @@ export function BoardArchiveScreen({
             <Button
               busy={busy}
               label="Restore to the board"
-              onPress={() => run(() => restoreCard(card.id, user))}
+              onPress={() =>
+                run(async () => {
+                  const { movedTo } = await restoreCard(card, user, b.columns);
+                  // Its own column may have been deleted while it sat here. Say
+                  // where it actually went rather than letting it reappear
+                  // somewhere the user is not looking.
+                  if (movedTo) {
+                    setNote(`“${card.title}” went back to ${movedTo} — the column it was archived from no longer exists.`);
+                  }
+                })
+              }
             />
             {/* Permanent deletion stays managers/admins only, exactly as on the
                 card itself — the archive is not a back door around that. */}

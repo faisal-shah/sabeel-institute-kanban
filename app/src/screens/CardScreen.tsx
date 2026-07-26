@@ -27,7 +27,10 @@ import { shareLink, WEB_ORIGIN } from '../share';
 import { cardPath } from '../links';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
-import { AssigneePicker } from '../components/AssigneePicker';
+import {
+  AssigneePicker,
+  assignableCandidates,
+} from '../components/AssigneePicker';
 import { Subtasks } from '../components/Subtasks';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
@@ -87,7 +90,7 @@ export function CardScreen({
   const [picking, setPicking] = useState(false);
   const { run, busy, error } = useAction('card');
   const [dirty, setDirty] = useState(false);
-  const [shareNote, setShareNote] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   // Seed the local editors once the card arrives, but never stomp on typing.
   useEffect(() => {
@@ -120,6 +123,13 @@ export function CardScreen({
   // Sourced from the board doc so non-admins (who cannot list users) still see
   // who they can assign.
   const assignable = b.members;
+  // Whether the heading offers "assign someone" must be the SAME question the
+  // picker answers, so it comes from the picker's own helper rather than from
+  // comparing two lengths — see assignableCandidates.
+  //
+  // Deliberately NOT useMemo: this sits below the early returns above, where a
+  // hook would be conditional. It is a filter over a handful of board members.
+  const assignableNow = assignableCandidates(assignable, c.assigneeUids);
 
   // The card this one is a subtask of, resolved against the board's LIVE cards.
   // Resolving here rather than fetching means a parent that was archived, moved
@@ -147,8 +157,8 @@ export function CardScreen({
   const onShare = async () => {
     const result = await shareLink(`${WEB_ORIGIN}${cardPath(cardId)}`, c.title);
     if (result === 'copied') {
-      setShareNote('Link copied');
-      setTimeout(() => setShareNote(null), 2200);
+      setNote('Link copied');
+      setTimeout(() => setNote(null), 2200);
     }
   };
 
@@ -175,7 +185,7 @@ export function CardScreen({
               as the page's heading, so a second one was pure noise. */}
         </View>
         <View style={styles.headerActions}>
-          {shareNote ? <Caption>{shareNote}</Caption> : null}
+          {note ? <Caption>{note}</Caption> : null}
           <IconAction icon="share" label="Share card" onPress={onShare} />
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </View>
@@ -464,12 +474,10 @@ export function CardScreen({
           that is already long. Same shape as Description's edit icon. */}
       <Heading
         action={
-          assignable.length > c.assigneeUids.length && !picking ? (
+          assignableNow.length > 0 && !picking ? (
             <IconAction
               icon="person-add"
-              label={`Assign someone (${
-                assignable.length - c.assigneeUids.length
-              } available)`}
+              label={`Assign someone (${assignableNow.length} available)`}
               accent
               size={22}
               disabled={busy}
@@ -582,9 +590,19 @@ export function CardScreen({
       <Panel>
         {c.archived ? (
           <Button
-          busy={busy}
+            busy={busy}
             label="Restore to the board"
-            onPress={() => run(() => restoreCard(cardId, user))}
+            onPress={() =>
+              run(async () => {
+                // May land in a different column if its own was deleted while it
+                // was archived — see restoreCard.
+                const { movedTo } = await restoreCard(c, user, b.columns);
+                if (movedTo) {
+                  setNote(`Restored to ${movedTo}`);
+                  setTimeout(() => setNote(null), 3200);
+                }
+              })
+            }
           />
         ) : (
           <Button

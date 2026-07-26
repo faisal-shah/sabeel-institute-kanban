@@ -18,6 +18,7 @@ import {
   parentAfterMove,
   rankBetween,
   rerank,
+  type BoardColumn,
   type CardDoc,
   type Priority,
 } from '@sabeel/shared';
@@ -215,8 +216,44 @@ export async function archiveCard(cardId: string, user: SessionUser): Promise<vo
   await updateCard(cardId, { archived: true }, user);
 }
 
-export async function restoreCard(cardId: string, user: SessionUser): Promise<void> {
-  await updateCard(cardId, { archived: false }, user);
+/**
+ * Bring an archived card back to the board.
+ *
+ * The column it was archived FROM may no longer exist, and that is not exotic:
+ * a column is deletable once it holds no LIVE cards, and the message shown when
+ * it is blocked tells you to "move or archive them first" — so archiving a
+ * column's cards and then deleting it is the documented path. Restoring such a
+ * card with its stale `columnId` is rejected outright by firestore.rules, whose
+ * `wellFormed()` requires `columnId in board.columnIds` on every update. The
+ * card would be frozen: unrestorable, uneditable, and (for a member, who cannot
+ * delete) with no way out at all.
+ *
+ * So restore lands it in the first column when its own is gone, at the bottom,
+ * and reports where it went — the caller tells the user, because a card
+ * quietly reappearing somewhere else is its own kind of lost.
+ */
+export async function restoreCard(
+  card: Card,
+  user: SessionUser,
+  columns: readonly BoardColumn[],
+): Promise<{ movedTo?: string }> {
+  if (columns.some((col) => col.id === card.columnId)) {
+    await updateCard(card.id, { archived: false }, user);
+    return {};
+  }
+  const target = columns[0];
+  if (!target) {
+    throw new Error(
+      'This board has no columns to restore into. Add a column first.',
+    );
+  }
+  const last = await destColumnLastRank(card.boardId, target.id);
+  await updateCard(
+    card.id,
+    { archived: false, columnId: target.id, rank: rankBetween(last, null) },
+    user,
+  );
+  return { movedTo: target.name };
 }
 
 export async function deleteCard(cardId: string): Promise<void> {

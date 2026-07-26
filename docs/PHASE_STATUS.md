@@ -341,6 +341,43 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Review of the reworking: a card that could not come back — v0.1.28
+
+A deliberate read-through of everything the last three releases touched, at
+Faisal's request. Three defects, all in code shipped hours earlier, none of which
+a test or a screenshot would have caught.
+
+**An archived card could become permanently unrecoverable.** A column may be
+deleted once it holds no LIVE cards — and the message shown when deletion is
+blocked says "move or **archive** them first" — so archiving a column's cards and
+then deleting the column is the path the app itself recommends. Those cards keep
+a `columnId` that no longer exists, and `firestore.rules` checks
+`columnId in board.columnIds` on **every** update via `wellFormed()`. So
+un-archiving was rejected outright: the card could not be restored, could not be
+edited, and a member (who cannot delete) had no way out of it at all. Reachable
+only since v0.1.25, which added the Restore button that hits this. `restoreCard`
+now re-homes such a card into the first column, at the bottom, and says where it
+went. Pinned by a rules test that asserts both halves — the stale write refused,
+the re-homed one accepted.
+
+**The assignee trigger asked a different question than the picker answered.** The
+heading used `members.length > assignees.length` as a proxy for "is anyone
+available", while the picker computed the actual set. They disagree exactly when
+an assignee is no longer a board member — the orphan case the picker explicitly
+handles — leaving a real, assignable member unreachable. Both now call one
+exported `assignableCandidates`.
+
+**Two pickers could be left open over nothing.** Assigning (or adding) the last
+candidate emptied the list while the picker was still open, and because the
+heading's trigger hides while a picker is open, the section was left with no way
+to reopen it; unassigning someone later made the picker reappear unbidden. Both
+now close themselves when they empty.
+
+Also caught in review and corrected before commit: a `useMemo` placed below an
+early return (a conditional hook — ESLint's `rules-of-hooks` catches it, verified
+by deliberately reintroducing it), and a `useEffect` referencing a `const`
+declared further down the component, which would have thrown on every render.
+
 ### 2026-07-25 — Canonical controls, and a badge that could never come down — v0.1.27
 
 Faisal named one instance ("the settings button should just be a gear sign") and

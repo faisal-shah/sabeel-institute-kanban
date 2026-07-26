@@ -346,6 +346,37 @@ describe('updating cards (in-board)', () => {
     );
   });
 
+  it('un-archiving alone is refused once the card’s column is gone', async () => {
+    // This is why restoreCard() re-homes a card instead of only flipping
+    // `archived`. A column may be deleted once it holds no LIVE cards — and the
+    // message shown when deletion is blocked tells you to "move or archive them
+    // first" — so archiving a column's cards and then deleting the column is a
+    // documented path, and it leaves archived cards pointing at a dead column.
+    // Flipping `archived` alone then carries the stale columnId into
+    // wellFormed()'s columnExists() check and is rejected, which would strand
+    // the card: unrestorable, uneditable, and undeletable by a member.
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(
+        doc(c.firestore(), 'cards/stranded'),
+        card({ columnId: 'deleted-col', archived: true }),
+      );
+    });
+    const db = ctx('member1', 'member');
+    await assertFails(
+      updateDoc(doc(db, 'cards/stranded'), {
+        ...card({ columnId: 'deleted-col' }),
+        archived: false,
+      }),
+    );
+    // Re-homing it into a column that still exists is what restoreCard does.
+    await assertSucceeds(
+      updateDoc(doc(db, 'cards/stranded'), {
+        ...card({ columnId: 'c1' }),
+        archived: false,
+      }),
+    );
+  });
+
   it('cannot assign a non-member during an update', async () => {
     await assertFails(
       updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {

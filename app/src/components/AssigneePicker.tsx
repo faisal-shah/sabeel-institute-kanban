@@ -1,8 +1,25 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { BoardMemberProfile } from '../boards';
 import { Body, Button, Caption, Hint, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
+
+/**
+ * Who can still be assigned: board members who are not already on the card.
+ *
+ * Exported because the control that OPENS the picker lives on the section
+ * heading, in the parent — and the parent must not re-derive this. Counting
+ * (`members.length > assigned.length`) looks equivalent and is not: an assignee
+ * who has been removed from the board is still in `assignedUids` but no longer
+ * in `members`, so the arithmetic reports "nobody left" while a real member is
+ * still assignable, and the picker can never be opened again.
+ */
+export function assignableCandidates(
+  members: readonly BoardMemberProfile[],
+  assignedUids: readonly string[],
+): readonly BoardMemberProfile[] {
+  return members.filter((m) => !assignedUids.includes(m.uid));
+}
 
 /**
  * Assignees on a card.
@@ -47,9 +64,17 @@ export function AssigneePicker({
     [members, assignedUids],
   );
   const available = useMemo(
-    () => members.filter((m) => !assignedUids.includes(m.uid)),
+    () => assignableCandidates(members, assignedUids),
     [members, assignedUids],
   );
+
+  // Assigning the LAST candidate empties the picker while it is still open.
+  // Without this the section is left in a state with no picker and no way to
+  // reopen it (the heading's trigger hides while `picking`), and unassigning
+  // someone later would make the picker reappear unbidden.
+  useEffect(() => {
+    if (picking && available.length === 0) onPickingChange(false);
+  }, [picking, available.length, onPickingChange]);
 
   // An assignee who is no longer a board member (removed while assigned) would
   // otherwise vanish from the UI while remaining on the card. Surface them so
