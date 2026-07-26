@@ -341,6 +341,70 @@ the team.
 
 ## Deploy log
 
+### 2026-07-26 — Notifications you can act on — v0.1.32
+
+Started as "tapping a notification should open the thing it is about" and turned
+into an audit of the whole notification path, which had four separate faults.
+
+**Tapping did nothing, in two different ways.** In the Alerts list an
+account-approval alert was inert, because those are written with an empty
+`boardId` and the handler only knew how to open boards and cards. In the phone's
+notification tray *nothing* was tappable — there was no response listener
+anywhere in the app, so the `boardId` and `cardId` the server had been putting in
+every payload were read by no one. `routeForNotification` is now the single
+mapping both use: they arrive by completely different routes, a Firestore
+document and an FCM data payload, and where they land is the one thing that must
+never drift. `type` joined the payload because it is the only routing signal a
+`newUserPending` carries.
+
+`pushOpen.ts` mirrors `deeplink.ts` deliberately. An intent can arrive while the
+app is running or BE the reason it started, those are two different APIs, and
+skipping the second is how "it works when I test it" becomes "it does nothing
+from a cold phone" — backgrounded is the case that works either way.
+`takeInitialPush` uses the library's own `clearLastNotificationResponse` rather
+than a hand-rolled consumed flag; that API exists for precisely this, and both
+`…Async` forms are deprecated in SDK 57.
+
+**The badge stayed up after acting on a push.** Tapping in Alerts marks the entry
+read; tapping the same notification in the tray did not, because the payload
+could not say which entry it was. The inbox id now travels with the push — which
+means one message per device rather than a multicast, since
+`sendEachForMulticast` sends one payload to every token and the payload now
+differs per recipient.
+
+**Every push landed in a channel called "Miscellaneous".** The app created a
+channel named "Default" that nothing posted to, because the server never sent a
+channel id; expo-notifications does not error on that, it logs and falls back to
+its own channel. The id now lives in `@sabeel/shared`, since both sides must name
+it and neither can check the other. It is a NEW id at HIGH importance — matching
+what the fallback was already doing, so nothing goes quieter — because Android
+fixes a channel's importance at creation and an app may never raise it, only the
+person can. The dead channel is deleted rather than left as a second, silent
+entry someone would try to configure.
+
+**A rotated FCM token silently ended notifications.** Registration ran only at
+sign-in, so when FCM rotated a token the stored one died, the server pruned it on
+the next send, and that person stopped hearing anything until they happened to
+sign out and back in. `addPushTokenListener` files the new one, and is removed on
+sign-out first so a rotation mid-sign-out cannot re-file the token under the
+account being detached.
+
+Also: two labels can no longer differ only in case, matching columns. A card face
+shows a label's name and nothing else, so "Urgent" beside "urgent" is a pair
+nobody can tell apart.
+
+Verified on the Android emulator with real notifications rather than by reading
+the code: a tap routes to People; a card notification that ARRIVES WHILE THE
+PROCESS IS DEAD opens the card on launch; `unreadNotifCount` goes 1 → 0 and
+`read` false → true in Firestore across the tap; and `dumpsys` reports
+`Notification(channel=sabeel-alerts)` at importance 4. Worth recording for next
+time: `force-stop` cancels pending alarms *and* clears posted notifications, so
+it cannot produce a cold start — `am kill` leaves both intact.
+
+Known and left alone: the inbox is never pruned (a Firestore TTL policy is the
+fix if it ever matters at this scale), and web push stays inert without a VAPID
+key (TODO § I), so tray taps in a browser do nothing.
+
 ### 2026-07-26 — Text that escaped its row — v0.1.31
 
 Reported from the Android app: a long column name printed on top of the pager's
