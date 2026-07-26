@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { NOTIFY_EVENTS } from '@sabeel/shared';
+import { NOTIFICATION_RETENTION_DAYS, NOTIFY_EVENTS } from '@sabeel/shared';
 import {
   dismiss,
   dismissAll,
@@ -131,6 +131,12 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
               </Panel>
             );
           })}
+
+          <Caption>
+            Alerts keeps the last {NOTIFICATION_RETENTION_DAYS} days. Anything
+            older is removed automatically — the card itself keeps its comments
+            and history.
+          </Caption>
 
           <Heading>Mute a board</Heading>
           <Caption>

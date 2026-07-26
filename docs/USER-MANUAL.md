@@ -253,6 +253,10 @@ Each item has a **✕** to dismiss it. At the top of the list, **✓✓** marks
 everything read and the **sweep** icon empties the inbox — that one asks first,
 because dismissed alerts cannot be brought back.
 
+Alerts keeps the last **90 days** and clears out anything older on its own, so
+the list stays worth reading. Nothing is lost by it — a card keeps its own
+comments and activity permanently.
+
 The **gear** opens notification settings, where each kind of notification has an
 on/off switch and you can **mute** individual boards with the bell. One kind is
 off by default — "a card assigned to you was moved" — because on a busy board it

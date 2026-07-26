@@ -16,5 +16,6 @@ export {
   onCardNotify,
   onUserPending,
   dueSoonReminders,
+  pruneNotifications,
 } from './notifications';
 export { healthCheck } from './health';

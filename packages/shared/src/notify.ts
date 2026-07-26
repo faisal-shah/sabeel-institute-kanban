@@ -134,3 +134,16 @@ export function notificationText(params: {
  */
 export const PUSH_CHANNEL_ID = 'sabeel-alerts';
 export const PUSH_CHANNEL_NAME = 'Card alerts and approvals';
+
+/**
+ * How long an inbox entry is kept before the weekly sweep removes it.
+ *
+ * Shared so the number the server enforces is the number the settings screen
+ * quotes — a retention period the app states and does not honour (or honours
+ * and never states) is worse than no statement at all.
+ *
+ * Pruned by AGE, read or not. Alerts only ever lists the newest 50, so an unread
+ * entry older than that is already unreachable: keeping it would leave the badge
+ * counting something nobody can open or dismiss.
+ */
+export const NOTIFICATION_RETENTION_DAYS = 90;

@@ -341,6 +341,62 @@ the team.
 
 ## Deploy log
 
+### 2026-07-26 — Mentions in edits, and two review findings — v0.1.33
+
+**@mentions did not work when editing a comment.** Three faults stacked, only
+the first visible. The edit box was a bare field while the composer had the
+autocomplete inline — two boxes doing one job, one of which had quietly stopped;
+both now use `MentionField`. Underneath, `editComment` never re-derived
+`mentionUids`, so even typing the handle correctly did nothing, and an edit lied
+in both directions: adding "@sara" recorded no mention, deleting one left her
+listed as mentioned by a comment that no longer names her. And the notifier was
+create-only, so a mention added by editing reached nobody. It watches writes now,
+notifying whoever is NEWLY named — diffing against the previous list is what
+stops a typo fix from re-paging the thread — while `commentOnMyCard` stays
+create-only, because an edit is not a new comment. `onCommentCreated` became
+`onCommentNotify` to match `onCardNotify`.
+
+That exposed a rules gap: `create` required every mentioned uid to be a board
+member, `update` allowed the field and checked nothing. The invariant held for a
+new comment and could be walked past by editing one. Proved the new test catches
+it by removing the guard and watching it fail with "Expected request to fail, but
+it succeeded".
+
+**A title save destroyed an unsaved description.** Found by review, reproduced,
+fixed. The card screen had ONE `dirty` flag guarding the effect that re-seeds
+both editors from the server, but both editors can be open at once — so saving or
+cancelling the title cleared the flag, re-armed the effect, and the next snapshot
+overwrote a description someone was still typing. No error, nothing to undo.
+Confirmed against the running app before ("LOST") and after ("SURVIVED"). One
+flag per editor now, checked field by field.
+
+**The live-data error banner outlived its session.** Module-level like the result
+cache but not cleared with it, so signing out while "permission-denied" showed
+left the next person on that device reading a refusal that was never theirs.
+
+**Board `update` rules are now as strict as `create`.** An update rule laxer than
+its create rule means the shape is only guaranteed for a document's first write,
+which is not a guarantee — exactly the comment-mention trap in another place.
+`createdAt` and `activeCardCount` are pinned (the latter is trigger-owned;
+`onCardBoardCount` writes it via the Admin SDK, which bypasses rules), `archived`
+must be a bool and `memberProfiles` a map. `.get(field, default)` on the pinned
+fields, so a board written before one of them existed does not become
+permanently uneditable.
+
+**The notification inbox is pruned weekly, keeping 90 days.** Nothing had ever
+deleted a notification: the client can dismiss what it sees, but Alerts lists
+only the newest 50, so everything below that accumulated forever. Per user
+rather than a collection-group query — there are tens of accounts, and a
+collection-group query on `notifications` would need a collection-group-scoped
+single-field index Firestore does not create automatically, which would fail at
+runtime inside a scheduled job where nobody is watching. Pruned by age whether
+read or not, because an unread entry below the 50-item line is already
+unreachable and only leaves the badge counting something nobody can open. When a
+sweep removes anything unread the badge is RECOMPUTED from the survivors rather
+than decremented, which also repairs drift from any other path. The retention
+figure lives in `@sabeel/shared` so the number the server enforces is the number
+the settings screen quotes.
+
 ### 2026-07-26 — Notifications you can act on — v0.1.32
 
 Started as "tapping a notification should open the thing it is about" and turned

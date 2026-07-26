@@ -6,6 +6,7 @@ import { guardedEvent, sentryDsn } from './sentry';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import {
+  NOTIFICATION_RETENTION_DAYS,
   ORG_TIMEZONE,
   PUSH_CHANNEL_ID,
   addDays,
@@ -354,6 +355,82 @@ export const onUserPending = onDocumentCreated(
     });
   }),
 );
+
+/**
+ * Prune the inbox, once a week.
+ *
+ * Nothing else ever deletes a notification: the client can dismiss what it can
+ * see, but Alerts only lists the newest 50, so everything below that line
+ * accumulated forever. Small at this size and never self-correcting.
+ *
+ * Per user rather than a collection-group query, deliberately. There are tens of
+ * accounts, so the cost is trivial, and a collection-group query on
+ * `notifications` would need a collection-group-scoped single-field index that
+ * Firestore does NOT create automatically — a config step that would fail at
+ * runtime, in a scheduled job, where nobody is watching.
+ *
+ * The badge is the delicate part. `unreadNotifCount` lives on the user document
+ * and is maintained by increments, so deleting unread entries behind its back
+ * would leave it counting documents that no longer exist — the precise bug this
+ * project already shipped once. So when a sweep removes anything UNREAD, the
+ * count is RECOMPUTED from what survives rather than decremented, which also
+ * quietly repairs any drift that crept in from another path.
+ */
+export const pruneNotifications = onSchedule(
+  { schedule: '0 3 * * 1', timeZone: ORG_TIMEZONE, secrets: [sentryDsn] },
+  guardedEvent(async () => {
+    await runNotificationSweep();
+  }),
+);
+
+/**
+ * The sweep itself, separated from its schedule for the same reason as
+ * `runHealthCheck`: there is no pubsub emulator, so a scheduled function's body
+ * is untestable unless it can be called directly.
+ */
+export async function runNotificationSweep(
+  now: number = Date.now(),
+): Promise<{ deleted: number; badgesRecomputed: number }> {
+  const cutoff = now - NOTIFICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const users = await db().collection('users').get();
+
+  let deleted = 0;
+  let recounted = 0;
+
+  for (const user of users.docs) {
+    const inbox = db().collection(`users/${user.id}/notifications`);
+    const stale = await inbox.where('at', '<', cutoff).get();
+    if (stale.empty) continue;
+
+    // Did any of these still count toward the badge?
+    const staleUnread = stale.docs.some((d) => d.data().read !== true);
+
+    // Chunked: a write batch takes at most 500 operations, and a person who
+    // has been here a year could easily exceed that in one sweep.
+    for (let i = 0; i < stale.docs.length; i += 400) {
+      const batch = db().batch();
+      for (const d of stale.docs.slice(i, i + 400)) batch.delete(d.ref);
+      await batch.commit();
+    }
+    deleted += stale.size;
+
+    if (staleUnread) {
+      // Count the survivors instead of subtracting. An aggregation, so this
+      // does not read the documents themselves.
+      const remaining = await inbox.where('read', '==', false).count().get();
+      await user.ref.update({ unreadNotifCount: remaining.data().count });
+      recounted += 1;
+    }
+  }
+
+  logger.info('notification sweep', {
+    retentionDays: NOTIFICATION_RETENTION_DAYS,
+    users: users.size,
+    deleted,
+    badgesRecomputed: recounted,
+  });
+  return { deleted, badgesRecomputed: recounted };
+}
 
 /**
  * Due-soon reminders, once a day.

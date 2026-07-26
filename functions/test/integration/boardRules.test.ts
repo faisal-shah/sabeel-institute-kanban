@@ -218,6 +218,37 @@ describe('updating a board', () => {
     );
   });
 
+  // `update` used to validate far less than `create`, which means the shape was
+  // only ever guaranteed for a board's FIRST write. Same trap as the comment
+  // mentionUids check, which was enforced on new comments and skippable by
+  // editing one.
+  it('the card count is trigger-owned and cannot be written by a client', async () => {
+    // onCardBoardCount maintains it via the Admin SDK, which bypasses rules.
+    // A client that could set it would make the Boards list disagree with the
+    // board it is describing.
+    await assertFails(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_member'), {
+        activeCardCount: 999,
+      }),
+    );
+  });
+
+  it('createdAt cannot be rewritten', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_member'), {
+        createdAt: 999,
+      }),
+    );
+  });
+
+  it('archived must be a boolean', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_member'), {
+        archived: 'yes',
+      }),
+    );
+  });
+
   it('a MEMBER of the board cannot edit it', async () => {
     // Members use boards; managers run them.
     await assertFails(

@@ -147,15 +147,33 @@ service cloud.firestore {
       // Members deliberately cannot edit the board they are on — including
       // removing themselves, which would look like leaving but would strand
       // their card assignments (see the removeBoardMember callable).
+      // Everything `create` validates, validated again here. An update rule that
+      // is laxer than its create rule means the shape is only guaranteed for a
+      // document's first write — which is not a guarantee at all, and is exactly
+      // how the comment `mentionUids` check came to be enforced on new comments
+      // and skippable by editing one.
+      //
+      // `.get(field, default)` rather than plain access on the pinned fields: a
+      // board written before one of them existed would otherwise become
+      // permanently uneditable, which is a far worse failure than the drift
+      // being prevented.
       allow update: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
             'columnIds', 'labels', 'memberUids', 'memberProfiles', 'activeCardCount',
             'createdAt', 'createdBy'])
         && incoming().createdBy == existing().createdBy
+        // History, not state. Neither is the client's to rewrite.
+        && incoming().get('createdAt', 0) == existing().get('createdAt', 0)
+        // Trigger-owned (onCardBoardCount, Admin SDK, which bypasses these
+        // rules). The client sets it to 0 at creation and must never touch it
+        // again, or the Boards list can be made to disagree with the board.
+        && incoming().get('activeCardCount', 0) == existing().get('activeCardCount', 0)
         && incoming().memberUids is list
         && incoming().columns is list
         && incoming().columnIds is list
         && incoming().labels is list
+        && (!('archived' in incoming()) || incoming().archived is bool)
+        && (!('memberProfiles' in incoming()) || incoming().memberProfiles is map)
         && incoming().name is string
         && incoming().name.size() > 0
         && incoming().name.size() <= 120;
