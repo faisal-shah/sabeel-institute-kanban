@@ -397,6 +397,24 @@ than decremented, which also repairs drift from any other path. The retention
 figure lives in `@sabeel/shared` so the number the server enforces is the number
 the settings screen quotes.
 
+**Version numbering was two releases from a collision.** Raised while looking
+ahead to an eventual iOS build. The reported blocker — that the App Store only
+accepts X.Y.Z — turned out not to apply: Apple's rules (TN2420) are digits and
+periods only, beginning and ending with a digit, at most three components, at
+most 18 characters, strictly increasing; `0.1.33` satisfies all of them, and
+starting at 0.x is fine because 0.1.33 < 1.0.0.
+
+The real fault was next door. The Android versionCode was
+`major*10000 + minor*100 + patch`, two digits per field, and **0.1.100 and 0.2.0
+both computed to 200** — a collision, not a quirk: Android refuses an install
+whose versionCode is not greater than the installed one. At the rate patches were
+landing that was weeks away. Now `major*1000000 + minor*1000 + patch`, which only
+ever produces larger codes than the old scheme (0.1.33: 133 → 1033), so
+monotonicity survives the change; out-of-range components stop the build instead
+of colliding silently. `scripts/check-version.mjs` enforces store legality from
+`web:export` (so CI runs it) and from `publish-apk.sh`, the last gate before a
+tag and a public download exist.
+
 ### 2026-07-26 — Notifications you can act on — v0.1.32
 
 Started as "tapping a notification should open the thing it is about" and turned

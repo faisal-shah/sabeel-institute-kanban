@@ -28,6 +28,9 @@ APK="${1:-app/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk}"
 PAGES_DIR="${SK_PAGES_DIR:-../faisal-shah.github.io}"
 
 [ -f "$APK" ] || { echo "APK not found: $APK — build a release first." >&2; exit 1; }
+# Refuse to publish a version that would be illegal on a store. This is the last
+# gate before a tag and a public download exist, and both are awkward to retract.
+node scripts/check-version.mjs
 VERSION="$(node -p "require('./app/app.json').expo.version")"
 
 # 1) Replace the rolling asset (constant URL across builds).

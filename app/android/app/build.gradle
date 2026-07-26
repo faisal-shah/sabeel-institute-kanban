@@ -14,14 +14,40 @@ def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
  * happens in exactly one place and cannot silently desync again.
  *
  * versionCode is computed from the semver so it increases monotonically:
- * major*10000 + minor*100 + patch (0.1.7 -> 107). Fine while minor/patch stay
- * below 100; if this ever ships to Play, that assumption is worth revisiting.
- * Any pre-release suffix (e.g. -beta.3) is dropped for the numeric code.
+ * major*1000000 + minor*1000 + patch (0.1.7 -> 1007).
+ *
+ * The multipliers used to be 10000/100, which gave each component only two
+ * digits — and 0.1.100 and 0.2.0 both computed to 200. A COLLISION, not merely a
+ * quirk: Android refuses an install whose versionCode is not greater than the
+ * installed one, and Play rejects a duplicate outright, so the release after
+ * 0.1.99 would simply have failed to go out. At the rate patches were landing
+ * that was weeks away, not years. Widening is safe because it only ever produces
+ * LARGER codes than the old scheme (0.1.33: 133 -> 1033), so monotonicity across
+ * the change is preserved.
+ *
+ * Room for 999 minor and 999 patch, and major up to ~2147 before Android's
+ * signed-32-bit ceiling (2100000000). Anything out of range STOPS the build
+ * rather than silently colliding again.
+ *
+ * The version itself must stay App-Store-legal (three integers, no suffix) —
+ * scripts/check-version.mjs enforces that, and it is why nothing here strips a
+ * pre-release suffix any more: there must not be one to strip.
  */
 def expoVersion = new groovy.json.JsonSlurper()
     .parse(file("$projectRoot/app.json")).expo.version
-def (vMajor, vMinor, vPatch) = expoVersion.split('-')[0].tokenize('.').collect { it.toInteger() }
-def computedVersionCode = vMajor * 10000 + vMinor * 100 + vPatch
+def versionParts = expoVersion.tokenize('.')
+if (versionParts.size() != 3 || !expoVersion.matches(/^\d+\.\d+\.\d+$/)) {
+    throw new GradleException(
+        "app.json version '${expoVersion}' must be exactly three integers (X.Y.Z) — " +
+        "see scripts/check-version.mjs.")
+}
+def (vMajor, vMinor, vPatch) = versionParts.collect { it.toInteger() }
+if (vMinor > 999 || vPatch > 999 || vMajor > 2147) {
+    throw new GradleException(
+        "app.json version '${expoVersion}' overflows the versionCode scheme " +
+        "(minor/patch max 999, major max 2147).")
+}
+def computedVersionCode = vMajor * 1000000 + vMinor * 1000 + vPatch
 
 /**
  * This is the configuration block to customize your React Native Android app.
