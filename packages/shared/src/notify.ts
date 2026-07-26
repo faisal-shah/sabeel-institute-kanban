@@ -111,3 +111,26 @@ export function notificationText(params: {
       return `${params.actorName} is waiting for approval`;
   }
 }
+
+/**
+ * The Android notification channel every push is posted to.
+ *
+ * Shared because BOTH sides have to name it and neither can check the other: the
+ * app creates the channel, the server addresses it, and a typo on either side is
+ * silent. expo-notifications does not error on an unknown channel — it logs and
+ * falls back to its own `expo_notifications_fallback_notification_channel`,
+ * which Android labels **"Miscellaneous"** in the app's notification settings.
+ * That fallback is exactly what was happening: the app created a channel called
+ * "Default" that nothing ever posted to, because the server sent no channel at
+ * all.
+ *
+ * IMPORTANCE_HIGH is not a change in behaviour — it is what the fallback channel
+ * already used, so keeping it means nobody's notifications go quiet. It also has
+ * to be right FIRST TIME: Android fixes a channel's importance when it is
+ * created and an app may never raise it afterwards, only the person can. That is
+ * also why this is a new channel id rather than a correction to the old one,
+ * which already exists at DEFAULT importance on every device that has run the
+ * app.
+ */
+export const PUSH_CHANNEL_ID = 'sabeel-alerts';
+export const PUSH_CHANNEL_NAME = 'Card alerts and approvals';

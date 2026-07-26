@@ -1,8 +1,12 @@
 import * as Notifications from 'expo-notifications';
 import { deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { PUSH_CHANNEL_ID, PUSH_CHANNEL_NAME } from '@sabeel/shared';
 import { db } from './firebase';
 import { USE_EMULATORS } from './env';
 import { captureError } from './sentry';
+
+/** Watches for FCM rotating the device token. One at a time, per signed-in uid. */
+let tokenListener: { remove: () => void } | null = null;
 
 /**
  * Push registration — NATIVE (web sibling: notify.web.ts).
@@ -33,10 +37,17 @@ export async function registerPush(uid: string): Promise<void> {
   // token nothing can deliver to, and make local runs non-deterministic.
   if (USE_EMULATORS) return;
   try {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.DEFAULT,
+    // The channel the server addresses by id — see PUSH_CHANNEL_ID for why the
+    // two must agree and why the importance has to be right the first time.
+    await Notifications.setNotificationChannelAsync(PUSH_CHANNEL_ID, {
+      name: PUSH_CHANNEL_NAME,
+      importance: Notifications.AndroidImportance.HIGH,
     });
+    // The old channel, which nothing ever posted to because the server sent no
+    // channel id at all. Left alone it sits in Android's notification settings
+    // as a second, permanently silent "Default" that people would reasonably
+    // try to configure.
+    await Notifications.deleteNotificationChannelAsync('default').catch(() => {});
     const perm = await Notifications.requestPermissionsAsync();
     if (!perm.granted) return;
 
@@ -47,13 +58,30 @@ export async function registerPush(uid: string): Promise<void> {
     const { data: token } = await Notifications.getDevicePushTokenAsync();
     if (typeof token !== 'string' || !token) return;
 
-    await setDoc(doc(db, 'users', uid, 'pushTokens', token), {
-      platform: 'android',
-      updatedAt: Date.now(),
-    });
+    await storeToken(uid, token);
+
+    // FCM rotates a token on its own schedule — a restore to a new device, an
+    // app-data clear, a long enough gap. When it does, the stored one is dead:
+    // the server prunes it on the next send and that person silently stops
+    // getting notifications until they happen to sign out and back in. Nothing
+    // else would ever tell us, because registration only runs at sign-in.
+    if (!tokenListener) {
+      tokenListener = Notifications.addPushTokenListener((next) => {
+        if (typeof next.data === 'string' && next.data) {
+          void storeToken(uid, next.data).catch(() => undefined);
+        }
+      });
+    }
   } catch (e) {
     captureError(e, { source: 'registerPush' });
   }
+}
+
+async function storeToken(uid: string, token: string): Promise<void> {
+  await setDoc(doc(db, 'users', uid, 'pushTokens', token), {
+    platform: 'android',
+    updatedAt: Date.now(),
+  });
 }
 
 /**
@@ -63,6 +91,11 @@ export async function registerPush(uid: string): Promise<void> {
  */
 export async function unregisterPush(uid: string): Promise<void> {
   if (USE_EMULATORS) return;
+  // Stop watching for rotations first: the listener closes over the uid that is
+  // signing out, so a rotation arriving mid-sign-out would file the new token
+  // straight back under the account we are in the middle of detaching.
+  tokenListener?.remove();
+  tokenListener = null;
   try {
     const { data: token } = await Notifications.getDevicePushTokenAsync();
     if (typeof token !== 'string' || !token) return;

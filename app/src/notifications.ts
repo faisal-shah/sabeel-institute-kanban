@@ -89,8 +89,21 @@ export function useUnreadCount(user: SessionUser) {
 
 export async function markRead(user: SessionUser, item: InboxItem): Promise<void> {
   if (item.read) return;
-  const notifRef = doc(db, 'users', user.uid, 'notifications', item.id);
-  const userRef = doc(db, 'users', user.uid);
+  await markReadById(user.uid, item.id);
+}
+
+/**
+ * Mark one entry read, by id.
+ *
+ * Split out from `markRead` because a push tap has an id and nothing else — no
+ * `InboxItem`, because the entry was never loaded on this device. Tapping a push
+ * has to take the badge down for the same reason tapping in Alerts does: someone
+ * who has dealt with the card should not come back to the app and be told there
+ * is still 1 unread.
+ */
+export async function markReadById(uid: string, notifId: string): Promise<void> {
+  const notifRef = doc(db, 'users', uid, 'notifications', notifId);
+  const userRef = doc(db, 'users', uid);
   // A transaction, not a batch: it RE-READS `read` inside the transaction and
   // only decrements if the entry was genuinely still unread. Two rapid taps (or
   // two tabs) on the same item both see the stale `read: false` on the passed-in

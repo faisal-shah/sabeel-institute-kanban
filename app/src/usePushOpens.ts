@@ -11,17 +11,24 @@
  * `cardId` in its payload, put there by the same function that wrote the inbox
  * entry. Merging them would be one hook with two unrelated parsers.
  *
- * Navigation goes through nav's module-level `push`, so this effect has no
- * reactive dependencies and runs once per signed-in session.
+ * Navigation goes through nav's module-level `push`, so the only dependency is
+ * the signed-in uid — which the effect needs in order to mark the tapped entry
+ * read, and which re-subscribing on is correct: a different account must not
+ * mark notifications read on the previous one's inbox.
  */
 import { useEffect } from 'react';
 import { push } from './nav';
-import { routeForNotification } from './notifications';
+import { markReadById, routeForNotification } from './notifications';
 import { subscribePushOpens, takeInitialPush, type PushData } from './pushOpen';
 
-export function usePushOpens(): void {
+export function usePushOpens(uid: string): void {
   useEffect(() => {
     const open = (data: PushData) => {
+      // Tapping the push IS reading it, so the badge comes down here exactly as
+      // it does in Alerts. Best-effort: a failed write must not stop the
+      // navigation, which is what the person actually asked for.
+      if (data.notifId) void markReadById(uid, data.notifId).catch(() => undefined);
+
       const route = routeForNotification(data);
       // No route means the payload had nothing to navigate to. Opening the app
       // is still the right outcome — the notification is in Alerts either way —
@@ -35,5 +42,5 @@ export function usePushOpens(): void {
     if (initial) open(initial);
 
     return subscribePushOpens(open);
-  }, []);
+  }, [uid]);
 }

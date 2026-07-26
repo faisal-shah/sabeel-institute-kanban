@@ -7,6 +7,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import {
   ORG_TIMEZONE,
+  PUSH_CHANNEL_ID,
   addDays,
   notificationText,
   shouldNotify,
@@ -112,9 +113,16 @@ async function notify(params: {
   );
   if (targets.length === 0) return;
 
+  // The inbox id is kept per recipient because the push carries it: tapping a
+  // notification marks THAT entry read, so acting on a push takes the badge down
+  // like acting in the app does. Without it someone taps the push, deals with
+  // the card, and Alerts still insists there is 1 unread.
   const batch = db().batch();
+  const notifIdByUid = new Map<string, string>();
   for (const r of targets) {
-    batch.set(db().collection(`users/${r.uid}/notifications`).doc(), {
+    const ref = db().collection(`users/${r.uid}/notifications`).doc();
+    notifIdByUid.set(r.uid, ref.id);
+    batch.set(ref, {
       type: params.event,
       boardId: params.boardId,
       ...(params.cardId ? { cardId: params.cardId } : {}),
@@ -140,26 +148,39 @@ async function notify(params: {
   const tokenSnaps = await Promise.all(
     targets.map((r) => db().collection(`users/${r.uid}/pushTokens`).get()),
   );
-  // Keep the owning ref alongside each token: a failed send has to be traced
-  // back to the document that has to be deleted.
-  const registrations = tokenSnaps.flatMap((snap) => snap.docs.map((d) => d.ref));
-  if (registrations.length === 0) return;
+
+  // One message per DEVICE, not one multicast: `sendEachForMulticast` takes a
+  // single payload for every token, and the payload now has to differ per
+  // recipient because it carries that person's own inbox id. Keep the owning ref
+  // beside each message — a failed send has to be traced back to the token
+  // document that has to be deleted.
+  const sends = targets.flatMap((r, i) =>
+    tokenSnaps[i].docs.map((d) => ({
+      ref: d.ref,
+      message: {
+        token: d.id,
+        notification: { title: 'Sabeel Kanban', body: text },
+        // `type` is what lets a tapped notification open the right screen. It is
+        // the only routing signal a `newUserPending` carries — that event has no
+        // board and no card, so without it the tap has nowhere to go and the app
+        // just opens where it was. Must stay in step with the inbox document
+        // written above; the client maps both through one `routeForNotification`.
+        data: {
+          type: params.event,
+          boardId: params.boardId,
+          ...(params.cardId ? { cardId: params.cardId } : {}),
+          notifId: notifIdByUid.get(r.uid) ?? '',
+        },
+        // Without this every push lands in expo-notifications' fallback channel,
+        // which Android shows as "Miscellaneous" — see PUSH_CHANNEL_ID.
+        android: { notification: { channelId: PUSH_CHANNEL_ID } },
+      },
+    })),
+  );
+  if (sends.length === 0) return;
 
   try {
-    const res = await getMessaging().sendEachForMulticast({
-      tokens: registrations.map((ref) => ref.id),
-      notification: { title: 'Sabeel Kanban', body: text },
-      // `type` is what lets a tapped notification open the right screen. It is
-      // the only routing signal a `newUserPending` carries — that event has no
-      // board and no card, so without it the tap has nowhere to go and the app
-      // just opens where it was. Must stay in step with the inbox document
-      // written above; the client maps both through one `routeForNotification`.
-      data: {
-        type: params.event,
-        boardId: params.boardId,
-        ...(params.cardId ? { cardId: params.cardId } : {}),
-      },
-    });
+    const res = await getMessaging().sendEach(sends.map((s) => s.message));
 
     // Prune tokens FCM has rejected as dead. Nothing else ever would: a token is
     // removed on sign-out, but an uninstall, a data clear, or a factory reset
@@ -173,7 +194,7 @@ async function notify(params: {
       const code = r.error?.code;
       return code === 'messaging/registration-token-not-registered' ||
         code === 'messaging/invalid-registration-token'
-        ? [registrations[i]]
+        ? [sends[i].ref]
         : [];
     });
     if (dead.length > 0) {

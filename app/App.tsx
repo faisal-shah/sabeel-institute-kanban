@@ -92,7 +92,7 @@ function SignedInRoutes({ user }: { user: SessionUser }) {
   // Open a shared card/board link now that the user is active (see useDeepLinks).
   useDeepLinks();
   // Same, for a push notification the user tapped (see usePushOpens).
-  usePushOpens();
+  usePushOpens(user.uid);
   const screen = renderScreen(route, user);
 
   if (isWide) {
