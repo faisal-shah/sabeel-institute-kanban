@@ -37,10 +37,15 @@ export function ActivityLog({
   cardId,
   members,
   columns,
+  cardTitleFor,
 }: {
   cardId: string;
   members: readonly BoardMemberProfile[];
   columns: readonly BoardColumn[];
+  /** Resolves a card id to a title, for subtask entries. Those store the other
+   *  card's ID rather than its title, so history never goes stale on a rename —
+   *  the same reason `moved` stores a column id. */
+  cardTitleFor?: (cardId: string) => string;
 }) {
   const t = useTheme();
 
@@ -85,7 +90,8 @@ export function ActivityLog({
         <Row key={e.id} style={styles.row}>
           <View style={[styles.tick, { backgroundColor: t.border.strong }]} />
           <Caption>
-            {nameFor(e.actorUid)} {describeActivity(e, nameFor, columnNameFor)} ·{' '}
+            {nameFor(e.actorUid)}{' '}
+            {describeActivity(e, nameFor, columnNameFor, cardTitleFor)} ·{' '}
             {when(e.at)}
           </Caption>
         </Row>

@@ -77,6 +77,12 @@ export function diffCard(
     out.push({ type: 'labels' });
   }
 
+  // A subtask link. Logged because it changes what a card MEANS, not just how
+  // it looks — unlike `rank`, which is deliberately ignored as noise.
+  if (before.parentId !== after.parentId) {
+    out.push({ type: 'subtaskOf', from: before.parentId, to: after.parentId });
+  }
+
   // Title and description collapse into one "edited" event: three entries for a
   // single save would pad the timeline without telling anyone more.
   if (before.title !== after.title || before.description !== after.description) {
@@ -95,6 +101,10 @@ export function describeActivity(
   entry: { type: ActivityType; from?: string; to?: string },
   nameFor: (uid: string) => string,
   columnNameFor: (columnId: string) => string,
+  /** Resolves a card id to its title. Subtask entries store the OTHER card's
+   *  id rather than its title, so a rename never leaves stale history — the
+   *  same reason `moved` stores a column id. */
+  cardTitleFor: (cardId: string) => string = () => 'another card',
 ): string {
   switch (entry.type) {
     case 'created':
@@ -115,5 +125,13 @@ export function describeActivity(
       return entry.to ? `renamed it to “${entry.to}”` : 'edited the description';
     case 'archived':
       return entry.to === 'true' ? 'archived it' : 'restored it';
+    case 'subtaskOf':
+      return entry.to
+        ? `made this a subtask of ${cardTitleFor(entry.to)}`
+        : `removed this from ${cardTitleFor(entry.from ?? '')}`;
+    case 'subtask':
+      return entry.to
+        ? `added ${cardTitleFor(entry.to)} as a subtask`
+        : `removed ${cardTitleFor(entry.from ?? '')} as a subtask`;
   }
 }

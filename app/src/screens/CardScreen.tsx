@@ -81,6 +81,7 @@ export function CardScreen({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
   const { run, busy, error } = useAction('card');
   const [dirty, setDirty] = useState(false);
   const [shareNote, setShareNote] = useState<string | null>(null);
@@ -125,6 +126,17 @@ export function CardScreen({
     ? (boardCards.data ?? NO_CARDS).find((x) => x.id === c.parentId)
     : undefined;
 
+  const saveTitle = () =>
+    run(async () => {
+      const next = title.trim();
+      // An empty title is a half-finished edit, not a save — and the rules
+      // reject it anyway (title.size() > 0).
+      if (!next) return;
+      await updateCard(cardId, { title: next }, user);
+      setEditingTitle(false);
+      setDirty(false);
+    });
+
   // Share an https link to this card. The receiver opens it — desktop lands in
   // the web app, a phone opens the browser (or, once App Links ship, the app) —
   // and the link resolves the card's board live, so it survives a cross-board
@@ -156,7 +168,8 @@ export function CardScreen({
               {b.name}
             </Text>
           </Pressable>
-          <Title>Card</Title>
+          {/* No generic "Card" heading: the card's own title sits directly below
+              as the page's heading, so a second one was pure noise. */}
         </View>
         <View style={styles.headerActions}>
           {shareNote ? <Caption>{shareNote}</Caption> : null}
@@ -210,30 +223,59 @@ export function CardScreen({
             />
           </Row>
         ) : null}
-        <Hint>Title</Hint>
-        <TextField
-          value={title}
-          onChangeText={(v) => { setTitle(v); setDirty(true); }}
-          maxLength={CARD_TITLE_MAX}
-        />
-        {/* Only once the title actually differs. A permanently visible
-            full-width button that is disabled 99% of the time is pure cost: it
-            takes a row on every card, and a control you can never press teaches
-            people to ignore it. An empty title is not a save either — it is a
-            half-typed edit, so the button stays away rather than appearing
-            disabled. */}
-        {title.trim() !== c.title && title.trim().length > 0 ? (
-          <Button
-          busy={busy}
-            label="Save title"
-            onPress={() =>
-              run(async () => {
-                await updateCard(cardId, { title: title.trim() }, user);
-                setDirty(false);
-              })
-            }
-          />
-        ) : null}
+        {/* The title READS as a title and only becomes a field when you choose
+            to edit it — the same shape as Description just below.
+
+            It was a permanently-open TextField, which was wrong twice over: a
+            card's name is the thing you came to read, and a single-line input
+            TRUNCATES it, so a long title could not be read at all on the one
+            screen dedicated to that card. As a heading it wraps and shows in
+            full. */}
+        {editingTitle ? (
+          <>
+            <Hint>Title</Hint>
+            <TextField
+              value={title}
+              onChangeText={(v) => { setTitle(v); setDirty(true); }}
+              maxLength={CARD_TITLE_MAX}
+              autoFocus
+              label="Card title"
+              onSubmit={saveTitle}
+            />
+            <Row>
+              <Button
+                busy={busy}
+                label="Save"
+                disabled={!title.trim() || title.trim() === c.title}
+                onPress={saveTitle}
+              />
+              <Button
+                label="Cancel"
+                variant="secondary"
+                onPress={() => {
+                  setTitle(c.title);
+                  setEditingTitle(false);
+                  setDirty(false);
+                }}
+              />
+            </Row>
+          </>
+        ) : (
+          <Row style={styles.between}>
+            <View style={styles.grow}>
+              <Title>{c.title}</Title>
+            </View>
+            <IconAction
+              icon="edit"
+              label="Edit title"
+              onPress={() => {
+                setTitle(c.title);
+                setEditingTitle(true);
+              }}
+              disabled={busy}
+            />
+          </Row>
+        )}
         {/* The column is EDITABLE here. Previously it was a read-only pill, so
             moving a card meant leaving the detail view, finding it on the board
             and using a separate move action — for the one property you most
@@ -505,6 +547,10 @@ export function CardScreen({
           cardId={cardId}
           members={assignable}
           columns={b.columns}
+          cardTitleFor={(id) =>
+            (boardCards.data ?? NO_CARDS).find((x) => x.id === id)?.title ??
+            'another card'
+          }
         />
       </Panel>
 

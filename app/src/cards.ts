@@ -89,6 +89,29 @@ export function useBoardCards(boardId: string) {
   );
 }
 
+/**
+ * The ARCHIVED cards of a board — the other half of `useBoardCards`.
+ *
+ * Archiving is meant to be reversible, but until this existed the only route
+ * back was global Search with a non-obvious "Including archived" toggle, from a
+ * different tab, which nobody found. Uses the same (boardId, archived, rank)
+ * index, just the other value of `archived`.
+ */
+export function useArchivedBoardCards(boardId: string) {
+  return useLiveQuery<Card[]>(
+    'archivedCards',
+    () =>
+      query(
+        cardsRef(),
+        where('boardId', '==', boardId),
+        where('archived', '==', true),
+        orderBy('rank'),
+      ),
+    (docs) => docs.map((d) => toCard(d.id, d.data)).sort(compareRank),
+    [boardId],
+  );
+}
+
 export function useCard(cardId: string) {
   return useLiveDoc<Card | null>(
     'card',

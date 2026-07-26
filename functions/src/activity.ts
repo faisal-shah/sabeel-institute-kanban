@@ -41,6 +41,28 @@ export const onCardWritten = onDocumentWritten(
         ...(entry.from !== undefined ? { from: entry.from } : {}),
         ...(entry.to !== undefined ? { to: entry.to } : {}),
       });
+
+      // A subtask link is the one change that is ALSO news on another card.
+      //
+      // `parentId` lives on the child, so the diff only ever sees the child —
+      // but you link a subtask while looking at the PARENT, and a history that
+      // says nothing where the action was taken reads as the action not being
+      // recorded. So mirror it: the parent gets its own entry, pointing back at
+      // the child. Both are trigger-written, so neither can be forged.
+      if (entry.type === 'subtaskOf') {
+        for (const [otherId, to] of [
+          [entry.to, cardId],
+          [entry.from, undefined],
+        ] as const) {
+          if (!otherId) continue;
+          batch.set(db.collection(`cards/${otherId}/activity`).doc(), {
+            type: 'subtask',
+            actorUid,
+            at,
+            ...(to !== undefined ? { to } : { from: cardId }),
+          });
+        }
+      }
     }
 
     try {

@@ -162,6 +162,13 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
           {b.name}
         </Title>
         <Row style={styles.headerActions}>
+          {/* Everyone gets this, not just managers: members can archive, so
+              members must be able to un-archive. */}
+          <IconAction
+            icon="inventory-2"
+            label="Archived cards"
+            onPress={() => nav.push({ name: 'boardArchive', boardId })}
+          />
           {sessionCan.manageBoards(user) ? (
             <IconAction
               icon="settings"

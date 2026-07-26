@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sabeel Kanban",
     "slug": "sabeel-institute-kanban",
-    "version": "0.1.24",
+    "version": "0.1.25",
     "orientation": "portrait",
     "scheme": "sabeelkanban",
     "userInterfaceStyle": "light",

@@ -19,6 +19,7 @@ export type Route =
   | { name: 'boards' }
   | { name: 'board'; boardId: string }
   | { name: 'boardSettings'; boardId: string }
+  | { name: 'boardArchive'; boardId: string }
   | { name: 'newBoard' }
   | { name: 'card'; boardId: string; cardId: string }
   | { name: 'myWork' }

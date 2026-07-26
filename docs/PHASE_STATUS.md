@@ -341,6 +341,34 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Archive is reachable, titles read as titles, subtasks in history — v0.1.25
+
+Three things from a review pass, all of them gaps rather than regressions.
+
+- **Archived cards had no way back.** Members can only archive (never delete),
+  precisely so nothing is lost — but the sole route to an archived card was
+  global Search, in a different tab, behind an "Including archived" toggle that
+  gave no hint that was where your card went. **A reversible action you cannot
+  discover how to reverse is not reversible.** The board header now has an
+  archive icon opening that board's archived cards, each with **Restore to the
+  board**; permanent delete stays managers/admins. Available to everyone, since
+  members are the ones who archive. New `useArchivedBoardCards` reuses the
+  existing `(boardId, archived, rank)` index — the other value of `archived`.
+- **The title was a permanently-open text input**, which was wrong twice over: a
+  card's name is the thing you came to read, and a single-line field **truncates**
+  it, so a long title could not be read in full on the one screen devoted to that
+  card. It now reads as the page heading and wraps; a pencil turns it into a
+  field, matching Description directly below. The generic "Card" heading above it
+  went with it — the card's own title is the heading now.
+- **Subtask links were invisible in history.** Logged now, and on **both** cards:
+  `parentId` lives on the child, so the diff only ever sees the child — but you
+  link a subtask while looking at the PARENT, and history that says nothing where
+  the action was taken reads as the action not being recorded. The trigger writes
+  a mirrored entry, so the parent shows "added X as a subtask" and the child
+  "made this a subtask of Y". Both store the other card's **id**, resolved to a
+  title at render, so a rename never leaves stale history — the same reason
+  `moved` stores a column id.
+
 ### 2026-07-25 — Subtask lateral review: a one-way door, family moves, the pager — v0.1.24
 
 Reviewing subtasks against archive / delete / move turned up a trap I had

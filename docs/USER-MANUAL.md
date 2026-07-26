@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.1.24 · July 2026*
+*For app version 0.1.25 · July 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -106,7 +106,8 @@ Tap any card to open the full view.
   <figure><img class="narrow" src="manual/img/card-phone.png" alt="A card on a phone"><figcaption>On a phone</figcaption></figure>
 </div>
 
-- **Title** — tap to edit; a **Save** button appears only once you've changed it.
+- **Title** — shown in full as the card's heading, however long it is. Tap the
+  **pencil** to edit it, then **Save**.
 - **Column** — a dropdown showing where the card sits. Change it to move the card
   without leaving it.
 - **Description** — plain text. Type whatever you like; it appears to everyone
@@ -122,11 +123,18 @@ Tap any card to open the full view.
   **badges** on the card face.
 - **Comments** — discuss the work. Type **@** followed by a name to pull someone
   in; they're notified.
-- **Activity** — who changed what, and when. Written by the system, so no one can
-  edit it.
+- **Activity** — who changed what, and when, including subtasks being linked and
+  unlinked. Written by the system, so no one can edit it.
 
 Ordinary actions — move, archive, assign, delete — are **icons**, not big
 buttons, so a card stays compact. Each icon has a label for screen readers.
+
+### Finding an archived card
+
+Archiving takes a card off the board but **keeps it**. The board header has an
+**archive icon** — open it to see everything archived on that board, and
+**Restore to the board** puts a card back where it was. Anyone who can archive
+can restore; permanent deletion stays with managers and admins.
 
 ### Subtasks — breaking a card down
 

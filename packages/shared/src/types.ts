@@ -163,7 +163,14 @@ export type ActivityType =
   | 'priority'
   | 'labels'
   | 'edited'
-  | 'archived';
+  | 'archived'
+  /** On the CHILD: this card was made, or stopped being, a subtask. `to`/`from`
+   *  carry the parent card id. */
+  | 'subtaskOf'
+  /** On the PARENT: a subtask was added or removed. `to`/`from` carry the child
+   *  card id. Written by the trigger onto the OTHER card, so the action shows up
+   *  where it was taken — you link a subtask while looking at the parent. */
+  | 'subtask';
 
 /** Trigger-written only. Clients have no write access at all. */
 export interface ActivityDoc {

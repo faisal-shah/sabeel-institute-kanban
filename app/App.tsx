@@ -28,6 +28,7 @@ import {
 import { BoardsScreen } from './src/screens/BoardsScreen';
 import { BoardScreen } from './src/screens/BoardScreen';
 import { BoardSettingsScreen } from './src/screens/BoardSettingsScreen';
+import { BoardArchiveScreen } from './src/screens/BoardArchiveScreen';
 import { CardScreen } from './src/screens/CardScreen';
 import { MyWorkScreen } from './src/screens/MyWorkScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
@@ -41,6 +42,8 @@ function renderScreen(route: Route, user: SessionUser) {
       return <BoardScreen boardId={route.boardId} user={user} />;
     case 'boardSettings':
       return <BoardSettingsScreen boardId={route.boardId} user={user} />;
+    case 'boardArchive':
+      return <BoardArchiveScreen boardId={route.boardId} user={user} />;
     case 'card':
       // KEYED BY CARD ID, deliberately. Only the top of the stack renders, so a
       // card → card push (which subtasks make routine) puts the same component

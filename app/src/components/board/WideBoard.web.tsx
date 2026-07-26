@@ -355,7 +355,14 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
         >
           {b.name}
         </h1>
-        <div style={{ display: 'flex', gap: space.md, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: space.xs, flexShrink: 0 }}>
+          {/* Everyone, not just managers: members can archive, so members must
+              be able to un-archive. */}
+          <IconAction
+            icon="inventory-2"
+            label="Archived cards"
+            onPress={() => nav.push({ name: 'boardArchive', boardId })}
+          />
           {isManager ? (
             <IconAction
               icon="settings"

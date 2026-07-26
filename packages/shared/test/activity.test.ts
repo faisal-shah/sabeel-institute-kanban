@@ -168,3 +168,50 @@ describe('describeActivity', () => {
     );
   });
 });
+
+describe('subtask links in the history', () => {
+  it('logs becoming a subtask, carrying the parent id', () => {
+    const out = diffCard({ parentId: undefined }, { parentId: 'p1' });
+    expect(out).toContainEqual({ type: 'subtaskOf', from: undefined, to: 'p1' });
+  });
+
+  it('logs being unlinked, carrying the old parent id', () => {
+    const out = diffCard({ parentId: 'p1' }, { parentId: undefined });
+    expect(out).toContainEqual({ type: 'subtaskOf', from: 'p1', to: undefined });
+  });
+
+  it('logs a re-parent as one entry with both ends', () => {
+    const out = diffCard({ parentId: 'p1' }, { parentId: 'p2' });
+    expect(out).toContainEqual({ type: 'subtaskOf', from: 'p1', to: 'p2' });
+  });
+
+  it('says nothing when the link is unchanged', () => {
+    expect(diffCard({ parentId: 'p1' }, { parentId: 'p1' })).toEqual([]);
+  });
+
+  it('describes both sides of the link in plain words', () => {
+    const titles = (id: string) => (id === 'p1' ? 'Book the venue' : 'Make flyer');
+    // On the child.
+    expect(
+      describeActivity({ type: 'subtaskOf', to: 'p1' }, () => 'x', () => 'y', titles),
+    ).toBe('made this a subtask of Book the venue');
+    expect(
+      describeActivity({ type: 'subtaskOf', from: 'p1' }, () => 'x', () => 'y', titles),
+    ).toBe('removed this from Book the venue');
+    // On the parent — the mirrored entry, so the action shows up where it was
+    // taken rather than only on the card that technically changed.
+    expect(
+      describeActivity({ type: 'subtask', to: 'c1' }, () => 'x', () => 'y', titles),
+    ).toBe('added Make flyer as a subtask');
+    expect(
+      describeActivity({ type: 'subtask', from: 'c1' }, () => 'x', () => 'y', titles),
+    ).toBe('removed Make flyer as a subtask');
+  });
+
+  it('falls back gracefully when the other card cannot be resolved', () => {
+    // Deleted, archived, or on a board you cannot see.
+    expect(
+      describeActivity({ type: 'subtaskOf', to: 'gone' }, () => 'x', () => 'y'),
+    ).toBe('made this a subtask of another card');
+  });
+});
