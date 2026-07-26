@@ -341,6 +341,45 @@ the team.
 
 ## Deploy log
 
+### 2026-07-26 — Archiving a board now puts its work away too — v0.1.29
+
+A wide audit at Faisal's request, after the previous review turned up three
+defects and left the fair question of how many more were hiding. One root cause
+with three symptoms, plus one piece of half-finished data.
+
+**An archived board was hidden but not quiet.** The board vanished from every
+list while its cards stayed fully live: they kept appearing in **My Work**
+(rendered as "in a board" — no name, no labels, no assignee chips, because the
+board was no longer in the lookup), the **due-soon sweep** kept reminding people
+about them, and assignment/comment/mention **notifications** kept firing. Search
+was already correct, because it derives its card set from the board list — and
+that asymmetry is what marked this as an oversight rather than a decision. It is
+the same shape as the assignee bug found in the previous pass: one question
+answered two different ways in two places.
+
+- **Client**: My Work now keeps only cards whose board it can actually see, the
+  same scoping Search uses. No denormalised `boardArchived` on every card, and no
+  fan-out when a board is archived. It waits for the board list as well as the
+  cards, so it cannot flash "nothing assigned to you" at someone who has plenty.
+- **Server**: the check lives in `notify()`, the one place every notification
+  passes through, so a future trigger inherits it rather than having to remember
+  it. Deliberately **not** memoised in a module-level map: function instances are
+  reused between invocations, so such a cache outlives the call, and archiving
+  then restoring a board would leave a warm instance suppressing its
+  notifications with nothing to show why. One document read is the cheaper
+  mistake.
+
+**`archivedAt` was written by bulk archive only, and read by nothing.** Half the
+archive had the field. It is now written on every archive path and cleared on
+restore, and the archive screen orders by it — newest first, which is what you
+want when hunting for the thing you just put away. Rank, which it used before, is
+a board position and means nothing once a card is off the board.
+
+Verified end to end, not just by unit test: a card assigned and visible in My
+Work, its board archived, the card gone; two cards archived in sequence and the
+later one on top. An integration test pins the notification silence, with a
+control on a live board so an empty inbox proves silence rather than a no-op.
+
 ### 2026-07-25 — Review of the reworking: a card that could not come back — v0.1.28
 
 A deliberate read-through of everything the last three releases touched, at

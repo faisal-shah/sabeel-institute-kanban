@@ -134,9 +134,12 @@ buttons, so a card stays compact. Each icon has a label for screen readers.
 ### Finding an archived card
 
 Archiving takes a card off the board but **keeps it**. The board header has an
-**archive icon** — open it to see everything archived on that board, and
-**Restore to the board** puts a card back where it was. Anyone who can archive
-can restore; permanent deletion stays with managers and admins.
+**archive icon** — open it to see everything archived on that board, **most
+recently archived first**, and **Restore to the board** puts a card back. Anyone
+who can archive can restore; permanent deletion stays with managers and admins.
+
+If the column a card came from has since been deleted, it comes back in the
+**first column** and says so — rather than refusing to come back at all.
 
 ### Subtasks — breaking a card down
 
@@ -319,6 +322,11 @@ Boards **archive**, they don't get hard-deleted, so nothing is lost by accident.
 Managers and admins see an **Archived** section at the bottom of the board list —
 open one from there and use **Restore** in its settings to bring it back. It stays
 collapsed unless something is actually archived.
+
+Archiving a board **puts its work away too**: its cards drop out of everyone's
+**My Work** and **Search**, and it stops sending notifications and due-date
+reminders. Nothing is deleted — restore the board and all of it comes straight
+back, exactly as it was.
 
 ## 2.4 Deleting cards
 

@@ -50,6 +50,23 @@ async function loadRecipients(uids: readonly string[]): Promise<Recipient[]> {
     }));
 }
 
+/**
+ * Is this board archived?
+ *
+ * Read every time, deliberately NOT memoised in a module-level map. Function
+ * instances are reused between invocations, so such a cache outlives the call:
+ * archive a board, restore it, and a warm instance would go on suppressing its
+ * notifications with nothing to show why. One extra document read is a small
+ * price for a check that cannot go stale.
+ *
+ * A missing board reads as NOT archived — better a stray notification than a
+ * silent hole if a board doc is briefly unreadable.
+ */
+async function boardIsArchived(boardId: string): Promise<boolean> {
+  const snap = await db().doc(`boards/${boardId}`).get();
+  return snap.exists && snap.data()?.archived === true;
+}
+
 async function nameOf(uid: string): Promise<string> {
   const snap = await db().doc(`users/${uid}`).get();
   return (snap.data()?.displayName as string) ?? 'Someone';
@@ -69,6 +86,13 @@ async function notify(params: {
   cardId?: string;
   cardTitle?: string;
 }): Promise<void> {
+  // An ARCHIVED board is put away, and nothing on it should still be buzzing
+  // people's phones. Checked here, in the one place every notification passes
+  // through, rather than in each trigger — a new caller then inherits it instead
+  // of having to remember it. `newUserPending` carries no board and is unrelated
+  // to any, so an empty boardId skips the lookup rather than failing on it.
+  if (params.boardId && (await boardIsArchived(params.boardId))) return;
+
   const text = notificationText({
     event: params.event,
     actorName: params.actorName,

@@ -100,3 +100,60 @@ describe('onCommentCreated notifications', () => {
     expect(onMyCard).toHaveLength(0);
   });
 });
+
+describe('an archived board is quiet', () => {
+  // Archiving a board is meant to put it away. It used to hide the board from
+  // every list while its cards went on notifying people — an assignment, a
+  // comment, a due-soon reminder about work on a board they could no longer
+  // open. The check lives in notify(), so every path inherits it.
+  const B = 'nt_arch_board';
+  const C = 'nt_arch_card';
+
+  it('writes no notification for a comment on a card whose board is archived', async () => {
+    await adminDb().doc(`boards/${B}`).set({
+      name: 'Put away',
+      description: '',
+      archived: true,
+      columns: [{ id: 'c1', name: 'To Do' }],
+      columnIds: ['c1'],
+      labels: [],
+      memberUids: [AUTHOR, ASSIGNEE],
+      memberProfiles: {},
+      createdAt: 1,
+      createdBy: AUTHOR,
+    });
+    await adminDb().doc(`cards/${C}`).set({
+      boardId: B,
+      title: 'Old work',
+      description: '',
+      columnId: 'c1',
+      rank: 'V',
+      assigneeUids: [ASSIGNEE],
+      priority: 'none',
+      labelIds: [],
+      archived: false,
+      commentCount: 0,
+      createdAt: 1,
+      createdBy: AUTHOR,
+      updatedAt: 1,
+      updatedBy: AUTHOR,
+    });
+    await clearInbox(ASSIGNEE);
+
+    await adminDb()
+      .collection(`cards/${C}/comments`)
+      .add({ authorUid: AUTHOR, body: 'anyone still on this?', mentionUids: [ASSIGNEE], createdAt: Date.now() });
+
+    // A comment on the LIVE board is the control: it proves the trigger ran at
+    // all, so an empty archived-board inbox is silence rather than a no-op.
+    await comment('control @Cara', [ASSIGNEE]);
+    await waitFor('control mention landed', async () => {
+      const e = await inbox(ASSIGNEE, 'mention');
+      return e.length ? e[0] : undefined;
+    });
+
+    const all = await adminDb().collection(`users/${ASSIGNEE}/notifications`).get();
+    const fromArchived = all.docs.filter((d) => d.data().boardId === B);
+    expect(fromArchived).toHaveLength(0);
+  });
+});

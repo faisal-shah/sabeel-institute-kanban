@@ -39,14 +39,34 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
     return m;
   }, [boards.data]);
 
-  const groups = useMemo(
-    () => groupByDue(work.data ?? [], today),
-    [work.data, today],
+  /**
+   * Only work on a board you can actually see.
+   *
+   * `useMyWork` is a flat card query — `assigneeUids array-contains me` — so it
+   * knows nothing about boards, and an ARCHIVED board's cards kept turning up
+   * here forever: rendered as "in a board", with no name, no labels and no
+   * assignee chips, because the board is not in `boardById`. Archiving a board
+   * is meant to put it away; leaving its work in everyone's list is the opposite.
+   *
+   * Scoping to the board list is the same thing Search already does, and it
+   * needs no denormalised `boardArchived` on every card. Sound for both roles:
+   * `useMyBoards` drops archived boards, gives a member the boards they belong
+   * to (and assignment implies membership), and a manager every live board.
+   */
+  const visible = useMemo(
+    () => (work.data ?? []).filter((c) => boardById.has(c.boardId)),
+    [work.data, boardById],
   );
 
-  if (work.status === 'loading') return <Spinner label="Loading your work…" />;
+  const groups = useMemo(() => groupByDue(visible, today), [visible, today]);
 
-  const total = work.data?.length ?? 0;
+  // Wait for BOTH: filtering against a board list that has not arrived yet would
+  // briefly show "nothing assigned to you" to someone who has plenty.
+  if (work.status === 'loading' || boards.status === 'loading') {
+    return <Spinner label="Loading your work…" />;
+  }
+
+  const total = visible.length;
 
   return (
     <Screen width="list">

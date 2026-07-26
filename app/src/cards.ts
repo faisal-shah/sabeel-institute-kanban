@@ -40,6 +40,8 @@ export interface Card {
   priority: Priority;
   labelIds: string[];
   archived: boolean;
+  /** When it was archived. Absent on cards archived before this was recorded. */
+  archivedAt?: number;
   commentCount: number;
   /** The card this one is a subtask of. Board-scoped — see CardDoc.parentId. */
   parentId?: string;
@@ -61,6 +63,7 @@ function toCard(id: string, d: Record<string, unknown>): Card {
     priority: (d.priority as Priority) ?? 'none',
     labelIds: (d.labelIds as string[]) ?? [],
     archived: Boolean(d.archived),
+    archivedAt: d.archivedAt as number | undefined,
     commentCount: (d.commentCount as number) ?? 0,
     parentId: d.parentId as string | undefined,
     createdBy: (d.createdBy as string) ?? '',
@@ -108,7 +111,22 @@ export function useArchivedBoardCards(boardId: string) {
         where('archived', '==', true),
         orderBy('rank'),
       ),
-    (docs) => docs.map((d) => toCard(d.id, d.data)).sort(compareRank),
+    // Ordered NEWEST-ARCHIVED FIRST, in memory. The query keeps orderBy('rank')
+    // so it reuses the existing (boardId, archived, rank) index, but rank is a
+    // board-position and means nothing once a card is off the board — what you
+    // want here is "the thing I just archived", at the top. Cards archived
+    // before `archivedAt` was recorded on every path sort last, by rank.
+    (docs) => {
+      const cards = docs.map((d) => toCard(d.id, d.data));
+      return cards.sort((a, bb) => {
+        if (a.archivedAt !== undefined && bb.archivedAt !== undefined) {
+          return bb.archivedAt - a.archivedAt;
+        }
+        if (a.archivedAt !== undefined) return -1;
+        if (bb.archivedAt !== undefined) return 1;
+        return compareRank(a, bb);
+      });
+    },
     [boardId],
   );
 }
@@ -213,7 +231,11 @@ export async function moveCard(params: {
 
 /** Members archive; only managers/admins may destroy. Rules enforce both. */
 export async function archiveCard(cardId: string, user: SessionUser): Promise<void> {
-  await updateCard(cardId, { archived: true }, user);
+  // `archivedAt` on EVERY archive path, not just the bulk one. It was written by
+  // bulkArchive alone, so half the archive had the field and half did not — and
+  // the archive screen, which wants "what did I just put away", had nothing
+  // trustworthy to order by.
+  await updateCard(cardId, { archived: true, archivedAt: Date.now() }, user);
 }
 
 /**
@@ -237,8 +259,11 @@ export async function restoreCard(
   user: SessionUser,
   columns: readonly BoardColumn[],
 ): Promise<{ movedTo?: string }> {
+  // `archivedAt: undefined` clears the field (updateCard maps undefined to
+  // deleteField). A live card carrying a stale archive time would sort wrongly
+  // the next time it is archived.
   if (columns.some((col) => col.id === card.columnId)) {
-    await updateCard(card.id, { archived: false }, user);
+    await updateCard(card.id, { archived: false, archivedAt: undefined }, user);
     return {};
   }
   const target = columns[0];
@@ -250,7 +275,12 @@ export async function restoreCard(
   const last = await destColumnLastRank(card.boardId, target.id);
   await updateCard(
     card.id,
-    { archived: false, columnId: target.id, rank: rankBetween(last, null) },
+    {
+      archived: false,
+      archivedAt: undefined,
+      columnId: target.id,
+      rank: rankBetween(last, null),
+    },
     user,
   );
   return { movedTo: target.name };
