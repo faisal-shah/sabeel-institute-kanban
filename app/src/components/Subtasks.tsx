@@ -96,9 +96,10 @@ export function Subtasks({
         </Row>
       ))}
 
-      {/* Create is the common case — you are breaking this card down as you
-          think — so it is the always-visible control, and linking an existing
-          card is the one behind a picker. */}
+      {/* One row for both ways of adding: type a title and press +, or press the
+          link icon to attach a card that already exists. Both are ordinary
+          actions with settled icons, so neither gets a labelled button — a
+          full-width one costs a row of the card every time you open it. */}
       <Row style={styles.addRow}>
         <View style={styles.grow}>
           <TextField
@@ -117,6 +118,13 @@ export function Subtasks({
           size={24}
           onPress={create}
           disabled={busy || !newTitle.trim()}
+        />
+        <IconAction
+          icon="add-link"
+          label="Link an existing card"
+          size={24}
+          onPress={() => setPicking(true)}
+          disabled={busy || linkable.length === 0}
         />
       </Row>
 
@@ -175,14 +183,7 @@ export function Subtasks({
             }}
           />
         </View>
-      ) : (
-        <Button
-          label="Link an existing card"
-          variant="secondary"
-          onPress={() => setPicking(true)}
-          disabled={linkable.length === 0}
-        />
-      )}
+      ) : null}
     </View>
   );
 }

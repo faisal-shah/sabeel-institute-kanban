@@ -135,7 +135,7 @@ board, linked to it.
 
 - Type a title under **Subtasks** and tap **+** to create one. It's made in the
   same column as the card you're on.
-- **Link an existing card** attaches a card that's already on the board. There's
+- The **link icon** beside it attaches a card that's already on the board. There's
   a filter box, because a board can hold a lot of cards.
 - Tap any subtask to **jump straight to it**; it opens like any other card, with
   its own column, assignees, due date and comments. The subtask shows

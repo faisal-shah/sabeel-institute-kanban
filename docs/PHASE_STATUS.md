@@ -363,6 +363,11 @@ silently contradicted.
   them — so the subtask list and the `N subtasks` face chip are client-side
   derivations that cannot go stale. Deliberately unlike `commentCount` /
   `activeCardCount`, which need triggers only because their source isn't loaded.
+- **Both ways to add share one row**: type a title and press **+**, or press the
+  **link** icon to attach a card that already exists. Adding an existing card
+  started as a full-width labelled button — the exact mistake `CLAUDE.md` records
+  having been made three times, since a labelled button for an ordinary action
+  costs a row of the card on every open. Caught in review and corrected.
 - **Cycle safety in `@sabeel/shared`** (`subtasks.ts`): the picker refuses a card
   that is itself, already has a parent (no silent stealing), or is an ancestor of
   the target. `ancestorsOf` walks with a visited set, so data that is already
