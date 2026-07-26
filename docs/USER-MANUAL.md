@@ -223,9 +223,8 @@ whole words and parts of words, but not misspellings.
 
 Above the results are **filter chips**:
 
-- **Archived** — brings archived cards into the results, marked *archived*. This
-  is the other way to find something you archived, alongside a board's own
-  archive.
+- **Archived** — shows **only** archived cards, and hides the live ones. This is
+  the other way to find something you archived, alongside a board's own archive.
 - **Overdue** — only cards past their due date.
 - **Urgent** / **High** — only cards at that priority.
 

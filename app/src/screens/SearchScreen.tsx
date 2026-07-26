@@ -49,7 +49,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
   const boards = useMyBoards(user);
 
   const [text, setText] = useState('');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [archivedOnly, setArchivedOnly] = useState(false);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [priority, setPriority] = useState<Priority | undefined>(undefined);
   const [cards, setCards] = useState<SearchableCard[] | null>(null);
@@ -88,7 +88,9 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     Promise.all(
       chunks.map((chunk) => {
         const filters = [where('boardId', 'in', chunk)];
-        if (!includeArchived) filters.push(where('archived', '==', false));
+        // Constrain to ONE archive state, never both. The chip narrows the
+        // results like every other chip, and this also fetches strictly less.
+        filters.push(where('archived', '==', archivedOnly));
         return getDocs(query(collection(db, 'cards'), ...filters)).then((snap) =>
           snap.docs.map<SearchableCard>((d) => ({
             id: d.id,
@@ -119,7 +121,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     return () => {
       cancelled = true;
     };
-  }, [boardIds, includeArchived]);
+  }, [boardIds, archivedOnly]);
 
   // Search BROWSES by default: with no text and no chips it lists everything you
   // can see, newest first. It used to show nothing until you typed, which meant
@@ -136,7 +138,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     const today = todayInOrgTz();
     const matched = filterCards(
       cards,
-      { text, includeArchived, priority, due: overdueOnly ? 'overdue' : undefined },
+      { text, archivedOnly, priority, due: overdueOnly ? 'overdue' : undefined },
       today,
     );
     // With a query, rank by relevance. Without one, the useful order is what
@@ -145,7 +147,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
       ? rankMatches(matched, text)
       : [...matched].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     return { results: ordered.slice(0, RESULT_CAP), total: ordered.length };
-  }, [cards, text, includeArchived, priority, overdueOnly]);
+  }, [cards, text, archivedOnly, priority, overdueOnly]);
 
   return (
     <Screen width="list">
@@ -170,8 +172,8 @@ export function SearchScreen({ user }: { user: SessionUser }) {
         <Row style={styles.chips}>
           <FilterChip
             label="Archived"
-            active={includeArchived}
-            onPress={() => setIncludeArchived((v) => !v)}
+            active={archivedOnly}
+            onPress={() => setArchivedOnly((v) => !v)}
           />
           <FilterChip
             label="Overdue"

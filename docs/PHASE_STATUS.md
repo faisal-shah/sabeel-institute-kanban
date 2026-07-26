@@ -341,6 +341,48 @@ the team.
 
 ## Deploy log
 
+### 2026-07-26 — Four bugs from a phone browser — v0.1.30
+
+All four came from Faisal using the app on his phone, three of them in the mobile
+BROWSER rather than the Android app — a surface no amount of code reading or
+emulator work had been exercising.
+
+**A column of cards could not be scrolled, and "+ Add card" fell off the screen.**
+Two of the reports, one cause. A column page had no `flex: 1` and its `FlatList`
+had no `style` at all, so react-native-web sized the list to its CONTENT. Past
+about ten cards the list overflowed the page, which clips (a View is
+`overflow: hidden`), so the last card was sliced in half and the action row was
+pushed below the fold — and **nothing scrolled**, because no element had
+scrollable overflow at all. The same tree behaves on native, which is exactly why
+it only ever appeared in the browser. It also explains the second report: a
+content-sized list leaves no space to push the action row down, so on web it sat
+directly under the cards while Android pinned it to the bottom. Measured before
+and after: the container went from `overflow-y: hidden`, wheel-inert, last card
+at y=940 in an 844px viewport, to `overflow-y: auto`, scrolling, with the button
+at y=784.
+
+**A white band appeared below the app while scrolling, and stayed.** The web
+shell is Expo's generated template, whose reset sizes `#root` with
+`height: 100%`. That resolves against the layout viewport, which does not follow
+a mobile address bar as it collapses — so the moment the bar hid, the visible
+area grew past the app and bare page showed through. The project now owns the
+shell (`app/public/index.html`), sizes the root in `dvh`, and paints html/body
+the app's canvas colour so any momentary disagreement shows brand rather than
+white. `scripts/check-web-template.mjs` runs on the export path (and therefore in
+CI) and fails if the `dvh` rule disappears or the colour drifts from
+`palette.ts` — the template is a hand-merged copy of a vendor file, and both
+fixes are invisible to the type system and to the ESLint colour rule.
+
+**The Archived chip widened the results instead of narrowing them.** It sat
+beside Overdue, Urgent and High — all of which restrict — while `includeArchived`
+ADDED the archive to whatever else matched. Correct when it was a checkbox
+labelled "including archived"; a trap once it became a chip, and one you could
+only catch by counting rows, which is how Faisal caught it (63 → 67, same live
+cards still on top). Now `archivedOnly`: the two sets never mix, the Firestore
+query constrains to one archive state so it also fetches less, and the test
+asserts every live card is *gone* rather than merely outnumbered — the old test
+passed under both meanings.
+
 ### 2026-07-26 — Archiving a board now puts its work away too — v0.1.29
 
 A wide audit at Faisal's request, after the previous review turned up three

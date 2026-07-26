@@ -462,6 +462,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           return (
             <View key={col.id} style={[styles.page, { width }]}>
               <FlatList
+                // Bounded, so it SCROLLS rather than growing past the page and
+                // being clipped. See styles.page.
+                style={styles.fill}
                 data={colCards}
                 keyExtractor={(c) => c.id}
                 renderItem={({ item }) => (
@@ -556,7 +559,21 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   pager: { justifyContent: 'space-between', paddingVertical: space.sm },
   pagerLabel: { alignItems: 'center', flex: 1 },
-  page: { paddingHorizontal: space.xs, gap: space.sm },
+  /**
+   * A column page is a flex COLUMN that fills the pager, so the card list can be
+   * given the leftover space and the action row can sit under it.
+   *
+   * Without `flex: 1` here (and `fill` on the list) react-native-web sized the
+   * list to its CONTENT: past about ten cards the column overflowed the page,
+   * which clips (`overflow: hidden` on a View), so the last card was sliced in
+   * half, "+ Add card" was pushed off the bottom of the screen, and NOTHING
+   * scrolled — the wheel did nothing because no element had scrollable overflow.
+   * The same tree behaved on native, which is why it only ever showed up in the
+   * browser. It also explains why the action row appeared directly beneath the
+   * cards on web but pinned to the bottom on Android: a content-sized list
+   * leaves no space to push it down.
+   */
+  page: { flex: 1, paddingHorizontal: space.xs, gap: space.sm },
   listContent: { paddingBottom: space.md, gap: space.sm },
   card: {
     borderWidth: StyleSheet.hairlineWidth,

@@ -54,10 +54,16 @@ describe('filterCards', () => {
     expect(filterCards(cards, {}, TODAY).map((c) => c.id)).not.toContain('d');
   });
 
-  it('includes archived when asked', () => {
-    expect(
-      filterCards(cards, { includeArchived: true }, TODAY).map((c) => c.id),
-    ).toContain('d');
+  it('shows ONLY archived when asked — it narrows, like every other chip', () => {
+    // Regression: this used to ADD the archive to the live results, so turning
+    // the chip on made the list LONGER (63 -> 67, with the same live cards still
+    // on top). Sitting beside Overdue/Urgent/High, which all narrow, that read
+    // as a bug you could only notice by counting rows.
+    const ids = filterCards(cards, { archivedOnly: true }, TODAY).map((c) => c.id);
+    expect(ids).toContain('d');
+    // Every live card is gone, not merely outnumbered.
+    const live = cards.filter((c) => !c.archived).map((c) => c.id);
+    for (const id of live) expect(ids).not.toContain(id);
   });
 
   it('filters by assignee', () => {
@@ -114,7 +120,7 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters({ text: 'x' })).toBe(true);
     expect(hasActiveFilters({ assigneeUid: 'u1' })).toBe(true);
     expect(hasActiveFilters({ due: 'overdue' })).toBe(true);
-    expect(hasActiveFilters({ includeArchived: true })).toBe(true);
+    expect(hasActiveFilters({ archivedOnly: true })).toBe(true);
   });
 });
 

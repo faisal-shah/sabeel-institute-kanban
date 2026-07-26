@@ -38,7 +38,19 @@ export interface CardFilters {
   priority?: Priority;
   /** `overdue` and `soon` need today's date to mean anything. */
   due?: 'any' | 'overdue' | 'today' | 'soon' | 'none';
-  includeArchived?: boolean;
+  /**
+   * Show ONLY archived cards. Absent or false means only live ones — the two
+   * sets never mix.
+   *
+   * This used to be `includeArchived`, which ADDED the archive to whatever else
+   * matched. That read correctly while it was a checkbox labelled "including
+   * archived", and stopped reading correctly the moment it became a chip sitting
+   * next to Overdue, Urgent and High: every other chip narrows the results, so
+   * this one widening them was a trap you could only catch by counting rows —
+   * which is exactly how it was caught (63 results, 67 with it on, the same live
+   * cards still at the top).
+   */
+  archivedOnly?: boolean;
 }
 
 /** Normalise once per search rather than per card. */
@@ -62,9 +74,9 @@ export function filterCards(
   const q = filters.text ? normalise(filters.text) : '';
 
   return cards.filter((c) => {
-    // Archived cards are hidden unless explicitly asked for: the archive is a
-    // separate place, not a thing that quietly pollutes every result.
-    if (!filters.includeArchived && c.archived) return false;
+    // The archive is a separate place. You are either looking at live cards or
+    // at archived ones, never both at once.
+    if (filters.archivedOnly ? !c.archived : c.archived) return false;
 
     if (q && !matchesText(c, q)) return false;
     if (filters.assigneeUid && !c.assigneeUids.includes(filters.assigneeUid)) {
@@ -103,7 +115,7 @@ export function hasActiveFilters(filters: CardFilters): boolean {
       filters.labelId ||
       filters.priority ||
       (filters.due && filters.due !== 'any') ||
-      filters.includeArchived,
+      filters.archivedOnly,
   );
 }
 
