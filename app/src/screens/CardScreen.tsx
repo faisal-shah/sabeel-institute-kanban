@@ -79,16 +79,23 @@ export function CardScreen({
   // section heading, outside that component.
   const [picking, setPicking] = useState(false);
   const { run, busy, error } = useAction('card');
-  const [dirty, setDirty] = useState(false);
+  // ONE dirty flag PER EDITOR. They were a single shared flag, and because the
+  // title and description editors can both be open at once, saving or cancelling
+  // the title cleared it — which re-armed the seeding effect below and silently
+  // overwrote an unsaved description with the server's copy. Typing a long
+  // description, then fixing the title, then watching the description vanish is
+  // a data-loss bug with no error and nothing to undo.
+  const [titleDirty, setTitleDirty] = useState(false);
+  const [descDirty, setDescDirty] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  // Seed the local editors once the card arrives, but never stomp on typing.
+  // Seed each local editor once the card arrives, but never stomp on typing.
+  // Checked FIELD BY FIELD so one editor's state cannot speak for the other.
   useEffect(() => {
-    if (card.data && !dirty) {
-      setTitle(card.data.title);
-      setDescription(card.data.description);
-    }
-  }, [card.data, dirty]);
+    if (!card.data) return;
+    if (!titleDirty) setTitle(card.data.title);
+    if (!descDirty) setDescription(card.data.description);
+  }, [card.data, titleDirty, descDirty]);
 
   if (card.status === 'loading' || board.status === 'loading') {
     return <Spinner label="Loading card…" />;
@@ -137,7 +144,7 @@ export function CardScreen({
       if (!next) return;
       await updateCard(cardId, { title: next }, user);
       setEditingTitle(false);
-      setDirty(false);
+      setTitleDirty(false);
     });
 
   // Share an https link to this card. The receiver opens it — desktop lands in
@@ -246,7 +253,7 @@ export function CardScreen({
             <Hint>Title</Hint>
             <TextField
               value={title}
-              onChangeText={(v) => { setTitle(v); setDirty(true); }}
+              onChangeText={(v) => { setTitle(v); setTitleDirty(true); }}
               maxLength={CARD_TITLE_MAX}
               autoFocus
               label="Card title"
@@ -265,7 +272,7 @@ export function CardScreen({
                 onPress={() => {
                   setTitle(c.title);
                   setEditingTitle(false);
-                  setDirty(false);
+                  setTitleDirty(false);
                 }}
               />
             </Row>
@@ -339,7 +346,7 @@ export function CardScreen({
               value={description}
               onChangeText={(v) => {
                 setDescription(v);
-                setDirty(true);
+                setDescDirty(true);
               }}
               placeholder="Write a description"
               multiline
@@ -353,7 +360,7 @@ export function CardScreen({
                   run(async () => {
                     await updateCard(cardId, { description }, user);
                     setEditingDesc(false);
-                    setDirty(false);
+                    setDescDirty(false);
                   })
                 }
               />
@@ -363,7 +370,7 @@ export function CardScreen({
                 onPress={() => {
                   setDescription(c.description);
                   setEditingDesc(false);
-                  setDirty(false);
+                  setDescDirty(false);
                 }}
               />
             </Row>

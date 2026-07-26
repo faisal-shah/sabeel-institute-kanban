@@ -96,6 +96,14 @@ function cachedState<T>(key: string): LiveState<T> {
  */
 export function clearLiveResultCache(): void {
   lastResults.clear();
+  // The error banner is module-level too, and it outlived the session that
+  // caused it: sign out while "Live data error (boards): permission-denied" is
+  // showing and the next person to sign in on that device inherits it, quoting a
+  // refusal that was never theirs. It only cleared when a query with the SAME
+  // label next succeeded. Cache and banner are one session's state; they get
+  // cleared together.
+  lastError = null;
+  watchers.forEach((w) => w(null));
 }
 
 // ---- Listener-error visibility -------------------------------------------
