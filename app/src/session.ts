@@ -224,15 +224,34 @@ function watchUserDoc(fbUser: User) {
   );
 }
 
+/**
+ * Whose data the live-result cache currently holds.
+ *
+ * Sign-out is not the only way the current user changes: the SDK can swap one
+ * signed-in user for another without an intervening null, and the cache is keyed
+ * by query shape (boardId, cardId) rather than by person — so the incoming user
+ * could be shown a frame of the outgoing one's board. Today's UI cannot reach
+ * that (signing in is only offered while signed out, and the native flow signs
+ * out of Google first), which makes this cheap insurance against a future entry
+ * point rather than a live bug. Structural beats argued.
+ */
+let cachedFor: string | null = null;
+
 onAuthStateChanged(auth, (fbUser) => {
   if (!fbUser) {
     stopWatchingUserDoc();
     // Drop any cached live-query results so a shared device does not flash the
     // previous user's board to whoever signs in next.
     clearLiveResultCache();
+    cachedFor = null;
     emit({ state: 'signed-out' });
     return;
   }
+  if (cachedFor !== null && cachedFor !== fbUser.uid) {
+    stopWatchingUserDoc();
+    clearLiveResultCache();
+  }
+  cachedFor = fbUser.uid;
   emit({ state: 'provisioning', uid: fbUser.uid });
   watchUserDoc(fbUser);
   armProvisioningTimeout(fbUser.uid);

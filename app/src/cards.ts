@@ -499,6 +499,22 @@ export async function bulkCopyToBoard(params: {
  * gap — and are cosmetic rather than corrupting, so this is a background tidy-up
  * that nobody waits for and that is safe to skip on failure.
  */
+/**
+ * Called from the WEB drag path only, and deliberately so.
+ *
+ * Measured: appending grows a rank by about one character per five or six cards,
+ * so `needsRerank`'s length trigger starts firing somewhere past sixty cards in
+ * one column, and duplicate ranks are cosmetic anyway — `compareRank` breaks ties
+ * on id, so everyone still sees the same order. Nothing is corrupted by skipping
+ * this; ranks just get longer.
+ *
+ * Wiring it into the phone's bulk-move path would rewrite EVERY card in the
+ * destination column, in the background, on whatever connection the phone has —
+ * trading a cost nobody can see for a burst of writes on mobile data, which is
+ * the failure mode this project has already been bitten by once. If a column ever
+ * does grow big enough to matter, do it deliberately and where the user can see
+ * it, not as a silent side effect of moving one card.
+ */
 export async function rerankColumnIfNeeded(
   columnCards: readonly Card[],
 ): Promise<void> {
