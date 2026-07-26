@@ -148,6 +148,27 @@ export function renameColumn(
   };
 }
 
+/**
+ * Shorter than a column's 60: a label is a TAG, and it renders as a chip on the
+ * card face beside other chips. A chip is a box drawn around its text, so an
+ * over-long name makes a chip wider than the card it sits on — which react-
+ * native-web clips and Android draws anyway. Capping the name is what makes that
+ * unreachable; nothing downstream has to defend against it.
+ *
+ * Enforced here and on the text field, NOT in firestore.rules — rules cannot
+ * iterate a list, so a per-entry check on an embedded array is not expressible.
+ * That is the same level of enforcement column names get.
+ */
+export const LABEL_NAME_MAX = 40;
+
+export function validateLabelName(name: string): string | null {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return 'Give the label a name.';
+  if (trimmed.length > LABEL_NAME_MAX)
+    return `Keep the label name under ${LABEL_NAME_MAX} characters.`;
+  return null;
+}
+
 export function newLabel(name: string, color: string): BoardLabel {
   return { id: localId('lbl'), name: name.trim(), color };
 }

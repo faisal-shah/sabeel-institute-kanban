@@ -3,11 +3,13 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
   LABEL_COLORS,
+  LABEL_NAME_MAX,
   columnsPatch,
   localId,
   newLabel,
   validateBoardName,
   validateColumnName,
+  validateLabelName,
   type BoardColumn,
 } from '@sabeel/shared';
 import {
@@ -121,6 +123,20 @@ export function BoardSettingsScreen({
     // be created in the new column at all — with a bare PERMISSION_DENIED as the
     // only clue.
     await run(() => updateBoard(boardId, columnsPatch(next)));
+  }
+
+  async function addLabel() {
+    const problem = validateLabelName(newLabelName);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    await run(async () => {
+      await updateBoard(boardId, {
+        labels: [...b!.labels, newLabel(newLabelName, labelColor)],
+      });
+      setNewLabelName('');
+    });
   }
 
   async function renameBoard(name: string) {
@@ -256,6 +272,7 @@ export function BoardSettingsScreen({
           value={newLabelName}
           onChangeText={setNewLabelName}
           placeholder="New label name"
+          maxLength={LABEL_NAME_MAX}
         />
         {/* The + sits at the END of the colour row, where the flow finishes:
             name it, colour it, add it. */}
@@ -287,14 +304,7 @@ export function BoardSettingsScreen({
             accent
             size={24}
             disabled={busy || !newLabelName.trim()}
-            onPress={() =>
-              run(async () => {
-                await updateBoard(boardId, {
-                  labels: [...b.labels, newLabel(newLabelName, labelColor)],
-                });
-                setNewLabelName('');
-              })
-            }
+            onPress={addLabel}
           />
         </Row>
       </Card>

@@ -272,7 +272,13 @@ export function AssigneeChip({ name }: { name: string }) {
       <View style={[styles.assigneeDisc, { backgroundColor: t.bg.surface }]}>
         <Text style={[styles.assigneeInitials, { color: t.text.secondary }]}>{initials}</Text>
       </View>
-      <Text style={[type.caption, { color: t.text.secondary }]} numberOfLines={1}>
+      {/* `shrink` is what turns the maxWidth above into an ellipsis. Without it
+          the name is laid out at full width beside the disc and simply overruns
+          the chip's own border. */}
+      <Text
+        style={[type.caption, styles.shrink, { color: t.text.secondary }]}
+        numberOfLines={1}
+      >
         {name}
       </Text>
     </View>
@@ -689,6 +695,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   badgeText: { fontWeight: '600' },
+  shrink: { flexShrink: 1 },
   assignee: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -699,6 +706,15 @@ const styles = StyleSheet.create({
     paddingRight: space.sm,
     paddingVertical: 2,
     alignSelf: 'flex-start',
+    /**
+     * A chip is a box drawn AROUND its text, so it grows with the name and a
+     * long one runs past the card it sits on — clipped by react-native-web,
+     * drawn anyway by Android. Unlike a label, this name is the Google display
+     * name: external input we never get to validate, so the bound belongs here
+     * at the boundary. Wide enough for any real "First Last"; a name that
+     * exceeds it ellipsises rather than escaping.
+     */
+    maxWidth: 180,
   },
   assigneeDisc: {
     width: 18,

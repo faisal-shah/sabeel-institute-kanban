@@ -13,6 +13,8 @@ import {
   sortBoardsForList,
   validateBoardName,
   validateColumnName,
+  validateLabelName,
+  LABEL_NAME_MAX,
 } from '../src/boards';
 
 describe('newBoard', () => {
@@ -56,6 +58,20 @@ describe('validation', () => {
   it('rejects an over-long name', () => {
     expect(validateBoardName('x'.repeat(BOARD_NAME_MAX + 1))).not.toBeNull();
     expect(validateBoardName('x'.repeat(BOARD_NAME_MAX))).toBeNull();
+  });
+
+  it('rejects an empty or over-long label name', () => {
+    expect(validateLabelName('')).not.toBeNull();
+    expect(validateLabelName('   ')).not.toBeNull();
+    expect(validateLabelName('donor-facing')).toBeNull();
+    expect(validateLabelName('x'.repeat(LABEL_NAME_MAX))).toBeNull();
+    expect(validateLabelName('x'.repeat(LABEL_NAME_MAX + 1))).not.toBeNull();
+  });
+
+  it('measures the label name AFTER trimming', () => {
+    // The field caps raw input, so an at-the-limit name padded with spaces is
+    // the shape that would otherwise be rejected for being one over.
+    expect(validateLabelName(`  ${'x'.repeat(LABEL_NAME_MAX)}  `)).toBeNull();
   });
 
   it('rejects a duplicate column name, case-insensitively', () => {
