@@ -4,6 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import {
   filterCards,
   rankMatches,
+  type Priority,
   todayInOrgTz,
   type BoardLabel,
   type SearchableCard,
@@ -14,9 +15,9 @@ import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
   Body,
-  Button,
   Caption,
   CardGrid,
+  FilterChip,
   Card as Panel,
   Heading,
   Row,
@@ -49,6 +50,8 @@ export function SearchScreen({ user }: { user: SessionUser }) {
 
   const [text, setText] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [priority, setPriority] = useState<Priority | undefined>(undefined);
   const [cards, setCards] = useState<SearchableCard[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +101,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             priority: d.data().priority ?? 'none',
             dueDate: d.data().dueDate as string | undefined,
             archived: Boolean(d.data().archived),
+            updatedAt: (d.data().updatedAt as number) ?? 0,
           })),
         );
       }),
@@ -117,14 +121,31 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     };
   }, [boardIds, includeArchived]);
 
-  const results = useMemo(() => {
-    if (!cards || text.trim().length === 0) return [];
+  // Search BROWSES by default: with no text and no chips it lists everything you
+  // can see, newest first. It used to show nothing until you typed, which meant
+  // the only route to an archived card was knowing its name — you cannot search
+  // for something you are trying to find.
+  //
+  // Everything is filtered in memory over the cards already fetched, reusing the
+  // filters in @sabeel/shared that were written and tested for this and never
+  // surfaced. Deliberately simple for the size this actually is (tens of cards):
+  // the honest limit is the CAP below, which says out loud when it is hiding
+  // something rather than silently truncating.
+  const { results, total } = useMemo(() => {
+    if (!cards) return { results: [], total: 0 };
     const today = todayInOrgTz();
-    return rankMatches(filterCards(cards, { text, includeArchived }, today), text).slice(
-      0,
-      50,
+    const matched = filterCards(
+      cards,
+      { text, includeArchived, priority, due: overdueOnly ? 'overdue' : undefined },
+      today,
     );
-  }, [cards, text, includeArchived]);
+    // With a query, rank by relevance. Without one, the useful order is what
+    // changed most recently — "what has been happening across my boards".
+    const ordered = text.trim()
+      ? rankMatches(matched, text)
+      : [...matched].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    return { results: ordered.slice(0, RESULT_CAP), total: ordered.length };
+  }, [cards, text, includeArchived, priority, overdueOnly]);
 
   return (
     <Screen width="list">
@@ -140,12 +161,31 @@ export function SearchScreen({ user }: { user: SessionUser }) {
           placeholder="Search cards across your boards"
           autoFocus
         />
-        <Row>
-          <Button
-            label={includeArchived ? 'Including archived' : 'Excluding archived'}
-            variant="secondary"
+        {/* Filter chips. Each maps to a filter that already exists and is
+            already tested in @sabeel/shared — this surfaces them rather than
+            inventing a parallel mechanism. Kept to the few that answer a
+            question no other screen answers: "Assigned to me" would duplicate My
+            Work, and a full label/assignee matrix would rebuild the board
+            filters that were deliberately parked. */}
+        <Row style={styles.chips}>
+          <FilterChip
+            label="Archived"
+            active={includeArchived}
             onPress={() => setIncludeArchived((v) => !v)}
           />
+          <FilterChip
+            label="Overdue"
+            active={overdueOnly}
+            onPress={() => setOverdueOnly((v) => !v)}
+          />
+          {(['urgent', 'high'] as const).map((p) => (
+            <FilterChip
+              key={p}
+              label={p === 'urgent' ? 'Urgent' : 'High'}
+              active={priority === p}
+              onPress={() => setPriority((cur) => (cur === p ? undefined : p))}
+            />
+          ))}
         </Row>
       </View>
 
@@ -157,19 +197,22 @@ export function SearchScreen({ user }: { user: SessionUser }) {
 
       {loading || cards === null ? <Spinner label="Loading your cards…" /> : null}
 
-      {!loading && text.trim().length === 0 ? (
-        <Caption>
-          Type to search titles and descriptions across every board you are on.
-          Matching is by substring — no fuzzy spelling.
-        </Caption>
-      ) : null}
-
-      {!loading && text.trim().length > 0 ? (
-        <Heading>
-          {results.length === 0
-            ? 'No matches'
-            : `${results.length} match${results.length === 1 ? '' : 'es'}`}
-        </Heading>
+      {!loading && cards !== null ? (
+        <>
+          <Heading>
+            {total === 0
+              ? 'Nothing to show'
+              : text.trim()
+                ? `${total} match${total === 1 ? '' : 'es'}`
+                : `${total} card${total === 1 ? '' : 's'}`}
+          </Heading>
+          {total > RESULT_CAP ? (
+            <Caption>
+              Showing the first {RESULT_CAP}. Narrow it with a filter or a search
+              term.
+            </Caption>
+          ) : null}
+        </>
       ) : null}
 
       <CardGrid>
@@ -201,6 +244,14 @@ export function SearchScreen({ user }: { user: SessionUser }) {
   );
 }
 
+/**
+ * How many results are drawn. Everything you can see is already in memory, so
+ * this bounds the RENDER, not the fetch — and the count below it says how many
+ * were left out, because a list that silently stops is a list you cannot trust.
+ */
+const RESULT_CAP = 200;
+
 const styles = StyleSheet.create({
+  chips: { flexWrap: 'wrap', gap: space.xs },
   searchBar: { maxWidth: 520, gap: space.sm },
 });

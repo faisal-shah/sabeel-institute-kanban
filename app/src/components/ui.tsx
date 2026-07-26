@@ -519,6 +519,44 @@ export const TextField = forwardRef<TextInput, {
   );
 });
 
+/**
+ * A toggleable filter chip. Reads as "on" by filling with the accent rather than
+ * by a checkmark, so a row of them shows the active filters at a glance.
+ */
+export function FilterChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={active ? `${label} filter, on` : `${label} filter, off`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.filterChip,
+        {
+          backgroundColor: active ? t.accent.base : t.bg.surface,
+          borderColor: active ? t.accent.base : t.border.subtle,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text
+        style={[type.label, { color: active ? t.accent.onAccent : t.text.secondary }]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function Spinner({ label }: { label?: string }) {
   const t = useTheme();
   return (
@@ -541,6 +579,13 @@ const styles = StyleSheet.create({
   toggleThumb: { width: 26, height: 26, borderRadius: radius.pill },
   // A real 44x44 target, the platform accessibility minimum. NOT hitSlop — see
   // IconAction: slop overlaps between neighbours, laid-out boxes cannot.
+  filterChip: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },

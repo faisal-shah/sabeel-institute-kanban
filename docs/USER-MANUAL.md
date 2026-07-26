@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.1.25 · July 2026*
+*For app version 0.1.26 · July 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -212,9 +212,21 @@ open it.
   <figure><img class="narrow" src="manual/img/search-phone.png" alt="Search on a phone"><figcaption>On a phone</figcaption></figure>
 </div>
 
-Searches card titles and descriptions across every board you belong to. It matches
-whole words and parts of words, but not misspellings. Archived cards are left out
-unless you ask for them. Tap a result to open the card.
+Search lists **every card on every board you're on**, newest first — you don't
+have to type anything. Typing narrows it by title and description; it matches
+whole words and parts of words, but not misspellings.
+
+Above the results are **filter chips**:
+
+- **Archived** — brings archived cards into the results, marked *archived*. This
+  is the other way to find something you archived, alongside a board's own
+  archive.
+- **Overdue** — only cards past their due date.
+- **Urgent** / **High** — only cards at that priority.
+
+Tap a chip to turn it on, tap again to turn it off, and combine them freely. If
+there are more results than fit on screen the app says so, rather than quietly
+cutting the list short. Tap a result to open the card.
 
 ## 1.9 Notifications
 

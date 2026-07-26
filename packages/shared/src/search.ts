@@ -26,6 +26,9 @@ export interface SearchableCard {
   priority: Priority;
   dueDate?: string;
   archived: boolean;
+  /** Only used to order the BROWSE view (newest first). Optional so callers that
+   *  only ever search by text need not carry it. */
+  updatedAt?: number;
 }
 
 export interface CardFilters {

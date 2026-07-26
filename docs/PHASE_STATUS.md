@@ -341,6 +341,36 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Search browses by default, with filter chips — v0.1.26
+
+Faisal's idea, and it fixes the archive problem from a second direction: Search
+showed **nothing** until you typed, so the only way to find a card was to already
+know its name — which is exactly what you cannot do when you are looking for
+something you archived.
+
+- **Browses by default**: every card on every board you are on, **newest first**.
+  The shared `rankMatches` already returned everything for an empty query; it was
+  the screen that gated on `text.trim().length === 0`. With a query it ranks by
+  relevance as before; without one it orders by `updatedAt`, so the default view
+  answers "what has been happening across my boards".
+- **Filter chips** — Archived, Overdue, Urgent, High — each mapping to a filter
+  that already existed and was already tested in `@sabeel/shared` and had simply
+  never been surfaced (noted as a known gap since Phase 12). Kept deliberately
+  few: "Assigned to me" would duplicate My Work, and a full label/assignee matrix
+  would rebuild the board filters that were parked on purpose.
+- **An honest cap** rather than a silent truncation: the render is bounded at 200
+  and says how many were left out. Filtering stays in memory over the cards
+  already fetched — the right call at this size (tens of cards), and the cap is
+  what stops it degrading badly if that ever stops being true.
+
+**Scale, stated plainly.** Search fetches every non-archived card across your
+boards in one shot and filters client-side. That was already true; browse-by-
+default just means you always pay it. At 41 cards it is nothing. The agreed
+position is to keep it simple now and revisit if the card count grows an order of
+magnitude — at which point the shape is known: chips become server-side
+constraints (they are all indexable equality filters) while the text box stays
+client-side, because Firestore cannot do full-text search at all.
+
 ### 2026-07-25 — Archive is reachable, titles read as titles, subtasks in history — v0.1.25
 
 Three things from a review pass, all of them gaps rather than regressions.
