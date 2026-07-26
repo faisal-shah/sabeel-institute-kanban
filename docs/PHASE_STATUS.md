@@ -341,6 +341,38 @@ the team.
 
 ## Deploy log
 
+### 2026-07-25 — Subtask lateral review: a one-way door, family moves, the pager — v0.1.24
+
+Reviewing subtasks against archive / delete / move turned up a trap I had
+shipped hours earlier, plus the pager bug caught on video.
+
+- **The unlink one-way door.** Archiving or moving a parent left the child
+  silently still linked: no sign it was a subtask, no unlink (the only one lived
+  on the now-unreachable parent), and excluded from every picker **forever**,
+  because `canBeSubtaskOf` refuses an already-parented card. Reproduced in the
+  emulator: on a board seeded that way, "Link an existing card" was **disabled**
+  with no explanation, because the only candidates were the stuck cards. The link
+  lives on the child, so the child now always shows it and can always let go —
+  including when the parent cannot be resolved, where it says so plainly rather
+  than hiding.
+- **Family moves.** `bulkMoveToBoard` cleared `parentId` unconditionally, so
+  moving a parent together with its subtasks silently flattened the structure.
+  The link now survives exactly when both ends travel — `parentAfterMove()` in
+  `@sabeel/shared`, unit-tested, so the rule is named rather than inline.
+- **The pager (from the video).** Backing out of a card left the header on the
+  remembered column while the body still rendered column 1 — which was empty, so
+  it read as the cards having vanished. The restore was a `scrollTo` deferred a
+  frame. The pager is now measured by a wrapper and mounted only once the width
+  is known, scrolls on `onContentSizeChange` (the first moment a scroll can
+  land), and is held invisible until it is on the right column: **a blank frame
+  beats a wrong one**. Guarded by `needsRestore`, so a remembered page that no
+  longer exists (columns deleted since) cannot leave the board permanently blank
+  — a corner the fix itself introduced.
+- **The orphan sweep** tolerates a concurrently deleted child (per-child updates,
+  not one atomic batch). Scope stated honestly in the code: the ordinary case was
+  already safe, and the regression test passes against the batched version too.
+- `probe-indexes.mjs` now covers the sweep's `parentId ==` query.
+
 ### 2026-07-25 — Subtasks: cards that link to cards — v0.1.23
 
 A card can now be a **subtask of one other card on the same board**. The parent's
