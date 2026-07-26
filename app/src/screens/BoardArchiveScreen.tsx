@@ -8,9 +8,10 @@ import { CardFace } from '../components/CardFace';
 import {
   Body,
   Button,
+  Card as Panel,
   Hint,
   IconAction,
-  Card as Panel,
+  LoadError,
   Row,
   Screen,
   Spinner,
@@ -48,6 +49,14 @@ export function BoardArchiveScreen({
 
   if (board.status === 'loading' || cards.status === 'loading') {
     return <Spinner label="Loading archive…" />;
+  }
+  if (cards.status === 'error') {
+    return (
+      <Screen width="read">
+        <Title>Archived cards</Title>
+        <LoadError what="the archive" />
+      </Screen>
+    );
   }
 
   const b = board.data;

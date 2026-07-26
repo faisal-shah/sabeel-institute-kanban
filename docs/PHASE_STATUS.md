@@ -380,6 +380,36 @@ Work, its board archived, the card gone; two cards archived in sequence and the
 later one on top. An integration test pins the notification silence, with a
 control on a live board so an empty inbox proves silence rather than a no-op.
 
+**A second pass, over different ground.** Notifications, tokens, dates, session
+claims and every list screen's failure path.
+
+- **A failed query still rendered its empty state.** The error itself was never
+  silent — `Screen` has shown a live-data banner for a long time — but underneath
+  that banner every list fell through from `loading` to `data ?? []` and printed
+  its empty message. A red bar saying something broke, directly above "No boards
+  yet. Create one to get started." for someone with fifteen boards. The likeliest
+  real causes are losing access to a board mid-session and an index that exists
+  locally but was never deployed, and both then read as data loss. Each list now
+  says it could not load, and the board says it with a header and a Back button:
+  the first attempt returned a bare panel on the immersive board, which has no
+  tab bar, and stranded the reader with no way off the screen. Found by forcing a
+  genuine `permission-denied`, not by reasoning about it.
+- **`todayInOrgTz` was defined twice** — once in `@sabeel/shared`, used by the
+  card face, My Work and Search, and once privately in `CardScreen`, whose copy
+  carried the comment "the only place a timezone is consulted". Identical today,
+  so nothing was visibly wrong; the card's overdue badge would simply have
+  disagreed with the card face beside it the moment either changed. The private
+  copy is gone. That is the third instance of one rule living in two places, so
+  it is now a thing to look for rather than a coincidence.
+
+**Checked and found correct**, recorded so the next audit can skip them: push
+tokens are unregistered BEFORE the auth sign-out (after it, the delete would be
+denied and silently swallowed); dead FCM tokens are pruned on exactly the two
+codes that mean "gone"; `commentCount` tolerates its card having been deleted;
+claim refresh is bounded by timeouts and falls back to the cached token rather
+than stranding anyone on a spinner; `addDays` is UTC arithmetic on date-only
+keys, so it is immune to DST.
+
 ### 2026-07-25 — Review of the reworking: a card that could not come back — v0.1.28
 
 A deliberate read-through of everything the last three releases touched, at

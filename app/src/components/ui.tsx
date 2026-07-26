@@ -591,6 +591,35 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
+/**
+ * A live subscription that FAILED, in place of the list it was going to fill.
+ *
+ * The error itself is already reported: `Screen` renders a banner for any live
+ * -data error (see useListenerError). What was missing is that every list screen
+ * checked `loading` and then fell through to `data ?? []`, so the failure ALSO
+ * rendered its empty state — a banner saying something broke, directly above
+ * "No boards yet. Create one to get started." shown to someone with fifteen
+ * boards. Two contradictory answers, and the calm one is the lie.
+ *
+ * Carries the code itself rather than pointing at the banner. The banner is
+ * rendered by `Screen`, and an error path that returns early does not always go
+ * through one — the first version of this said "the red bar above says what went
+ * wrong" on a board screen that had no bar. A message that references something
+ * not on screen is worse than a slightly redundant one.
+ */
+export function LoadError({ what, code }: { what: string; code?: string }) {
+  return (
+    <Card>
+      <Body>Could not load {what}.</Body>
+      <Hint>
+        This is usually a connection problem and often clears on its own — leave
+        the screen and come back.
+        {code ? ` If it keeps happening, quote this: ${code}` : ''}
+      </Hint>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   toggleTrack: {
     width: 52,

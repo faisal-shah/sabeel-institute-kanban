@@ -22,6 +22,7 @@ import {
   Card as Panel,
   Heading,
   IconAction,
+  LoadError,
   Row,
   Screen,
   Spinner,
@@ -74,6 +75,14 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   }
 
   if (inbox.status === 'loading') return <Spinner label="Loading notifications…" />;
+  if (inbox.status === 'error') {
+    return (
+      <Screen width="read">
+        <Title>Notifications</Title>
+        <LoadError what="your notifications" />
+      </Screen>
+    );
+  }
 
   const unread = items.filter((i) => !i.read).length;
 

@@ -7,10 +7,11 @@ import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
   Caption,
-  CardGrid,
-  Hint,
   Card as Panel,
+  CardGrid,
   Heading,
+  Hint,
+  LoadError,
   Screen,
   Spinner,
   Title,
@@ -64,6 +65,14 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
   // briefly show "nothing assigned to you" to someone who has plenty.
   if (work.status === 'loading' || boards.status === 'loading') {
     return <Spinner label="Loading your work…" />;
+  }
+  if (work.status === 'error' || boards.status === 'error') {
+    return (
+      <Screen width="list">
+        <Title>My work</Title>
+        <LoadError what="your work" />
+      </Screen>
+    );
   }
 
   const total = visible.length;

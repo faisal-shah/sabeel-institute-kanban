@@ -51,9 +51,10 @@ import {
   Body,
   Button,
   Caption,
+  Card as Panel,
   Hint,
   IconAction,
-  Card as Panel,
+  LoadError,
   Row,
   Screen,
   Spinner,
@@ -255,6 +256,23 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 
   if (board.status === 'loading' || cards.status === 'loading') {
     return <Spinner label="Loading board…" />;
+  }
+  // A failed cards query used to render a board with every column and no
+  // cards at all — indistinguishable from someone having deleted the lot.
+  // Inside a Screen WITH a way out: a bare panel on the immersive board
+  // (no tab bar, no header) left the reader stranded with no Back.
+  if (cards.status === 'error') {
+    return (
+      <Screen>
+        <Row style={styles.between}>
+          <Title numberOfLines={1} style={styles.headerTitle}>
+            {board.data?.name ?? 'Board'}
+          </Title>
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        </Row>
+        <LoadError what="this board" code={cards.error} />
+      </Screen>
+    );
   }
 
   const b = board.data;

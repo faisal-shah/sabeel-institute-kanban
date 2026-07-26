@@ -20,6 +20,7 @@ import {
   Card,
   CardGrid,
   Heading,
+  LoadError,
   Row,
   Screen,
   Spinner,
@@ -118,6 +119,16 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
   }
 
   if (boards.status === 'loading') return <Spinner label="Loading boards…" />;
+  // Before this, a failed query fell through to the empty state and told a
+  // member with fifteen boards that they had none.
+  if (boards.status === 'error') {
+    return (
+      <Screen width="list">
+        <Title>Boards</Title>
+        <LoadError what="your boards" />
+      </Screen>
+    );
+  }
 
   const hasAny =
     sections.favourites.length + sections.recents.length + sections.others.length > 0;

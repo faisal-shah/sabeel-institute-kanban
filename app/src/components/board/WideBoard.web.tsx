@@ -29,7 +29,7 @@ import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { createAutoScroller } from './autoScroll';
 import { BulkBar } from '../BulkBar';
-import { IconAction } from '../ui';
+import { IconAction, LoadError } from '../ui';
 import {
   CARD_TITLE_MAX,
   columnDeleteBlocked,
@@ -302,6 +302,21 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     return (
       <div style={{ padding: space.xl, color: t.text.muted, background: t.bg.canvas }}>
         Loading board…
+      </div>
+    );
+  }
+
+  // A failed cards query used to render a board with every column and no cards
+  // at all — indistinguishable from someone having deleted the lot.
+  if (cards.status === 'error') {
+    return (
+      <div style={{ padding: space.xl, background: t.bg.canvas, minHeight: '100%' }}>
+        <button onClick={() => nav.reset({ name: 'boards' })} style={btn(t)}>
+          ← Back to boards
+        </button>
+        <div style={{ marginTop: space.md }}>
+          <LoadError what="this board" code={cards.error} />
+        </div>
       </div>
     );
   }

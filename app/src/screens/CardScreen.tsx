@@ -4,8 +4,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   CARD_DESCRIPTION_MAX,
   CARD_TITLE_MAX,
-  ORG_TIMEZONE,
   readableInkOn,
+  todayInOrgTz,
   type Priority,
 } from '@sabeel/shared';
 import {
@@ -52,16 +52,6 @@ import { radius, space, type, useTheme } from '../theme';
 import { useAction } from '../useAction';
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
-
-/** Today in the org's timezone — the only place a timezone is consulted. */
-function todayInOrgTz(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: ORG_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
 
 /** Stable empty, so Subtasks' memos don't churn while the board loads. */
 const NO_CARDS: Card[] = [];
