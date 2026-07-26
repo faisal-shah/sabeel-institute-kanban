@@ -4,6 +4,7 @@ import {
   canBeSubtaskOf,
   childrenOf,
   linkableUnder,
+  parentAfterMove,
   subtaskCounts,
 } from '../src/subtasks';
 
@@ -134,5 +135,32 @@ describe('linkableUnder', () => {
   it('offers nothing when every other card is already linked', () => {
     const cards = [{ id: 'a' }, { id: 'b', parentId: 'a' }];
     expect(linkableUnder(cards, 'a')).toEqual([]);
+  });
+});
+
+describe('parentAfterMove', () => {
+  const ids = (...v: string[]) => new Set(v);
+
+  it('keeps the link when the parent moves too — a whole family stays intact', () => {
+    expect(parentAfterMove({ id: 'b', parentId: 'a' }, ids('a', 'b'))).toBe('a');
+  });
+
+  it('CLEARS the link when only the child moves, rather than dangling', () => {
+    // The parent stays on the old board, so the id would resolve to nothing.
+    expect(parentAfterMove({ id: 'b', parentId: 'a' }, ids('b'))).toBeUndefined();
+  });
+
+  it('clears it when the parent moves but this child does not travel with it', () => {
+    // Symmetric case: the child left behind is handled by its own move, but a
+    // parent moving alone must not be treated as keeping anything.
+    expect(parentAfterMove({ id: 'a' }, ids('a'))).toBeUndefined();
+  });
+
+  it('leaves an unparented card unparented', () => {
+    expect(parentAfterMove({ id: 'x' }, ids('x', 'y'))).toBeUndefined();
+  });
+
+  it('keeps a grandchild linked when the whole chain moves', () => {
+    expect(parentAfterMove({ id: 'c', parentId: 'b' }, ids('a', 'b', 'c'))).toBe('b');
   });
 });

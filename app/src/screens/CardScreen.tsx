@@ -172,20 +172,43 @@ export function CardScreen({
       ) : null}
 
       <Panel>
-        {/* The way back UP a subtask chain. Only shown when the parent is
-            actually on this board's live card list — a parent that was moved
-            away, archived or deleted resolves to nothing, and a dead link is
-            worse than no link. */}
-        {parent ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Open parent card ${parent.title}`}
-            onPress={() => nav.push({ name: 'card', boardId, cardId: parent.id })}
-            style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-          >
-            <Hint>Subtask of</Hint>
-            <Body>{parent.title}</Body>
-          </Pressable>
+        {/* The way back UP a subtask chain — and the ONLY place a subtask can
+            detach itself.
+
+            Shown whenever `parentId` is set, even when the parent cannot be
+            resolved. Hiding it in that case was a one-way door: archiving or
+            moving a parent left the child silently still linked, with no sign it
+            was a subtask, no unlink here (the only unlink lived on the parent,
+            which was now unreachable), and permanently excluded from every
+            picker, because `canBeSubtaskOf` refuses a card that already has a
+            parent. The link lives on the CHILD, so the child must always be able
+            to let go of it. */}
+        {c.parentId ? (
+          <Row style={styles.between}>
+            {parent ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Open parent card ${parent.title}`}
+                onPress={() => nav.push({ name: 'card', boardId, cardId: parent.id })}
+                style={({ pressed }) => [styles.grow, pressed && { opacity: 0.6 }]}
+              >
+                <Hint>Subtask of</Hint>
+                <Body>{parent.title}</Body>
+              </Pressable>
+            ) : (
+              <View style={styles.grow}>
+                <Hint>Subtask of</Hint>
+                <Body muted>a card that isn&rsquo;t showing here</Body>
+                <Hint>It may have been archived, moved to another board, or deleted.</Hint>
+              </View>
+            )}
+            <IconAction
+              icon="link-off"
+              label="Unlink from parent card"
+              onPress={() => run(() => updateCard(cardId, { parentId: undefined }, user))}
+              disabled={busy}
+            />
+          </Row>
         ) : null}
         <Hint>Title</Hint>
         <TextField

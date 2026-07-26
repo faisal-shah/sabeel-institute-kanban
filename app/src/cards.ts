@@ -15,6 +15,7 @@ import {
 import {
   compareRank,
   needsRerank,
+  parentAfterMove,
   rankBetween,
   rerank,
   type CardDoc,
@@ -332,23 +333,27 @@ export async function bulkMoveToBoard(params: {
   user: SessionUser;
 }): Promise<void> {
   const moving = [...params.cards].sort(compareRank);
+  // Which cards are travelling together. A subtask link only survives if BOTH
+  // ends move — select a parent and its subtasks and the family arrives intact;
+  // move a child on its own and it arrives unlinked, because its parent stayed
+  // behind and the id would resolve to nothing.
+  const movingIds = new Set(moving.map((c) => c.id));
   let prev = await destColumnLastRank(params.destBoardId, params.destColumnId);
   const now = Date.now();
   const batch = writeBatch(db);
   for (const card of moving) {
     const rank = rankBetween(prev, null);
     prev = rank;
+    const keptParent = parentAfterMove(card, movingIds);
     batch.update(cardRef(card.id), {
       boardId: params.destBoardId,
       columnId: params.destColumnId,
       rank,
       labelIds: [],
       assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
-      // A subtask link is board-scoped exactly like labels are: the parent stays
-      // behind on the old board, so carrying the id across would leave a link
-      // that resolves to nothing. Cleared, not migrated — moving one card out of
-      // a family does not move the family.
-      parentId: deleteField(),
+      // Board-scoped exactly like labels: kept only when the parent is coming
+      // too, otherwise cleared rather than left dangling.
+      parentId: keptParent ?? deleteField(),
       updatedAt: now,
       updatedBy: params.user.uid,
     });

@@ -51,6 +51,14 @@ const probes = [
         .get(),
   },
   {
+    name: 'subtask orphan sweep (parentId ==)',
+    used_by:
+      'onCardDeleted clearing children of a deleted parent — a single-field ' +
+      'auto index, no composite. If this ever fails, deleting a parent silently ' +
+      'leaves its subtasks dangling AND unlinkable.',
+    run: () => db.collection('cards').where('parentId', '==', ANY).limit(1).get(),
+  },
+  {
     name: 'my work (assigneeUids array-contains)',
     used_by: 'My work — a single-field auto index, no composite',
     run: () =>

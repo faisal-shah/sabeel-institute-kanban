@@ -144,6 +144,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   // Editing the column name takes over the pager row (see the header below).
   const [renaming, setRenaming] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BoardColumn | null>(null);
+  // Has the pager been scrolled to the remembered column yet? Starts true when
+  // there is nothing to restore, so the common case paints immediately.
+  const [restored, setRestored] = useState(() => (lastPageByBoard.get(boardId) ?? 0) === 0);
   const scroller = useRef<ScrollView>(null);
   // Measured, not Dimensions.get('window'): this pager sits inside the Screen's
   // horizontal padding, so sizing pages to the WINDOW made every page wider than
@@ -179,6 +182,11 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     for (const col of columns) map.set(col.id, cardsInColumn(cards.data ?? [], col.id));
     return map;
   }, [columns, cards.data]);
+
+  // Is there actually a column to scroll back to? False when the pager is
+  // already on the first page, and — the corner case — when the remembered page
+  // no longer exists because columns were deleted since. Both mean "show it now".
+  const needsRestore = page > 0 && page < columns.length;
 
   /**
    * Keep the position indicator in step with the visible column.
@@ -364,23 +372,58 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         </Caption>
       ) : null}
 
+      {/* The pager is MEASURED by this wrapper, not by the ScrollView itself, so
+          the ScrollView can be mounted already knowing how wide a page is.
+
+          That ordering is the whole fix for a bug caught on video: the header
+          reads from the restored `page` immediately, but the scroll position was
+          restored afterwards (a scrollTo inside onLayout, deferred a frame). For
+          that window the header said "Feature Requests, 2 of 5" while the body
+          still showed column 1 — which happened to be empty, so coming back from
+          a card detail read as "my cards have vanished".
+
+          Mounting late means `contentOffset` is an INITIAL prop, which is the
+          only form of it every platform honours; setting it on an already-mounted
+          ScrollView is not reliably applied. The rAF scrollTo stays as a
+          belt-and-braces correction for a width CHANGE (rotation, browser
+          resize), where the ScrollView is necessarily already mounted. */}
+      <View style={styles.fill} onLayout={(e) => {
+        const w = e.nativeEvent.layout.width;
+        if (w > 0 && Math.abs(w - width) > 1) {
+          const hadWidth = width > 0;
+          setWidth(w);
+          if (hadWidth && page > 0) {
+            requestAnimationFrame(() =>
+              scroller.current?.scrollTo({ x: page * w, animated: false }),
+            );
+          }
+        }
+      }}>
+      {width === 0 ? null : (
       <ScrollView
         ref={scroller}
-        onLayout={(e) => {
-          const w = e.nativeEvent.layout.width;
-          if (w > 0 && Math.abs(w - width) > 1) {
-            setWidth(w);
-            // Restore the remembered column once we know how wide a page is.
-            // Without this the state says "column 3" while the ScrollView is
-            // still at offset 0, which is the desync that showed half of two
-            // columns at once.
-            if (page > 0) {
-              requestAnimationFrame(() =>
-                scroller.current?.scrollTo({ x: page * w, animated: false }),
-              );
-            }
-          }
+        // Restore the remembered column when the CONTENT has been measured.
+        // `contentOffset` alone is not enough — Android does not honour it here —
+        // and a scrollTo from onLayout runs before the pages exist, so it lands
+        // nowhere. onContentSizeChange fires once the pages are laid out, which
+        // is the first moment a scroll can actually take effect.
+        onContentSizeChange={() => {
+          if (!needsRestore || restored) return;
+          scroller.current?.scrollTo({ x: page * width, animated: false });
+          setRestored(true);
         }}
+        // Held invisible until it is sitting on the right column. Showing the
+        // WRONG column is far worse than showing nothing for a frame: the header
+        // says "Feature Requests, 2 of 5" while the body renders column 1, and if
+        // that column is empty it reads as "my cards are gone" — which is exactly
+        // what got filmed coming back from a card detail.
+        //
+        // Gated on `needsRestore`, never on `restored` alone. If the remembered
+        // page no longer exists — columns deleted since you were last here — the
+        // ScrollView has nothing to scroll to, `onContentSizeChange` may never
+        // fire, and gating on `restored` would leave the board PERMANENTLY blank.
+        // Nothing to restore means show it immediately.
+        style={[styles.fill, needsRestore && !restored ? styles.hidden : null]}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -388,9 +431,8 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         onMomentumScrollEnd={syncPage}
         onScrollEndDrag={syncPage}
         scrollEventThrottle={32}
-        style={styles.fill}
       >
-        {(width === 0 ? [] : columns).map((col) => {
+        {columns.map((col) => {
           const colCards = byColumn.get(col.id) ?? [];
           return (
             <View key={col.id} style={[styles.page, { width }]}>
@@ -472,13 +514,15 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           );
         })}
       </ScrollView>
-
+      )}
+      </View>
 
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  hidden: { opacity: 0 },
   fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
   headerTitle: { flexShrink: 1 },
