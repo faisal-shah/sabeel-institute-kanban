@@ -240,6 +240,34 @@ describe('editing comments', () => {
       }),
     );
   });
+
+  it('an edit can add a mention of a board member', async () => {
+    // Editing in an @mention is a normal thing to do, and the client re-derives
+    // mentionUids from the edited text, so this write shape must be allowed.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), `${CARD}/comments/existing`), {
+        ...comment(),
+        body: 'actually @member2 should see this',
+        mentionUids: ['member2'],
+        editedAt: 2,
+      }),
+    );
+  });
+
+  it('an edit cannot mention someone who is not on the board', async () => {
+    // The gap this closes: `create` enforced board membership on mentions while
+    // `update` checked nothing, so the invariant held for a new comment and
+    // could be walked straight past by editing one. A mention that reaches
+    // someone who cannot open the card is exactly what the rule exists to stop.
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), `${CARD}/comments/existing`), {
+        ...comment(),
+        body: 'sneaking in @outsider',
+        mentionUids: ['outsider'],
+        editedAt: 2,
+      }),
+    );
+  });
 });
 
 describe('deleting comments', () => {

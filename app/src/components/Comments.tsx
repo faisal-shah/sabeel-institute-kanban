@@ -1,13 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, type TextInput } from 'react-native';
-import {
-  COMMENT_BODY_MAX,
-  activeMentionQuery,
-  completeMention,
-  handleFor,
-  mentionSuggestions,
-  type MentionCandidate,
-} from '@sabeel/shared';
+import { StyleSheet, type TextInput } from 'react-native';
+import { type MentionCandidate } from '@sabeel/shared';
 import { addComment, deleteComment, editComment, useComments } from '../comments';
 import { sessionCan, type SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
@@ -20,9 +13,9 @@ import {
   IconAction,
   Row,
   Spinner,
-  TextField,
 } from './ui';
-import { space, useTheme } from '../theme';
+import { MentionField } from './MentionField';
+import { space } from '../theme';
 import { useAction } from '../useAction';
 
 function when(ms: number): string {
@@ -45,7 +38,6 @@ export function Comments({
   user: SessionUser;
 }) {
   const comments = useComments(cardId);
-  const t = useTheme();
   const [draft, setDraft] = useState('');
   const draftRef = useRef<TextInput>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -62,13 +54,6 @@ export function Comments({
     for (const c of candidates) m.set(c.uid, c.displayName);
     return m;
   }, [candidates]);
-
-  // The autocomplete only appears while a mention is actually being typed —
-  // showing a people-picker permanently would be noise.
-  const mentionQuery = activeMentionQuery(draft);
-  const suggestions =
-    mentionQuery === null ? [] : mentionSuggestions(mentionQuery, candidates);
-
 
   if (comments.status === 'loading') return <Spinner label="Loading comments…" />;
 
@@ -127,11 +112,11 @@ export function Comments({
 
             {editing === c.id ? (
               <>
-                <TextField
+                <MentionField
                   value={editDraft}
                   onChangeText={setEditDraft}
-                  multiline
-                  maxLength={COMMENT_BODY_MAX}
+                  candidates={candidates}
+                  placeholder="Edit your comment — @ to mention someone"
                 />
                 <Row>
                   <Button
@@ -144,6 +129,7 @@ export function Comments({
                           cardId,
                           commentId: c.id,
                           body: editDraft,
+                          candidates,
                         });
                         setEditing(null);
                       })
@@ -172,36 +158,13 @@ export function Comments({
       })}
 
       <Panel>
-        <TextField
+        <MentionField
           ref={draftRef}
           value={draft}
           onChangeText={setDraft}
+          candidates={candidates}
           placeholder="Add a comment — @ to mention someone"
-          multiline
-          maxLength={COMMENT_BODY_MAX}
         />
-
-        {suggestions.length > 0 ? (
-          <View style={[styles.suggestions, { borderColor: t.border.subtle }]}>
-            <Caption>Mention</Caption>
-            {suggestions.map((s) => (
-              <Button
-                key={s.uid}
-                label={`${s.displayName} (@${handleFor(s.email)})`}
-                variant="secondary"
-                onPress={() => {
-                  setDraft(completeMention(draft, '', s));
-                  // Picking a suggestion BLURS the comment box — whether by
-                  // click or by tab-then-enter — and without this you cannot
-                  // carry on typing, which makes the autocomplete a trap rather
-                  // than a shortcut. Refocus on the next tick so it happens
-                  // after the blur has settled.
-                  setTimeout(() => draftRef.current?.focus(), 0);
-                }}
-              />
-            ))}
-          </View>
-        ) : null}
 
         {/* Submit sits DIRECTLY under the field. The mention hint used to be
             between them, pushing the button ~50dp lower — far enough that the
@@ -253,10 +216,4 @@ const styles = StyleSheet.create({
   actions: { gap: space.md },
   between: { justifyContent: 'space-between' },
   wrap: { flexWrap: 'wrap' },
-  suggestions: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    padding: space.sm,
-    gap: space.xs,
-  },
 });

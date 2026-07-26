@@ -124,7 +124,9 @@ Tap any card to open the full view.
 - **Labels** — a short, shared vocabulary defined per board, shown as coloured
   **badges** on the card face.
 - **Comments** — discuss the work. Type **@** followed by a name to pull someone
-  in; they're notified.
+  in; they're notified. You can edit your own comment with the **pencil**, and
+  the **@** works there too — mention someone in an edit and they're told, once.
+  Correcting the wording afterwards doesn't notify anyone again.
 - **Activity** — who changed what, and when, including subtasks being linked and
   unlinked. Written by the system, so no one can edit it.
 

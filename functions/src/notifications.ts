@@ -208,19 +208,43 @@ async function notify(params: {
   }
 }
 
-/** A comment: notifies mentioned people, and the card's assignees. */
-export const onCommentCreated = onDocumentCreated(
+/**
+ * A comment: notifies mentioned people, and the card's assignees.
+ *
+ * Written, not created. An @mention typed while EDITING a comment is a real
+ * mention — the app re-derives `mentionUids` on every edit — and a create-only
+ * trigger told that person nothing at all, which made mentioning someone in an
+ * edit silently useless.
+ *
+ * The two events are not symmetric, deliberately:
+ *
+ *  - Mentions notify whoever is NEWLY named. Diffing against the previous
+ *    mention list is what stops an edit from re-paging everyone already in the
+ *    comment, so fixing a typo does not buzz the whole thread again.
+ *  - `commentOnMyCard` fires on CREATE only. Editing a comment is not a new
+ *    comment, and telling assignees "Sara commented" because Sara corrected a
+ *    word would be noise of exactly the kind this app avoids.
+ */
+export const onCommentNotify = onDocumentWritten(
   {
     document: 'cards/{cardId}/comments/{commentId}',
     secrets: [sentryDsn],
   },
   guardedEvent(async (event) => {
-    const data = event.data?.data();
-    if (!data) return;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    // Deleted: nothing to announce.
+    if (!after) return;
+    const created = !before;
 
     const { cardId } = event.params;
-    const authorUid = data.authorUid as string;
-    const mentionUids = (data.mentionUids as string[]) ?? [];
+    const authorUid = after.authorUid as string;
+    const mentionUids = (after.mentionUids as string[]) ?? [];
+    const alreadyMentioned = (before?.mentionUids as string[]) ?? [];
+    const newlyMentioned = mentionUids.filter((u) => !alreadyMentioned.includes(u));
+
+    // Nothing new to say: an edit that changed only the wording.
+    if (!created && newlyMentioned.length === 0) return;
 
     // boardId is now a field on the card, not the path — read it from the card
     // (which we fetch anyway for title/assignees). It gates the board-mute check.
@@ -233,16 +257,17 @@ export const onCommentCreated = onDocumentCreated(
 
     // A mention wins over the generic comment notification, so being both
     // mentioned and an assignee does not produce two pushes for one comment.
-    const mentioned = await loadRecipients(mentionUids);
     await notify({
       event: 'mention',
-      recipients: mentioned,
+      recipients: await loadRecipients(newlyMentioned),
       actorUid: authorUid,
       actorName,
       boardId,
       cardId,
       cardTitle,
     });
+
+    if (!created) return;
 
     const others = assignees.filter((u) => !mentionUids.includes(u));
     await notify({

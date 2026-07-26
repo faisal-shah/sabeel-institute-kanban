@@ -320,7 +320,15 @@ service cloud.firestore {
         && comment().createdAt == resource.data.createdAt
         && comment().body is string
         && comment().body.size() > 0
-        && comment().body.size() <= 5000;
+        && comment().body.size() <= 5000
+        // The SAME mention check as create. It was missing here while
+        // `mentionUids` sat in the allowlist above, so the board-membership
+        // invariant held for a new comment and could be walked straight past by
+        // editing one — and an edit is when mentions change, now that editing
+        // re-derives them. A rule that only guards the first write is not a
+        // guard.
+        && comment().mentionUids is list
+        && comment().mentionUids.hasOnly(board().memberUids);
 
       // Authors delete their own; managers and admins can remove anything, which
       // is the moderation path.

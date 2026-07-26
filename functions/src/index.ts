@@ -12,7 +12,7 @@ export { onCardWritten } from './activity';
 export { onCardBoardCount } from './boardCardCount';
 export { onCardDeleted } from './cleanup';
 export {
-  onCommentCreated,
+  onCommentNotify,
   onCardNotify,
   onUserPending,
   dueSoonReminders,

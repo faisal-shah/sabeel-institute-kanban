@@ -69,13 +69,27 @@ export async function addComment(params: {
   });
 }
 
+/**
+ * Edit the body, and re-derive the mentions from it.
+ *
+ * `mentionUids` is a parse of the text, so it has to be re-parsed whenever the
+ * text changes — exactly as `addComment` does. Leaving it alone (which is what
+ * this used to do) made an edit lie in both directions: adding "@sara" recorded
+ * no mention and told her nothing, and deleting one left her listed as mentioned
+ * by a comment that no longer names her.
+ */
 export async function editComment(params: {
   cardId: string;
   commentId: string;
   body: string;
+  candidates: readonly MentionCandidate[];
 }): Promise<void> {
+  const body = params.body.trim();
+  if (!body) return;
+
   await updateDoc(commentRef(params.cardId, params.commentId), {
-    body: params.body.trim(),
+    body,
+    mentionUids: extractMentions(body, params.candidates),
     editedAt: Date.now(),
   });
 }

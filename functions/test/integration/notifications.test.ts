@@ -101,6 +101,54 @@ describe('onCommentCreated notifications', () => {
   });
 });
 
+describe('mentioning someone by EDITING a comment', () => {
+  // The trigger used to be create-only, so an @mention added while editing told
+  // that person nothing — the mention was decorative. The app re-derives
+  // mentionUids on every edit, so the trigger has to look at writes.
+  async function post(body: string, mentionUids: string[]) {
+    const ref = await adminDb()
+      .collection('cards/nt_card/comments')
+      .add({ authorUid: AUTHOR, body, mentionUids, createdAt: Date.now() });
+    return ref;
+  }
+
+  it('notifies someone first mentioned in an edit', async () => {
+    await Promise.all([clearInbox(MENTIONED), clearInbox(ASSIGNEE)]);
+    const ref = await post('no mention here', []);
+    await waitFor('commentOnMyCard from the create', async () => {
+      const e = await inbox(ASSIGNEE, 'commentOnMyCard');
+      return e.length ? e[0] : undefined;
+    });
+    expect(await inbox(MENTIONED, 'mention')).toHaveLength(0);
+
+    await ref.update({ body: 'actually @Ben should see this', mentionUids: [MENTIONED], editedAt: Date.now() });
+
+    const mention = await waitFor('mention from the edit', async () => {
+      const e = await inbox(MENTIONED, 'mention');
+      return e.length ? e[0] : undefined;
+    });
+    expect(mention.type).toBe('mention');
+  });
+
+  it('does not re-notify someone already mentioned, and edits are not new comments', async () => {
+    await Promise.all([clearInbox(MENTIONED), clearInbox(ASSIGNEE)]);
+    const ref = await post('hello @Ben', [MENTIONED]);
+    await waitFor('the original mention', async () => {
+      const e = await inbox(MENTIONED, 'mention');
+      return e.length ? e[0] : undefined;
+    });
+    await clearInbox(MENTIONED);
+    await clearInbox(ASSIGNEE);
+
+    // Fixing a typo must not page the thread again.
+    await ref.update({ body: 'hello @Ben — typo fixed', mentionUids: [MENTIONED], editedAt: Date.now() });
+    await new Promise((r) => setTimeout(r, 4000));
+    expect(await inbox(MENTIONED, 'mention')).toHaveLength(0);
+    // And an edit is not a new comment, so assignees hear nothing either.
+    expect(await inbox(ASSIGNEE, 'commentOnMyCard')).toHaveLength(0);
+  });
+});
+
 describe('an archived board is quiet', () => {
   // Archiving a board is meant to put it away. It used to hide the board from
   // every list while its cards went on notifying people — an assignment, a
