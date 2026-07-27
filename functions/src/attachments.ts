@@ -167,71 +167,68 @@ export async function applyFinalizeAttachment(
   attachmentId: string,
   actorUid: string,
 ) {
-  {
-    const uid = actorUid;
-    const ref = db().doc(`cards/${cardId}/attachments/${attachmentId}`);
-    const snap = await ref.get();
-    if (!snap.exists) throw new HttpsError('not-found', 'No such attachment.');
-    const existing = snap.data() as AttachmentDoc;
+  const ref = db().doc(`cards/${cardId}/attachments/${attachmentId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'No such attachment.');
+  const existing = snap.data() as AttachmentDoc;
 
-    // Idempotent: a retry after a lost response must not log a second "attached".
-    if (existing.status === 'ready') {
-      return { ok: true, sizeBytes: existing.sizeBytes ?? 0, contentType: existing.contentType };
-    }
-
-    const file = bucket().file(attachmentStoragePath(cardId, attachmentId));
-    const [exists] = await file.exists();
-    if (!exists) {
-      throw new HttpsError('failed-precondition', 'The upload did not finish.');
-    }
-
-    const [meta] = await file.getMetadata();
-    const sizeBytes = Number(meta.size ?? 0);
-    if (sizeBytes > ATTACHMENT_MAX_BYTES) {
-      // storage.rules already caps this, so reaching here means the object
-      // arrived by some other route. Leave neither the bytes nor the record.
-      await file.delete({ ignoreNotFound: true });
-      await ref.delete();
-      throw new HttpsError('failed-precondition', 'That file is too large.');
-    }
-
-    const name = sanitizeAttachmentName(existing.name);
-    const contentType = normalizeContentType(existing.contentType);
-    await file.setMetadata({
-      contentType,
-      contentDisposition: contentDispositionFor(name, contentType),
-    });
-
-    // The flip to `ready` is a TRANSACTION, and only the caller that performs it
-    // writes the activity entry.
-    //
-    // The early return above is a fast path, not a guard: two finalizes racing
-    // — a double tap, or a retry after a slow response — both read `uploading`,
-    // both proceed, and the card gets two "attached Budget.pdf" lines. Measured,
-    // not hypothetical.
-    const won = await db().runTransaction(async (tx) => {
-      const cur = await tx.get(ref);
-      if (!cur.exists) return null;
-      const data = cur.data() as AttachmentDoc;
-      if (data.status === 'ready') return null; // the other caller won
-      tx.update(ref, { status: 'ready', name, contentType, sizeBytes });
-      return data;
-    });
-
-    if (won) {
-      // Attributed to whoever UPLOADED it, not to whoever called finalize.
-      // They are normally the same person, but the caller is not the authority
-      // on that — the document is — and "Sara attached budget.pdf" has to be
-      // true for the log to be worth keeping.
-      await recordActivity(cardId, {
-        type: 'attached',
-        actorUid: won.uploadedBy || uid,
-        to: name,
-      });
-      logger.info('attachment finalized', { cardId, attachmentId, actorUid: uid, sizeBytes });
-    }
-    return { ok: true, sizeBytes, contentType };
+  // Idempotent: a retry after a lost response must not log a second "attached".
+  if (existing.status === 'ready') {
+    return { ok: true, sizeBytes: existing.sizeBytes ?? 0, contentType: existing.contentType };
   }
+
+  const file = bucket().file(attachmentStoragePath(cardId, attachmentId));
+  const [exists] = await file.exists();
+  if (!exists) {
+    throw new HttpsError('failed-precondition', 'The upload did not finish.');
+  }
+
+  const [meta] = await file.getMetadata();
+  const sizeBytes = Number(meta.size ?? 0);
+  if (sizeBytes > ATTACHMENT_MAX_BYTES) {
+    // storage.rules already caps this, so reaching here means the object
+    // arrived by some other route. Leave neither the bytes nor the record.
+    await file.delete({ ignoreNotFound: true });
+    await ref.delete();
+    throw new HttpsError('failed-precondition', 'That file is too large.');
+  }
+
+  const name = sanitizeAttachmentName(existing.name);
+  const contentType = normalizeContentType(existing.contentType);
+  await file.setMetadata({
+    contentType,
+    contentDisposition: contentDispositionFor(name, contentType),
+  });
+
+  // The flip to `ready` is a TRANSACTION, and only the caller that performs it
+  // writes the activity entry.
+  //
+  // The early return above is a fast path, not a guard: two finalizes racing
+  // — a double tap, or a retry after a slow response — both read `uploading`,
+  // both proceed, and the card gets two "attached Budget.pdf" lines. Measured,
+  // not hypothetical.
+  const won = await db().runTransaction(async (tx) => {
+    const cur = await tx.get(ref);
+    if (!cur.exists) return null;
+    const data = cur.data() as AttachmentDoc;
+    if (data.status === 'ready') return null; // the other caller won
+    tx.update(ref, { status: 'ready', name, contentType, sizeBytes });
+    return data;
+  });
+
+  if (won) {
+    // Attributed to whoever UPLOADED it, not to whoever called finalize.
+    // They are normally the same person, but the caller is not the authority
+    // on that — the document is — and "Sara attached budget.pdf" has to be
+    // true for the log to be worth keeping.
+    await recordActivity(cardId, {
+      type: 'attached',
+      actorUid: won.uploadedBy || actorUid,
+      to: name,
+    });
+    logger.info('attachment finalized', { cardId, attachmentId, actorUid, sizeBytes });
+  }
+  return { ok: true, sizeBytes, contentType };
 }
 
 /**
@@ -261,44 +258,41 @@ export async function applyDeleteAttachment(
   attachmentId: string,
   actorUid: string,
 ) {
-  {
-    const uid = actorUid;
-    const ref = db().doc(`cards/${cardId}/attachments/${attachmentId}`);
+  const ref = db().doc(`cards/${cardId}/attachments/${attachmentId}`);
 
-    // The object goes FIRST, and the ordering is deliberate. If this throws, the
-    // record still exists, so something still knows which bytes to chase and the
-    // user can try again. Deleting the document first would, on the same
-    // failure, leave bytes that are unreferenced, invisible and billable — the
-    // nightly sweep only looks at documents, so nothing would ever find them.
-    //
-    // Deleting at the CANONICAL path rather than via a stored field is what also
-    // clears bytes from an upload that never finalized.
-    await bucket()
-      .file(attachmentStoragePath(cardId, attachmentId))
-      .delete({ ignoreNotFound: true });
+  // The object goes FIRST, and the ordering is deliberate. If this throws, the
+  // record still exists, so something still knows which bytes to chase and the
+  // user can try again. Deleting the document first would, on the same
+  // failure, leave bytes that are unreferenced, invisible and billable — the
+  // nightly sweep only looks at documents, so nothing would ever find them.
+  //
+  // Deleting at the CANONICAL path rather than via a stored field is what also
+  // clears bytes from an upload that never finalized.
+  await bucket()
+    .file(attachmentStoragePath(cardId, attachmentId))
+    .delete({ ignoreNotFound: true });
 
-    // Deleting the record and deciding to log it must be ONE atomic step, or two
-    // concurrent removals both see the document and the card gets two "removed
-    // budget.pdf" lines. Only the caller whose transaction actually removed it
-    // writes the entry. Measured, not hypothetical.
-    const removed = await db().runTransaction(async (tx) => {
-      const cur = await tx.get(ref);
-      if (!cur.exists) return null;
-      tx.delete(ref);
-      return cur.data() as AttachmentDoc;
-    });
+  // Deleting the record and deciding to log it must be ONE atomic step, or two
+  // concurrent removals both see the document and the card gets two "removed
+  // budget.pdf" lines. Only the caller whose transaction actually removed it
+  // writes the entry. Measured, not hypothetical.
+  const removed = await db().runTransaction(async (tx) => {
+    const cur = await tx.get(ref);
+    if (!cur.exists) return null;
+    tx.delete(ref);
+    return cur.data() as AttachmentDoc;
+  });
 
-    if (!removed) return { ok: true, removed: false };
+  if (!removed) return { ok: true, removed: false };
 
-    // An upload that never finished was never an attachment anyone saw, so
-    // rolling one back is not a removal worth recording.
-    if (removed.status === 'ready') {
-      await recordActivity(cardId, { type: 'detached', actorUid: uid, from: removed.name });
-    }
-
-    logger.info('attachment removed', { cardId, attachmentId, actorUid: uid });
-    return { ok: true, removed: true };
+  // An upload that never finished was never an attachment anyone saw, so
+  // rolling one back is not a removal worth recording.
+  if (removed.status === 'ready') {
+    await recordActivity(cardId, { type: 'detached', actorUid: actorUid, from: removed.name });
   }
+
+  logger.info('attachment removed', { cardId, attachmentId, actorUid });
+  return { ok: true, removed: true };
 }
 
 /**

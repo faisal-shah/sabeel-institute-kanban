@@ -83,7 +83,20 @@ for (const who of ['sara', 'omar']) {
 // Account menu (bottom of the left rail on wide, where this seed runs).
 await admin.getByRole('button', { name: 'Account' }).click();
 await admin.getByRole('button', { name: 'People' }).click();
-await admin.getByText('People', { exact: true }).waitFor({ timeout: 25000 });
+// Wait for the QUEUE, not for the word "People".
+//
+// "People" is the Account-menu item AND the screen heading, so it is on screen
+// before the user list has loaded. The loop below then sampled an empty list,
+// broke on its first pass, and left every seeded run with two PENDING accounts
+// and a one-person board — which is what every manual figure and every local
+// hand-test has been showing since the People screen moved into the nav. The
+// approve click itself was never broken; the wait in front of it was.
+await admin
+  .getByRole('button', { name: 'Approve' })
+  .first()
+  .waitFor({ timeout: 25000 })
+  // A re-run against a seeded emulator has nobody left to approve.
+  .catch(() => undefined);
 for (;;) {
   const approve = admin.getByRole('button', { name: 'Approve' }).first();
   if (!(await approve.isVisible().catch(() => false))) break;

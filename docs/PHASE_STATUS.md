@@ -341,6 +341,37 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Second review pass — v0.2.2
+
+A second multi-pass review, run on the same worry: things had been shipping and
+then being found wrong. Four more defects, in areas the first pass had not
+reached.
+
+- **The client never sanitised the filename.** `constants.ts` says the shared
+  caps exist so a normal action never fails with a raw `permission-denied`, and
+  this was the one place that ignored it: a picker can return a name longer than
+  the rules allow. The row also silently RENAMED itself the moment the upload
+  finished, because only the server was sanitising.
+- **`sanitizeAttachmentName` destroyed the extension.** It truncated with a
+  plain `slice`, so a long name lost its `.pdf` — and the extension is what the
+  row shows as the kind and what viewers sniff. It now shortens the stem and
+  keeps the suffix. Caught by an e2e that uploaded a 300-character name.
+- **`normalizeContentType` let CRLF through.** It only checked for a slash, so
+  `application/pdf\r\nX-Injected: 1` was stored verbatim as the object's
+  `Content-Type` — a response-header-injection shape on a client-controlled
+  field. It now matches RFC 6838's token grammar and discards anything else.
+- **The dev seed had been producing a one-person board for weeks.** Its approve
+  loop waited for the word "People", which is both the nav item and the screen
+  heading, so it proceeded before the queue had loaded, found no Approve button
+  and exited having approved nobody. Every seeded run left two PENDING accounts,
+  and every manual figure and local hand-test since has been of an
+  unrepresentative board. Fixed by waiting for the queue itself; membership went
+  1 → 3 and the manual figures were regenerated.
+
+Also cleaned: the extraction of `applyFinalizeAttachment` /
+`applyDeleteAttachment` in v0.2.1 was done by script and left a vestigial bare
+block and a `const uid = actorUid` alias behind — compile-clean, but cruft.
+
 ### 2026-07-27 — Review of the attachments release — v0.2.1
 
 A deliberate multi-pass review of v0.2.0, run because two defects had

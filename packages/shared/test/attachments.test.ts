@@ -26,6 +26,37 @@ describe('normalizeContentType', () => {
     }
   });
 
+  it('discards anything that is not a well-formed MIME type', () => {
+    // `contentType` arrives on a client-written document and ends up as the
+    // stored object's Content-Type — a response header. CRLF in it is a
+    // header-injection shape, and it used to pass straight through because the
+    // only check was "does it contain a slash".
+    for (const hostile of [
+      'application/pdf\r\nX-Injected: 1',
+      'application/pdf\nSet-Cookie: a=b',
+      '../../etc/passwd/x',
+      `${'a'.repeat(200)}/b`,
+      'application/',
+      '/pdf',
+      'application pdf',
+    ]) {
+      expect(normalizeContentType(hostile)).toBe('application/octet-stream');
+    }
+  });
+
+  it('keeps the legitimate types people actually attach', () => {
+    for (const ok of [
+      'application/pdf',
+      'image/png',
+      'image/svg',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/x-7z-compressed',
+    ]) {
+      expect(normalizeContentType(ok)).toBe(ok);
+    }
+  });
+
   it('refuses to store the types that must never render inline', () => {
     // Served from storage.googleapis.com, these would execute script on Google's
     // origin. Nobody attaching a file to a card needs a live document.
@@ -54,6 +85,18 @@ describe('sanitizeAttachmentName', () => {
     expect(sanitizeAttachmentName('re\u0007port.pdf')).toBe('report.pdf');
     expect(sanitizeAttachmentName('../../etc/passwd')).toBe('.._.._etc_passwd');
     expect(sanitizeAttachmentName('a"b;c.pdf')).toBe('a_b_c.pdf');
+  });
+
+  it('keeps the extension when it has to shorten a long name', () => {
+    // Truncating the whole string drops the extension, and the extension is
+    // what the row shows as the file's kind and what some viewers sniff.
+    const long = sanitizeAttachmentName(`${'x'.repeat(400)}.txt`);
+    expect(long).toHaveLength(ATTACHMENT_NAME_MAX);
+    expect(long.endsWith('.txt')).toBe(true);
+    // A trailing dot-something that is not plausibly an extension is not kept.
+    expect(sanitizeAttachmentName(`${'x'.repeat(400)}.${'y'.repeat(40)}`)).toHaveLength(
+      ATTACHMENT_NAME_MAX,
+    );
   });
 
   it('clamps to the cap and never returns empty', () => {

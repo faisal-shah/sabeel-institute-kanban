@@ -175,6 +175,28 @@ try {
     await page.getByText(/PDF ·/).isVisible().catch(() => false),
   );
 
+  // ---- A filename the rules would refuse ----------------------------------
+  // 300 characters plus a quote. The rules cap the name, so without the client
+  // sanitising first this fails with a raw permission-denied on an ordinary
+  // attachment; and because the server sanitises anyway, an unsanitised row
+  // would visibly RENAME itself the instant the upload finished.
+  {
+    const nasty = `${'x'.repeat(300)}"quote.txt`;
+    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
+    await page.getByRole('button', { name: 'Attach a file' }).click();
+    await (await chooser).setFiles({
+      name: nasty,
+      mimeType: 'text/plain',
+      buffer: Buffer.from('long name'),
+    });
+    await page.getByText(/TXT ·/).waitFor({ timeout: 40000 });
+    check('an over-long, quote-bearing filename still uploads', true);
+    check(
+      'and it is not left holding a quote',
+      !(await page.getByText(/"quote\.txt/).isVisible().catch(() => false)),
+    );
+  }
+
   // ---- Remove -------------------------------------------------------------
   await page.getByRole('button', { name: 'Remove budget.pdf' }).click();
   await page.getByText(/PDF ·/).waitFor({ state: 'detached', timeout: 25000 });

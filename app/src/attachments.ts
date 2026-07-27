@@ -1,7 +1,7 @@
 import { collection, doc, orderBy, query, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytesResumable } from 'firebase/storage';
-import { attachmentStoragePath } from '@sabeel/shared';
+import { attachmentStoragePath, sanitizeAttachmentName } from '@sabeel/shared';
 import { db, functions, storage } from './firebase';
 import { EMULATOR_HOST, USE_EMULATORS } from './env';
 import { useLiveQuery } from './liveQuery';
@@ -143,12 +143,21 @@ export async function uploadAttachment(params: {
   const attachmentId = target.id;
   onStart(attachmentId);
 
+  // Sanitise HERE as well as at finalize, for two reasons.
+  //
+  // The rules cap `name` at ATTACHMENT_NAME_MAX and a picker can hand back a
+  // longer one, so an ordinary attachment would fail with a raw
+  // `permission-denied` — exactly what the shared caps exist to prevent (see
+  // the docblock on constants.ts). And the server sanitises anyway, so without
+  // this the row would silently RENAME itself the moment the upload finished.
+
   // NOTE: `setDoc` resolves on SERVER ack, so offline this never returns and the
   // upload never starts. That is the right ordering — an unauthorized upload
   // should fail fast while online — but it means the caller must render the
   // pre-bytes state as "waiting", not as a spinner that is about to finish.
+  const name = sanitizeAttachmentName(picked.name);
   await setDoc(target, {
-    name: picked.name,
+    name,
     contentType: picked.contentType,
     uploadedBy: user.uid,
     uploadedAt: Date.now(),

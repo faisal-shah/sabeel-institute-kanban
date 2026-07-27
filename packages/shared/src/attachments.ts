@@ -36,9 +36,21 @@ const NEVER_INLINE = new Set([
  * The picker's claim is untrusted on both surfaces, so this runs server-side at
  * finalize and decides what the object's stored `contentType` becomes.
  */
+/**
+ * `type/subtype`, per RFC 6838's restricted token grammar.
+ *
+ * Matched STRICTLY, not merely checked for a slash. `contentType` arrives on a
+ * client-written document — the rules only bound its length — and it ends up as
+ * the stored object's `Content-Type`, i.e. in a response header. A value
+ * containing CRLF passed the old "does it contain a slash" test unchanged,
+ * which is a header-injection shape. Anything that is not a well-formed type is
+ * not repaired, it is discarded.
+ */
+const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/;
+
 export function normalizeContentType(declared: string | null | undefined): string {
   const bare = (declared ?? '').split(';')[0].trim().toLowerCase();
-  if (!bare || !bare.includes('/')) return 'application/octet-stream';
+  if (!MIME.test(bare)) return 'application/octet-stream';
   if (NEVER_INLINE.has(bare)) return 'application/octet-stream';
   return bare;
 }
@@ -66,9 +78,18 @@ export function sanitizeAttachmentName(name: string | null | undefined): string 
     .replace(/[\u0000-\u001F\u007F]/g, '')
     .replace(/[/\\]/g, '_')
     .replace(/["';]/g, '_')
-    .trim()
-    .slice(0, ATTACHMENT_NAME_MAX);
-  return cleaned || 'file';
+    .trim();
+  if (!cleaned) return 'file';
+  if (cleaned.length <= ATTACHMENT_NAME_MAX) return cleaned;
+
+  // Shorten the STEM, not the whole string. A plain slice cuts the extension
+  // off, and the extension is what the file row shows as the kind and what some
+  // viewers sniff to decide how to open it — so a long name would arrive as an
+  // unopenable, untyped blob. A long trailing dot-segment is not treated as an
+  // extension, because it is not one.
+  const dot = cleaned.lastIndexOf('.');
+  const ext = dot > 0 && cleaned.length - dot <= 12 ? cleaned.slice(dot) : '';
+  return cleaned.slice(0, ATTACHMENT_NAME_MAX - ext.length) + ext;
 }
 
 /** RFC 5987 percent-encoding, as `filename*` requires. */
