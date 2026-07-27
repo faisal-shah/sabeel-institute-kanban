@@ -38,12 +38,35 @@ tmp="$(mktemp -d)/$ASSET"; cp "$APK" "$tmp"
 gh release upload "$TAG" "$tmp" --clobber --repo "$REPO"
 echo "Uploaded $ASSET to $REPO ($TAG)"
 
-# 2) Bump the version label on the download page — TEXT ONLY, no binary.
+# 2) Bump the version label and the published time — TEXT ONLY, no binary.
+#
+# The time matters more than it looks: the download URL is a ROLLING asset, so
+# the page and the link look identical before and after a publish. Without a
+# timestamp there is no way for anyone — including us — to tell whether the file
+# behind that button is the build we just cut or last month's. "Did it actually
+# publish?" is otherwise unanswerable from the page.
+#
+# In the org timezone (matching ORG_TIMEZONE in @sabeel/shared), spelled out with
+# the zone, because a bare "26/07 19:42" is ambiguous to a reader and useless to
+# someone in another country.
+PUBLISHED="$(TZ=America/New_York date '+%-d %B %Y at %-I:%M %p %Z')"
 if [ -d "$PAGES_DIR/.git" ]; then
   sed -i -E "s#(Current build: <strong>)v[0-9][^<]*#\\1v${VERSION}#" \
     "$PAGES_DIR/sabeel-kanban/index.html"
+  sed -i -E "s#(<span class=\"published\">)[^<]*#\\1${PUBLISHED}#" \
+    "$PAGES_DIR/sabeel-kanban/index.html"
+  # Both labels must actually be present, or the page silently keeps advertising
+  # an older build while the asset underneath it changes.
+  grep -q "Current build: <strong>v${VERSION}</strong>" \
+    "$PAGES_DIR/sabeel-kanban/index.html" \
+    || { echo "FAILED to update the version label on the download page" >&2; exit 1; }
+  grep -q "<span class=\"published\">${PUBLISHED}</span>" \
+    "$PAGES_DIR/sabeel-kanban/index.html" \
+    || { echo "FAILED to update the published time on the download page" >&2; exit 1; }
+  echo "Page labelled v${VERSION}, published ${PUBLISHED}"
   git -C "$PAGES_DIR" add sabeel-kanban/index.html
-  git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION}" && git -C "$PAGES_DIR" push -q \
+  git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION} (${PUBLISHED})" \
+    && git -C "$PAGES_DIR" push -q \
     || echo "(page unchanged)"
 else
   echo "NOTE: pages repo not at $PAGES_DIR — set SK_PAGES_DIR to update the version label." >&2

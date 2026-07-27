@@ -189,6 +189,17 @@ Before sharing a build:
    versions does**, and needs a one-time `gh auth refresh -h github.com -s
    workflow` first.
 
+4. **Confirm the download page says the right version AND the right time.** The
+   script writes both — `Current build: vX.Y.Z, published <date> at <time> EDT`
+   — and refuses to continue if either label did not actually change.
+
+   The timestamp is not decoration. The public download URL is a **rolling
+   asset**: the page and the link look byte-identical before and after a
+   publish, so without a time there is no way for anyone (including us) to tell
+   whether the file behind that button is the build just cut or last month's.
+   "Did it actually publish?" is otherwise unanswerable from the page itself.
+   Load the page after publishing and read the time back.
+
 ## Rollback
 
 Hosting keeps previous releases — roll back from the console in one click.

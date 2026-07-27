@@ -11,9 +11,7 @@ installed on people's devices.
 Everything else is derived from it.**
 
 - No pre-release suffix (`1.2.3-beta.1`), no fourth component (`1.2.3.4`), no
-  leading `v` (`v1.2.3`), no date-style components with leading zeros
-  (`2026.07.01` — legal, but `07` and `7` are the same number, so the next one
-  may not increase).
+  leading `v` (`v1.2.3`), **no leading zeros** (`2026.07.01`, `01.2.3`).
 - At most 18 characters.
 - Strictly increasing, never reused. Once a version has been published, that
   number is spent forever.
@@ -79,8 +77,9 @@ silently computing a wrong number. In Gradle:
 ```groovy
 def expoVersion = new groovy.json.JsonSlurper()
     .parse(file("$projectRoot/app.json")).expo.version
-if (!expoVersion.matches(/^\d+\.\d+\.\d+$/)) {
-    throw new GradleException("app.json version '${expoVersion}' must be X.Y.Z")
+// Same no-leading-zeros shape as the script — 2026.07.01 must not get through here either.
+if (!expoVersion.matches(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)) {
+    throw new GradleException("app.json version '${expoVersion}' must be X.Y.Z, no leading zeros")
 }
 def (vMajor, vMinor, vPatch) = expoVersion.tokenize('.').collect { it.toInteger() }
 if (vMinor > 999 || vPatch > 999 || vMajor > 2147) {
@@ -107,9 +106,12 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const version = JSON.parse(readFileSync(resolve(root, 'app/app.json'), 'utf8')).expo.version;
 
+// NOT /^\d+\.\d+\.\d+$/ — that accepts 2026.07.01.
+const SHAPE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+
 const problems = [];
-if (!/^\d+\.\d+\.\d+$/.test(version)) {
-  problems.push(`"${version}" is not three period-separated integers (X.Y.Z). No suffix, no fourth component, no leading "v".`);
+if (!SHAPE.test(version)) {
+  problems.push(`"${version}" is not three period-separated integers (X.Y.Z) without leading zeros.`);
 }
 if (version.length > 18) {
   problems.push(`"${version}" exceeds the 18 characters Apple allows.`);
@@ -127,9 +129,23 @@ if (problems.length) {
 console.log(`version ok (${version}, store-legal)`);
 ```
 
-Test it against the shapes it exists to stop — `0.2.0-beta.1`, `1.2.3.4`,
-`v1.2.3`, `0.1.1000` — and confirm each is rejected. A validator nobody has seen
-reject anything is not known to work.
+**Bake the negative cases into the script so they run on every invocation**, and
+include `2026.07.01`. This is not belt-and-braces: the naive `^\d+\.\d+\.\d+$`
+above accepts a date, because `07` is digits — and that hole survived review here
+until a second pair of eyes pointed the regex at one. A self-test that runs only
+when someone remembers to run it is the same as no self-test.
+
+Enforce it in **three** places, because each catches what the others cannot:
+
+| Where | Catches |
+|---|---|
+| CI / lint script | a web-only release that never touches the native build |
+| the native build config (Gradle) | a build where nobody ran the script |
+| the publish/release step | the last gate before a tag and a public download exist |
+
+*The leading-zero hole and the always-on self-test came from the maintainer of a
+sibling project reviewing an earlier draft of this note. Both are now in the
+shared `expo-firebase-stack` skill.*
 
 ## When iOS actually happens
 

@@ -35,11 +35,14 @@ def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
  */
 def expoVersion = new groovy.json.JsonSlurper()
     .parse(file("$projectRoot/app.json")).expo.version
+// No leading zeros: `2026.07.01` passes a naive \d+ check and is even legal to
+// Apple, but 07 and 7 are the same number — so the scheme silently stops
+// increasing, and the arithmetic below reads 7 where a human reads 07.
 def versionParts = expoVersion.tokenize('.')
-if (versionParts.size() != 3 || !expoVersion.matches(/^\d+\.\d+\.\d+$/)) {
+if (versionParts.size() != 3 || !expoVersion.matches(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)) {
     throw new GradleException(
-        "app.json version '${expoVersion}' must be exactly three integers (X.Y.Z) — " +
-        "see scripts/check-version.mjs.")
+        "app.json version '${expoVersion}' must be exactly three integers (X.Y.Z), " +
+        "no leading zeros — see scripts/check-version.mjs.")
 }
 def (vMajor, vMinor, vPatch) = versionParts.collect { it.toInteger() }
 if (vMinor > 999 || vPatch > 999 || vMajor > 2147) {
