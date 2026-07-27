@@ -341,6 +341,46 @@ the team.
 
 ## Deploy log
 
+### 2026-07-26 — The org timezone was an hour out — v0.1.34
+
+**`ORG_TIMEZONE` was `America/New_York` for a Houston team.** Now
+`America/Chicago`. It survived this long because nothing about it looked like a
+bug: due dates are all-day `YYYY-MM-DD` strings, so the only symptoms were a card
+turning overdue an hour early — at 11pm the night before — and the due-soon
+reminder arriving at 07:00 local instead of 08:00. The weekly prune and the daily
+reminder are both scheduled in this zone, so both move with it.
+
+The test suite could not have caught it. It asserted
+`todayInOrgTz('2026-07-19T02:00:00Z') === '2026-07-18'`, and 02:00Z is the
+previous day in Chicago *and* in New York — the assertion was true under the
+wrong configuration, so it could never fail. The test now pins an instant that
+differs (04:30Z on 19 July is the 18th in Chicago and already the 19th in New
+York), which means moving the constant back fails rather than passing quietly.
+Worth generalising: a test whose expected value would not CHANGE if the constant
+were wrong is decorative.
+
+There is nothing to align with the sibling time-tracker, and `CLAUDE.md` now says
+so explicitly, because the obvious future instinct — make the siblings match —
+would be wrong. That project has no org timezone by design; it buckets each entry
+in the timezone where the work happened.
+
+Also from the sibling maintainer's review of `docs/VERSIONING-RULE.md`: the
+version shape check `^\d+\.\d+\.\d+$` accepts `2026.07.01`. Apple accepts it
+too — digits and periods — but `07` and `7` are the same number, so a date-style
+scheme silently stops increasing and every numeric derivation downstream reads 7
+where a human reads 07. Now `^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$` in
+both `check-version.mjs` and `build.gradle`, and the validator **self-tests on
+every run** against seven bad shapes including that one — the hole existed
+precisely because the regex had never been pointed at a date.
+
+**The download page carries a published date and time.** The public URL is a
+rolling asset, so the page and the link are byte-identical before and after a
+publish; without a timestamp nobody, us included, can tell whether the file
+behind the button is the build just cut or last month's. `publish-apk.sh` writes
+both labels and greps them back, failing rather than trusting `sed`, and the
+timestamp is pinned to the org zone rather than the build machine's. See
+`docs/DEPLOY.md` step 4.
+
 ### 2026-07-26 — Mentions in edits, and two review findings — v0.1.33
 
 **@mentions did not work when editing a comment.** Three faults stacked, only
