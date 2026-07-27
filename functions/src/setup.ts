@@ -1,5 +1,7 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { setGlobalOptions } from 'firebase-functions/v2';
+import { EMULATOR_STORAGE_BUCKET, STORAGE_BUCKET } from '@sabeel/shared';
+import { isEmulatorProject } from './env';
 
 /**
  * One Admin SDK app for the whole codebase, and the shared deploy options.
@@ -17,6 +19,20 @@ setGlobalOptions({
   maxInstances: 10,
 });
 
+/**
+ * The bucket is named explicitly rather than inferred.
+ *
+ * Neither environment supplies a usable one. The functions emulator supplies
+ * nothing at all, so the Admin SDK throws "Bucket name not specified" the first
+ * time anything touches Storage; and `FIREBASE_CONFIG.storageBucket` has been
+ * seen to carry a legacy `<project>.appspot.com` name on projects using the
+ * modern default-bucket naming — pointing at a bucket that does not exist.
+ *
+ * This lives here, not in `index.ts`, because every module starts with
+ * `import './setup'` — so nothing can get in front of it to initialise first.
+ */
 if (getApps().length === 0) {
-  initializeApp();
+  initializeApp({
+    storageBucket: isEmulatorProject() ? EMULATOR_STORAGE_BUCKET : STORAGE_BUCKET,
+  });
 }

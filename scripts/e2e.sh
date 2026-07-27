@@ -74,5 +74,5 @@ fi
 
 exec firebase emulators:exec \
   --project demo-sabeel-kanban \
-  --only firestore,auth,functions \
+  --only firestore,auth,functions,storage \
   "node scripts/web-e2e.mjs"

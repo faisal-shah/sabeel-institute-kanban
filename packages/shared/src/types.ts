@@ -154,6 +154,31 @@ export interface CommentDoc {
   editedAt?: number;
 }
 
+/**
+ * A file on a card. Lives at `cards/{cardId}/attachments/{attachmentId}`, so it
+ * travels with the card when it moves between boards.
+ *
+ * The document exists BEFORE its bytes do. Creating it is what authorizes the
+ * upload — Cloud Storage rules cannot read Firestore, so this rules-checked
+ * write is the only place board membership can be proven — and the object then
+ * goes to a path derived from the ids. A document in `status: 'uploading'` is
+ * therefore an ordinary, expected state, not a broken one.
+ */
+export interface AttachmentDoc {
+  /** Original filename, sanitized server-side at finalize. Display only. */
+  name: string;
+  contentType: string;
+  uploadedBy: string;
+  uploadedAt: number;
+  status: 'uploading' | 'ready';
+  /**
+   * Read from the object by `finalizeAttachment`, never claimed by the client —
+   * which is why it is absent while the upload is still in flight, and why the
+   * rules do not admit it on create.
+   */
+  sizeBytes?: number;
+}
+
 export type ActivityType =
   | 'created'
   | 'moved'

@@ -8,26 +8,36 @@
 import { initializeApp, deleteApp, getApps, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
+import { EMULATOR_PROJECT_ID, EMULATOR_STORAGE_BUCKET } from '@sabeel/shared';
 
-export const PROJECT_ID = 'demo-sabeel-kanban';
+export const PROJECT_ID = EMULATOR_PROJECT_ID;
 export const AUTH_HOST = '127.0.0.1:9099';
+export const STORAGE_HOST = '127.0.0.1:9199';
 export const FUNCTIONS_ORIGIN = `http://127.0.0.1:5001/${PROJECT_ID}/us-central1`;
 
 process.env.FIREBASE_AUTH_EMULATOR_HOST = AUTH_HOST;
 process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
+// Host:port with NO protocol — the Admin SDK throws if you include one, and it
+// reads this only when the Storage service is first constructed, so it has to be
+// set at module load rather than inside a test.
+process.env.FIREBASE_STORAGE_EMULATOR_HOST = STORAGE_HOST;
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 
 let app: App | undefined;
 
 export function adminApp(): App {
   if (!app) {
-    app = getApps().length ? getApps()[0] : initializeApp({ projectId: PROJECT_ID });
+    app = getApps().length
+      ? getApps()[0]
+      : initializeApp({ projectId: PROJECT_ID, storageBucket: EMULATOR_STORAGE_BUCKET });
   }
   return app;
 }
 
 export const adminAuth = () => getAuth(adminApp());
 export const adminDb = () => getFirestore(adminApp());
+export const adminBucket = () => getStorage(adminApp()).bucket();
 
 export async function shutdown() {
   if (app) {

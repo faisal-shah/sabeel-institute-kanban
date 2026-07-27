@@ -354,6 +354,71 @@ service cloud.firestore {
         && (resource.data.authorUid == request.auth.uid || isManager());
     }
 
+    // ---- Attachments ----
+    // Files on a card. THIS RULE IS THE UPLOAD'S AUTHORIZATION. Cloud Storage
+    // rules cannot read Firestore, so `storage.rules` cannot ask whether someone
+    // is on this card's board — only a Firestore rule can, and the object is
+    // then written to a path derived from ids that only a successful create here
+    // could have produced.
+    //
+    // Nothing ever reads the bytes through Storage: `storage.rules` denies reads
+    // outright and downloads go through the getAttachmentUrl callable, which
+    // repeats this membership check before signing. boardId is resolved
+    // card → board, same as comments.
+    match /cards/{cardId}/attachments/{attachmentId} {
+
+      function cardBoardId() {
+        return get(/databases/$(database)/documents/cards/$(cardId)).data.boardId;
+      }
+      function board() {
+        return get(/databases/$(database)/documents/boards/$(cardBoardId())).data;
+      }
+      function onBoard() {
+        return isActive() && (isManager() || request.auth.uid in board().memberUids);
+      }
+      function attachment() {
+        return request.resource.data;
+      }
+
+      allow get, list: if onBoard();
+
+      // `sizeBytes` is deliberately ABSENT from the allowlist: it is read off the
+      // object by finalizeAttachment and never claimed by the uploader, so a
+      // client cannot write it at all.
+      allow create: if onBoard()
+        && attachment().keys().hasOnly(['name', 'contentType', 'uploadedBy', 'uploadedAt', 'status'])
+        // You attach as yourself or not at all.
+        && attachment().uploadedBy == request.auth.uid
+        // Every attachment starts unfinished; only the server moves it on.
+        && attachment().status == 'uploading'
+        && attachment().name is string
+        && attachment().name.size() > 0
+        && attachment().name.size() <= 255
+        && attachment().contentType is string
+        && attachment().contentType.size() > 0
+        && attachment().contentType.size() <= 255
+        && attachment().uploadedAt is number;
+
+      // Clients neither edit nor delete an attachment.
+      //
+      // UPDATE belongs to finalizeAttachment alone (the Admin SDK bypasses these
+      // rules), so `ready` cannot be forged onto a document whose bytes never
+      // arrived, and the recorded size is always the one the server read.
+      //
+      // DELETE goes through the deleteAttachment callable, for two reasons.
+      // `storage.rules` denies clients deleting objects, so a client-side
+      // deleteDoc would remove the record and strand the bytes — unreferenced,
+      // unreadable, invisible and billable. And a Firestore delete trigger
+      // cannot know WHO deleted, which the activity log needs: removal is
+      // recorded, and a record naming nobody is not a record.
+      //
+      // Who may remove one is therefore enforced in the callable: any active
+      // member of the board, deliberately NOT the manager-only gate that
+      // permanent card deletion uses. Attaching the wrong file is an ordinary
+      // mistake and should not need someone else to undo.
+      allow update, delete: if false;
+    }
+
     // ---- Activity ----
     // Read-only to every client, always. The log is trustworthy precisely
     // because nobody can write it: "Sara moved this to Done" means the server

@@ -30,6 +30,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from './firebase-config';
 import { EMULATOR_HOST, EMULATOR_PORTS, USE_EMULATORS } from './env';
 
@@ -66,10 +67,18 @@ export const db: Firestore = initializeFirestore(app, {
 
 export const functions: Functions = getFunctions(app, 'us-central1');
 
+/**
+ * Attachments only. The bucket is otherwise unused, and every read of it goes
+ * through a signed URL minted by a callable — `storage.rules` denies reads
+ * outright, because Storage rules cannot check board membership.
+ */
+export const storage: FirebaseStorage = getStorage(app);
+
 if (USE_EMULATORS) {
   connectAuthEmulator(auth, `http://${EMULATOR_HOST}:${EMULATOR_PORTS.auth}`, {
     disableWarnings: true,
   });
   connectFirestoreEmulator(db, EMULATOR_HOST, EMULATOR_PORTS.firestore);
   connectFunctionsEmulator(functions, EMULATOR_HOST, EMULATOR_PORTS.functions);
+  connectStorageEmulator(storage, EMULATOR_HOST, EMULATOR_PORTS.storage);
 }

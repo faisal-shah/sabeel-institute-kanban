@@ -25,4 +25,4 @@ echo
 
 exec firebase emulators:start \
   --project demo-sabeel-kanban \
-  --only firestore,auth,functions
+  --only firestore,auth,functions,storage

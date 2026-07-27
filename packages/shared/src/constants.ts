@@ -48,6 +48,65 @@ export const CARD_TITLE_MAX = 200;
 export const COMMENT_BODY_MAX = 5000;
 /** Generous, but bounded — a card is re-downloaded on every board-list snapshot. */
 export const CARD_DESCRIPTION_MAX = 20000;
+/** Also mirrored in `storage.rules`; a drift-guard test asserts the two agree. */
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+/** The name ends up in a Content-Disposition header, so it is bounded twice. */
+export const ATTACHMENT_NAME_MAX = 255;
+
+/**
+ * How long an attachment's signed URL stays valid.
+ *
+ * Minted per tap and never cached: an attachment is opened immediately, so there
+ * is no refresh machinery to build. An hour rather than minutes because a PDF
+ * left open in a browser viewer keeps issuing range requests — and an expired
+ * GCS signed URL answers **HTTP 400 `ExpiredToken`**, not 403, so the viewer
+ * simply goes blank with nothing the reader can act on.
+ */
+export const ATTACHMENT_URL_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * How long an attachment may sit in `status: 'uploading'` before the sweeper
+ * treats it as abandoned and deletes the document with its bytes.
+ *
+ * Generous on purpose: the failure this cleans up is a closed tab or a killed
+ * app mid-upload, and deleting someone's slow-but-live upload would be worse
+ * than paying for a stray object for another day.
+ */
+export const ATTACHMENT_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The project id the emulators run under. Everything server-side —
+ * `firebase emulators:exec --project`, the Functions runtime, the Admin SDK in
+ * scripts and tests — uses this id.
+ *
+ * THE CLIENT MUST USE IT TOO. The Firestore emulator partitions data by project
+ * id, so a client configured with a different id talks to a *different database
+ * inside the same emulator*. The symptom is brutal to diagnose: writes succeed,
+ * the trigger logs success, and the client's listener returns a server snapshot
+ * (fromCache=false) saying the document does not exist — because in its
+ * namespace, it doesn't. Cost an hour on 2026-07-19.
+ *
+ * It lives here rather than in the app because functions need it too, to decide
+ * whether they may take the emulator branch of the signed-URL seam.
+ */
+export const EMULATOR_PROJECT_ID = 'demo-sabeel-kanban';
+
+/**
+ * Cloud Storage buckets, stated explicitly on every surface.
+ *
+ * Neither side can be trusted to work one out for itself. The Admin SDK throws
+ * "Bucket name not specified" when the functions emulator supplies nothing, and
+ * `FIREBASE_CONFIG.storageBucket` has been seen to carry a legacy
+ * `<project>.appspot.com` name for projects on the modern default-bucket naming
+ * — a bucket that does not exist here.
+ *
+ * The client needs the emulator name overridden too, not just the project id.
+ * Leaving the real bucket in an emulator build uploads to a bucket the server
+ * never looks in, and the only symptom is `finalizeAttachment` reporting no file
+ * found for an upload that plainly succeeded.
+ */
+export const STORAGE_BUCKET = 'sabeel-institute-kanban.firebasestorage.app';
+export const EMULATOR_STORAGE_BUCKET = `${EMULATOR_PROJECT_ID}.firebasestorage.app`;
 
 /**
  * Every collection holding data worth noticing the loss of — the inventory the
@@ -70,6 +129,7 @@ export const COLLECTIONS = {
   cards: 'root',
   comments: 'group',
   activity: 'group',
+  attachments: 'group',
   notifications: 'group',
 } as const;
 

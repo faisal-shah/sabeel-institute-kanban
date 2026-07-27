@@ -54,10 +54,10 @@ npm run build -w functions
 #     unique ids and never clearFirestore, so the trigger above cannot collide.
 firebase emulators:exec \
   --project demo-sabeel-kanban \
-  --only firestore \
+  --only firestore,storage \
   "npm run test:integration:rules -w functions"
 
 exec firebase emulators:exec \
   --project demo-sabeel-kanban \
-  --only firestore,auth,functions \
+  --only firestore,auth,functions,storage \
   "npm run test:integration:fn -w functions"

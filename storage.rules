@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// The bucket holds card attachments and nothing else.
+//
+// Clients may write an object ONCE and may never read one. Reads go through the
+// `getAttachmentUrl` callable, which checks board membership and mints a
+// short-lived signed URL — signed URLs bypass these rules entirely, which is
+// what makes `allow read: if false` the intended end state rather than a stage
+// to be relaxed later.
+//
+// The reason the split exists at all: Cloud Storage rules CANNOT read Firestore,
+// and board membership is a Firestore document. These rules can only ask "is
+// this an active account"; everything board-shaped is enforced by the Firestore
+// rule on the attachment document and by the callables.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Claims are what these rules trust, exactly as in firestore.rules. A
+    // default of '' means a claimless token fails every check.
+    function isActive() {
+      return request.auth != null
+        && request.auth.token.get('status', '') == 'active';
+    }
+
+    match /cards/{cardId}/attachments/{attachmentId} {
+      // WRITE-ONCE. `resource == null` holds only while nothing is there yet, so
+      // an attachment's bytes can never be swapped underneath people who have
+      // already opened the card.
+      //
+      // It also denies DELETE — `write` covers delete, and `resource` is
+      // non-null then. That is deliberate: object removal belongs to the
+      // deleteAttachment callable, which is what makes "no orphaned bytes"
+      // enforceable rather than merely intended. The consequence to remember is
+      // that a RETRY after a failed upload must mint a NEW attachment id; a
+      // second write to the same path is refused, and would otherwise surface as
+      // an alarming permission error on an ordinary retry.
+      //
+      // Size is enforced HERE as well as in the callable because the upload goes
+      // straight to Storage: by the time a function could inspect it, the bytes
+      // would already have been paid for. The number is mirrored from
+      // ATTACHMENT_MAX_BYTES in @sabeel/shared — rules cannot import TypeScript,
+      // so a test asserts the two have not drifted.
+      allow write: if isActive()
+        && resource == null
+        && request.resource.size <= 10 * 1024 * 1024;
+
+      allow read: if false;
+    }
+
+    // Accepted residual, recorded so it is a decision rather than an oversight:
+    // an active user who knows a card id could write bytes for a card they are
+    // not on. Those bytes are unreadable — reads are denied here and every
+    // download is membership-checked — but they are billable. The alternative,
+    // a staging path plus a server-side copy, doubles the bytes on every upload
+    // to defend against a threat that does not exist among fewer than fifty
+    // colleagues who all work here.
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,3 +1,8 @@
+import {
+  EMULATOR_PROJECT_ID,
+  EMULATOR_STORAGE_BUCKET,
+  STORAGE_BUCKET,
+} from '@sabeel/shared';
 import { USE_EMULATORS } from './env';
 
 /**
@@ -6,10 +11,6 @@ import { USE_EMULATORS } from './env';
  *
  * Real values for the `sabeel-institute-kanban` project (registered 2026-07-19).
  * Local development still runs against the emulators — see USE_EMULATORS below.
- *
- * `storageBucket` is recorded because Firebase hands it to us, NOT because it is
- * used: attachments are deliberately out of scope and no Storage bucket is
- * provisioned. Do not start using it without revisiting that decision.
  */
 const realConfig = {
   apiKey: 'AIzaSyDnHBj4vlBquHotVRjexa2yB1_x18XWqaI',
@@ -21,7 +22,7 @@ const realConfig = {
   // 2026-07-19; the firebaseapp.com entries are kept as a working fallback.
   authDomain: 'sabeel-institute-kanban.web.app',
   projectId: 'sabeel-institute-kanban',
-  storageBucket: 'sabeel-institute-kanban.firebasestorage.app',
+  storageBucket: STORAGE_BUCKET,
   messagingSenderId: '826656438175',
   appId: '1:826656438175:web:d9d89ccb61181de5c5efaa',
 };
@@ -37,21 +38,24 @@ export const WEB_CLIENT_ID =
   '826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com';
 
 /**
- * The project id the emulators run under. Everything server-side —
- * `firebase emulators:exec --project`, the Functions runtime, the Admin SDK in
- * scripts and tests — uses this id.
- *
- * THE CLIENT MUST USE IT TOO. The Firestore emulator partitions data by project
- * id, so a client configured with a different id talks to a *different database
- * inside the same emulator*. The symptom is brutal to diagnose: writes succeed,
- * the trigger logs success, and the client's listener returns a server snapshot
- * (fromCache=false) saying the document does not exist — because in its
- * namespace, it doesn't. Cost an hour on 2026-07-19.
+ * The emulator project id now lives in `@sabeel/shared` — functions need it too,
+ * to decide whether they may take the emulator branch of the signed-URL seam,
+ * and the app and functions must never each hold their own copy of a rule.
  */
-export const EMULATOR_PROJECT_ID = 'demo-sabeel-kanban';
+export { EMULATOR_PROJECT_ID };
 
+/**
+ * Emulator mode overrides the project id AND the bucket. Overriding only the
+ * project id leaves the client uploading to the real bucket while every
+ * server-side path looks in the emulator's — and the sole symptom is a finalize
+ * step reporting no file found for an upload that plainly succeeded.
+ */
 export const firebaseConfig = USE_EMULATORS
-  ? { ...realConfig, projectId: EMULATOR_PROJECT_ID }
+  ? {
+      ...realConfig,
+      projectId: EMULATOR_PROJECT_ID,
+      storageBucket: EMULATOR_STORAGE_BUCKET,
+    }
   : realConfig;
 
 /**

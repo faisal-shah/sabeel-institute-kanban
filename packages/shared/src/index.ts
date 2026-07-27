@@ -1,5 +1,6 @@
 export * from './access';
 export * from './activity';
+export * from './attachments';
 export * from './auth';
 export * from './autoScroll';
 export * from './boards';
