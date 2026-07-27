@@ -31,10 +31,14 @@ function when(ms: number): string {
 export function Comments({
   cardId,
   members,
+  prioritiseUids,
   user,
 }: {
   cardId: string;
   members: readonly BoardMemberProfile[];
+  /** The card's assignees, floated to the top of the mention list — the people
+   *  a comment on this card is most likely to be addressed to. */
+  prioritiseUids?: readonly string[];
   user: SessionUser;
 }) {
   const comments = useComments(cardId);
@@ -116,6 +120,7 @@ export function Comments({
                   value={editDraft}
                   onChangeText={setEditDraft}
                   candidates={candidates}
+                  prioritiseUids={prioritiseUids}
                   placeholder="Edit your comment — @ to mention someone"
                 />
                 <Row>
@@ -163,6 +168,7 @@ export function Comments({
           value={draft}
           onChangeText={setDraft}
           candidates={candidates}
+          prioritiseUids={prioritiseUids}
           placeholder="Add a comment — @ to mention someone"
         />
 

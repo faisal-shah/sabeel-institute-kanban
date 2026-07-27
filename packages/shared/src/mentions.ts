@@ -52,23 +52,41 @@ export function extractMentions(
  * Candidates for the autocomplete, given what has been typed after the "@".
  * Matches on handle, display name or email so people can type whichever they
  * remember.
+ *
+ * EVERY match is returned. This used to stop at five, which on a board with the
+ * whole organisation on it meant eight people were unreachable unless you
+ * guessed enough of a prefix — a silent cap the reader has no way to notice.
+ * The list scrolls now, so there is nothing to cap.
+ *
+ * `prioritise` floats people already on the card to the top, each group sorted
+ * by display name. With a small organisation that is usually the whole fix: the
+ * person you want is the first row rather than somewhere in a scroll. It only
+ * REORDERS — someone who does not match the query is not resurrected by being
+ * on the card.
  */
 export function mentionSuggestions(
   partial: string,
   candidates: readonly MentionCandidate[],
-  limit = 5,
+  opts: { prioritise?: readonly string[] } = {},
 ): MentionCandidate[] {
   const q = partial.toLowerCase().trim();
-  if (q.length === 0) return candidates.slice(0, limit);
+  const matches =
+    q.length === 0
+      ? [...candidates]
+      : candidates.filter(
+          (c) =>
+            handleFor(c.email).includes(q) ||
+            c.displayName.toLowerCase().includes(q) ||
+            c.email.toLowerCase().includes(q),
+        );
 
-  return candidates
-    .filter(
-      (c) =>
-        handleFor(c.email).includes(q) ||
-        c.displayName.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q),
-    )
-    .slice(0, limit);
+  const top = new Set(opts.prioritise ?? []);
+  return matches.sort((a, b) => {
+    const aTop = top.has(a.uid);
+    const bTop = top.has(b.uid);
+    if (aTop !== bTop) return aTop ? -1 : 1;
+    return a.displayName.localeCompare(b.displayName);
+  });
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   TextInput,
   View,
   type StyleProp,
+  type TextInputProps,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
@@ -528,8 +529,24 @@ export const TextField = forwardRef<TextInput, {
   label?: string;
   /** Cap input length so a write never exceeds what firestore.rules allows. */
   maxLength?: number;
+  /**
+   * Raw key events, for a field that has to interpret them — today only the
+   * @mention list, which needs arrows and Escape on web. Supplied by the
+   * `mentionKeys` platform pair, which is empty on native.
+   */
+  onKeyPress?: TextInputProps['onKeyPress'];
 }>(function TextField(
-  { value, onChangeText, placeholder, onSubmit, multiline, autoFocus, label, maxLength },
+  {
+    value,
+    onChangeText,
+    placeholder,
+    onSubmit,
+    multiline,
+    autoFocus,
+    label,
+    maxLength,
+    onKeyPress,
+  },
   ref,
 ) {
   const t = useTheme();
@@ -547,6 +564,7 @@ export const TextField = forwardRef<TextInput, {
       multiline={multiline}
       autoFocus={autoFocus}
       maxLength={maxLength}
+      onKeyPress={onKeyPress}
       accessibilityLabel={label ?? placeholder}
       style={[
         styles.input,

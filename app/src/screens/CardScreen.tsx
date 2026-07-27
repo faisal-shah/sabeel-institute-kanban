@@ -678,7 +678,12 @@ export function CardScreen({
       </Sheet>
 
       <Heading>Comments ({c.commentCount})</Heading>
-      <Comments cardId={cardId} members={assignable} user={user} />
+      <Comments
+        cardId={cardId}
+        members={assignable}
+        prioritiseUids={c.assigneeUids}
+        user={user}
+      />
 
       <Heading>Activity</Heading>
       <Panel>

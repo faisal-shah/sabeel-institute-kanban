@@ -341,6 +341,53 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — The @mention list is reachable — v0.3.2
+
+Reported: typing `@` in a comment shows only a handful of people and, unlike the
+assignee picker, cannot be scrolled. Two causes, and reproducing on a device
+first is what found the second and larger one.
+
+`mentionSuggestions` was hard-capped at **5**. The two biggest boards carry all
+13 accounts, so eight people were unreachable unless you guessed enough of a
+prefix — a silent cap with nothing on screen to hint at it. The limit is gone;
+the list scrolls instead.
+
+**On Android the feature was not merely limited, it was invisible.** The
+before-screenshot is unambiguous: type `@` with the keyboard up and the word
+"Mention" is the last thing above the keyboard. Not one row. The Comment button
+gone too. The list rendered between the field and that button, and `Screen`
+scrolls a focused input clear of the keyboard by `KEYBOARD_BOTTOM_OFFSET` = 96px
+— sized for a field plus one action row — so a 280px list in that gap is simply
+behind the keyboard.
+
+Moving it inline ABOVE the field fixed that and broke the mirror image: the
+keyboard-aware scroller positions the field when it takes focus, and inserting
+240px above it afterwards pushes the field down without another scroll. The list
+was visible and the box being typed into was not. Only the third attempt — an
+absolutely-positioned popover, out of layout entirely — holds both: the field
+never moves, and the list floats over the card content. Each of those three
+states was screenshotted on the AVD; none of it was visible from the code.
+
+Also: people already assigned to the card float to the top, which on an
+organisation this size usually means no scrolling at all; rows are compact
+name-over-handle instead of full-width buttons; the handle is shown because it
+is what actually gets typed; and on web ↑/↓/Enter/Tab/Escape work, through a
+`mentionKeys` platform pair rather than a duplicate component.
+
+Proven by mutation: dropping the priority ordering, re-adding the cap of 5, and
+disabling ArrowDown each turn exactly one check red — the last one picking
+`@faisal` instead of `@sara`, which is precisely what the check exists to catch.
+
+The old e2e selector matched `Name (@handle)` and sat inside an
+`if (isVisible)`, so relabelling the rows would have silently skipped the test
+rather than failing it. The guard is gone and the selector is current.
+
+**Not covered by any test:** `keyboardShouldPersistTaps="handled"` on the
+suggestion list. Web has no soft keyboard, so no e2e can catch its removal —
+without it the first tap only dismisses the keyboard and the row looks dead. It
+was verified by tapping a name on the AVD with the keyboard up, and that is the
+only thing that verifies it.
+
 ### 2026-07-27 — Three fixes from reviewing the label release — v0.3.1
 
 A structured review of v0.2.5–v0.3.0 turned up nine things; three were worth

@@ -127,10 +127,15 @@ Tap any card to open the full view.
 - **Labels** — a short vocabulary shared by **every** board, shown as coloured
   **badges** on the card face. Press **+** to add one to the shared set and this
   card at once.
-- **Comments** — discuss the work. Type **@** followed by a name to pull someone
-  in; they're notified. You can edit your own comment with the **pencil**, and
-  the **@** works there too — mention someone in an edit and they're told, once.
-  Correcting the wording afterwards doesn't notify anyone again.
+- **Comments** — discuss the work. Type **@** to pull someone in; they're
+  notified. A list of everyone on the board appears above the box — **anyone
+  assigned to the card comes first**, and it scrolls if the board is large. Keep
+  typing to narrow it, or tap a name. On a computer you can stay on the keyboard:
+  **↑/↓** to move, **Enter** or **Tab** to pick, **Esc** to dismiss.
+
+  You can edit your own comment with the **pencil**, and the **@** works there
+  too — mention someone in an edit and they're told, once. Correcting the wording
+  afterwards doesn't notify anyone again.
 - **Activity** — who changed what, and when, including subtasks being linked and
   unlinked. Written by the system, so no one can edit it.
 

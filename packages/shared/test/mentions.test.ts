@@ -81,8 +81,48 @@ describe('mentionSuggestions', () => {
     expect(mentionSuggestions('FAISAL', people).map((p) => p.uid)).toEqual(['u2']);
   });
 
-  it('respects the limit', () => {
-    expect(mentionSuggestions('', people, 2)).toHaveLength(2);
+  it('returns EVERY match, because the list scrolls', () => {
+    // It used to stop at five. On a board carrying the whole organisation that
+    // left people unreachable unless you guessed enough of a prefix — the
+    // report this change came from.
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      uid: `m${i}`,
+      displayName: `Person ${String(i).padStart(2, '0')}`,
+      email: `person${i}@oursabeel.com`,
+    }));
+    expect(mentionSuggestions('', many)).toHaveLength(12);
+    expect(mentionSuggestions('person', many)).toHaveLength(12);
+  });
+
+  it('sorts by display name', () => {
+    expect(mentionSuggestions('', people).map((p) => p.displayName)).toEqual([
+      'Faisal Shah',
+      'Omar Ali',
+      'Sara Ahmed',
+      'Sarah Khan',
+    ]);
+  });
+
+  it('floats prioritised people to the top, each group alphabetical', () => {
+    const out = mentionSuggestions('', people, { prioritise: ['u3', 'u4'] });
+    expect(out.map((p) => p.uid)).toEqual([
+      'u4', // Omar Ali     — on the card
+      'u3', // Sarah Khan   — on the card
+      'u2', // Faisal Shah
+      'u1', // Sara Ahmed
+    ]);
+  });
+
+  it('only REORDERS — a prioritised person who does not match stays out', () => {
+    // Being on the card must not resurrect someone the query excludes, or
+    // typing a name would start showing people who do not have it.
+    const out = mentionSuggestions('khan', people, { prioritise: ['u1', 'u2'] });
+    expect(out.map((p) => p.uid)).toEqual(['u3']);
+  });
+
+  it('prioritising someone absent from the candidates changes nothing', () => {
+    const out = mentionSuggestions('', people, { prioritise: ['nobody'] });
+    expect(out.map((p) => p.uid)).toEqual(['u2', 'u4', 'u1', 'u3']);
   });
 });
 

@@ -687,20 +687,63 @@ try {
   const commentBox = admin.getByPlaceholder('Add a comment — @ to mention someone');
   await commentBox.waitFor({ timeout: 20000 });
   await commentBox.click();
-  await commentBox.pressSequentially('Kicking this off, cc @sara', { delay: 10 });
+  await commentBox.pressSequentially('Kicking this off, cc @', { delay: 10 });
+
+  // Rows are named "Mention <person>". NOT wrapped in an `if (isVisible)` like
+  // this block used to be: a guard like that turns a broken selector into a
+  // silently skipped test, which is how the old `(@` selector would have gone on
+  // "passing" after the rows were relabelled.
+  const rows = admin.getByRole('button', { name: /^Mention / });
+  await rows.first().waitFor({ timeout: 20000 });
+  const labels = await rows.evaluateAll((els) =>
+    els.map((e) => e.getAttribute('aria-label') ?? ''),
+  );
+  check('typing @ lists people to mention', labels.length >= 2, `${labels.length} offered`);
+
+  // ArrowDown then Enter must pick the SECOND row, which is the only thing that
+  // proves the highlight moved rather than Enter just taking the top match.
+  const wanted = labels[1].replace(/^Mention\s+/, '').split(/\s+/)[0].toLowerCase();
+  await admin.keyboard.press('ArrowDown');
+  await admin.keyboard.press('Enter');
+  await admin.waitForTimeout(500);
+  const afterArrow = await commentBox.inputValue();
+  check(
+    'arrow keys move the highlight and Enter accepts it',
+    afterArrow.includes(`@${wanted}`),
+    afterArrow,
+  );
+
+  // Escape closes a list you did not want, without touching the text.
+  await commentBox.click();
+  await commentBox.pressSequentially(' @', { delay: 10 });
+  await rows.first().waitFor({ timeout: 15000 });
+  const beforeEsc = await commentBox.inputValue();
+  await admin.keyboard.press('Escape');
+  await admin.waitForTimeout(400);
+  check('Escape dismisses the list', (await rows.count()) === 0);
+  check('and leaves what was typed alone', (await commentBox.inputValue()) === beforeEsc);
+
+  // Typing again brings it back — Escape must not disable it for good.
+  await commentBox.pressSequentially('s', { delay: 10 });
+  check(
+    'typing after Escape reopens the list',
+    await rows
+      .first()
+      .waitFor({ timeout: 15000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
   // Picking a mention must NOT steal focus: you have to be able to keep typing.
-  const suggestion = admin.getByRole('button', { name: /\(@/ }).first();
-  if (await suggestion.isVisible().catch(() => false)) {
-    await suggestion.click();
-    await admin.waitForTimeout(400);
-    const focused = await admin.evaluate(() => {
-      const el = document.activeElement;
-      return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
-    });
-    check('picking a mention keeps focus in the comment box', focused);
-    // And typing actually continues into the same box.
-    await admin.keyboard.type('please take a look');
-  }
+  await rows.first().click();
+  await admin.waitForTimeout(400);
+  const focused = await admin.evaluate(() => {
+    const el = document.activeElement;
+    return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
+  });
+  check('picking a mention keeps focus in the comment box', focused);
+  // And typing actually continues into the same box.
+  await admin.keyboard.type('please take a look');
 
   await admin.getByRole('button', { name: 'Comment', exact: true }).click();
   await admin.getByText('Kicking this off').waitFor({ timeout: 20000 });
