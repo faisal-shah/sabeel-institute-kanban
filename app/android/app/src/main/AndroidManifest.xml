@@ -7,14 +7,20 @@
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
 
-  <!-- Attachments still need NO storage permission, and these are removed to
-       keep that true. expo-file-system's own manifest declares both (capped at
-       API 32) and the merger would fold them in silently — but everything this
-       app does with files happens in its OWN cache directory, which has never
-       needed a permission. Asking for external storage to write a file nobody
-       else can see is the kind of permission that makes people refuse an
-       install. -->
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
+  <!-- WRITE_EXTERNAL_STORAGE is removed. expo-file-system and expo-image-picker
+       both declare it (capped at API 32) and the merger would fold it in, but
+       nothing here writes outside this app's own cache directory, which has
+       never needed a permission. Asking to write files nobody else can see is
+       the kind of permission that makes people refuse an install.
+
+       READ_EXTERNAL_STORAGE is deliberately LEFT ALONE. expo-image-picker
+       declares it "required for picking images from camera roll" on API <= 32,
+       and minSdkVersion here is 24, so devices in that range are in scope. The
+       AVD is API 35 and takes the modern photo-picker path, so this project
+       cannot verify the old one either way — and silently overriding a
+       library's own statement of what it needs, on a path nobody can test, is
+       how a feature comes to be broken only for the person on the oldest
+       phone. It is capped at 32, so it is inert on Android 13 and later. -->
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
 
   <queries>
