@@ -341,6 +341,52 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Opening a file says so, and cannot be started twice — v0.2.6
+
+A member tapped an attachment on Android and was shown *"Call to function
+'ExpoSharing.shareAsync' has been rejected. → Caused by: Another share request
+is being processed now."* (Sentry, `e8d534ed`, 0.2.4+2004, Android 14).
+
+The native message is the symptom; the defect is that **opening gave no feedback
+and stayed tappable while it worked**. Native mints a signed URL through a
+callable and then downloads the entire file — up to 10 MB over a phone
+connection — before any viewer appears. Nothing about the row changed for the
+whole of that. Tapping again was the reasonable thing to do.
+
+The duplicate then hit `expo-sharing`, which keeps exactly ONE pending promise:
+it is set before the chooser starts and cleared only when the activity result
+comes back (`SharingModule.kt`), so anything arriving in between is rejected
+outright. That rejection went to the user verbatim, through `toUserMessage`,
+which returns `e.message` as-is.
+
+Three changes:
+
+- **The row says "Opening…"** and swaps its file glyph for a spinner in a
+  fixed-size box, so the name does not shift. This is the actual fix — the
+  silence is what produced the second tap.
+- **The row now consults `busy`**, which it never did. Every other control in
+  the panel already did, so an open was the one action that stayed live while
+  another was running.
+- **A synchronous ref gate** (`beginOpen`/`endOpen`) alongside it, because
+  `busy` and the opening row are both React state: two taps inside one frame
+  read the value from before the first and both start.
+
+Plus: `openAttachment.ts` now maps the native rejection to a sentence, matched on
+the CODE `ERR_SHARING_IN_PROGRESS` — which expo derives from the exception class
+name — rather than its English text. With the gate in place, reaching it means
+the native slot is genuinely occupied (a chooser still up, or one that went away
+without delivering a result and left the slot stuck).
+
+Verified by mutation, and the first two attempts are the point. Removing the ref
+gate alone left the suite green; removing `busy` alone left it green too — each
+guard covers this scenario by itself. Only restoring **both** to the shipped
+v0.2.4 shape turned it red, at **2 tabs opened instead of 1**. A single-guard
+mutation would have "passed" and told me nothing.
+
+The e2e also had to stop closing the popup on arrival: the open path checks
+`tab.closed` and falls back to navigating the current page, so closing it early
+sent the app itself to the signed URL and broke every later check.
+
 ### 2026-07-27 — A board tile shows when a card has files — v0.2.5
 
 A card with attachments now carries a paperclip and a count on the board, in the

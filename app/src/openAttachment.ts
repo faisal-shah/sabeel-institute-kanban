@@ -18,13 +18,41 @@ import { attachmentCacheName } from '@sabeel/shared';
  * the same path for its CSV export.
  */
 
+/**
+ * expo-sharing holds exactly ONE pending promise, set before the chooser starts
+ * and cleared only when the activity result comes back (SharingModule.kt). A
+ * share that arrives while another is outstanding is rejected, and the rejection
+ * reads "Call to function 'ExpoSharing.shareAsync' has been rejected. → Caused
+ * by: Another share request is being processed now." — a sentence about function
+ * calls, shown verbatim to someone who just wanted to read a PDF.
+ *
+ * The caller stops the ordinary cause (a double tap) synchronously, so reaching
+ * this means the native slot is genuinely occupied: a chooser still on screen,
+ * or one that went away without delivering a result and left the slot stuck.
+ * Matched on the CODE, not the message — expo derives `ERR_SHARING_IN_PROGRESS`
+ * from the exception class name, so it survives a rewording upstream.
+ */
+const SHARING_BUSY = 'ERR_SHARING_IN_PROGRESS';
+
+function isSharingBusy(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: unknown }).code === SHARING_BUSY;
+}
+
 async function shareInstead(uri: string, mimeType: string): Promise<void> {
   if (!(await isAvailableAsync())) {
     throw new Error('No app on this device can open that file.');
   }
-  // The share sheet lists everything that can take the file — save it to Drive,
-  // send it on — which beats "nothing happened" when no viewer claims the type.
-  await shareAsync(uri, { mimeType, dialogTitle: 'Open with' });
+  try {
+    // The share sheet lists everything that can take the file — save it to
+    // Drive, send it on — which beats "nothing happened" when no viewer claims
+    // the type.
+    await shareAsync(uri, { mimeType, dialogTitle: 'Open with' });
+  } catch (e) {
+    if (isSharingBusy(e)) {
+      throw new Error('Another file is still opening. Finish with it, then try this one again.');
+    }
+    throw e;
+  }
 }
 
 export async function openAttachment(

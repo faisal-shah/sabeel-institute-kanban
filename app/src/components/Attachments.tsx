@@ -1,5 +1,5 @@
-import { useState, type ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState, type ComponentProps } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ATTACHMENT_MAX_BYTES, formatBytes } from '@sabeel/shared';
 import {
@@ -77,6 +77,39 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
   const [progress, setProgress] = useState<Record<string, number | null>>({});
   const [picking, setPicking] = useState(false);
 
+  /**
+   * Which file is being opened — as state so the row can say so, and as a ref so
+   * the tap handler can refuse a second one.
+   *
+   * What shipped had NEITHER, and the open row was also the one control in this
+   * panel that never consulted `busy`. So it stayed live for the whole of a slow
+   * open, an ordinary second tap started a second one, and on Android that
+   * duplicate reached expo-sharing — which keeps exactly ONE pending promise
+   * (SharingModule.kt) and rejects anything arriving while a chooser is up. A
+   * member was shown "Call to function 'ExpoSharing.shareAsync' has been
+   * rejected" (Sentry, 2026-07-27).
+   *
+   * `busy` alone would have covered that tap. The ref covers what it structurally
+   * cannot: `busy` and `opening` are state, so they only reach a handler after a
+   * render, and two taps inside one frame both read "idle" and both start.
+   *
+   * The pair is always written through `beginOpen`/`endOpen`, so it cannot drift.
+   */
+  const [opening, setOpening] = useState<string | null>(null);
+  const openingRef = useRef<string | null>(null);
+
+  /** Claims the open slot, or returns false if a file is already opening. */
+  const beginOpen = (id: string) => {
+    if (openingRef.current !== null) return false;
+    openingRef.current = id;
+    setOpening(id);
+    return true;
+  };
+  const endOpen = () => {
+    openingRef.current = null;
+    setOpening(null);
+  };
+
   const start = (source: PickSource) => {
     setPicking(false);
     let started: string | null = null;
@@ -134,14 +167,16 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
 
   // NOT awaited before `run`: the tab has to be opened while the tap is still
   // the reason anything is happening, or the browser blocks it silently.
-  const open = (a: Attachment) =>
+  const open = (a: Attachment) => {
+    if (!beginOpen(a.id)) return;
     void run(
       () =>
         openAttachment({ id: a.id, name: a.name, contentType: a.contentType }, () =>
           attachmentUrl(cardId, a.id),
         ),
       'openAttachment',
-    );
+    ).finally(endOpen);
+  };
 
   const items = list.data ?? [];
 
@@ -202,23 +237,43 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
             );
           }
 
+          // Opening is SLOW and used to be silent. Native mints a signed URL and
+          // then downloads the whole file before any viewer appears, so up to
+          // 10 MB of phone connection passes with the row looking untouched —
+          // which is why someone tapped it again and hit the share rejection.
+          // The row now says what it is doing and stops taking taps.
+          const isOpening = opening === a.id;
+          const openable = ready && !busy;
+
           return (
             <Row key={a.id} style={styles.row}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={ready ? `Open ${a.name}` : a.name}
-                onPress={ready ? () => open(a) : undefined}
-                disabled={!ready}
-                style={({ pressed }) => [styles.face, pressed && ready && { opacity: 0.6 }]}
+                accessibilityLabel={
+                  isOpening ? `Opening ${a.name}` : ready ? `Open ${a.name}` : a.name
+                }
+                accessibilityState={{ disabled: !openable, busy: isOpening }}
+                onPress={openable ? () => open(a) : undefined}
+                disabled={!openable}
+                style={({ pressed }) => [styles.face, pressed && openable && { opacity: 0.6 }]}
               >
-                <MaterialIcons
-                  name={ready ? glyphFor(a.contentType) : 'error-outline'}
-                  size={20}
-                  color={ready ? t.text.muted : t.text.danger}
-                />
+                {isOpening ? (
+                  // Same 20pt box as the glyph it replaces, so the row does not
+                  // jump as it starts and stops.
+                  <ActivityIndicator size="small" color={t.accent.base} style={styles.glyph} />
+                ) : (
+                  <MaterialIcons
+                    name={ready ? glyphFor(a.contentType) : 'error-outline'}
+                    size={20}
+                    color={ready ? t.text.muted : t.text.danger}
+                    style={styles.glyph}
+                  />
+                )}
                 <View style={styles.text}>
                   <Body numberOfLines={1}>{a.name}</Body>
-                  {ready ? (
+                  {isOpening ? (
+                    <Caption>Opening…</Caption>
+                  ) : ready ? (
                     <Caption>
                       {kindOf(a.name)}
                       {a.sizeBytes ? ` · ${formatBytes(a.sizeBytes)}` : ''}
@@ -258,6 +313,9 @@ const styles = StyleSheet.create({
   row: { justifyContent: 'space-between', gap: space.xs },
   // The row is the touch target, so it fills the space the delete icon leaves.
   face: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // Fixed box for the leading mark, so swapping the file glyph for a spinner
+  // while it opens does not shift the name sideways.
+  glyph: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1 },
   uploading: { gap: space.xs, paddingVertical: space.xs, borderRadius: radius.sm },
 });

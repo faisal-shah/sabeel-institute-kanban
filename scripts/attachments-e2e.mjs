@@ -156,6 +156,70 @@ try {
     }
   }
 
+  // ---- A second tap while a file is still opening --------------------------
+  // Opening is slow and used to be SILENT: the signed URL is minted by a
+  // callable and native then downloads the whole file, so nothing about the row
+  // changed for seconds. Someone tapped again, and on Android the duplicate
+  // reached expo-sharing — which keeps one pending promise and rejected it, so a
+  // member got "Call to function 'ExpoSharing.shareAsync' has been rejected"
+  // (Sentry, 2026-07-27).
+  //
+  // The gate is a ref, checked synchronously, because both `busy` and the
+  // opening row are React state and a second tap in the same frame reads the
+  // value from before the first. Delaying the callable holds the window open
+  // wide enough to tap into deliberately.
+  {
+    await page.route('**/getAttachmentUrl', async (r) => {
+      await new Promise((res) => setTimeout(res, 6000));
+      await r.continue();
+    });
+
+    // Collected, NOT closed on arrival. The open path checks `tab.closed` and
+    // falls back to navigating the current page when the popup is gone — so
+    // closing it early sends the APP to the signed URL and every later check
+    // fails against a page that is no longer the app.
+    const opened = [];
+    const countPopup = (p) => opened.push(p);
+    page.on('popup', countPopup);
+
+    await page.getByRole('button', { name: 'Open diagram.png' }).click();
+
+    const announced = await page
+      .getByText('Opening…')
+      .waitFor({ timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+    check('the row says it is opening rather than sitting silent', announced);
+
+    // `force` so this is a real test of the GATE, not of the disabled attribute:
+    // a click that actually lands must still be dropped.
+    await page
+      .getByRole('button', { name: 'Opening diagram.png' })
+      .click({ force: true, timeout: 10000 })
+      .catch(() => {});
+
+    // Let the delayed callable land before unrouting — disposing a route while
+    // its handler is still sleeping makes the pending continue() throw.
+    await page.waitForTimeout(9000);
+    await page.unroute('**/getAttachmentUrl');
+    page.off('popup', countPopup);
+
+    check(
+      'a second tap while a file is opening is ignored',
+      opened.length === 1,
+      `${opened.length} tab(s)`,
+    );
+    check(
+      'the row goes back to offering the file once it has opened',
+      await page
+        .getByRole('button', { name: 'Open diagram.png' })
+        .waitFor({ timeout: 15000 })
+        .then(() => true)
+        .catch(() => false),
+    );
+    for (const p of opened) await p.close().catch(() => {});
+  }
+
   // ---- The upload actually SHOWS something ---------------------------------
   // The progress bar is the only feedback during an upload, and it is easy for
   // it to render invisibly — the first version painted accentSoft on inset,
