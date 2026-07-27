@@ -15,7 +15,6 @@ import {
   pushRecent,
   type BoardColumn,
   type BoardDoc,
-  type BoardLabel,
 } from '@sabeel/shared';
 import { db, functions } from './firebase';
 import { useLiveDoc, useLiveQuery } from './liveQuery';
@@ -40,7 +39,6 @@ export interface BoardListItem {
    */
   members: BoardMemberProfile[];
   columns: BoardColumn[];
-  labels: BoardLabel[];
   /** Non-archived cards on the board (server-maintained; shown in the Boards list). */
   activeCardCount: number;
 }
@@ -66,7 +64,6 @@ function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     columns: (data.columns as BoardColumn[]) ?? [],
-    labels: (data.labels as BoardLabel[]) ?? [],
     activeCardCount: (data.activeCardCount as number) ?? 0,
   };
 }
@@ -133,7 +130,7 @@ export async function createBoard(name: string, user: SessionUser): Promise<stri
  * a bare PERMISSION_DENIED as the only clue. Build it with `columnsPatch()`.
  */
 export type BoardPatch = Partial<
-  Pick<BoardListItem, 'name' | 'description' | 'labels' | 'archived'>
+  Pick<BoardListItem, 'name' | 'description' | 'archived'>
 > &
   ({ columns: BoardColumn[]; columnIds: string[] } | { columns?: never; columnIds?: never });
 

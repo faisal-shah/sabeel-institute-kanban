@@ -4,8 +4,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   CARD_DESCRIPTION_MAX,
   CARD_TITLE_MAX,
+  LABEL_COLORS,
+  LABEL_NAME_MAX,
   readableInkOn,
   todayInOrgTz,
+  validateLabelName,
   type Priority,
 } from '@sabeel/shared';
 import {
@@ -21,6 +24,7 @@ import {
   type Card,
 } from '../cards';
 import { useBoard } from '../boards';
+import { createLabel, useLabels } from '../labels';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import { shareLink, WEB_ORIGIN } from '../share';
@@ -35,6 +39,7 @@ import {
 import { Subtasks } from '../components/Subtasks';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
+import { Sheet } from '../components/Sheet';
 import {
   Body,
   Button,
@@ -69,6 +74,9 @@ export function CardScreen({
   const nav = useNav();
   const card = useCard(cardId);
   const board = useBoard(boardId);
+  // Org-wide. Every board offers the same labels, so this does not come from
+  // the board document any more.
+  const labels = useLabels();
   const boardCards = useBoardCards(boardId);
   const t = useTheme();
 
@@ -79,7 +87,7 @@ export function CardScreen({
   // Owned here, not in AssigneePicker: the control that opens it lives on the
   // section heading, outside that component.
   const [picking, setPicking] = useState(false);
-  const { run, busy, error } = useAction('card');
+  const { run, busy, error, setError } = useAction('card');
   // ONE dirty flag PER EDITOR. They were a single shared flag, and because the
   // title and description editors can both be open at once, saving or cancelling
   // the title cleared it — which re-armed the seeding effect below and silently
@@ -89,6 +97,15 @@ export function CardScreen({
   const [titleDirty, setTitleDirty] = useState(false);
   const [descDirty, setDescDirty] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /**
+   * The "new label" sheet. This is the ONE label affordance a plain member gets:
+   * Board Settings — where labels are curated — is manager-only, and needing a
+   * manager to coin a tag while you are looking at the card it belongs on is
+   * exactly the friction that made per-board labels get re-created everywhere.
+   */
+  const [addingLabel, setAddingLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState<string>(LABEL_COLORS[0]);
 
   // Seed each local editor once the card arrives, but never stomp on typing.
   // Checked FIELD BY FIELD so one editor's state cannot speak for the other.
@@ -104,6 +121,7 @@ export function CardScreen({
 
   const c = card.data;
   const b = board.data;
+
   if (!c || !b) {
     return (
       <Screen width="read">
@@ -522,12 +540,12 @@ export function CardScreen({
         />
       </Panel>
 
-      {b.labels.length > 0 ? (
-        <>
-          <Heading>Labels</Heading>
-          <Panel>
-            <Row style={styles.wrap}>
-              {b.labels.map((l) => {
+      {/* Always rendered, unlike before: with an empty set the `+` is the only
+          way anyone gets a first label, and hiding the section hid it. */}
+      <Heading>Labels</Heading>
+      <Panel>
+        <Row style={styles.wrap}>
+          {(labels.data ?? []).map((l) => {
                 const on = c.labelIds.includes(l.id);
                 return (
                   <Pressable
@@ -572,10 +590,80 @@ export function CardScreen({
                   </Pressable>
                 );
               })}
-            </Row>
-          </Panel>
-        </>
-      ) : null}
+          {/* An icon, not a labelled button: it sits in a row of chips and a
+              "New label" button would be wider than every one of them. */}
+          <IconAction
+            icon="add"
+            label="New label"
+            accent
+            disabled={busy}
+            onPress={() => {
+              setNewLabelName('');
+              setNewLabelColor(LABEL_COLORS[0]);
+              setAddingLabel(true);
+            }}
+          />
+        </Row>
+        {labels.status === 'ready' && (labels.data ?? []).length === 0 ? (
+          <Hint>No labels yet. Add one with +, and every board gets it.</Hint>
+        ) : null}
+      </Panel>
+
+      <Sheet
+        visible={addingLabel}
+        title="New label"
+        onClose={() => setAddingLabel(false)}
+      >
+        <Hint>Labels are shared by every board.</Hint>
+        <TextField
+          value={newLabelName}
+          onChangeText={setNewLabelName}
+          placeholder="Label name"
+          maxLength={LABEL_NAME_MAX}
+          autoFocus
+        />
+        <Row style={styles.wrap}>
+          {LABEL_COLORS.map((colour) => (
+            <Pressable
+              key={colour}
+              accessibilityRole="button"
+              accessibilityLabel={`Label colour ${colour}`}
+              onPress={() => setNewLabelColor(colour)}
+              style={[
+                styles.swatch,
+                {
+                  backgroundColor: colour,
+                  borderColor:
+                    newLabelColor === colour ? t.text.primary : 'transparent',
+                },
+              ]}
+            />
+          ))}
+        </Row>
+        <Button
+          label="Add label"
+          busy={busy}
+          disabled={busy || !newLabelName.trim()}
+          onPress={() => {
+            const problem = validateLabelName(newLabelName, labels.data ?? []);
+            if (problem) {
+              setError(problem);
+              return;
+            }
+            void run(async () => {
+              // Created AND applied in one go — coining a label while looking at
+              // a card means you want it on that card.
+              const id = await createLabel({
+                name: newLabelName,
+                color: newLabelColor,
+                user,
+              });
+              await updateCard(cardId, { labelIds: [...c.labelIds, id] }, user);
+              setAddingLabel(false);
+            });
+          }}
+        />
+      </Sheet>
 
       <Heading>Comments ({c.commentCount})</Heading>
       <Comments cardId={cardId} members={assignable} user={user} />
@@ -666,4 +754,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
   },
+  // Matches the picker in Board Settings, so choosing a colour looks the same
+  // wherever a label is created.
+  swatch: { width: 28, height: 28, borderRadius: radius.pill, borderWidth: 2 },
 });

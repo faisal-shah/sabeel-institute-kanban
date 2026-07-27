@@ -83,7 +83,6 @@ beforeEach(async () => {
       { id: 'doing', name: 'Doing' },
     ],
     columnIds: ['todo', 'doing'],
-    labels: [],
     memberUids: ['a', 'b'],
     createdAt: 1,
     createdBy: 'a',

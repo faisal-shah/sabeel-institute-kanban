@@ -25,7 +25,6 @@ const board = () => ({
   archived: false,
   columns: [{ id: 'c1', name: 'To Do' }],
   columnIds: ['c1'],
-  labels: [],
   memberUids: ['hc_mgr'],
   memberProfiles: {},
   activeCardCount: 0,

@@ -45,11 +45,29 @@ export interface BoardColumn {
   name: string;
 }
 
-export interface BoardLabel {
-  id: string;
+// ---- Labels ----------------------------------------------------------------
+
+/**
+ * A label, org-wide. Lives at `labels/{labelId}` — every board sees every label,
+ * and a card's `labelIds` resolve against this one set wherever the card is.
+ *
+ * A COLLECTION rather than an array on a config document, because any active
+ * member may create one: two people adding to a single array field is a lost
+ * write, not a merge. One document per label is also what makes the name length
+ * and colour rules-enforceable at all — rules cannot iterate a list, which is
+ * why `LABEL_NAME_MAX` was client-only while labels lived on the board.
+ */
+export interface LabelDoc {
   name: string;
-  /** Must stay legible on both light and dark backgrounds. */
+  /** From `LABEL_COLORS`. Must stay legible on the ivory background. */
   color: string;
+  createdAt: number;
+  createdBy: string;
+}
+
+/** A label document with its id, which is what every consumer actually holds. */
+export interface Label extends LabelDoc {
+  id: string;
 }
 
 export interface BoardDoc {
@@ -65,7 +83,6 @@ export interface BoardDoc {
    * cheap expression. Always written together with `columns`.
    */
   columnIds: string[];
-  labels: BoardLabel[];
   /** Drives `array-contains` queries for "my boards". */
   memberUids: string[];
   /**
@@ -118,6 +135,15 @@ export interface CardDoc {
   /** All-day date as `YYYY-MM-DD`. Never a timestamp — timestamps drift. */
   dueDate?: string;
   priority: Priority;
+  /**
+   * Ids into the org-wide `labels` collection. Labels are NOT board-scoped, so
+   * these survive a cross-board move and are copied with the card — unlike
+   * `parentId`, which is scoped to the cards travelling with it.
+   *
+   * An id whose label has been deleted resolves to nothing and renders as
+   * nothing, but that is not a state the app produces: `deleteLabel` strips the
+   * id from every card that carries it.
+   */
   labelIds: string[];
   archived: boolean;
   archivedAt?: number;
@@ -143,7 +169,9 @@ export interface CardDoc {
    * this is an opaque string and a child's read access comes from its own
    * `boardId`. So the picker only ever offers same-board cards, and a link that
    * goes stale (parent moved or deleted) simply renders as nothing. A cross-board
-   * move clears it, the same way it clears `labelIds`.
+   * move clears it unless the parent is travelling too. `labelIds` used to be
+   * cleared alongside it and no longer is — labels are org-wide, so they mean
+   * the same thing on every board.
    */
   parentId?: string;
   createdAt: number;

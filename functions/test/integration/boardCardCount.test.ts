@@ -13,7 +13,6 @@ const board = () => ({
   archived: false,
   columns: [{ id: 'c1', name: 'To Do' }],
   columnIds: ['c1'],
-  labels: [],
   memberUids: [MGR],
   memberProfiles: {},
   activeCardCount: 0,

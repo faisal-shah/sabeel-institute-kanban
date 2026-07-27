@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { bucketFor, describeDue, todayInOrgTz, type BoardLabel, type Priority } from '@sabeel/shared';
+import { bucketFor, describeDue, todayInOrgTz, type Label, type Priority } from '@sabeel/shared';
 import type { BoardMemberProfile } from '../boards';
 import { AssigneeChip, Body, ColorBadge, PriorityBadge } from './ui';
 import { space, type, useTheme } from '../theme';
@@ -10,12 +10,12 @@ import { space, type, useTheme } from '../theme';
  * assignee chips. The SINGLE definition of a card face: every surface (the three
  * board layouts, My Work, Search) embeds this inside its own interaction
  * container, so the face is described once and a new field is a one-line change
- * here. Purely presentational: it resolves label/assignee ids against the board's
- * `labels`/`members` (passed in) and draws — no data loading, no interaction.
+ * here. Purely presentational: it resolves ids against the label set and board
+ * members passed in, and draws — no data loading, no interaction.
  */
 export function CardFace({
   card,
-  boardLabels,
+  labels,
   boardMembers,
   subtaskCount,
 }: {
@@ -40,15 +40,18 @@ export function CardFace({
    * never load a card's siblings.
    */
   subtaskCount?: number;
-  boardLabels: readonly BoardLabel[];
+  /** The org-wide label set. Not board-scoped — a card carries the same labels
+   *  wherever it lives, which is what lets My Work and Search render chips for
+   *  cards whose board they never load. */
+  labels: readonly Label[];
   boardMembers: readonly BoardMemberProfile[];
 }) {
   const t = useTheme();
   const today = todayInOrgTz();
 
-  const labels = card.labelIds
-    .map((id) => boardLabels.find((l) => l.id === id))
-    .filter((l): l is BoardLabel => !!l);
+  const chips = card.labelIds
+    .map((id) => labels.find((l) => l.id === id))
+    .filter((l): l is Label => !!l);
   const assignees = card.assigneeUids
     .map((uid) => boardMembers.find((m) => m.uid === uid))
     .filter((m): m is BoardMemberProfile => !!m);
@@ -62,7 +65,7 @@ export function CardFace({
   const files = card.attachmentCount ?? 0;
   const hasMeta =
     card.priority !== 'none' ||
-    labels.length > 0 ||
+    chips.length > 0 ||
     !!card.dueDate ||
     subtasks > 0 ||
     files > 0;
@@ -74,7 +77,7 @@ export function CardFace({
       {hasMeta ? (
         <View style={styles.metaRow}>
           <PriorityBadge priority={card.priority} />
-          {labels.map((l) => (
+          {chips.map((l) => (
             <ColorBadge key={l.id} color={l.color} label={l.name} />
           ))}
           {subtasks > 0 ? (

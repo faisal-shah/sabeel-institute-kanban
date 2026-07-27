@@ -341,6 +341,69 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Labels became org-wide — v0.3.0
+
+Labels lived on the board document, so the same idea had to be re-created on
+every board that wanted it, a cross-board move **stripped every label off the
+card**, and My Work and Search — both cross-board — resolved chips against one
+loaded board and therefore rendered none for cards from anywhere else. They are
+now a single `labels/{labelId}` collection the whole organisation shares.
+
+Reading production first is what made the migration small. Of 17 boards only
+**three** carried labels at all (21, 10 and 1), **no two boards used the same
+name**, and every embedded `lbl_*` id was already globally unique. So this is a
+union, not a merge — and each existing id becomes its global document id, which
+means **no card is rewritten**. The 10 label references in the system keep
+resolving before, during and after.
+
+Split in two so nothing is ever missing: part A creates the documents and is
+invisible to the running app (old clients still read `boards.labels`); part B
+strips the now-dead field once the new client is live. Both abort rather than
+guess — part A on a duplicate id, part B if any label was never copied — and
+both aborts were fired deliberately on the emulator.
+
+A COLLECTION rather than an array on a config document, for two reasons. Any
+active member may add a label, so concurrent creates are the ordinary case and
+two people appending to one array is a lost write. And rules cannot iterate a
+list, which is why `LABEL_NAME_MAX` was client-side only while labels lived on
+the board; one document per label makes the name cap, the colour shape and the
+author rules-enforceable for the first time.
+
+The permission split is deliberate and asymmetric: **create is open to any
+active member**, because coining a tag is cheap and happens while looking at a
+card, and Board Settings — where labels are curated — is manager-only, so
+requiring a manager is exactly the friction that made per-board labels get
+re-created everywhere. **Rename, recolour and delete stay with managers**,
+because those change what everyone else already sees. Members reach the one
+affordance they need through a `+` in the card's label picker, which creates the
+label and applies it in a single step.
+
+Deleting is a callable, like attachment deletion and for the same reasons: it
+must strip the id from every card across boards the deleter may not be on, and a
+delete trigger cannot name who did it. Cards are swept **first** and the
+document removed **last** — reversed, a failure between the two steps would
+leave cards holding an id with nothing left to find them by. No activity entry
+is written by hand: setting `updatedBy` lets `onCardWritten` see the `labelIds`
+diff and log it against the manager, the same mechanism `removeBoardMember`
+uses.
+
+Five rules mutations, each red on exactly one test: opening create to managers
+only (7 failures), widening update to any member, allowing a client delete,
+replacing the `.get(field, default)` old-doc guard with plain access — which
+would brick every migrated label, since they have no author to name — and
+restoring `labels` to the board key allow-list. A sixth mutation emptied the
+card's label picker and turned all four end-to-end label checks red.
+
+One of those checks earns its place: a **second board, whose settings are never
+opened**, must offer the labels made on the first. That is the entire claim of
+the feature, and nothing else proves it.
+
+Found on the way: `test:integration:rules` and `test:integration:fn` list their
+files explicitly, so both new label suites were **silently not running** — the
+totals looked unchanged because they were unchanged. `functions/test/unit/
+suite-coverage.test.ts` now fails if any file in `test/integration` is absent
+from either pass, and was itself mutation-checked.
+
 ### 2026-07-27 — Opening a file says so, and cannot be started twice — v0.2.6
 
 A member tapped an attachment on Android and was shown *"Call to function

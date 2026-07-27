@@ -124,8 +124,9 @@ Tap any card to open the full view.
   *Assignees* heading, then pick a name; the **remove-person** icon on a row
   unassigns them. They show as **name chips** on the card face, the card lands in
   each person's **My Work**, and they're notified.
-- **Labels** — a short, shared vocabulary defined per board, shown as coloured
-  **badges** on the card face.
+- **Labels** — a short vocabulary shared by **every** board, shown as coloured
+  **badges** on the card face. Press **+** to add one to the shared set and this
+  card at once.
 - **Comments** — discuss the work. Type **@** followed by a name to pull someone
   in; they're notified. You can edit your own comment with the **pencil**, and
   the **@** works there too — mention someone in an edit and they're told, once.
@@ -223,9 +224,10 @@ what you can do to the whole selection: **move**, **assign**, **archive**, or
 You can also **copy or move the selection to another board** — pick one of your
 boards, then a column in it. A **move** takes the cards over as they are (comments
 and history included); a **copy** leaves the originals in place and starts fresh
-cards with no comments. Either way the cards' **labels are cleared** (labels
-belong to a board), and anyone **not a member of the destination board is
-unassigned** — the sheet tells you before you confirm.
+cards with no comments. **Labels come too** — they are shared by every board, so
+they mean the same thing wherever a card lands. Anyone **not a member of the
+destination board is unassigned**, though; the sheet tells you before you
+confirm.
 
 ## 1.7 My Work
 
@@ -304,8 +306,9 @@ next sign-in shows Google's account chooser, which is how you switch accounts.
 # Part 2 — For managers
 
 Managers can see and join **every** board, create new ones, and shape a board's
-columns, labels, and membership. There are no per-board roles — a manager can act
-on any board.
+columns and membership. They also curate the org-wide **labels** — anyone may add
+one, but only managers rename or delete. There are no per-board roles: a manager
+can act on any board.
 
 ## 2.1 Creating a board
 
@@ -327,11 +330,20 @@ Open a board and tap its **settings** (the gear). From here:
   once it's **empty**, so no cards vanish with it, and deleting one **asks first**
   because it cannot be undone. To clear a column quickly, select its cards and
   move or archive them in one go.
-- **Labels** — a short, shared vocabulary for the board. Colours come from a fixed
-  palette so they stay readable on the app's warm surfaces. Names are short by
-  design, and two labels can't share a name even in different capitals — a card
-  face shows the name and nothing else, so "Urgent" and "urgent" would be
-  impossible to tell apart.
+- **Labels** — one vocabulary shared by **every board**, not just this one.
+  Adding, renaming or deleting a label here changes it everywhere, and the panel
+  says so. Use the **pencil** to rename, the **palette** to cycle its colour, and
+  the **bin** to delete — deleting asks first and tells you how many cards carry
+  it, because it comes off all of them.
+
+  Colours come from a fixed palette so they stay readable on the app's warm
+  surfaces. Names are short by design, and two labels can't share a name even in
+  different capitals — a card face shows the name and nothing else, so "Urgent"
+  and "urgent" would be impossible to tell apart.
+
+  **Anyone can add a label**, not just managers: open any card and press **+**
+  beside its labels. It joins the shared set and is applied to that card at the
+  same time. Only managers rename or delete.
 - **Members** — who can see the board. Tap the **add-person** icon beside the
   *Members* heading to see who else can be added, and tap a name to add them.
   Removing someone (the **remove-person** icon on their row) also **unassigns them
@@ -448,8 +460,16 @@ they're a member of its board).
 **…create a board?** *(managers)*
 **Boards → New board** → name it.
 
-**…rename or add columns / labels?** *(managers)*
-Open the board → **settings** → Columns or Labels.
+**…rename or add columns?** *(managers)*
+Open the board → **settings** → Columns.
+
+**…add a label?** *(anyone)*
+Open any card → **+** beside its labels. Labels are shared by every board, so it
+appears everywhere at once.
+
+**…rename or delete a label?** *(managers)*
+Open any board → **settings → Labels**. Deleting removes it from every card that
+carries it, and says how many first.
 
 **…add someone to a board?** *(managers)*
 Board **settings → Members** → add them. (They must be an approved account first.)

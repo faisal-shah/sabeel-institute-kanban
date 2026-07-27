@@ -1,12 +1,12 @@
 import { DEFAULT_COLUMNS } from './constants';
-import type { BoardColumn, BoardDoc, BoardLabel } from './types';
+import type { BoardColumn, BoardDoc, Label, LabelDoc } from './types';
 
 /**
  * Board construction and validation, shared so the client and any server-side
  * code agree on what a well-formed board looks like.
  */
 
-/** Short random id for embedded columns and labels (not Firestore doc ids). */
+/** Short random id for embedded columns (not Firestore doc ids). */
 export function localId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -50,7 +50,6 @@ export function newBoard(params: {
     archived: false,
     columns,
     columnIds: columns.map((c) => c.id),
-    labels: [],
     // The creator is always a member: a board nobody can see is a support ticket.
     memberUids: [params.createdBy],
     memberProfiles: params.createdByProfile
@@ -155,31 +154,84 @@ export function renameColumn(
  * native-web clips and Android draws anyway. Capping the name is what makes that
  * unreachable; nothing downstream has to defend against it.
  *
- * Enforced here and on the text field, NOT in firestore.rules — rules cannot
- * iterate a list, so a per-entry check on an embedded array is not expressible.
- * That is the same level of enforcement column names get.
+ * Now that a label is its own document this IS expressible in firestore.rules,
+ * and the rules check it too — a per-entry check on an embedded array never was.
  */
 export const LABEL_NAME_MAX = 40;
 
+/**
+ * Names are unique across the whole org, case-insensitively. Two labels
+ * differing only in case are indistinguishable on a card face — the chip shows
+ * the name and nothing else — so the pair is unusable rather than merely untidy.
+ *
+ * `exceptId` excludes the label being renamed, the same self-exclusion
+ * `renameColumn` needs; omit it when creating.
+ *
+ * Client-side only: Firestore rules cannot see across documents, so a
+ * simultaneous double-create yields two same-named labels. A manager deletes
+ * one. Documented in docs/PRODUCT_BRIEF.md as an accepted residual.
+ */
 export function validateLabelName(
   name: string,
-  existing: readonly BoardLabel[],
+  existing: readonly Label[],
+  exceptId?: string,
 ): string | null {
   const trimmed = name.trim();
   if (trimmed.length === 0) return 'Give the label a name.';
   if (trimmed.length > LABEL_NAME_MAX)
     return `Keep the label name under ${LABEL_NAME_MAX} characters.`;
-  // Case-insensitively, exactly like columns. Two labels differing only in case
-  // are indistinguishable on a card face — the chip shows the name and nothing
-  // else — so the pair is unusable rather than merely untidy. Labels have no
-  // rename, so unlike renameColumn there is no self-exclusion trap here.
-  if (existing.some((l) => l.name.toLowerCase() === trimmed.toLowerCase()))
+  if (
+    existing.some(
+      (l) => l.id !== exceptId && l.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+  )
     return 'There is already a label with that name.';
   return null;
 }
 
-export function newLabel(name: string, color: string): BoardLabel {
-  return { id: localId('lbl'), name: name.trim(), color };
+/** A colour the app itself offers. The rules only check the hex SHAPE — the
+ *  palette is a design constraint, not a security boundary, and restating the
+ *  list in rules would be a second source of truth for it. */
+export function isLabelColor(color: string): boolean {
+  return (LABEL_COLORS as readonly string[]).includes(color);
+}
+
+/** The document body. The id is Firestore's, not ours — labels are real docs. */
+export function newLabel(params: {
+  name: string;
+  color: string;
+  createdBy: string;
+  now: number;
+}): LabelDoc {
+  return {
+    name: params.name.trim(),
+    color: params.color,
+    createdAt: params.now,
+    createdBy: params.createdBy,
+  };
+}
+
+/**
+ * Display order.
+ *
+ * Sorted HERE rather than with a Firestore `orderBy('name')` because that orders
+ * by UTF-16 code unit — but `localeCompare` alone is not enough either. A dozen
+ * of these names carry a ClickUp emoji prefix, and either way every one of them
+ * files under the emoji: "📋 Governance" lands at the top of the list instead of
+ * under G, which is where someone looking for it will look.
+ *
+ * So the sort key ignores anything leading that is not a letter or digit. The
+ * emoji still SHOWS — the team chose to keep them — it just stops deciding where
+ * the label sits.
+ */
+function sortKey(name: string): string {
+  const trimmed = name.replace(/^[^\p{L}\p{N}]+/u, '');
+  // A name that is nothing BUT punctuation still has to sort somewhere.
+  return trimmed.length > 0 ? trimmed : name;
+}
+
+export function sortLabels<T extends { name: string }>(labels: readonly T[]): T[] {
+  return [...labels].sort((a, b) => sortKey(a.name).localeCompare(sortKey(b.name)));
 }
 
 /**

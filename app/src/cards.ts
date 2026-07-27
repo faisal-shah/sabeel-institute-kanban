@@ -443,10 +443,13 @@ export async function bulkMoveToBoard(params: {
       boardId: params.destBoardId,
       columnId: params.destColumnId,
       rank,
-      labelIds: [],
+      // `labelIds` is deliberately NOT reset. Labels are org-wide, so they mean
+      // the same thing on the destination; a move used to strip every one of
+      // them because the ids were board-local and would have resolved to
+      // nothing. Assignees still have to be filtered — membership IS per board.
       assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
-      // Board-scoped exactly like labels: kept only when the parent is coming
-      // too, otherwise cleared rather than left dangling.
+      // Scoped to the cards travelling together: kept only when the parent is
+      // coming too, otherwise cleared rather than left dangling.
       parentId: keptParent ?? deleteField(),
       updatedAt: now,
       updatedBy: params.user.uid,
@@ -478,7 +481,8 @@ export async function bulkCopyToBoard(params: {
       rank,
       assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
       priority: card.priority,
-      labelIds: [],
+      // Carried, like priority: a label means the same thing on any board.
+      labelIds: card.labelIds,
       archived: false,
       commentCount: 0,
       attachmentCount: 0,

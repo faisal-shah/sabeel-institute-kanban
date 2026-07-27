@@ -39,7 +39,6 @@ const baseBoard = (over: Record<string, unknown> = {}) => ({
   // Flat mirror of the column ids. Rules cannot search a list of maps, so card
   // writes are validated against this — it must always accompany `columns`.
   columnIds: ['c1'],
-  labels: [],
   memberUids: ['member1'],
   createdAt: 1,
   createdBy: 'manager1',
@@ -201,7 +200,7 @@ describe('creating a board', () => {
 });
 
 describe('updating a board', () => {
-  it('a manager can rename it and change columns, labels and membership', async () => {
+  it('a manager can rename it and change columns and membership', async () => {
     const db = ctx('manager1', 'manager');
     await assertSucceeds(
       updateDoc(doc(db, 'boards/b_member'), {
@@ -211,7 +210,6 @@ describe('updating a board', () => {
           { id: 'c2', name: 'Doing' },
         ],
         columnIds: ['c1', 'c2'],
-        labels: [{ id: 'l1', name: 'urgent', color: '#D73A49' }],
         memberUids: ['member1', 'member2'],
         createdBy: 'manager1',
       }),

@@ -20,7 +20,6 @@ const board = (over: Record<string, unknown> = {}) => ({
   archived: false,
   columns: [{ id: 'c1', name: 'To Do' }],
   columnIds: ['c1'],
-  labels: [],
   memberUids: [MGR, MEM],
   memberProfiles: {},
   createdAt: 1,

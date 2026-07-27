@@ -116,6 +116,16 @@ const probes = [
         .limit(1)
         .get(),
   },
+  {
+    name: 'label usage (labelIds array-contains)',
+    used_by: 'the countLabelUsage and deleteLabel callables',
+    // A single-field auto index at COLLECTION scope, which cards get for free —
+    // unlike the collection-group probe above. Probed anyway because deleting a
+    // label depends on it: if this query fails, the sweep cannot find the cards
+    // carrying the label and they keep an id pointing at nothing.
+    run: () =>
+      db.collection('cards').where('labelIds', 'array-contains', 'probe').limit(1).get(),
+  },
 ];
 
 let failed = 0;

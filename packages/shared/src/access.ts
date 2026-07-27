@@ -52,6 +52,20 @@ export function canUseApp(actor: { status: UserStatus }): boolean {
 }
 
 /**
+ * Who may CURATE the org-wide label set — rename, recolour, delete.
+ *
+ * Creating a label is deliberately not gated beyond `canUseApp`: it happens
+ * while someone is looking at a card, and it is cheap and reversible. Deleting
+ * is neither, because it strips the label off every card on every board — often
+ * boards the deleter is not even a member of. Hence the asymmetry, and hence
+ * this being its own predicate rather than a bare `canManageBoards` call at the
+ * two places that need it.
+ */
+export function canCurateLabels(actor: { role: Role; status: UserStatus }): boolean {
+  return canManageBoards(actor);
+}
+
+/**
  * May this actor see and act on things belonging to a board?
  *
  * The exact predicate `firestore.rules` repeats as `onBoard()` for every card

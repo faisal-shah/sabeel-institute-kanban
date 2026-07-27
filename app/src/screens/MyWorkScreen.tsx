@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
-import { groupByDue, todayInOrgTz, type BoardLabel } from '@sabeel/shared';
+import { groupByDue, todayInOrgTz, type Label } from '@sabeel/shared';
+import { useLabels } from '../labels';
 import { useMyWork, type MyWorkCard } from '../myWork';
 import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boards';
 import type { SessionUser } from '../session';
@@ -18,7 +19,7 @@ import {
 } from '../components/ui';
 import { CardFace } from '../components/CardFace';
 
-const NO_LABELS: BoardLabel[] = [];
+const NO_LABELS: Label[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
 
 /**
@@ -31,9 +32,15 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
   const boards = useMyBoards(user);
   const today = todayInOrgTz();
 
-  // The card face resolves labels/assignees against each card's OWN board, taken
-  // from the caller's board list — no denormalised copies on the card, nothing to
-  // fan out on a rename. Sound because assignment implies membership.
+  // Labels are org-wide, so they resolve without knowing which board a card is
+  // on. That is the whole reason chips render here at all: this list is
+  // cross-board, and while labels lived on the board document a card from any
+  // board other than the one loaded showed no chips.
+  const allLabels = useLabels();
+
+  // Assignees still resolve against each card's OWN board, taken from the
+  // caller's board list — membership IS per board. Sound because assignment
+  // implies membership.
   const boardById = useMemo(() => {
     const m = new Map<string, BoardListItem>();
     for (const b of boards.data ?? []) m.set(b.id, b);
@@ -108,7 +115,7 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
                   <Panel>
                     <CardFace
                       card={c}
-                      boardLabels={board?.labels ?? NO_LABELS}
+                      labels={allLabels.data ?? NO_LABELS}
                       boardMembers={board?.members ?? NO_MEMBERS}
                     />
                     <Caption>in {board?.name ?? 'a board'}</Caption>

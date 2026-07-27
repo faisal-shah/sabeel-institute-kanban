@@ -84,7 +84,6 @@ beforeEach(async () => {
       archived: false,
       columns: [{ id: colId, name: 'To Do' }],
       columnIds: [colId],
-      labels: [],
       memberUids,
       createdAt: 1,
       createdBy: 'manager1',

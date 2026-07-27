@@ -60,6 +60,18 @@ Key product invariants (do not silently change):
   switch it back on. Revisit only on an explicit request from the team or during
   a deliberate refactor; `docs/RESEARCH-RICH-TEXT.md` holds the analysis so it
   does not have to be redone.
+- **Labels are ORG-WIDE, not per board** (changed 2026-07-27). One `labels/{id}`
+  collection every board shares; a card's `labelIds` mean the same thing
+  wherever the card is, so a cross-board move and copy **carry them** — the old
+  code cleared them and must not come back. **Any active member creates** one
+  (from the `+` in a card's label picker, since Board Settings is manager-only);
+  **managers rename, recolour and delete**. Deleting is a callable that strips
+  the id from every card first and only then removes the document — reversed,
+  a failure would leave cards pointing at nothing findable. A COLLECTION rather
+  than an array on a config doc: concurrent creates are the normal case here,
+  and an array field would lose writes. Uniqueness is case-insensitive and
+  client-checked only; a simultaneous double-create making two same-named labels
+  is an accepted residual.
 - **Assignees must be board members**, rules-enforced. This is what makes the
   cross-board "My Work" collection-group query legal without a parent lookup —
   breaking it breaks My Work's security model.

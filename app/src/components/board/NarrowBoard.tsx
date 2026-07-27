@@ -32,7 +32,7 @@ import {
   columnsPatch,
   subtaskCounts,
   type BoardColumn,
-  type BoardLabel,
+  type Label,
 } from '@sabeel/shared';
 import {
   cardsInColumn,
@@ -61,6 +61,7 @@ import {
   TextField,
   Title,
 } from '../ui';
+import { useLabels } from '../../labels';
 import { radius, space, type, useTheme } from '../../theme';
 import { KeyboardSticky } from '../KeyboardSticky';
 import { useAction } from '../../useAction';
@@ -69,11 +70,11 @@ import { useAction } from '../../useAction';
 const NO_COLUMNS: BoardColumn[] = [];
 const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
-const NO_LABELS: BoardLabel[] = [];
+const NO_LABELS: Label[] = [];
 
 function CardTile({
   card,
-  boardLabels,
+  labels,
   boardMembers,
   subtaskCount,
   selected,
@@ -82,7 +83,7 @@ function CardTile({
   onLongPress,
 }: {
   card: Card;
-  boardLabels: readonly BoardLabel[];
+  labels: readonly Label[];
   boardMembers: readonly BoardMemberProfile[];
   subtaskCount?: number;
   selected: boolean;
@@ -109,7 +110,7 @@ function CardTile({
     >
       <CardFace
         card={card}
-        boardLabels={boardLabels}
+        labels={labels}
         boardMembers={boardMembers}
         subtaskCount={subtaskCount}
       />
@@ -171,7 +172,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   // users, so reading the directory here would show every non-admin a
   // permission-denied banner and leave them unable to assign anyone.
   const members = board.data?.members ?? NO_MEMBERS;
-  const labels = board.data?.labels ?? NO_LABELS;
+  // Org-wide, not from the board: labels are one set for the whole team.
+  const allLabels = useLabels();
+  const labels = allLabels.data ?? NO_LABELS;
 
   // `?? []` would allocate a new array each render, defeating the memo below.
   const columns = board.data?.columns ?? NO_COLUMNS;
@@ -474,7 +477,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                 renderItem={({ item }) => (
                   <CardTile
                     card={item}
-                    boardLabels={labels}
+                    labels={labels}
                     boardMembers={members}
                     subtaskCount={subtasksBy.get(item.id)}
                     selected={selection.isSelected(item.id)}

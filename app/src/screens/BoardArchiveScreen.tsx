@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { deleteCard, restoreCard, useArchivedBoardCards } from '../cards';
 import { useBoard } from '../boards';
+import { useLabels } from '../labels';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import { CardFace } from '../components/CardFace';
@@ -18,7 +19,10 @@ import {
   Title,
 } from '../components/ui';
 import { space } from '../theme';
+import type { Label } from '@sabeel/shared';
 import { useAction } from '../useAction';
+
+const NO_LABELS: Label[] = [];
 
 /**
  * A board's archived cards, and the way back out.
@@ -43,6 +47,7 @@ export function BoardArchiveScreen({
   const nav = useNav();
   const board = useBoard(boardId);
   const cards = useArchivedBoardCards(boardId);
+  const allLabels = useLabels();
   const { run, busy, error } = useAction('boardArchive');
   /** Set only when a restore had to land the card somewhere else. */
   const [note, setNote] = useState<string | null>(null);
@@ -107,7 +112,11 @@ export function BoardArchiveScreen({
         <Panel key={card.id}>
           {/* The same face the board draws, so an archived card is recognisable
               rather than reduced to a line of text. */}
-          <CardFace card={card} boardLabels={b.labels} boardMembers={b.members} />
+          <CardFace
+            card={card}
+            labels={allLabels.data ?? NO_LABELS}
+            boardMembers={b.members}
+          />
           <Row>
             <Button
               busy={busy}

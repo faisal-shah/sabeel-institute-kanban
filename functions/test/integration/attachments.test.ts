@@ -97,7 +97,6 @@ beforeAll(async () => {
     archived: false,
     columns: [{ id: 'c1', name: 'To Do' }],
     columnIds: ['c1'],
-    labels: [],
     memberUids: [MEM],
     createdAt: Date.now(),
     createdBy: MGR,

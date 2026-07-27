@@ -36,11 +36,12 @@ import {
   columnsPatch,
   subtaskCounts,
   type BoardColumn,
-  type BoardLabel,
+  type Label,
 } from '@sabeel/shared';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import { useListenerError } from '../../liveQuery';
+import { useLabels } from '../../labels';
 import { getTheme, radius, space, type Theme } from '../../theme';
 
 type DragState = { cardId: string; fromColumnId: string } | null;
@@ -48,7 +49,7 @@ type DragState = { cardId: string; fromColumnId: string } | null;
 /** Stable empty, so the selection hook does not churn on every render. */
 const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
-const NO_LABELS: BoardLabel[] = [];
+const NO_LABELS: Label[] = [];
 
 function useWebTheme(): Theme {
   return getTheme();
@@ -56,7 +57,7 @@ function useWebTheme(): Theme {
 
 function CardTile({
   card,
-  boardLabels,
+  labels,
   boardMembers,
   subtaskCount,
   t,
@@ -70,7 +71,7 @@ function CardTile({
   dragging,
 }: {
   card: Card;
-  boardLabels: readonly BoardLabel[];
+  labels: readonly Label[];
   boardMembers: readonly BoardMemberProfile[];
   subtaskCount?: number;
   t: Theme;
@@ -120,7 +121,7 @@ function CardTile({
         <div style={{ flex: 1, minWidth: 0 }}>
           <CardFace
             card={card}
-            boardLabels={boardLabels}
+            labels={labels}
             boardMembers={boardMembers}
             subtaskCount={subtaskCount}
           />
@@ -196,7 +197,9 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   // From the BOARD, not the user directory — only admins may list users.
   const members = board.data?.members ?? NO_MEMBERS;
-  const labels = board.data?.labels ?? NO_LABELS;
+  // Org-wide, not from the board: labels are one set for the whole team.
+  const allLabels = useLabels();
+  const labels = allLabels.data ?? NO_LABELS;
 
   const canEdit = true; // any board member may edit cards
   const isManager = sessionCan.manageBoards(user);
@@ -557,7 +560,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   ) : null}
                   <CardTile
                     card={card}
-                    boardLabels={labels}
+                    labels={labels}
                     boardMembers={members}
                     subtaskCount={subtasksBy.get(card.id)}
                     t={t}

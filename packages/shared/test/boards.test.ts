@@ -7,7 +7,9 @@ import {
   columnsPatch,
   defaultColumns,
   newBoard,
+  isLabelColor,
   newLabel,
+  sortLabels,
   pushRecent,
   renameColumn,
   sortBoardsForList,
@@ -76,12 +78,23 @@ describe('validation', () => {
 
   it('rejects a duplicate label name, case-insensitively', () => {
     // Two chips reading "Urgent" and "urgent" are indistinguishable on a card
-    // face, so the pair is unusable rather than merely untidy.
-    const labels = [{ id: 'l1', name: 'Urgent', color: '#83114F' }];
+    // face, so the pair is unusable rather than merely untidy. Uniqueness is
+    // now org-wide, not per board: one set, one name each.
+    const labels = [label('l1', 'Urgent')];
     expect(validateLabelName('urgent', labels)).not.toBeNull();
     expect(validateLabelName('  URGENT  ', labels)).not.toBeNull();
     expect(validateLabelName('Urgent', labels)).not.toBeNull();
     expect(validateLabelName('donor-facing', labels)).toBeNull();
+  });
+
+  it('lets a rename keep its own name', () => {
+    // Without the self-exclusion, renaming "Urgent" to "Urgent " — or opening
+    // the editor and saving unchanged — fails its own uniqueness check.
+    const labels = [label('l1', 'Urgent'), label('l2', 'Blocked')];
+    expect(validateLabelName('Urgent', labels, 'l1')).toBeNull();
+    expect(validateLabelName('Urgent Fix', labels, 'l1')).toBeNull();
+    // But it still cannot take a name another label already holds.
+    expect(validateLabelName('Blocked', labels, 'l1')).not.toBeNull();
   });
 
   it('rejects a duplicate column name, case-insensitively', () => {
@@ -91,6 +104,10 @@ describe('validation', () => {
     expect(validateColumnName('Blocked', cols)).toBeNull();
   });
 });
+
+function label(id: string, name: string, color = '#83114F') {
+  return { id, name, color, createdAt: 1, createdBy: 'u1' };
+}
 
 describe('label colours', () => {
   it('offers a fixed palette rather than a free picker', () => {
@@ -179,18 +196,64 @@ describe('columnsPatch', () => {
 });
 
 describe('newLabel', () => {
-  it('trims the name and keeps the given colour', () => {
-    const label = newLabel('  Urgent  ', '#83114F');
-    expect(label.name).toBe('Urgent');
-    expect(label.color).toBe('#83114F');
+  it('trims the name and records colour and authorship', () => {
+    const made = newLabel({ name: '  Urgent  ', color: '#83114F', createdBy: 'u1', now: 7 });
+    expect(made).toEqual({
+      name: 'Urgent',
+      color: '#83114F',
+      createdAt: 7,
+      createdBy: 'u1',
+    });
   });
 
-  it('assigns an id with the lbl prefix', () => {
-    expect(newLabel('x', '#000000').id).toMatch(/^lbl_/);
+  it('mints no id — a label is a real document now, so Firestore does', () => {
+    // The id used to be a `lbl_` local id embedded in the board array. Handing
+    // one out here again would mean two id schemes for the same thing.
+    expect(
+      'id' in newLabel({ name: 'x', color: '#83114F', createdBy: 'u1', now: 1 }),
+    ).toBe(false);
+  });
+});
+
+describe('sortLabels', () => {
+  it('orders by name the way a reader would, not by code unit', () => {
+    const sorted = sortLabels([
+      label('l1', 'Volunteers'),
+      label('l2', 'blocked'),
+      label('l3', 'Finance'),
+    ]).map((l) => l.name);
+    expect(sorted).toEqual(['blocked', 'Finance', 'Volunteers']);
   });
 
-  it('gives two labels distinct ids', () => {
-    expect(newLabel('a', '#000000').id).not.toBe(newLabel('a', '#000000').id);
+  it('files an emoji-prefixed name under its WORD, not under the emoji', () => {
+    // Twelve of the migrated labels carry a ClickUp emoji. Sorting on the raw
+    // string — by code unit OR by locale — piles all of them at one end, which
+    // is not where anyone looks for "Governance".
+    const sorted = sortLabels([
+      label('l1', 'Volunteers'),
+      label('l2', '📋 Governance'),
+      label('l3', 'Finance'),
+      label('l4', '🚧 Blocked'),
+    ]).map((l) => l.name);
+    expect(sorted).toEqual(['🚧 Blocked', 'Finance', '📋 Governance', 'Volunteers']);
+  });
+
+  it('still places a name that is nothing but punctuation', () => {
+    expect(sortLabels([label('l1', 'a'), label('l2', '???')]).length).toBe(2);
+  });
+
+  it('does not mutate its input', () => {
+    const input = [label('l1', 'b'), label('l2', 'a')];
+    sortLabels(input);
+    expect(input.map((l) => l.name)).toEqual(['b', 'a']);
+  });
+});
+
+describe('isLabelColor', () => {
+  it('accepts the palette and refuses anything else', () => {
+    for (const c of LABEL_COLORS) expect(isLabelColor(c)).toBe(true);
+    expect(isLabelColor('#123456')).toBe(false);
+    expect(isLabelColor('red')).toBe(false);
   });
 });
 

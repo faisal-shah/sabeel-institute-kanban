@@ -40,7 +40,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Card extras | **Comments with @mentions**, **per-card activity history**. |
 | Cross-board view | **"My Work"** — every card assigned to me across every board, sorted by due date. First-class screen, and the phone's default landing surface. |
 | Due dates | **All-day dates only** (`YYYY-MM-DD`), no time-of-day, no start dates. |
-| Labels | **Per board.** No org-wide label vocabulary. |
+| Labels | **Org-wide.** One set every board shares (changed 2026-07-27; they were per board). Any active member may add one; managers rename and delete. |
 | Description format | **Plain text.** Superseded markdown on 2026-07-20 — see "Why plain text". |
 | Search | **Global across the boards you belong to**, client-side matching. See "Search". |
 | Notifications | Push **plus an in-app inbox** with an unread badge. |
@@ -75,7 +75,9 @@ display. Rules trust the token, never the doc.
 | Comment | ✓ | ✓ | ✓ |
 | **See every board / join any board** | | ✓ | ✓ |
 | **Create boards** | | ✓ | ✓ |
-| Manage columns, labels, board settings | | ✓ | ✓ |
+| Manage columns, board settings | | ✓ | ✓ |
+| **Add a label** (org-wide) | ✓ | ✓ | ✓ |
+| Rename or delete a label | | ✓ | ✓ |
 | Add/remove board members | | ✓ | ✓ |
 | Archive/delete a board | | ✓ | ✓ |
 | **Approve/reject/disable user accounts** | | | ✓ |
@@ -138,8 +140,13 @@ users/{uid}/notifications/{notifId}                # the in-app inbox
 boards/{boardId}
   name, description, archived: bool, createdAt, createdBy
   columns: [ { id, name } ]                      # embedded: few, rarely changed
-  labels:  [ { id, name, color } ]               # embedded: per-board, small
   memberUids: [uid, …]                           # for `array-contains` queries
+
+labels/{labelId}                                 # ORG-WIDE: one set, every board shares it
+  name, color                                    # color from LABEL_COLORS; rules check the hex shape
+  createdAt, createdBy                           # '' for the 32 migrated from board arrays
+                                                 # a COLLECTION, not an array: any member may add one, and
+                                                 # two people appending to one array field is a lost write
 
 cards/{cardId}                                   # TOP-LEVEL collection; keyed to a board by a FIELD
   boardId                                        # which board this card is on — client-supplied, rule-validated, changed by a cross-board move
@@ -148,7 +155,7 @@ cards/{cardId}                                   # TOP-LEVEL collection; keyed t
   assigneeUids: [uid, …]                         # MUST be members of boardId's board (rule-enforced)
   dueDate?: string                               # 'YYYY-MM-DD' — an all-day date, NOT a timestamp
   priority: none|low|med|high|urgent
-  labelIds: [id, …], archived: bool, archivedAt?
+  labelIds: [id, …], archived: bool, archivedAt?  # ids into labels/*; survive a cross-board move
   commentCount                                   # denormalized for the card face
   parentId?                                      # the card this is a SUBTASK of — lives on the child, so the parent's list is derived
                                                  # board-scoped by convention (a cross-board move clears it); rules validate shape only

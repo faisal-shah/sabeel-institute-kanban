@@ -6,11 +6,11 @@ import {
   LABEL_NAME_MAX,
   columnsPatch,
   localId,
-  newLabel,
   validateBoardName,
   validateColumnName,
   validateLabelName,
   type BoardColumn,
+  type Label,
 } from '@sabeel/shared';
 import {
   addBoardMember,
@@ -19,6 +19,13 @@ import {
   updateBoard,
   useBoard,
 } from '../boards';
+import {
+  countLabelUsage,
+  createLabel,
+  deleteLabel,
+  updateLabel,
+  useLabels,
+} from '../labels';
 import { useAllUsers } from '../users';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -53,6 +60,9 @@ export function BoardSettingsScreen({
   // Only admins may list all users; managers add members by picking from the
   // board's own view, so a non-admin manager sees an empty picker and a note.
   const allUsers = useAllUsers();
+  // Labels are org-wide. This section edits ONE set that every board shows —
+  // the copy below says so, because the screen it sits on does not.
+  const labels = useLabels();
   const t = useTheme();
 
   const [newColumn, setNewColumn] = useState('');
@@ -66,6 +76,14 @@ export function BoardSettingsScreen({
     null,
   );
   const [pendingCards, setPendingCards] = useState<number | null>(null);
+  /** The label awaiting a delete confirmation, and how many cards carry it
+   *  (null = still counting, exactly like the member removal above). */
+  const [pendingLabel, setPendingLabel] = useState<Label | null>(null);
+  const [pendingLabelCards, setPendingLabelCards] = useState<number | null>(null);
+  /** Which label is being renamed inline, and the text so far. */
+  const [renamingLabel, setRenamingLabel] = useState<string | null>(null);
+  const [labelDraft, setLabelDraft] = useState('');
+  const labelCountReq = useRef(0);
   /** Whether the "add someone" picker is open — its trigger is on the heading. */
   const [adding, setAdding] = useState(false);
   const countReq = useRef(0);
@@ -126,17 +144,48 @@ export function BoardSettingsScreen({
   }
 
   async function addLabel() {
-    const problem = validateLabelName(newLabelName, b!.labels);
+    const problem = validateLabelName(newLabelName, labels.data ?? []);
     if (problem) {
       setError(problem);
       return;
     }
     await run(async () => {
-      await updateBoard(boardId, {
-        labels: [...b!.labels, newLabel(newLabelName, labelColor)],
-      });
+      await createLabel({ name: newLabelName, color: labelColor, user });
       setNewLabelName('');
     });
+  }
+
+  async function saveLabelName(label: Label) {
+    // Exclude the label being renamed, or "no change" fails its own uniqueness
+    // check — the same self-exclusion renameColumn needs.
+    const problem = validateLabelName(labelDraft, labels.data ?? [], label.id);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    await run(async () => {
+      await updateLabel(label.id, { name: labelDraft });
+      setRenamingLabel(null);
+    });
+  }
+
+  /**
+   * Deleting a label takes it off every card on every board, so it asks first
+   * and says how many. Same shape as removing a member: open the dialog at once
+   * — the dialog IS the feedback — and drop the count in when the callable
+   * returns, ignoring a stale answer if the dialog has moved on.
+   */
+  function askDeleteLabel(label: Label) {
+    setPendingLabel(label);
+    setPendingLabelCards(null);
+    const req = ++labelCountReq.current;
+    countLabelUsage(label.id)
+      .then((n) => {
+        if (labelCountReq.current === req) setPendingLabelCards(n);
+      })
+      .catch(() => {
+        if (labelCountReq.current === req) setPendingLabelCards(0);
+      });
   }
 
   async function renameBoard(name: string) {
@@ -247,27 +296,94 @@ export function BoardSettingsScreen({
 
       <Heading>Labels</Heading>
       <Card>
-        {b.labels.length === 0 ? <Hint>No labels yet.</Hint> : null}
-        {b.labels.map((l) => (
-          <Row key={l.id} style={styles.between}>
-            <Row>
+        {/* This screen is per-board and these labels are not, which is exactly
+            the misreading to head off: someone deletes one expecting it to
+            affect their board alone. */}
+        <Hint>
+          Labels are shared by every board. Adding, renaming or deleting one
+          changes it everywhere.
+        </Hint>
+        {labels.status === 'loading' ? <Spinner label="Loading labels…" /> : null}
+        {(labels.data ?? []).length === 0 && labels.status === 'ready' ? (
+          <Hint>No labels yet.</Hint>
+        ) : null}
+        {(labels.data ?? []).map((l) =>
+          renamingLabel === l.id ? (
+            <Row key={l.id} style={styles.between}>
               <View style={[styles.swatch, { backgroundColor: l.color }]} />
-              <Body>{l.name}</Body>
+              <View style={styles.grow}>
+                <TextField
+                  value={labelDraft}
+                  onChangeText={setLabelDraft}
+                  label={`New name for ${l.name}`}
+                  maxLength={LABEL_NAME_MAX}
+                  autoFocus
+                />
+              </View>
+              <IconAction
+                icon="check"
+                label={`Save name for ${l.name}`}
+                accent
+                disabled={busy || !labelDraft.trim()}
+                onPress={() => saveLabelName(l)}
+              />
+              <IconAction
+                icon="close"
+                label="Cancel rename"
+                disabled={busy}
+                onPress={() => setRenamingLabel(null)}
+              />
             </Row>
-            <IconAction
-              icon="close"
-              label={`Remove label ${l.name}`}
-              disabled={busy}
-              onPress={() =>
-                run(() =>
-                  updateBoard(boardId, {
-                    labels: b.labels.filter((x) => x.id !== l.id),
-                  }),
-                )
-              }
-            />
-          </Row>
-        ))}
+          ) : (
+            <Row key={l.id} style={styles.between}>
+              <Row>
+                <View style={[styles.swatch, { backgroundColor: l.color }]} />
+                <Body>{l.name}</Body>
+              </Row>
+              <Row>
+                {/* Recolouring in place: the swatch row below belongs to the
+                    NEW label being composed, so an existing one needs its own
+                    way to change, and cycling the palette is one tap rather
+                    than a second editor. */}
+                <IconAction
+                  icon="palette"
+                  label={`Change colour of ${l.name}`}
+                  disabled={busy}
+                  onPress={() =>
+                    run(() =>
+                      updateLabel(l.id, {
+                        color:
+                          LABEL_COLORS[
+                            (LABEL_COLORS.indexOf(
+                              l.color as (typeof LABEL_COLORS)[number],
+                            ) +
+                              1) %
+                              LABEL_COLORS.length
+                          ],
+                      }),
+                    )
+                  }
+                />
+                <IconAction
+                  icon="edit"
+                  label={`Rename ${l.name}`}
+                  disabled={busy}
+                  onPress={() => {
+                    setRenamingLabel(l.id);
+                    setLabelDraft(l.name);
+                  }}
+                />
+                <IconAction
+                  icon="delete-outline"
+                  label={`Delete label ${l.name}`}
+                  danger
+                  disabled={busy}
+                  onPress={() => askDeleteLabel(l)}
+                />
+              </Row>
+            </Row>
+          ),
+        )}
         <TextField
           value={newLabelName}
           onChangeText={setNewLabelName}
@@ -308,6 +424,44 @@ export function BoardSettingsScreen({
           />
         </Row>
       </Card>
+      {/* HERE, not with the other confirmations further down the screen. The
+          bin that opens this sits in the Labels card directly above; rendered
+          below Members it was off-screen on a phone, so tapping delete looked
+          like it had done nothing at all. */}
+      {pendingLabel ? (
+        <Card>
+          <Body>
+            {pendingLabelCards === null
+              ? `Delete “${pendingLabel.name}”? Checking how many cards use it…`
+              : pendingLabelCards > 0
+                ? `Delete “${pendingLabel.name}”? It is on ${pendingLabelCards} card${
+                    pendingLabelCards === 1 ? '' : 's'
+                  } across every board, and will be removed from ${
+                    pendingLabelCards === 1 ? 'it' : 'them'
+                  }. This cannot be undone.`
+                : `Delete “${pendingLabel.name}”? No cards use it.`}
+          </Body>
+          <Row>
+            <Button
+              busy={busy}
+              label="Delete"
+              variant="danger"
+              onPress={() =>
+                run(async () => {
+                  await deleteLabel(pendingLabel.id);
+                  setPendingLabel(null);
+                })
+              }
+            />
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => setPendingLabel(null)}
+            />
+          </Row>
+        </Card>
+      ) : null}
+
 
       {/* Adding rides on the heading, and the candidate list opens on demand.
           It used to be a permanent second panel with a labelled Add per person,

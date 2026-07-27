@@ -307,6 +307,34 @@ try {
   await admin.getByText('urgent').first().waitFor({ timeout: 15000 });
   check('a manager can add a label', true);
 
+  // Labels are ORG-WIDE, and this screen is per-board — which is exactly the
+  // misreading the copy has to head off.
+  check(
+    'board settings says labels are shared by every board',
+    await admin
+      .getByText(/Labels are shared by every board/)
+      .first()
+      .isVisible()
+      .catch(() => false),
+  );
+
+  // Renaming keeps the id, so anything already carrying the label follows the
+  // change rather than losing it. (A card gets it further down; this proves the
+  // control itself.)
+  await admin.getByRole('button', { name: 'Rename urgent' }).click();
+  await admin.getByRole('button', { name: 'Save name for urgent' }).waitFor({ timeout: 15000 });
+  await admin.getByLabel('New name for urgent').fill('urgent-fix');
+  await admin.getByRole('button', { name: 'Save name for urgent' }).click();
+  check(
+    'a manager can rename a label',
+    await admin
+      .getByText('urgent-fix')
+      .first()
+      .waitFor({ timeout: 15000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
   // Sara is active by now, so she should be addable to the board.
   // "Add someone" is the section-heading ICON (its accessible name carries the
   // count); the picker below only appears once it is pressed.
@@ -624,6 +652,34 @@ try {
   // Put it back so later assertions still find it in To Do.
   await columnSelect.selectOption({ label: 'To Do' });
   await admin.waitForTimeout(2000);
+
+  // ---- Labels are ORG-WIDE ------------------------------------------------
+  // The renamed label from board settings must be offered on this card without
+  // anything having added it to this board, because there is no such thing as
+  // adding a label to a board any more.
+  check(
+    'a label made in board settings is offered on a card',
+    await admin
+      .getByRole('button', { name: 'Label urgent-fix' })
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  // The `+` is the one label affordance a plain member gets, since board
+  // settings is manager-only. Creating from here applies it to the card too.
+  await admin.getByRole('button', { name: 'New label' }).click();
+  await admin.getByPlaceholder('Label name').fill('cross-board');
+  await admin.getByRole('button', { name: 'Add label' }).click();
+  check(
+    'a label added from a card is applied to that card',
+    await admin
+      .getByRole('button', { name: 'Label cross-board' })
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
   await admin.screenshot({ path: join(SHOTS, 'p5-card-detail-light.png'), fullPage: true });
 
   // ---- Comments, mentions and activity (Phases 8-9) ----------------------
@@ -774,6 +830,43 @@ try {
   await admin.getByText('Draft newsletter').first().waitFor({ timeout: 20000 });
   check('archived cards are findable when explicitly included', true);
   await admin.screenshot({ path: join(SHOTS, 'p11-search-light.png'), fullPage: true });
+
+  // ---- The label set is not scoped to a board -----------------------------
+  // The whole claim of global labels, and the only way to prove it is a board
+  // that has never been near the labels: a brand-new one, whose settings are
+  // never opened, must offer the labels made on the first board.
+  await backToBoards(admin);
+  await admin.getByRole('button', { name: 'New board' }).click();
+  await admin.getByPlaceholder('Board name').fill('Second Board');
+  // Same control names the board and card sections above already prove work:
+  // "Create" exactly, and Enter to submit a card title (the fill-then-click
+  // route leaves the component's state empty — see the note at card creation).
+  await admin.getByRole('button', { name: 'Create', exact: true }).click();
+  await admin.getByText('Second Board').first().waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: '+ Add card' }).first().click();
+  const secondTitle = admin.getByPlaceholder('Card title');
+  await secondTitle.waitFor({ timeout: 10000 });
+  await secondTitle.click();
+  await secondTitle.pressSequentially('Elsewhere entirely', { delay: 10 });
+  await secondTitle.press('Enter');
+  await admin.getByText('Elsewhere entirely').waitFor({ timeout: 20000 });
+  // The helper, not a bare text click: a live board re-renders as snapshots
+  // arrive and a plain click loses the stability check.
+  await openCard(admin, 'Elsewhere entirely');
+
+  const offeredHere = await admin
+    .getByRole('button', { name: 'Label cross-board' })
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  check('a label made on one board is offered on a different board', offeredHere);
+  check(
+    'and so is the renamed one, under its new name',
+    await admin
+      .getByRole('button', { name: 'Label urgent-fix' })
+      .isVisible()
+      .catch(() => false),
+  );
 
   await backToBoards(admin);
 

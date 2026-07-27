@@ -6,10 +6,11 @@ import {
   rankMatches,
   type Priority,
   todayInOrgTz,
-  type BoardLabel,
+  type Label,
   type SearchableCard,
 } from '@sabeel/shared';
 import { db } from '../firebase';
+import { useLabels } from '../labels';
 import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boards';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -29,7 +30,7 @@ import {
 import { CardFace } from '../components/CardFace';
 import { space } from '../theme';
 
-const NO_LABELS: BoardLabel[] = [];
+const NO_LABELS: Label[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
 
 /**
@@ -47,6 +48,7 @@ const NO_MEMBERS: BoardMemberProfile[] = [];
 export function SearchScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const boards = useMyBoards(user);
+  const allLabels = useLabels();
 
   const [text, setText] = useState('');
   const [archivedOnly, setArchivedOnly] = useState(false);
@@ -230,7 +232,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
               <Panel>
                 <CardFace
                   card={c}
-                  boardLabels={board?.labels ?? NO_LABELS}
+                  labels={allLabels.data ?? NO_LABELS}
                   boardMembers={board?.members ?? NO_MEMBERS}
                 />
                 <Caption>

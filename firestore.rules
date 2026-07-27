@@ -130,7 +130,7 @@ service cloud.firestore {
       // orphaned with no one able to see it.
       allow create: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
-            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'activeCardCount',
+            'columnIds', 'memberUids', 'memberProfiles', 'activeCardCount',
             'createdAt', 'createdBy'])
         && incoming().createdBy == request.auth.uid
         && incoming().archived == false
@@ -138,12 +138,12 @@ service cloud.firestore {
         && request.auth.uid in incoming().memberUids
         && incoming().columns is list
         && incoming().columnIds is list
-        && incoming().labels is list
         && incoming().name is string
         && incoming().name.size() > 0
         && incoming().name.size() <= 120;
 
-      // Settings, columns, labels and membership are all manager/admin work.
+      // Settings, columns and membership are all manager/admin work. Labels are
+      // NOT here any more: they are org-wide documents (see match /labels).
       // Members deliberately cannot edit the board they are on — including
       // removing themselves, which would look like leaving but would strand
       // their card assignments (see the removeBoardMember callable).
@@ -159,7 +159,7 @@ service cloud.firestore {
       // being prevented.
       allow update: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
-            'columnIds', 'labels', 'memberUids', 'memberProfiles', 'activeCardCount',
+            'columnIds', 'memberUids', 'memberProfiles', 'activeCardCount',
             'createdAt', 'createdBy'])
         && incoming().createdBy == existing().createdBy
         // History, not state. Neither is the client's to rewrite.
@@ -171,7 +171,6 @@ service cloud.firestore {
         && incoming().memberUids is list
         && incoming().columns is list
         && incoming().columnIds is list
-        && incoming().labels is list
         && (!('archived' in incoming()) || incoming().archived is bool)
         && (!('memberProfiles' in incoming()) || incoming().memberProfiles is map)
         && incoming().name is string
@@ -180,6 +179,73 @@ service cloud.firestore {
 
       // Boards archive, never hard-delete — far too much accumulated work to
       // expose a destroy button for. `archived` is a field, set via update.
+      allow delete: if false;
+    }
+
+    // ---- Labels (org-wide) ----
+    // One set of labels for the whole organisation: every board offers every
+    // label, and a card's `labelIds` mean the same thing wherever the card is.
+    //
+    // A COLLECTION, not an array on a config document, and that is what makes
+    // this block possible. Any active member may add a label, so concurrent
+    // creates are the ordinary case — two people appending to one array field is
+    // a lost write. And rules cannot iterate a list, so while labels lived on the
+    // board the name cap was client-side only (see LABEL_NAME_MAX in
+    // @sabeel/shared). One document per label makes it enforceable here.
+    match /labels/{labelId} {
+      function label() { return request.resource.data; }
+      function existingLabel() { return resource.data; }
+
+      // Everyone active reads them: a label can appear on a card on any board,
+      // so restricting reads by board membership would blank out chips in My
+      // Work and Search, which are cross-board by definition.
+      allow read: if isActive();
+
+      // ANY active member — deliberately wider than the manager gate on boards.
+      // Adding a label is cheap, ordinary and reversible, and it happens while
+      // someone is looking at a card rather than in board settings.
+      //
+      // Colour is checked for SHAPE, not against LABEL_COLORS. The palette is a
+      // design constraint rather than a security boundary, and restating those
+      // eight values here would be a second source of truth for them; the client
+      // only ever offers swatches. A stray hex makes an ugly chip, not a breach.
+      allow create: if isActive()
+        && label().keys().hasOnly(['name', 'color', 'createdAt', 'createdBy'])
+        && label().keys().hasAll(['name', 'color', 'createdAt', 'createdBy'])
+        && label().name is string
+        && label().name.size() > 0
+        && label().name.size() <= 40
+        && label().color is string
+        && label().color.matches('^#[0-9A-Fa-f]{6}$')
+        // Authorship is not the client's to invent — it is who the UI credits
+        // and the only record of where a stray label came from.
+        && label().createdBy == request.auth.uid
+        && label().createdAt is number
+        && label().createdAt <= request.time.toMillis() + 3600000;
+
+      // Renaming and recolouring are curation, so they stay with managers —
+      // unlike creating, they change what everyone else already sees. Nothing
+      // else may move: `createdAt`/`createdBy` are history.
+      //
+      // `.get(field, default)` on both sides rather than plain access, the same
+      // old-document guard the board and card blocks carry: a label written
+      // before one of these fields existed would otherwise be permanently
+      // uneditable, which is a worse failure than the drift being prevented.
+      allow update: if isManager()
+        && label().keys().hasOnly(['name', 'color', 'createdAt', 'createdBy'])
+        && label().name is string
+        && label().name.size() > 0
+        && label().name.size() <= 40
+        && label().color is string
+        && label().color.matches('^#[0-9A-Fa-f]{6}$')
+        && label().get('createdAt', 0) == existingLabel().get('createdAt', 0)
+        && label().get('createdBy', '') == existingLabel().get('createdBy', '');
+
+      // Never from a client. Deleting a label must also strip its id from every
+      // card that carries it, and a client cannot do that atomically across
+      // boards it may not even be able to read — nor could a delete trigger name
+      // who did it, which the activity log needs. The deleteLabel callable owns
+      // this (the Admin SDK bypasses these rules). Same reasoning as attachments.
       allow delete: if false;
     }
 

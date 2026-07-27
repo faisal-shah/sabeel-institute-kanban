@@ -7,7 +7,7 @@ import {
   subtaskCounts,
   compareRank,
   type BoardColumn,
-  type BoardLabel,
+  type Label,
 } from '@sabeel/shared';
 import {
   archiveCard,
@@ -38,6 +38,7 @@ import {
   TextField,
   Title,
 } from '../ui';
+import { useLabels } from '../../labels';
 import { radius, space, useTheme } from '../../theme';
 import { useAction } from '../../useAction';
 
@@ -58,7 +59,7 @@ import { useAction } from '../../useAction';
 const NO_COLUMNS: BoardColumn[] = [];
 const EMPTY_CARDS: Card[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
-const NO_LABELS: BoardLabel[] = [];
+const NO_LABELS: Label[] = [];
 
 export function WideBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
@@ -78,7 +79,9 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   const columns = board.data?.columns ?? NO_COLUMNS;
   const members = board.data?.members ?? NO_MEMBERS;
-  const labels = board.data?.labels ?? NO_LABELS;
+  // Org-wide, not from the board: labels are one set for the whole team.
+  const allLabels = useLabels();
+  const labels = allLabels.data ?? NO_LABELS;
 
   // Derived, not stored: every card of the board is already loaded, so the count
   // costs nothing and can never drift from reality.
@@ -296,7 +299,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                     >
                       <CardFace
                         card={card}
-                        boardLabels={labels}
+                        labels={labels}
                         boardMembers={members}
                         subtaskCount={subtasksBy.get(card.id)}
                       />
