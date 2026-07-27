@@ -104,9 +104,18 @@ try {
   check('a file uploads and the row settles to ready', true);
   await page.screenshot({ path: join(SHOTS, 'attach-card-light.png'), fullPage: true });
 
+  // WAIT for it, do not sample it. The activity entry is written by the callable
+  // and reaches the screen through a SEPARATE live query, so it lands after the
+  // row itself changes. `isVisible()` checks once, instantly, and wins that race
+  // on a fast machine and loses it on a slower CI runner — which is exactly how
+  // this failed in CI while passing locally every time.
   check(
     'attaching is recorded in the card activity',
-    await page.getByText(/attached budget\.pdf/).isVisible().catch(() => false),
+    await page
+      .getByText(/attached budget\.pdf/)
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
   );
 
   // ---- Open ---------------------------------------------------------------
@@ -232,9 +241,16 @@ try {
   await page.getByRole('button', { name: 'Remove budget.pdf' }).click();
   await page.getByText(/PDF ·/).waitFor({ state: 'detached', timeout: 25000 });
   check('a file can be removed', true);
+  // Same race as the attach entry above, and this is the one CI actually caught:
+  // the row was gone 10ms before the check ran, but the "removed" line had not
+  // arrived yet.
   check(
     'removal is recorded, naming who did it',
-    await page.getByText(/removed budget\.pdf/).isVisible().catch(() => false),
+    await page
+      .getByText(/removed budget\.pdf/)
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
   );
   await page.screenshot({ path: join(SHOTS, 'attach-removed-light.png'), fullPage: true });
 

@@ -673,14 +673,24 @@ try {
   await sara.getByText('Fix signup flow').waitFor({ timeout: 25000 });
   check('My Work shows a card assigned on another board', true);
 
+  // WAIT for live content, never sample it. The board name is resolved by a
+  // separate lookup and the grouping renders on its own snapshot, so a single
+  // instant `isVisible()` wins on a fast machine and loses on a slower CI
+  // runner — the exact race that made the attachments suite flake in CI.
   const showsBoardName = await sara
     .getByText('Fundraising 2026')
     .first()
-    .isVisible()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
     .catch(() => false);
   check('My Work names the board, resolved with no extra reads', showsBoardName);
 
-  const showsToday = await sara.getByText('Today', { exact: false }).first().isVisible();
+  const showsToday = await sara
+    .getByText('Today', { exact: false })
+    .first()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
   check('My Work groups by due state', showsToday);
   await sara.screenshot({ path: join(SHOTS, 'p6-mywork-light.png'), fullPage: true });
 
@@ -695,10 +705,13 @@ try {
   await sara.getByText('mentioned you', { exact: false }).waitFor({ timeout: 25000 });
   check('an @mention lands in the recipient inbox', true);
 
+  // A DIFFERENT notification from the mention waited on above, written by a
+  // different trigger, so it arrives on its own schedule.
   const assignedEntry = await sara
     .getByText('assigned you', { exact: false })
     .first()
-    .isVisible()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
     .catch(() => false);
   check('an assignment lands in the inbox too', assignedEntry);
   await sara.screenshot({ path: join(SHOTS, 'p10-inbox-light.png'), fullPage: true });
@@ -715,12 +728,14 @@ try {
 
   await sara.getByRole('button', { name: 'Inbox' }).click();
   await sara.getByRole('button', { name: 'Mark all read' }).click();
-  await sara.waitForTimeout(1500);
+  // Wait for the marker to GO, rather than sleeping and hoping it has. A fixed
+  // sleep is a race with a nicer face on it.
   const stillUnread = await sara
     .getByText('· unread', { exact: false })
     .first()
-    .isVisible()
-    .catch(() => false);
+    .waitFor({ state: 'detached', timeout: 20000 })
+    .then(() => false)
+    .catch(() => true);
   check('mark all read clears the inbox badge', !stillUnread);
 
   // ---- Search (Phase 11) --------------------------------------------------
