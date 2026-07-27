@@ -123,6 +123,16 @@ export interface CardDoc {
   archivedAt?: number;
   commentCount: number;
   /**
+   * Ready attachments on this card, so the board can badge a card without
+   * querying a subcollection per tile. Optional because cards written before
+   * attachments existed do not carry it — read it as `?? 0`.
+   *
+   * Counts READY files only. A half-finished upload is not a file anyone can
+   * open, and a badge that appears and then vanishes when the sweep runs would
+   * be worse than no badge.
+   */
+  attachmentCount?: number;
+  /**
    * The card this one is a subtask OF. The link lives on the CHILD so there is a
    * single source of truth: a `subtaskIds` array on the parent could disagree
    * with reality, and every reparent would be a two-document write.

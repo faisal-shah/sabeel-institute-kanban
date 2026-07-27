@@ -43,6 +43,8 @@ export interface Card {
   /** When it was archived. Absent on cards archived before this was recorded. */
   archivedAt?: number;
   commentCount: number;
+  /** Ready files. Absent on cards written before attachments — read as 0. */
+  attachmentCount: number;
   /** The card this one is a subtask of. Board-scoped — see CardDoc.parentId. */
   parentId?: string;
   createdBy: string;
@@ -65,6 +67,7 @@ function toCard(id: string, d: Record<string, unknown>): Card {
     archived: Boolean(d.archived),
     archivedAt: d.archivedAt as number | undefined,
     commentCount: (d.commentCount as number) ?? 0,
+    attachmentCount: (d.attachmentCount as number) ?? 0,
     parentId: d.parentId as string | undefined,
     createdBy: (d.createdBy as string) ?? '',
     createdAt: (d.createdAt as number) ?? 0,
@@ -180,6 +183,7 @@ export async function createCard(params: {
     labelIds: [],
     archived: false,
     commentCount: 0,
+    attachmentCount: 0,
     createdAt: now,
     createdBy: params.user.uid,
     updatedAt: now,
@@ -477,6 +481,7 @@ export async function bulkCopyToBoard(params: {
       labelIds: [],
       archived: false,
       commentCount: 0,
+      attachmentCount: 0,
       // NOTE: `parentId` is deliberately absent — a copy is a new, independent
       // card and must not inherit a subtask link to the SOURCE board's parent.
       // This literal is untyped, so nothing but this comment stops someone

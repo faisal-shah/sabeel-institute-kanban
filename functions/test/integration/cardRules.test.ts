@@ -501,6 +501,37 @@ describe('moving a card to another board', () => {
   });
 });
 
+describe('attachmentCount is trigger-owned', () => {
+  it('refuses a card created claiming attachments', async () => {
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/forged'), card({ attachmentCount: 3 })),
+    );
+  });
+
+  it('refuses a client moving the count on an existing card', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        attachmentCount: 7,
+        updatedBy: 'member1',
+        updatedAt: 2,
+      }),
+    );
+  });
+
+  it('still lets a card written BEFORE the field existed be edited', async () => {
+    // card1 is seeded without attachmentCount. Pinning with plain field access
+    // instead of .get(…, 0) would make every such card permanently uneditable —
+    // the trap the board's activeCardCount pin already documents.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'edited fine',
+        updatedBy: 'member1',
+        updatedAt: 2,
+      }),
+    );
+  });
+});
+
 describe('deleting cards', () => {
   it('a plain member CANNOT delete — they archive instead', async () => {
     await assertFails(deleteDoc(doc(ctx('member1', 'member'), 'cards/card1')));

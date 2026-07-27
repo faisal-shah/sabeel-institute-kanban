@@ -175,6 +175,11 @@ cards/{cardId}/attachments/{attachmentId}
   # derived from the ids and never stored. Clients cannot update or delete.
 ```
 
+A card carries an `attachmentCount` of its READY files, maintained by the
+attachment callables, so a board tile can show a paperclip badge without a
+subcollection query per card. It is trigger-owned: rules pin it across a client
+update, exactly as a board's `activeCardCount` is.
+
 Attachments are **10 MB each**, any type, several per card. Objects are
 write-once and unreadable; every download is a short-lived V4 signed URL minted
 by `getAttachmentUrl` after it re-checks board membership. Any active board

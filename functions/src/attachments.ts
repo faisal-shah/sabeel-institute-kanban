@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { onCall, HttpsError, type CallableRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions/v2';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import {
   ATTACHMENT_MAX_BYTES,
@@ -129,6 +129,23 @@ async function recordActivity(
 }
 
 /**
+ * Keep the card's denormalised attachment count in step.
+ *
+ * Best-effort, exactly like the activity entry beside it: the card may have been
+ * deleted along with its attachments, and a badge being briefly wrong is never
+ * worth failing a user's action over. The board reads it as `?? 0`.
+ */
+async function bumpAttachmentCount(cardId: string, by: number): Promise<void> {
+  try {
+    await db().doc(`cards/${cardId}`).update({
+      attachmentCount: FieldValue.increment(by),
+    });
+  } catch (e) {
+    logger.debug('attachmentCount update skipped', { cardId, error: String(e) });
+  }
+}
+
+/**
  * Confirm the bytes arrived, record what actually landed, and publish the file.
  *
  * The client reports nothing that matters here: the size is read from the
@@ -226,6 +243,12 @@ export async function applyFinalizeAttachment(
       actorUid: won.uploadedBy || actorUid,
       to: name,
     });
+    // Denormalised onto the card so the BOARD can badge a tile without a
+    // subcollection query per card. Incremented in the same branch that writes
+    // the activity entry — the transaction above already decided there is
+    // exactly one winner, so this cannot double-count. `increment` because two
+    // uploads finishing together must both land.
+    await bumpAttachmentCount(cardId, 1);
     logger.info('attachment finalized', { cardId, attachmentId, actorUid, sizeBytes });
   }
   return { ok: true, sizeBytes, contentType };
@@ -288,7 +311,10 @@ export async function applyDeleteAttachment(
   // An upload that never finished was never an attachment anyone saw, so
   // rolling one back is not a removal worth recording.
   if (removed.status === 'ready') {
-    await recordActivity(cardId, { type: 'detached', actorUid: actorUid, from: removed.name });
+    await recordActivity(cardId, { type: 'detached', actorUid, from: removed.name });
+    // Only READY files were ever counted, so only they are subtracted. Rolling
+    // back a half-finished upload must not push the badge negative.
+    await bumpAttachmentCount(cardId, -1);
   }
 
   logger.info('attachment removed', { cardId, attachmentId, actorUid });

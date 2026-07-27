@@ -349,6 +349,33 @@ describe('getAttachmentUrl', () => {
   });
 });
 
+describe('the card carries a count so the board can badge it', () => {
+  const countOf = async () =>
+    ((await adminDb().doc(`cards/${CARD}`).get()).data()?.attachmentCount ?? 0) as number;
+
+  it('counts READY files only, and follows removal back down', async () => {
+    const before = await countOf();
+
+    // An upload that has not been confirmed is not a file anyone can open, so
+    // it must not badge the card.
+    const pending = 'at_count_pending';
+    await uploaded(pending);
+    expect(await countOf()).toBe(before);
+
+    const done = 'at_count_done';
+    await uploaded(done);
+    await callFunction('finalizeAttachment', { cardId: CARD, attachmentId: done }, memToken);
+    expect(await countOf()).toBe(before + 1);
+
+    await callFunction('deleteAttachment', { cardId: CARD, attachmentId: done }, memToken);
+    expect(await countOf()).toBe(before);
+
+    // Rolling back the never-finalized one must not push the badge negative.
+    await callFunction('deleteAttachment', { cardId: CARD, attachmentId: pending }, memToken);
+    expect(await countOf()).toBe(before);
+  });
+});
+
 describe('concurrency — two people, or two taps, at the same moment', () => {
   // Every one of these was a real defect found in review, reproduced here first.
   // The shape is always the same: read state, decide, write — without the read

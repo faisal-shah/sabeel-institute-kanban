@@ -112,7 +112,9 @@ Tap any card to open the full view.
   without leaving it.
 - **Description** — plain text. Type whatever you like; it appears to everyone
   exactly as you typed it. **Save** to keep it, **Cancel** to discard.
-- **Attachments** — files on the card. See below.
+- **Attachments** — files on the card. See below. A card with files shows a
+  small **paperclip and count** on the board, so you can see which cards carry
+  something without opening them.
 - **Subtasks** — see below.
 - **Priority** — none / low / medium / high / urgent, shown as a coloured
   **badge** on the card face (e.g. *Urgent*); *none* shows no badge.

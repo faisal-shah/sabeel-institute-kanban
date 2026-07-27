@@ -237,6 +237,22 @@ try {
     );
   }
 
+  // ---- The BOARD badges the card ------------------------------------------
+  // The board only fetches card documents, so this proves the denormalised
+  // count reached the card and the tile reads it.
+  await page.getByRole('button', { name: 'Back' }).first().click();
+  await page.getByText('To Do').first().waitFor({ timeout: 25000 });
+  const badged = await page
+    .getByText(/\d+ files?/)
+    .first()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  check('the board tile badges a card that has files', badged);
+  await page.screenshot({ path: join(SHOTS, 'attach-board-badge.png'), fullPage: true });
+  await tile.click();
+  await page.getByRole('button', { name: 'Attach a file' }).waitFor({ timeout: 20000 });
+
   // ---- Remove -------------------------------------------------------------
   await page.getByRole('button', { name: 'Remove budget.pdf' }).click();
   await page.getByText(/PDF ·/).waitFor({ state: 'detached', timeout: 25000 });

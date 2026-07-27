@@ -341,6 +341,39 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — A board tile shows when a card has files — v0.2.5
+
+A card with attachments now carries a paperclip and a count on the board, in the
+same muted chip as the subtask and due-date markers.
+
+It could not be a UI-only change. The board fetches card DOCUMENTS and
+attachments are a subcollection, so a badge would have meant one subcollection
+query per tile on every render. Instead the card carries `attachmentCount`,
+denormalised exactly as `commentCount` and a board's `activeCardCount` are —
+moved by the attachment callables in the same guarded branch that writes the
+activity entry, so it cannot double-count or disagree with the log.
+
+It counts READY files only. A half-finished upload is not a file anyone can
+open, and a badge that appeared and then vanished when the nightly sweep ran
+would be worse than no badge.
+
+Two things the rules had to get right, both proven by reverting them:
+
+- The count is **pinned across a client update**, like `activeCardCount`, so a
+  member cannot edit a card and claim five files. Removing the pin turns the
+  test red.
+- The pin uses **`.get('attachmentCount', 0)` on BOTH sides**. With plain field
+  access, every card written before the field existed becomes permanently
+  uneditable — the exact trap the board's own pin already carries a comment
+  about. Reverting to plain access turns that test red too.
+
+Production already held 3 attachment documents on one card from testing, so the
+count would have started wrong. `scripts/backfill-attachment-count.mjs`
+recomputes it from the attachments that exist — counting ready ones only, and
+idempotent, so it is safe to re-run. Proven against the emulator first, on a card
+deliberately missing the field: 2 ready counted, 1 uploading excluded, and a
+second run reported "Updated 0, already correct 1".
+
 ### 2026-07-27 — Android 13 floor, and the e2e is green again — v0.2.4
 
 **Android 12 and older are no longer supported.** `minSdkVersion` is 33, set
