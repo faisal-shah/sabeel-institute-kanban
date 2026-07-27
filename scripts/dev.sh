@@ -14,8 +14,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-PORTS=(8080 9099 5001 4400 4401 4500 4501 9150 8086 8081)
-LABELS=("firestore" "auth" "functions" "hub" "hub-alt" "logging" "logging-alt" "fs-ws" "web" "metro")
+PORTS=(8080 9099 5001 9199 4400 4401 4500 4501 9150 8086 8081)
+LABELS=("firestore" "auth" "functions" "storage" "hub" "hub-alt" "logging" "logging-alt" "fs-ws" "web" "metro")
 
 status() {
   local any=0

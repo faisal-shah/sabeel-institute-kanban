@@ -189,10 +189,22 @@ export function Heading({
   );
 }
 
-export function Body({ children, muted }: { children: ReactNode; muted?: boolean }) {
+export function Body({
+  children,
+  muted,
+  numberOfLines,
+}: {
+  children: ReactNode;
+  muted?: boolean;
+  /** Truncate rather than wrap — for a name sharing its row with an action. */
+  numberOfLines?: number;
+}) {
   const t = useTheme();
   return (
-    <Text style={[type.body, { color: muted ? t.text.muted : t.text.secondary }]}>
+    <Text
+      numberOfLines={numberOfLines}
+      style={[type.body, { color: muted ? t.text.muted : t.text.secondary }]}
+    >
       {children}
     </Text>
   );
@@ -598,6 +610,38 @@ export function Spinner({ label }: { label?: string }) {
 }
 
 /**
+ * Determinate progress, for work whose length is actually known.
+ *
+ * `Spinner` and `Button busy` are indeterminate — right for a write that takes
+ * an unknown moment, wrong for an upload, where "is this moving at all" is the
+ * question and a 10 MB file over a phone connection takes long enough to look
+ * stuck.
+ *
+ * `fraction` accepts null for work that has started but has no measurable
+ * progress yet (a record being created before any bytes move). It renders an
+ * empty track with its label rather than a misleading 0% that looks stalled.
+ */
+export function ProgressBar({ fraction, label }: { fraction: number | null; label: string }) {
+  const t = useTheme();
+  // Guard the division's output as well as clamping it: totalBytes can be 0 for
+  // a moment at the start, and NaN width silently renders nothing.
+  const pct =
+    fraction === null || !Number.isFinite(fraction)
+      ? 0
+      : Math.round(Math.min(1, Math.max(0, fraction)) * 100);
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: pct }}
+      style={[styles.progressTrack, { backgroundColor: t.bg.inset }]}
+    >
+      <View style={[styles.progressFill, { backgroundColor: t.bg.accentSoft, width: `${pct}%` }]} />
+      <Caption>{label}</Caption>
+    </View>
+  );
+}
+
+/**
  * A live subscription that FAILED, in place of the list it was going to fill.
  *
  * The error itself is already reported: `Screen` renders a banner for any live
@@ -636,6 +680,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleThumb: { width: 26, height: 26, borderRadius: radius.pill },
+  progressTrack: {
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    minHeight: 24,
+    justifyContent: 'center',
+    paddingHorizontal: space.sm,
+  },
+  // Absolutely positioned so the label sits ON the bar rather than under it —
+  // a bar plus its own caption row costs two rows inside a card that is already
+  // one row per file.
+  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   // A real 44x44 target, the platform accessibility minimum. NOT hitSlop — see
   // IconAction: slop overlaps between neighbours, laid-out boxes cannot.
   filterChip: {

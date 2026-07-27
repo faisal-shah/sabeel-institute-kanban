@@ -72,7 +72,11 @@ if [ -z "$ready" ]; then
   exit 1
 fi
 
+# Which suite to drive. Defaults to the full flow; pass a script to run a
+# focused one against the same stack (e.g. scripts/attachments-e2e.mjs).
+SUITE="${1:-scripts/web-e2e.mjs}"
+
 exec firebase emulators:exec \
   --project demo-sabeel-kanban \
   --only firestore,auth,functions,storage \
-  "node scripts/web-e2e.mjs"
+  "node ${SUITE}"

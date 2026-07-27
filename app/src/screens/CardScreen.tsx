@@ -25,6 +25,7 @@ import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import { shareLink, WEB_ORIGIN } from '../share';
 import { cardPath } from '../links';
+import { Attachments } from '../components/Attachments';
 import { Comments } from '../components/Comments';
 import { ActivityLog } from '../components/ActivityLog';
 import {
@@ -385,6 +386,8 @@ export function CardScreen({
           </>
         )}
       </Panel>
+
+      <Attachments cardId={cardId} user={user} />
 
       <Heading>Subtasks</Heading>
       <Panel>

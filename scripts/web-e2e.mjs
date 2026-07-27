@@ -216,6 +216,11 @@ try {
   check('second account also lands pending', true);
 
   // ---- Admin sees and approves her ----------------------------------------
+  // People lives in the Account menu, not on the nav itself — the navigation
+  // shell moved it there and this script was not updated, so the whole suite
+  // had been aborting here. CI does not run the e2e, which is why it rotted
+  // unnoticed.
+  await admin.getByRole('button', { name: 'Account' }).click();
   await admin.getByRole('button', { name: 'People' }).click();
   await admin.getByText('People', { exact: true }).waitFor({ timeout: 15000 });
   await admin.getByText('sara@oursabeel.com').waitFor({ timeout: 20000 });
@@ -232,14 +237,28 @@ try {
   );
 
   // Her open page must un-gate on its own too.
-  await sara.getByText('Boards', { exact: true }).waitFor({ timeout: 25000 });
+  //
+  // Asserted as "the gate is gone AND the app shell is up" rather than by
+  // matching the word Boards: since the navigation shell landed, that text is
+  // both a nav item and a page heading, so it matches twice and the strict
+  // locator throws. This phrasing also says what un-gating actually means.
+  await sara.getByText('Waiting for approval').waitFor({ state: 'detached', timeout: 25000 });
+  await sara.getByRole('button', { name: 'Account' }).waitFor({ timeout: 15000 });
   check('approved member un-gates live', true);
 
+  // Look for People where it actually lives — INSIDE the Account menu. This
+  // used to probe a top-level button that exists for nobody, so it passed
+  // without testing anything, which for an access check is worse than no test.
+  await sara.getByRole('button', { name: 'Account' }).click();
+  // Sign out is in the menu for everyone, so it proves the sheet is open
+  // without matching the nav button that opened it.
+  await sara.getByRole('button', { name: 'Sign out' }).waitFor({ timeout: 15000 });
   const saraSeesPeople = await sara
     .getByRole('button', { name: 'People' })
     .isVisible()
     .catch(() => false);
   check('a member does NOT get admin tools', !saraSeesPeople);
+  await sara.getByRole('button', { name: 'Cancel' }).first().click();
   await sara.screenshot({ path: join(SHOTS, 'p1-member-home-light.png'), fullPage: true });
 
   // Back to the board list so the Phase 2 flow starts from a known place.
@@ -274,8 +293,13 @@ try {
   check('a manager can add a label', true);
 
   // Sara is active by now, so she should be addable to the board.
+  // "Add someone" is the section-heading ICON (its accessible name carries the
+  // count); the picker below only appears once it is pressed.
+  await admin.getByRole('button', { name: /^Add someone/ }).click();
   await admin.getByText('Add someone').waitFor({ timeout: 15000 });
-  await admin.getByRole('button', { name: 'Add', exact: true }).first().click();
+  // Each candidate is one pressable row named "Add <person> to this board" —
+  // not a bare "Add" button beside a name.
+  await admin.getByRole('button', { name: /^Add .* to this board$/ }).first().click();
   await admin.getByText('Members (2)').waitFor({ timeout: 20000 });
   check('a manager can add a member to a board', true);
   await admin.screenshot({ path: join(SHOTS, 'p2-settings-light.png'), fullPage: true });
@@ -495,9 +519,11 @@ try {
 
   // And the emptied column can now be deleted, which was the point.
   await admin.getByRole('button', { name: 'Delete column Blocked' }).click();
+  // Assert the column's own delete control is gone, not that the WORD Blocked
+  // has left the page — it also appears in the move panel's column dropdown, so
+  // a text match resolves to something that never detaches.
   await admin
-    .getByText('Blocked')
-    .first()
+    .getByRole('button', { name: 'Delete column Blocked' })
     .waitFor({ state: 'detached', timeout: 20000 });
   check('a column emptied by a bulk move can then be deleted', true);
 
@@ -792,6 +818,10 @@ try {
     'restoring returns it to the active list and hides the Archived section',
     !(await archivedChip.isVisible().catch(() => false)),
   );
+
+  // Attachments have their own focused suite, so a stale check in the long
+  // access/board flow above cannot block them:
+  //   bash scripts/e2e.sh scripts/attachments-e2e.mjs
 
   // ---- Dark mode ----------------------------------------------------------
   // Re-emulate the colour scheme on the page we already have, rather than
