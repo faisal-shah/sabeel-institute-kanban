@@ -1,17 +1,36 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <!-- Only what the app actually uses: INTERNET (Firebase) and VIBRATE
-       (notification buzz). No storage or overlay permissions — there is no file,
-       attachment, or draw-over-apps feature (see docs/PRODUCT_BRIEF.md, "No file
-       attachments"). These were Expo scaffold defaults; a future `expo prebuild`
+       (notification buzz). No overlay permissions — there is no draw-over-apps
+       feature. These were Expo scaffold defaults; a future `expo prebuild`
        would re-add them, so they must be suppressed in app.json if this native
        project is ever regenerated (android/ is committed, not regenerated now). -->
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
+
+  <!-- Attachments still need NO storage permission, and these are removed to
+       keep that true. expo-file-system's own manifest declares both (capped at
+       API 32) and the merger would fold them in silently — but everything this
+       app does with files happens in its OWN cache directory, which has never
+       needed a permission. Asking for external storage to write a file nobody
+       else can see is the kind of permission that makes people refuse an
+       install. -->
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
+
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
       <category android:name="android.intent.category.BROWSABLE"/>
       <data android:scheme="https"/>
+    </intent>
+    <!-- Opening an attachment in whatever app claims its type.
+         On API 30+ package visibility hides every handler unless it is declared
+         here, and the failure is silent: startActivityAsync resolves to nothing
+         and the tap simply does nothing at all. expo-intent-launcher ships an
+         empty manifest, so this cannot come from the library. -->
+    <intent>
+      <action android:name="android.intent.action.VIEW"/>
+      <data android:mimeType="*/*"/>
     </intent>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme" android:supportsRtl="true" android:enableOnBackInvokedCallback="false">

@@ -3,6 +3,7 @@ import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytesResumable } from 'firebase/storage';
 import { attachmentStoragePath } from '@sabeel/shared';
 import { db, functions, storage } from './firebase';
+import { EMULATOR_HOST, USE_EMULATORS } from './env';
 import { useLiveQuery } from './liveQuery';
 import type { SessionUser } from './session';
 
@@ -71,9 +72,24 @@ export async function removeAttachment(cardId: string, attachmentId: string): Pr
   await remove({ cardId, attachmentId });
 }
 
+/**
+ * The functions emulator mints its object URLs against ITS OWN view of the
+ * host, which is `127.0.0.1`. On an Android emulator that address is the DEVICE,
+ * not the machine running the emulator suite, so opening a file died with
+ * "Failed to connect to /127.0.0.1:9199" — a failure that reads as a broken
+ * feature and is purely an addressing artefact.
+ *
+ * Only ever applied in emulator mode. A production URL is signed, and its
+ * signature covers the host, so rewriting one would break it — which is exactly
+ * why this is gated rather than unconditional.
+ */
+function reachableFromThisDevice(url: string): string {
+  return USE_EMULATORS ? url.replace('127.0.0.1', EMULATOR_HOST) : url;
+}
+
 /** A fresh short-lived signed URL. Minted per open; never cached. */
 export async function attachmentUrl(cardId: string, attachmentId: string): Promise<string> {
-  return (await mintUrl({ cardId, attachmentId })).url;
+  return reachableFromThisDevice((await mintUrl({ cardId, attachmentId })).url);
 }
 
 function sendBytes(

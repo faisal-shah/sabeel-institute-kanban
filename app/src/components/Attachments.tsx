@@ -135,7 +135,13 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
   // NOT awaited before `run`: the tab has to be opened while the tap is still
   // the reason anything is happening, or the browser blocks it silently.
   const open = (a: Attachment) =>
-    void run(() => openAttachment(() => attachmentUrl(cardId, a.id)), 'openAttachment');
+    void run(
+      () =>
+        openAttachment({ name: a.name, contentType: a.contentType }, () =>
+          attachmentUrl(cardId, a.id),
+        ),
+      'openAttachment',
+    );
 
   const items = list.data ?? [];
 
