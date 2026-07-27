@@ -157,6 +157,16 @@ async function backToBoards(page) {
     if (await page.getByRole('button', { name: 'New board' }).isVisible().catch(() => false)) {
       return;
     }
+    // The NAV first, Back only as a fallback. Back-only walking cannot leave a
+    // TAB ROOT — My Work, Search and Alerts dropped their redundant Back when
+    // the navigation shell landed — so the loop found nothing to click, broke,
+    // and the wait below failed on a perfectly healthy app.
+    const boards = page.getByRole('button', { name: 'Boards', exact: true });
+    if (await boards.first().isVisible().catch(() => false)) {
+      await boards.first().click();
+      await page.waitForTimeout(600);
+      continue;
+    }
     const back = page.getByRole('button', { name: 'Back' });
     if ((await back.count()) === 0) break;
     await back.first().click();
@@ -677,9 +687,9 @@ try {
   // ---- Notifications inbox (Phase 10) -------------------------------------
   // Sara was @mentioned and assigned, so her inbox should hold entries written
   // by the triggers — not by any client.
-  // My work leaves via Back, like every other screen — it used to have a
-  // 'Boards' button that reset the stack.
-  await sara.getByRole('button', { name: 'Back' }).click();
+  // My Work is a TAB ROOT, so it has no Back — the navigation shell dropped the
+  // redundant Back from the tab roots (My work / Search / Alerts) and you move
+  // between them with the nav itself. Clicking Alerts is the whole journey.
   await sara.getByRole('button', { name: /^Alerts/ }).click();
   await sara.getByText('Notifications').first().waitFor({ timeout: 20000 });
   await sara.getByText('mentioned you', { exact: false }).waitFor({ timeout: 25000 });
@@ -734,10 +744,18 @@ try {
   // Archived cards are hidden until asked for — the archive is a separate place.
   await searchBox.fill('');
   await searchBox.pressSequentially('Draft newsletter', { delay: 15 });
-  await admin.getByText('No matches').waitFor({ timeout: 20000 });
+  // The empty state reads "Nothing to show" — the heading doubles as the count,
+  // so there is no separate "No matches" line any more.
+  await admin.getByText('Nothing to show').waitFor({ timeout: 20000 });
   check('archived cards are excluded from search by default', true);
 
-  await admin.getByRole('button', { name: 'Excluding archived' }).click();
+  // Archived is a FILTER CHIP now. Its accessible name carries the state —
+  // "Archived filter, off" / ", on" — so match the prefix, and the state is
+  // assertable rather than assumed.
+  await admin.getByRole('button', { name: 'Archived filter, off' }).click();
+  await admin
+    .getByRole('button', { name: 'Archived filter, on' })
+    .waitFor({ timeout: 15000 });
   await admin.getByText('Draft newsletter').first().waitFor({ timeout: 20000 });
   check('archived cards are findable when explicitly included', true);
   await admin.screenshot({ path: join(SHOTS, 'p11-search-light.png'), fullPage: true });

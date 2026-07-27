@@ -341,6 +341,39 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Android 13 floor, and the e2e is green again — v0.2.4
+
+**Android 12 and older are no longer supported.** `minSdkVersion` is 33, set
+explicitly in `app/android/app/build.gradle` rather than inherited from Expo's
+default of 24, because it is a product decision and not a scaffold detail.
+Android 13 is where the system photo picker arrives, so picking a photo needs no
+storage permission at all — which is what lets BOTH external-storage permissions
+be removed outright instead of carried as dead weight for a path no device we
+support can take. Verified on the built APK: `minSdkVersion:'33'`, and neither
+READ_ nor WRITE_EXTERNAL_STORAGE appears in its badging.
+
+**`web-e2e.mjs` is green: 55 checks, up from 5.** Every failure was the same
+rot — the suite was written before the navigation shell and the move to icon
+actions, and nothing ran it. The remaining fixes:
+
+- `backToBoards` walked backwards with Back, which cannot leave a TAB ROOT since
+  My Work, Search and Alerts dropped their redundant Back. It uses the nav now
+  and falls back to Back for pushed screens.
+- `openCard` proved success by waiting for a "Card" heading CardScreen had
+  deliberately removed, so it retried against a tile it had already navigated
+  away from. It waits for Share card, a control unique to that screen.
+- Column deletion became a two-step inline confirm; the test only clicked the ✕.
+- The assignee control is "Unassign <person>", not "Remove".
+- Search's empty state is "Nothing to show", and Archived is a filter chip whose
+  accessible name carries its state ("Archived filter, off"), which the test now
+  asserts rather than assumes.
+- My Work has no Back at all; the journey to Alerts is one nav click.
+
+**Both e2e suites now run in CI.** CI ran lint, typecheck, unit and emulator
+tests and no e2e whatsoever, which is the whole reason a suite could rot from
+usable to useless without a single red build. They cost minutes and they are
+worth it.
+
 ### 2026-07-27 — Structured review, eleven categories — v0.2.3
 
 The third pass, and the first that was actually systematic. The previous two

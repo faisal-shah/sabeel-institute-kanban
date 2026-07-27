@@ -121,6 +121,11 @@ carries over and, more importantly, what was learned the hard way there.
 
 ## Stack (locked — mirrors the time tracker)
 
+- **Android 13 (API 33) is the floor**, set explicitly in
+  `app/android/app/build.gradle` rather than inherited from Expo's default of 24.
+  Android 12 and older are unsupported (decided 2026-07-27). That is what lets
+  the photo picker be permission-free and both external-storage permissions be
+  removed outright — on 13+ the system photo picker needs neither.
 - One Expo codebase (`app/`): Android (local Gradle builds, committed `android/`,
   NO iOS, NO EAS) + web via react-native-web (`expo export --platform web` →
   Firebase Hosting). Platform seams as `.web.ts(x)` siblings.

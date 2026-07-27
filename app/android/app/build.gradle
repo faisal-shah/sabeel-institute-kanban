@@ -138,7 +138,12 @@ android {
     namespace 'com.sabeelinstitute.kanban'
     defaultConfig {
         applicationId 'com.sabeelinstitute.kanban'
-        minSdkVersion rootProject.ext.minSdkVersion
+        // Android 13. Set HERE rather than taken from Expo's default (24),
+        // because it is a product decision, not a scaffold detail: 13 is where
+        // the system photo picker arrives, so picking a photo needs no storage
+        // permission and the whole legacy camera-roll path disappears. Android
+        // 12 and older are unsupported (2026-07-27).
+        minSdkVersion 33
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode computedVersionCode
         versionName expoVersion
