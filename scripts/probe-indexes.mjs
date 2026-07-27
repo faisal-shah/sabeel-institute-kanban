@@ -102,6 +102,20 @@ const probes = [
         .limit(1)
         .get(),
   },
+  {
+    name: 'abandoned-upload sweep (collectionGroup attachments + status)',
+    used_by: 'the nightly pruneAttachments schedule',
+    // A COLLECTION_GROUP query. Automatic single-field indexes are COLLECTION
+    // scope ONLY, so this needs an explicit fieldOverride — it was missing on
+    // the first deploy and the query returned FAILED_PRECONDITION in production
+    // while every emulator test passed.
+    run: () =>
+      db
+        .collectionGroup('attachments')
+        .where('status', '==', 'uploading')
+        .limit(1)
+        .get(),
+  },
 ];
 
 let failed = 0;
