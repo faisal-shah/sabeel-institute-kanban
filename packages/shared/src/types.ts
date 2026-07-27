@@ -195,7 +195,11 @@ export type ActivityType =
   /** On the PARENT: a subtask was added or removed. `to`/`from` carry the child
    *  card id. Written by the trigger onto the OTHER card, so the action shows up
    *  where it was taken — you link a subtask while looking at the parent. */
-  | 'subtask';
+  | 'subtask'
+  /** A file was attached. `to` carries its name. */
+  | 'attached'
+  /** A file was removed. `from` carries its name. */
+  | 'detached';
 
 /** Trigger-written only. Clients have no write access at all. */
 export interface ActivityDoc {

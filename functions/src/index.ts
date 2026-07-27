@@ -12,6 +12,12 @@ export { onCardWritten } from './activity';
 export { onCardBoardCount } from './boardCardCount';
 export { onCardDeleted } from './cleanup';
 export {
+  finalizeAttachment,
+  deleteAttachment,
+  getAttachmentUrl,
+  pruneAttachments,
+} from './attachments';
+export {
   onCommentNotify,
   onCardNotify,
   onUserPending,

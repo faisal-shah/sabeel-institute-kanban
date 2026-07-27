@@ -51,6 +51,28 @@ export function canUseApp(actor: { status: UserStatus }): boolean {
   return actor.status === 'active';
 }
 
+/**
+ * May this actor see and act on things belonging to a board?
+ *
+ * The exact predicate `firestore.rules` repeats as `onBoard()` for every card
+ * subcollection: active, and either a manager — who may join any board — or a
+ * listed member.
+ *
+ * It exists as shared code because the attachment callables have to make the
+ * same judgement in TypeScript. Cloud Storage rules cannot read Firestore, so
+ * downloading, finalizing and removing an attachment are authorized in a
+ * function rather than in a rule; if that copy drifted, a manager would see a
+ * remove button and be told permission denied, or worse, the inverse.
+ */
+export function canAccessBoard(
+  actor: { uid: string; role: Role; status: UserStatus },
+  board: { memberUids?: readonly string[] },
+): boolean {
+  if (actor.status !== 'active') return false;
+  if (canManageBoards(actor)) return true;
+  return (board.memberUids ?? []).includes(actor.uid);
+}
+
 export type AccessChangeRejection =
   | 'not-admin'
   | 'self-change'

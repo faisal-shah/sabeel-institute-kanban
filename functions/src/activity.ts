@@ -12,6 +12,12 @@ import { diffCard, type CardSnapshot } from '@sabeel/shared';
  * is what makes "Sara moved this to Done" trustworthy. The actor is taken from
  * the card's own `updatedBy`, which rules require to match the writer.
  *
+ * This trigger is not the ONLY writer any more: the attachment callables append
+ * their own `attached`/`detached` entries (functions/src/attachments.ts). What
+ * makes the log trustworthy is the client write ban, not the number of
+ * server-side writers — and a delete trigger could not have supplied the actor,
+ * since Firestore does not tell it who performed the delete.
+ *
  * The diffing itself lives in @sabeel/shared and is tested exhaustively there —
  * notably that a rank-only change (a reorder within a column) produces NO entry.
  */

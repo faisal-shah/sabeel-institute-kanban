@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { describeActivity, diffCard, type CardSnapshot } from '../src/activity';
+import {
+  describeActivity,
+  diffCard,
+  isKnownActivityType,
+  type CardSnapshot,
+} from '../src/activity';
+import type { ActivityType } from '../src/types';
 
 const base: CardSnapshot = {
   title: 'Fix signup',
@@ -213,5 +219,35 @@ describe('subtask links in the history', () => {
     expect(
       describeActivity({ type: 'subtaskOf', to: 'gone' }, () => 'x', () => 'y'),
     ).toBe('made this a subtask of another card');
+  });
+});
+
+describe('attachment history', () => {
+  const say = (entry: { type: ActivityType; from?: string; to?: string }) =>
+    describeActivity(entry, () => 'Sara', () => 'Done');
+
+  it('names the file, since nothing can resolve it once it is gone', () => {
+    expect(say({ type: 'attached', to: 'budget.pdf' })).toBe('attached budget.pdf');
+    expect(say({ type: 'detached', from: 'budget.pdf' })).toBe('removed budget.pdf');
+  });
+
+  it('still says something if the name is missing', () => {
+    expect(say({ type: 'attached' })).toBe('attached a file');
+    expect(say({ type: 'detached' })).toBe('removed a file');
+  });
+});
+
+describe('isKnownActivityType', () => {
+  it('accepts every type this build describes', () => {
+    for (const t of ['created', 'moved', 'attached', 'detached'] as const) {
+      expect(isKnownActivityType(t)).toBe(true);
+    }
+  });
+
+  it('rejects a type from a newer release, and inherited object keys', () => {
+    // An Android user on a previous APK genuinely receives these.
+    expect(isKnownActivityType('somethingAddedLater')).toBe(false);
+    expect(isKnownActivityType('toString')).toBe(false);
+    expect(isKnownActivityType(undefined)).toBe(false);
   });
 });

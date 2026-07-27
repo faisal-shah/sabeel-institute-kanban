@@ -3,6 +3,7 @@ import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import { guardedEvent, sentryDsn } from './sentry';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 /**
  * Delete a card's `comments` and `activity` when the card itself is deleted, and
@@ -30,6 +31,35 @@ export const onCardDeleted = onDocumentDeleted(
     // one and its subcollections with it. Only clean up a genuine orphan.
     if ((await ref.get()).exists) return;
     await db.recursiveDelete(ref);
+
+    // The card's attachment OBJECTS. `recursiveDelete` above removes their
+    // documents, but Firestore knows nothing about the bucket.
+    //
+    // A prefix sweep rather than a per-document trigger, because it also
+    // catches bytes from an upload whose document never landed — those are
+    // invisible and billable forever, and nothing else would ever find them.
+    // (A per-document trigger would fire; `recursiveDelete` deletes documents
+    // individually, which is why onCommentWritten carries a "the card may have
+    // been deleted" tolerance. Two mechanisms would race and double-delete.)
+    //
+    // The TRAILING SLASH is load-bearing: without it a sibling card whose id
+    // merely starts with these characters would be swept too. And this sits
+    // AFTER the resurrection guard above, or a re-created id loses its files.
+    //
+    // Archiving a card keeps its attachments — only a permanent delete reaches
+    // here. Worth stating, because "the files disappeared" is otherwise a
+    // plausible-sounding bug report.
+    try {
+      await getStorage()
+        .bucket()
+        .deleteFiles({ prefix: `cards/${cardId}/attachments/` });
+    } catch (e) {
+      // `deleteFiles` throws on the first failure and is not atomic. A Storage
+      // hiccup must never block the Firestore cleanup below, and the daily
+      // sweep is not the mechanism that would recover these — so log loudly
+      // rather than failing the trigger.
+      logger.warn('attachment objects not cleaned up', { cardId, error: String(e) });
+    }
 
     // Unlink the deleted card's subtasks. `parentId` lives on the CHILD, so
     // nothing else would ever clear it — the children would keep pointing at a

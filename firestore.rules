@@ -422,8 +422,9 @@ service cloud.firestore {
     // ---- Activity ----
     // Read-only to every client, always. The log is trustworthy precisely
     // because nobody can write it: "Sara moved this to Done" means the server
-    // saw Sara move it. Written only by the onCardWritten trigger. boardId is
-    // resolved card → board, same as comments.
+    // saw Sara move it. Written by the onCardWritten trigger and by the
+    // attachment callables, both server-side. boardId is resolved card → board,
+    // same as comments.
     match /cards/{cardId}/activity/{activityId} {
       function cardBoardId() {
         return get(/databases/$(database)/documents/cards/$(cardId)).data.boardId;

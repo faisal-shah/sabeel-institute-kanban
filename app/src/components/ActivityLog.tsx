@@ -1,6 +1,11 @@
 import { useMemo } from 'react';
 import { collection, limit, orderBy, query } from 'firebase/firestore';
-import { describeActivity, type ActivityType, type BoardColumn } from '@sabeel/shared';
+import {
+  describeActivity,
+  isKnownActivityType,
+  type ActivityType,
+  type BoardColumn,
+} from '@sabeel/shared';
 import { db } from '../firebase';
 import { useLiveQuery } from '../liveQuery';
 import type { BoardMemberProfile } from '../boards';
@@ -10,7 +15,13 @@ import { radius, space, useTheme } from '../theme';
 
 interface Entry {
   id: string;
-  type: ActivityType;
+  /**
+   * `null` when this build does not recognise the type — an entry written by a
+   * newer release than the one running, which an Android user on a previous APK
+   * genuinely sees. It renders as a neutral line rather than as nothing or, far
+   * worse, as some other change that did not happen.
+   */
+  type: ActivityType | null;
   actorUid: string;
   at: number;
   from?: string;
@@ -60,7 +71,7 @@ export function ActivityLog({
     (docs) =>
       docs.map((d) => ({
         id: d.id,
-        type: (d.data.type as ActivityType) ?? 'edited',
+        type: isKnownActivityType(d.data.type) ? d.data.type : null,
         actorUid: (d.data.actorUid as string) ?? '',
         at: (d.data.at as number) ?? 0,
         from: d.data.from as string | undefined,
@@ -91,8 +102,15 @@ export function ActivityLog({
           <View style={[styles.tick, { backgroundColor: t.border.strong }]} />
           <Caption>
             {nameFor(e.actorUid)}{' '}
-            {describeActivity(e, nameFor, columnNameFor, cardTitleFor)} ·{' '}
-            {when(e.at)}
+            {e.type === null
+              ? 'made a change'
+              : describeActivity(
+                  { type: e.type, from: e.from, to: e.to },
+                  nameFor,
+                  columnNameFor,
+                  cardTitleFor,
+                )}{' '}
+            · {when(e.at)}
           </Caption>
         </Row>
       ))}

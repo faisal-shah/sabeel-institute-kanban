@@ -96,6 +96,46 @@ export function diffCard(
   return out;
 }
 
+/**
+ * Every type this build knows how to describe.
+ *
+ * Derived from the same union the switch below is exhaustive over, so it cannot
+ * drift. It exists because a client running an OLDER bundle can receive a type
+ * added since — `describeActivity` would fall off the end of its switch and
+ * return undefined, printing an actor's name followed by nothing. Web is
+ * low-risk (Hosting sends no-cache) but an Android user on a previous APK is
+ * not, and there is no version of that story where a blank line is acceptable.
+ */
+const KNOWN_ACTIVITY_TYPES: Record<ActivityType, true> = {
+  created: true,
+  moved: true,
+  assigned: true,
+  unassigned: true,
+  due: true,
+  priority: true,
+  labels: true,
+  edited: true,
+  archived: true,
+  subtaskOf: true,
+  subtask: true,
+  attached: true,
+  detached: true,
+};
+
+/**
+ * Whether this build can describe `value`.
+ *
+ * Deliberately NOT a `default:` arm inside `describeActivity` — that would
+ * destroy the exhaustiveness check, which is the thing that makes adding a type
+ * a compile error until it is given words.
+ */
+export function isKnownActivityType(value: unknown): value is ActivityType {
+  return (
+    typeof value === 'string' &&
+    Object.prototype.hasOwnProperty.call(KNOWN_ACTIVITY_TYPES, value)
+  );
+}
+
 /** Human-readable line for the timeline. `nameFor` resolves uids. */
 export function describeActivity(
   entry: { type: ActivityType; from?: string; to?: string },
@@ -133,5 +173,12 @@ export function describeActivity(
       return entry.to
         ? `added ${cardTitleFor(entry.to)} as a subtask`
         : `removed ${cardTitleFor(entry.from ?? '')} as a subtask`;
+    // Attachment entries carry the file NAME rather than an id: there is
+    // nothing left to resolve it against once the file is gone, which is
+    // exactly when the line matters.
+    case 'attached':
+      return `attached ${entry.to ?? 'a file'}`;
+    case 'detached':
+      return `removed ${entry.from ?? 'a file'}`;
   }
 }
