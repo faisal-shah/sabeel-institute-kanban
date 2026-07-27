@@ -59,7 +59,8 @@ and aborted the suite until this gate was added.
   `@sentry/wizard`, the usual way to set it up, rewrites committed native files
   and metro config. Events, tags and user ids arrive without it; only the stack
   frames are minified.
-- **Any Cloud Storage credential** — attachments are out of scope and no bucket
+- **Any Cloud Storage credential** — the bucket is reached through the Admin SDK
+  and the client Firebase config, neither of which is a secret. No bucket
   is provisioned.
 
 ## What Sentry is allowed to know

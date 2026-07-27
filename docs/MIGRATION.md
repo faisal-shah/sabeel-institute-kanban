@@ -104,7 +104,8 @@ Properties worth knowing:
   interrupted import can simply be run again.
 - **Ordering is preserved** using the same fractional ranks the app uses.
 - **Unmapped anything is a hard error**, listed and counted before it stops.
-- Attachments are **out of scope** — this app deliberately has no file storage.
+- ClickUp attachments are **not imported** — the export carries links to files
+  on ClickUp's servers, not the files. Cards can take attachments once here.
   If a card's description references one, the text survives; the file does not.
 
 ## After the import

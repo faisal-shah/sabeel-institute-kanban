@@ -341,6 +341,81 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Files on a card — v0.2.0
+
+**Attachments, reversing the 2026-07-19 decision not to have them.** Several
+files per card, 10 MB each, any type, opened in whatever the system reader for
+that type is. Any active board member may remove one — deliberately not the
+manager-only gate permanent card deletion uses.
+
+Backend provisioned 2026-07-26: `firebasestorage.googleapis.com`, bucket
+`sabeel-institute-kanban.firebasestorage.app` in us-central1 (permanent choice,
+one of the three regions with no-cost quotas), and
+`roles/iam.serviceAccountTokenCreator` self-bound on the gen-2 runtime service
+account.
+
+**Everything about the design follows from one constraint: Storage rules cannot
+read Firestore.** Board membership is a Firestore document, so `storage.rules`
+can only ask "is this an active account". So the attachment DOCUMENT is the
+upload's authorization — creating it is membership-checked, and the object goes
+to a path derived from ids only that create could have produced. Objects are
+write-once and unreadable; every download is a 1-hour V4 signed URL minted by a
+callable that repeats the check. `getDownloadURL()` is refused outright: its
+token never expires, so anyone who saw a link would keep access after leaving a
+board.
+
+Things that were got wrong first, and are worth not repeating:
+
+- **A client cannot roll back its own failed upload.** In Storage rules `write`
+  covers delete, and `resource == null` is false on one, so the planned
+  client-side rollback would have deleted the record and stranded the bytes:
+  unreferenced, unreadable, invisible, billable. Rollback goes through
+  `deleteAttachment`, and a daily sweep catches uploads abandoned by a closed
+  tab.
+- **A retry must mint a NEW attachment id.** Write-once refuses a second write
+  to the same path, which would surface as an alarming permission error on an
+  ordinary retry.
+- **How a file is served is stored on the OBJECT**, not passed as a signed-URL
+  query override. Overrides are honoured only by real GCS, so inline-vs-download
+  and filename handling would have been exercised by no local test at all.
+  HTML and SVG normalise to octet-stream — served inline from a
+  googleapis.com origin they would run script on Google's origin.
+- **The functions emulator mints URLs against `127.0.0.1`**, which on an Android
+  emulator is the device. Opening a file died with "Failed to connect to
+  /127.0.0.1:9199" — pure addressing, but it reads as a broken feature. Rewritten
+  to the reachable host, gated on emulator mode, because a production URL is
+  signed over its host.
+- **A rules test that passed alone and failed in the suite.** `clearStorage()`
+  returns before the emulator finishes deleting, so a deletion issued in
+  `beforeEach` landed mid-test and removed the object a write-once assertion
+  depended on — making a second upload look permitted. Per-test object ids.
+- **Photo names from a picker are meaningless.** The gallery reports a MediaStore
+  id and the camera a bare UUID, so a card with three photos listed three
+  identifiers nobody could tell apart. Both shapes are replaced with
+  `photo-2026-07-27-1432.jpg`.
+
+Android needed two manifest entries no library supplies: a `<queries>` entry for
+VIEW with `mimeType */*` (on API 30+ package visibility hides every handler and
+the tap silently does nothing), and `tools:node="remove"` on
+WRITE_EXTERNAL_STORAGE. READ_EXTERNAL_STORAGE is deliberately left alone —
+expo-image-picker declares it for the camera roll on API ≤ 32, minSdk here is 24,
+and an API-35 AVD cannot test that path either way.
+
+Verified: 304 unit, 215 emulator (including storage rules, mutation-tested — 17
+denials go red when both rule files are opened), a 10-check web suite driving a
+real upload, and the Android emulator driven by hand — the PDF opened in Drive's
+`PdfViewerActivity`, the PNG in Photos' `HostPhotoPagerActivity`.
+
+**Not verifiable before deploy:** V4 signing. The Storage emulator has no signing
+service, so that branch is unexercised locally and the
+`serviceAccountTokenCreator` grant fails only in production.
+
+Also fixed in passing: `web-e2e.mjs` had rotted since the navigation shell and
+the switch to icon actions, aborting at check 5 — six stale selectors repaired,
+now reaching check 26. One of them, "a member does NOT get admin tools", was
+probing a top-level People button that exists for nobody, so it had been passing
+without testing anything. CI does not run the e2e, which is why nobody noticed.
+
 ### 2026-07-26 — The org timezone was an hour out — v0.1.34
 
 **`ORG_TIMEZONE` was `America/New_York` for a Houston team.** Now

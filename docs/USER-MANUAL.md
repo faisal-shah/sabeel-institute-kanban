@@ -112,6 +112,7 @@ Tap any card to open the full view.
   without leaving it.
 - **Description** — plain text. Type whatever you like; it appears to everyone
   exactly as you typed it. **Save** to keep it, **Cancel** to discard.
+- **Attachments** — files on the card. See below.
 - **Subtasks** — see below.
 - **Priority** — none / low / medium / high / urgent, shown as a coloured
   **badge** on the card face (e.g. *Urgent*); *none* shows no badge.
@@ -132,6 +133,30 @@ Tap any card to open the full view.
 
 Ordinary actions — move, archive, assign, delete — are **icons**, not big
 buttons, so a card stays compact. Each icon has a label for screen readers.
+
+### Attachments — putting files on a card
+
+Tap the **paperclip** beside the *Attachments* heading.
+
+**On a computer** that opens your file browser. **On a phone** you're asked where
+from: **Choose a file**, **Photo library**, or **Take a photo** — so a receipt or
+a whiteboard can go straight onto the card without saving it anywhere first.
+
+- **Up to 10 MB per file**, any type, as many as you like on one card.
+- Each file shows its **name, kind and size**. Tap it to **open it** — a PDF in
+  your PDF reader, a photo in your gallery, everything else in whatever app you
+  normally use for it.
+- The **bin icon** removes a file. **Anyone on the board can remove any file**,
+  not just whoever added it — attaching the wrong thing is an easy mistake and
+  shouldn't need chasing someone else. It asks first, and it cannot be undone.
+- Attaching and removing both appear in **Activity**, with who did it.
+
+While a file is uploading you'll see a progress bar. If it doesn't finish — you
+lost signal, or closed the app — the file simply isn't added; nothing half-made
+is left on the card.
+
+Files live with the card. Move the card to another board and they go too;
+archiving a card keeps them. Deleting a card permanently deletes its files.
 
 ### Finding an archived card
 

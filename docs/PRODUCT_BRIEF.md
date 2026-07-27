@@ -53,7 +53,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Offboarding | A disabled user **keeps their assignments**, rendered as inactive; managers get a review list to reassign. |
 | Theming | **Single light theme, no dark mode** (decided 2026-07-21). Semantic tokens throughout, so a re-theme stays a one-file change. |
 | Subtasks | A card may be a **subtask of one other card on the same board** (`parentId` on the child). The parent's detail view lists them and links straight through; the child shows "Subtask of". Deliberately NOT a checklist: a subtask is an ordinary card, with its own column, assignees and comments. Added 2026-07-25 — the ClickUp import had been faking it in description text. |
-| Explicitly NOT in v1 | **File attachments** (dropped — no Cloud Storage at all), checklists (as a separate item type — see Subtasks), custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
+| Explicitly NOT in v1 | Checklists (as a separate item type — see Subtasks), custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
 | Layout | **Chosen by available WIDTH, not platform** (breakpoint 768px). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
 | Drag and drop | A web **capability** layered on the wide layout. Native has no HTML5 drag API, so a wide native surface (a tablet) offers the same explicit "Move to…" the narrow layout uses. |
 | Card ordering | **Fractional string ranks** (LexoRank-style, base-62) in `@sabeel/shared`. A move is a single-document write. |
@@ -164,8 +164,22 @@ cards/{cardId}/activity/{activityId}
   # so the log cannot be forged or edited.
 ```
 
-No Cloud Storage bucket, no `storage` section in `firebase.json`, no storage
-rules — attachments are out.
+```
+cards/{cardId}/attachments/{attachmentId}
+  name, contentType, uploadedBy, uploadedAt
+  status: uploading|ready
+  sizeBytes?          # read from the object by the server, absent until then
+  # The DOCUMENT is the upload's authorization: Storage rules cannot read
+  # Firestore, so this rules-checked write is the only place board membership
+  # can be proven. The object then goes to cards/{cardId}/attachments/{id},
+  # derived from the ids and never stored. Clients cannot update or delete.
+```
+
+Attachments are **10 MB each**, any type, several per card. Objects are
+write-once and unreadable; every download is a short-lived V4 signed URL minted
+by `getAttachmentUrl` after it re-checks board membership. Any active board
+member may remove one, through `deleteAttachment` — which also deletes the
+bytes, since a client cannot.
 
 **Why cards are a TOP-LEVEL collection (a `boardId` field, not a subcollection of
 the board):** it makes a cross-board MOVE a single `boardId` update — comments and
@@ -556,7 +570,8 @@ imperfectly onto columns. So the import runs in three stages:
    imported card so a re-run updates rather than duplicates.
 
 Cards import with their title, description, assignees, due date, priority and
-comments where the export carries them. Attachments are out of scope entirely.
+comments where the export carries them. ClickUp attachments are not imported —
+the export does not carry the files themselves.
 Anything the script cannot map is reported, never guessed at.
 
 ## Open questions

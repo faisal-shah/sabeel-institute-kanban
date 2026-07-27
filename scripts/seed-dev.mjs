@@ -134,8 +134,17 @@ for (const label of ['urgent', 'donor-facing']) {
   }
 }
 // Everyone available gets added, so assignment and @mentions have real targets.
+//
+// Each candidate is one pressable row named "Add <person> to this board" — NOT a
+// bare "Add" button, which is what this looked for until 2026-07-27. Since the
+// member picker became an icon + rows, the loop found nothing, broke on its
+// first pass and silently seeded a board with no members.
+await admin
+  .getByRole('button', { name: /^Add someone/ })
+  .click()
+  .catch(() => undefined);
 for (;;) {
-  const add = admin.getByRole('button', { name: 'Add', exact: true }).first();
+  const add = admin.getByRole('button', { name: /^Add .* to this board$/ }).first();
   if (!(await add.isVisible().catch(() => false))) break;
   await add.click();
   await admin.waitForTimeout(1200);
@@ -149,6 +158,25 @@ for (const title of CARDS) {
   await admin.getByPlaceholder('Card title').fill(title);
   await admin.keyboard.press('Enter');
   await admin.getByText(title).first().waitFor({ timeout: 25000 });
+}
+
+// One card carries an attachment, so the manual's card figure shows the
+// Attachments section with something in it rather than an empty state.
+try {
+  await admin.getByText('Draft the donor letter').first().click();
+  await admin.getByRole('button', { name: 'Attach a file' }).waitFor({ timeout: 25000 });
+  const chooser = admin.waitForEvent('filechooser', { timeout: 20000 });
+  await admin.getByRole('button', { name: 'Attach a file' }).click();
+  await (await chooser).setFiles({
+    name: 'donor-letter-draft.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n% seeded for the manual\n%%EOF\n'),
+  });
+  await admin.getByText(/PDF ·/).waitFor({ timeout: 40000 });
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  await admin.getByText('To Do').first().waitFor({ timeout: 25000 });
+} catch (e) {
+  console.warn('could not seed an attachment — continuing:', String(e).slice(0, 120));
 }
 
 await browser.close();

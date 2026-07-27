@@ -28,8 +28,24 @@ Key product invariants (do not silently change):
   approve accounts and promote people. There are NO per-board roles.
 - **Sign-in is restricted to `@oursabeel.com` AND still needs admin approval.**
   The domain check is server-side — the client `hd` hint is UX, not a boundary.
-- **No file attachments, no Cloud Storage.** Dropped deliberately; do not
-  reintroduce a storage bucket without asking.
+- **File attachments exist, and the shape of them is settled** (added 2026-07-26,
+  reversing the original "no attachments" decision). Multiple files per card,
+  **10 MB each**, any type. **Any active member of the board may remove one** —
+  deliberately NOT the manager-only gate permanent card deletion uses, because
+  attaching the wrong file is an ordinary mistake that should not need someone
+  else to undo. Plain rows, no inline previews. Attach and remove are both
+  recorded in the card's activity log.
+- **Storage rules cannot read Firestore, and everything about attachments
+  follows from that.** Board membership is a Firestore document, so
+  `storage.rules` can only ask "is this an active account". Therefore: the
+  attachment DOCUMENT is the upload's authorization (creating it is
+  membership-checked, and the object goes to a path derived from ids only that
+  create could produce); objects are **write-once and unreadable**; every
+  download is a short-lived **V4 signed URL** minted by a callable that repeats
+  the membership check. Never `getDownloadURL()` — its token never expires, so
+  anyone who saw a link would keep access after leaving a board. Clients cannot
+  update or delete an attachment: a client delete would strand the bytes, and a
+  delete trigger cannot name who did it.
 - **Descriptions and comments are PLAIN TEXT.** Decided 2026-07-20 and locked:
   no markdown rendering, no markdown syntax hints, no rich-text editor, no
   WebView. What someone types is what everyone sees. The markdown renderer and
@@ -102,8 +118,10 @@ carries over and, more importantly, what was learned the hard way there.
   NO iOS, NO EAS) + web via react-native-web (`expo export --platform web` →
   Firebase Hosting). Platform seams as `.web.ts(x)` siblings.
 - Firebase **JS SDK on all surfaces** (not react-native-firebase — no web support).
-- Backend: Cloud Functions (TS, nodejs22, us-central1) + Firestore. **No Storage**
-  (attachments are out of scope). Sentry on web/native/functions.
+- Backend: Cloud Functions (TS, nodejs22, us-central1) + Firestore + **Cloud
+  Storage** (card attachments). The bucket must be a modern
+  `*.firebasestorage.app` one in us-central1/us-west1/us-east1 — only those get
+  the no-cost quotas. Sentry on web/native/functions.
 - Monorepo (npm workspaces): `app`, `functions`, `packages/shared`. Shared types
   and any cross-surface pure logic live in `@sabeel/shared` — the app and
   functions must never each hold their own copy of a rule.
@@ -111,8 +129,8 @@ carries over and, more importantly, what was learned the hard way there.
   only admins approve/reject/disable users and change roles. Role and status live
   in **custom claims** (rules trust the token), mirrored onto the user doc for UI
   display only.
-- Config-as-code: `firestore.rules` / `firestore.indexes.json` deploy from the
-  repo, never console-edited.
+- Config-as-code: `firestore.rules` / `firestore.indexes.json` / `storage.rules`
+  deploy from the repo, never console-edited.
 - Versions to match at scaffold time: Expo ~57, RN 0.86, React 19.2, firebase ^12,
   firebase-functions ^7, TypeScript ~6.0, Vitest ^4, ESLint ^9 flat config, Node 22.
 

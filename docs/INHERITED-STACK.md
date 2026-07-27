@@ -203,8 +203,11 @@ See `docs/PRODUCT_BRIEF.md` for the full decisions. Deltas from the time tracker
   restriction** (`@oursabeel.com`) that must be enforced server-side in the
   auth-create function — the client `hd` hint is not a boundary.
 - **Card ordering: fractional base-62 string ranks**, one doc write per move.
-- **No Storage.** Attachments were considered and dropped, so the time tracker's
-  no-Storage `firebase.json` copies over as-is.
+- **Storage.** Attachments were declined at the outset and added on 2026-07-26,
+  so the time tracker's no-Storage `firebase.json` no longer copies over as-is:
+  this project has a `storage` block, `storage.rules`, and the emulator on 9199.
+  The reference implementation is the sibling **recording app**, not the time
+  tracker — it is the only Sabeel project that had Cloud Storage first.
 - **Timezone machinery is NOT copied.** It was load-bearing for work-local time
   entries; kanban due dates are all-day dates in a single org timezone. Resist
   porting `time.ts` wholesale.

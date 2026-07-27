@@ -22,10 +22,21 @@ Deploying is the point where the console steps in `TODO.md` must be done first.
 firebase deploy --only firestore:indexes
 
 # Then rules, functions and the web app.
-firebase deploy --only firestore:rules,functions,hosting
+firebase deploy --only firestore:rules,storage,functions,hosting
 ```
 
+It is `storage`, **not** `storage:rules`. The `storage` block in `firebase.json`
+is a single unnamed config, so a named target does not exist and `storage:rules`
+errors with "Could not find rules for the following storage targets: rules".
+
 Hosting serves `app/dist-web`, built automatically by the predeploy hook.
+
+**Attachments cannot be fully verified before this deploy.** The Storage
+emulator has no signing service, so `getAttachmentUrl` takes a different branch
+locally and the `roles/iam.serviceAccountTokenCreator` grant it depends on fails
+ONLY in production. After deploying, upload a file and open it, and confirm the
+URL carries `X-Goog-Signature`. Note an expired GCS signed URL answers **HTTP
+400 `ExpiredToken`**, not 403.
 
 ## First admin
 

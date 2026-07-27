@@ -30,7 +30,13 @@ tells you the command to run.
       Functions won't deploy on Spark.
 - [x] **Create the Firestore database.** Location: **`nam5`** (multi-region US).
       Production mode; rules deploy from the repo and overwrite the console.
-- [ ] **Do NOT enable Cloud Storage.** Attachments are deliberately out of scope.
+- [x] **Cloud Storage enabled** (2026-07-26, reversing the original decision).
+      `firebasestorage.googleapis.com` on; bucket
+      **`sabeel-institute-kanban.firebasestorage.app`** in **us-central1**
+      (permanent, and one of the three regions with no-cost quotas);
+      `roles/iam.serviceAccountTokenCreator` self-bound on
+      `826656438175-compute@developer.gserviceaccount.com` so signed URLs can be
+      minted. That grant fails ONLY in production — no local test can catch it.
 - [x] **Enable Google as the only sign-in provider.** Authentication → Sign-in
       method → Google → Enable. Leave every other provider disabled.
       The provider will not save until **Support email** is set — that is the
@@ -270,4 +276,5 @@ Android push is wired and ships in the next APK. Two items are console work.
 
 - [x] **Sign-in domain is `oursabeel.com`**, a Google Workspace domain
       (confirmed 2026-07-19).
-- [x] **No file attachments / no Cloud Storage** — decided 2026-07-19.
+- [x] **File attachments** — declined 2026-07-19, **reversed 2026-07-26**.
+      10 MB per file, any board member may remove, signed-URL downloads.
