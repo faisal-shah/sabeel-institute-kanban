@@ -416,10 +416,18 @@ describe('runAttachmentSweep', () => {
     await uploaded(done);
     await callFunction('finalizeAttachment', { cardId: CARD, attachmentId: done }, memToken);
 
+    // A document with no usable timestamp must be swept, not skipped: it is
+    // stuck in `uploading`, so it will never become a file anyone can open, and
+    // skipping it leaves it and its bytes here forever.
+    const ageless = 'at_ageless';
+    await uploaded(ageless, { uploadedAt: 'not-a-number' });
+
     const { swept } = await runAttachmentSweep();
     expect(swept).toBeGreaterThanOrEqual(1);
 
     expect((await attachmentRef(stale).get()).exists).toBe(false);
+    expect((await attachmentRef(ageless).get()).exists).toBe(false);
+    expect(await objectExists(ageless)).toBe(false);
     expect(await objectExists(stale)).toBe(false);
     expect((await attachmentRef(fresh).get()).exists).toBe(true);
     expect((await attachmentRef(done).get()).exists).toBe(true);

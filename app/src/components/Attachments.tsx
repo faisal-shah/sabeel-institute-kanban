@@ -137,7 +137,7 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
   const open = (a: Attachment) =>
     void run(
       () =>
-        openAttachment({ name: a.name, contentType: a.contentType }, () =>
+        openAttachment({ id: a.id, name: a.name, contentType: a.contentType }, () =>
           attachmentUrl(cardId, a.id),
         ),
       'openAttachment',

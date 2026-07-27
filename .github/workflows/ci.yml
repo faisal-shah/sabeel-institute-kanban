@@ -44,3 +44,17 @@ jobs:
 
       - name: Emulator integration tests
         run: npm run test:emulator
+
+      # The attachments flow end to end, through the real web build.
+      #
+      # CI ran lint, typecheck, unit and emulator tests but never an e2e, which
+      # is exactly why `web-e2e.mjs` rotted unnoticed for weeks: every control it
+      # clicked was renamed by the move to icon actions and the nav shell, and
+      # nothing failed until someone ran it by hand. The focused attachments
+      # suite is fast and green, so it runs on every push; web-e2e joins it once
+      # it is repaired.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Attachments end-to-end (web)
+        run: bash scripts/e2e.sh scripts/attachments-e2e.mjs

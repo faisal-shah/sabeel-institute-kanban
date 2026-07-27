@@ -409,7 +409,12 @@ export async function runAttachmentSweep(
   let swept = 0;
   for (const doc of stuck.docs) {
     const { uploadedAt } = doc.data() as AttachmentDoc;
-    if (typeof uploadedAt !== 'number' || uploadedAt >= cutoff) continue;
+    // A document with no usable timestamp is swept, not skipped. It is stuck in
+    // `uploading`, so it will never become a file anyone can open, and skipping
+    // it would leave it — and its bytes — here forever. Skipping was the safer
+    // -looking branch and the wrong one.
+    const ageless = typeof uploadedAt !== 'number' || !Number.isFinite(uploadedAt);
+    if (!ageless && uploadedAt >= cutoff) continue;
     // cards/{cardId}/attachments/{attachmentId}
     const cardId = doc.ref.parent.parent?.id;
     if (!cardId) continue;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  attachmentCacheName,
   attachmentStoragePath,
   contentDispositionFor,
   formatBytes,
@@ -145,5 +146,22 @@ describe('formatBytes', () => {
   it('says nothing rather than something wrong for a missing size', () => {
     expect(formatBytes(NaN)).toBe('');
     expect(formatBytes(-1)).toBe('');
+  });
+});
+
+describe('attachmentCacheName', () => {
+  it('is unique per attachment even when two files share a name', () => {
+    // Two camera photos in the same minute genuinely produce the same name.
+    const a = attachmentCacheName('idAAA', 'photo-2026-07-27-1432.jpg');
+    const b = attachmentCacheName('idBBB', 'photo-2026-07-27-1432.jpg');
+    expect(a).not.toBe(b);
+    expect(a.endsWith('.jpg')).toBe(true);
+    expect(b.endsWith('.jpg')).toBe(true);
+  });
+
+  it('keeps the name filesystem-safe and never empty', () => {
+    expect(attachmentCacheName('id1', '../../etc/passwd')).not.toContain('/');
+    expect(attachmentCacheName('id1', '')).toBe('id1-file');
+    expect(attachmentCacheName('id1', 'ملف.pdf')).toMatch(/^id1-/);
   });
 });

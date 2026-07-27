@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { isAvailableAsync, shareAsync } from 'expo-sharing';
+import { attachmentCacheName } from '@sabeel/shared';
 
 /**
  * Native side of the open seam (web sibling: openAttachment.web.ts).
@@ -17,11 +18,6 @@ import { isAvailableAsync, shareAsync } from 'expo-sharing';
  * the same path for its CSV export.
  */
 
-/** Keep the extension — some viewers sniff by it — and nothing that walks a path. */
-function cacheName(name: string): string {
-  return name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-120) || 'file';
-}
-
 async function shareInstead(uri: string, mimeType: string): Promise<void> {
   if (!(await isAvailableAsync())) {
     throw new Error('No app on this device can open that file.');
@@ -32,11 +28,11 @@ async function shareInstead(uri: string, mimeType: string): Promise<void> {
 }
 
 export async function openAttachment(
-  file: { name: string; contentType: string },
+  file: { id: string; name: string; contentType: string },
   getUrl: () => Promise<string>,
 ): Promise<void> {
   const url = await getUrl();
-  const target = `${FileSystem.cacheDirectory ?? ''}${cacheName(file.name)}`;
+  const target = `${FileSystem.cacheDirectory ?? ''}${attachmentCacheName(file.id, file.name)}`;
   await FileSystem.downloadAsync(url, target);
 
   if (Platform.OS !== 'android') {

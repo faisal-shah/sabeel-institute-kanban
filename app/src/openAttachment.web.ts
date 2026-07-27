@@ -9,7 +9,7 @@ export async function openAttachment(
   // The name and type only matter on native, which has to write the file to
   // disk and tell an intent what it is. Here the stored Content-Disposition
   // already carries both.
-  _file: { name: string; contentType: string },
+  _file: { id: string; name: string; contentType: string },
   getUrl: () => Promise<string>,
 ): Promise<void> {
   // Open the tab SYNCHRONOUSLY, while the tap is still the reason anything is
@@ -33,8 +33,15 @@ export async function openAttachment(
       return;
     }
     // An attachment may be served inline from a googleapis.com origin, so the
-    // opened document must not keep a handle back to the app.
-    tab.opener = null;
+    // opened document must not keep a handle back to the app. Its own try:
+    // assigning `opener` throws in some browsers, and severing the reference
+    // failing must not stop the file opening — the tab is about to navigate
+    // cross-origin anyway.
+    try {
+      tab.opener = null;
+    } catch {
+      /* browser refused the assignment; the navigation below still matters */
+    }
     tab.location.replace(url);
   } catch (e) {
     // Never leave a blank tab sitting there after a failure.

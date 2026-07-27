@@ -137,8 +137,19 @@ await admin.waitForTimeout(2000);
 for (const label of ['urgent', 'donor-facing']) {
   if (await admin.getByText(label).first().isVisible().catch(() => false)) continue;
   try {
+    // Wait for the control to be ENABLED, not merely present. The settings
+    // controls disable while a write is in flight, so the second label's click
+    // landed on a disabled button and timed out — which is why every seeded
+    // board had "urgent" and not "donor-facing", warned about it, and carried
+    // on. Same trap as the column loop above, which is why that one has a
+    // blanket sleep; waiting on the actual state is the better version.
+    const add = admin.getByRole('button', { name: 'Add label' });
+    await add.waitFor({ state: 'visible', timeout: 15000 });
+    for (let i = 0; i < 30 && (await add.isDisabled().catch(() => false)); i += 1) {
+      await admin.waitForTimeout(500);
+    }
     await admin.getByPlaceholder('New label name').fill(label);
-    await admin.getByRole('button', { name: 'Add label' }).click({ timeout: 15000 });
+    await add.click({ timeout: 15000 });
     await admin.getByText(label).first().waitFor({ timeout: 25000 });
   } catch {
     // Labels are decoration for a dev seed; a board without them is still

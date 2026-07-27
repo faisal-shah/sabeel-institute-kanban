@@ -1,9 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-  <!-- Only what the app actually uses: INTERNET (Firebase) and VIBRATE
-       (notification buzz). No overlay permissions — there is no draw-over-apps
-       feature. These were Expo scaffold defaults; a future `expo prebuild`
-       would re-add them, so they must be suppressed in app.json if this native
-       project is ever regenerated (android/ is committed, not regenerated now). -->
+  <!-- What THIS file declares: INTERNET (Firebase) and VIBRATE (notification
+       buzz). No overlay permissions — there is no draw-over-apps feature. Those
+       were Expo scaffold defaults; a future `expo prebuild` would re-add them,
+       so they must be suppressed in app.json if this native project is ever
+       regenerated (android/ is committed, not regenerated now).
+
+       This is NOT the whole permission list, and reading it as one is a mistake
+       worth naming: libraries merge their own in. Since attachments landed, the
+       MERGED manifest also carries CAMERA (expo-image-picker, for "Take a
+       photo") and READ_EXTERNAL_STORAGE capped at API 32 (the camera roll on
+       old devices). Check the merged output under
+       android/app/build/intermediates/merged_manifest/, never this file alone. -->
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
 

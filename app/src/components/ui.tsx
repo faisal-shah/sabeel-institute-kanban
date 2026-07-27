@@ -620,6 +620,14 @@ export function Spinner({ label }: { label?: string }) {
  * `fraction` accepts null for work that has started but has no measurable
  * progress yet (a record being created before any bytes move). It renders an
  * empty track with its label rather than a misleading 0% that looks stalled.
+ *
+ * The label sits BELOW the bar, not on it, and the fill is the accent. That is
+ * not a style preference: the first version painted `bg.accentSoft` on
+ * `bg.inset`, which is 1.13:1 — the bar was invisible, so the only feedback
+ * during an upload showed nothing at all. Accent gives 7.25:1, comfortably past
+ * the 3:1 WCAG asks of a non-text component, and moving the label off the bar
+ * is what makes that possible: text over a half-filled bar cannot be legible on
+ * both halves at once.
  */
 export function ProgressBar({ fraction, label }: { fraction: number | null; label: string }) {
   const t = useTheme();
@@ -630,12 +638,10 @@ export function ProgressBar({ fraction, label }: { fraction: number | null; labe
       ? 0
       : Math.round(Math.min(1, Math.max(0, fraction)) * 100);
   return (
-    <View
-      accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 100, now: pct }}
-      style={[styles.progressTrack, { backgroundColor: t.bg.inset }]}
-    >
-      <View style={[styles.progressFill, { backgroundColor: t.bg.accentSoft, width: `${pct}%` }]} />
+    <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: pct }}>
+      <View style={[styles.progressTrack, { backgroundColor: t.bg.inset }]}>
+        <View style={[styles.progressFill, { backgroundColor: t.accent.base, width: `${pct}%` }]} />
+      </View>
       <Caption>{label}</Caption>
     </View>
   );
@@ -680,16 +686,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleThumb: { width: 26, height: 26, borderRadius: radius.pill },
-  progressTrack: {
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-    minHeight: 24,
-    justifyContent: 'center',
-    paddingHorizontal: space.sm,
-  },
-  // Absolutely positioned so the label sits ON the bar rather than under it —
-  // a bar plus its own caption row costs two rows inside a card that is already
-  // one row per file.
+  // A thin bar: it has to be SEEN, not read, so it needs height enough to
+  // register and nothing more. The label lives underneath.
+  progressTrack: { borderRadius: radius.sm, overflow: 'hidden', height: 6 },
   progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   // A real 44x44 target, the platform accessibility minimum. NOT hitSlop — see
   // IconAction: slop overlaps between neighbours, laid-out boxes cannot.

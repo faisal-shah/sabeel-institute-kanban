@@ -10,6 +10,7 @@ import { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from '
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   ATTACHMENT_MAX_BYTES,
+  ATTACHMENT_NAME_MAX,
   EMULATOR_PROJECT_ID,
   attachmentStoragePath,
 } from '@sabeel/shared';
@@ -179,6 +180,18 @@ describe('creating an attachment record', () => {
     }
   });
 
+  it('refuses a timestamp from the future — the sweeper decides by age', async () => {
+    // Unbounded, a document claiming to be from the year 3000 is never older
+    // than the sweep's cutoff, so it and its bytes stay forever.
+    await assertFails(
+      setDoc(newRef(fs('member1', 'member')), attachment({ uploadedAt: Date.now() + 90_000_000 })),
+    );
+    // Ordinary clock skew still works.
+    await assertSucceeds(
+      setDoc(newRef(fs('member1', 'member'), 'skewed'), attachment({ uploadedAt: Date.now() + 1_800_000 })),
+    );
+  });
+
   it('refuses a non-member and a pending account', async () => {
     await assertFails(
       setDoc(newRef(fs('outsider', 'member')), attachment({ uploadedBy: 'outsider' })),
@@ -291,8 +304,16 @@ describe('storage: the attachment object', () => {
   });
 });
 
-describe('the size cap is stated in two places and must not drift', () => {
-  it('matches the number enforced in storage.rules', () => {
+describe('the caps are stated in two places and must not drift', () => {
+  it('the NAME cap matches the number enforced in firestore.rules', () => {
+    const rules = readFileSync('../firestore.rules', 'utf8');
+    const block = rules.slice(rules.indexOf('---- Attachments ----'));
+    const m = block.match(/name\.size\(\)\s*<=\s*(\d+)/);
+    expect(m, 'no name cap found in the attachments rules block').toBeTruthy();
+    expect(Number(m![1])).toBe(ATTACHMENT_NAME_MAX);
+  });
+
+  it('the SIZE cap matches the number enforced in storage.rules', () => {
     const rules = readFileSync('../storage.rules', 'utf8');
     const m = rules.match(/request\.resource\.size\s*<=\s*(\d+)\s*\*\s*1024\s*\*\s*1024/);
     expect(m, 'no size limit found in storage.rules').toBeTruthy();

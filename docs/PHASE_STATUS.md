@@ -341,6 +341,69 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Structured review, eleven categories — v0.2.3
+
+The third pass, and the first that was actually systematic. The previous two
+were opportunistic — chase a finding, fix it, move on — and were recorded as
+multi-pass work they were not, which is why each turned up four defects. This
+one fixed a category list (rules, callables, triggers, shared logic, client data,
+client UI, platform seams, native config, infra, tooling, docs) and ran three
+defined lenses over each: correctness, adversarial, and empirical proof. No cell
+closed without named evidence.
+
+Eleven findings. Severities: S1 cost/access, S2 wrong data, S3 broken UX, S4 cruft.
+
+- **S1 — `uploadedAt` was unbounded.** The nightly sweep decides what to clean up
+  by age, so a document claiming to be from the year 3000 was never swept and its
+  bytes were billed forever. Now bounded to one hour past the SERVER's clock —
+  an hour, not minutes, because the sweep cutoff is 24h and a tight bound would
+  refuse a real person whose device clock is merely wrong.
+- **S1 — the sweep SKIPPED documents it could not age.** A row with a missing or
+  non-numeric timestamp was left alone forever, which is the opposite of what a
+  cleanup should do with a record stuck in `uploading`. Now swept.
+- **S2 — the native cache was keyed by display name.** Two files on one card may
+  share a name — two camera photos in the same minute generate the same one —
+  so the second download overwrote the first and opening the first showed the
+  SECOND file's contents. Keyed by attachment id, with the naming moved to
+  `@sabeel/shared` so it can be tested at all.
+- **S3 — the progress bar was invisible.** `bg.accentSoft` on `bg.inset` is
+  1.13:1, so the only feedback during an upload showed nothing while working
+  perfectly. Accent fill at 7.25:1 with the label moved off the bar, and
+  captured mid-upload to prove it.
+- **S3 — `tab.opener = null` could throw** in some browsers and take the
+  navigation down with it, so the file would not open at all. Its own try/catch.
+- **S3 — the seed's label loop clicked a disabled button**, so every seeded board
+  had `urgent` and never `donor-facing`, warned, and carried on.
+- **S3 — web-e2e had rotted from check 5 to unusable.** Column deletion became a
+  two-step confirm; `openCard` waited for a "Card" heading CardScreen had
+  deliberately removed, so it retried against a tile it had navigated away from;
+  the assignee control is "Unassign <person>", not "Remove". Now reaches 40
+  checks. It is NOT green — finishing it is a follow-up.
+- **S4 — client did not normalise contentType**, so the row's icon changed the
+  instant the server rewrote it. Same class as the filename fix in v0.2.2.
+- **S4 — the AndroidManifest comment claimed "only INTERNET and VIBRATE."** The
+  MERGED manifest carries CAMERA and READ_EXTERNAL_STORAGE from libraries, so
+  the comment invited exactly the wrong conclusion.
+- **S4 — `health.ts` DROP_RULES omitted attachments.** The default was right, but
+  every other collection is listed, so silence read as oversight.
+- **S4 — the v0.2.1 extraction left cruft**: a vestigial bare block and a
+  redundant `uid` alias, compile-clean and meaningless.
+
+Verified rather than assumed: both rule files mutation-tested; the timestamp
+bound, the sweep fix and both concurrency guards each shown red against broken
+code; seam parity checked mechanically across all six `.ts`/`.web.ts` pairs; the
+progress bar captured mid-upload; a PDF and an image opened on the AVD in Drive's
+`PdfViewerActivity` and Photos' `HostPhotoPagerActivity` AFTER the seam change;
+227 production activity documents confirmed to carry no type this build cannot
+describe; the release APK's badging read directly (versionCode 2003, no
+WRITE_EXTERNAL_STORAGE).
+
+Also this pass: the five relic indexes from the pre-2026-07-21 data model were
+deleted one at a time with a probe between each, so `firestore.indexes.json` now
+describes the project exactly and `--force` is a safe no-op rather than an armed
+footgun. And **CI now runs the attachments e2e** — it ran no e2e at all, which is
+precisely why web-e2e rotted for weeks without anyone noticing.
+
 ### 2026-07-27 — Second review pass — v0.2.2
 
 A second multi-pass review, run on the same worry: things had been shipping and

@@ -74,6 +74,11 @@ const DROP_RULES: Record<string, DropRule> = {
   users: { zeroTolerance: true },
   cards: { minDrop: 5, fraction: 0.2 },
   comments: { minDrop: 5, fraction: 0.2 },
+  // Deliberately tolerant, and stated rather than left to the default: ANY board
+  // member may remove an attachment, and the nightly sweep clears abandoned
+  // uploads, so attachments disappearing is ordinary rather than alarming.
+  // zeroTolerance here would page on normal use.
+  attachments: { minDrop: 5, fraction: 0.2 },
   notifications: { minDrop: 5, fraction: 0.2 },
 };
 

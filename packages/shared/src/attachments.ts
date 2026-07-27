@@ -31,12 +31,6 @@ const NEVER_INLINE = new Set([
 ]);
 
 /**
- * Reduce a client-declared MIME type to one worth storing.
- *
- * The picker's claim is untrusted on both surfaces, so this runs server-side at
- * finalize and decides what the object's stored `contentType` becomes.
- */
-/**
  * `type/subtype`, per RFC 6838's restricted token grammar.
  *
  * Matched STRICTLY, not merely checked for a slash. `contentType` arrives on a
@@ -48,6 +42,12 @@ const NEVER_INLINE = new Set([
  */
 const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/;
 
+/**
+ * Reduce a client-declared MIME type to one worth storing.
+ *
+ * The picker's claim is untrusted on both surfaces, so this runs server-side at
+ * finalize and decides what the object's stored `contentType` becomes.
+ */
 export function normalizeContentType(declared: string | null | undefined): string {
   const bare = (declared ?? '').split(';')[0].trim().toLowerCase();
   if (!MIME.test(bare)) return 'application/octet-stream';
@@ -127,4 +127,22 @@ export function formatBytes(bytes: number): string {
   if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
   const mb = kb / 1024;
   return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+}
+
+/**
+ * A unique on-disk name for a cached attachment, keeping the extension.
+ *
+ * Android has to download a file before a viewer can open it, and two files on
+ * one card may share a display name — two camera photos taken in the same
+ * minute generate the same name, because it is stamped to the minute. Keyed by
+ * name alone the second download overwrites the first, and opening the first
+ * then shows the SECOND file's contents under the first one's name.
+ *
+ * Lives here rather than in the native seam so it can be tested at all.
+ */
+export function attachmentCacheName(id: string, name: string): string {
+  const safe = sanitizeAttachmentName(name)
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .slice(-96);
+  return `${id}-${safe || 'file'}`;
 }

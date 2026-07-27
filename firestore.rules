@@ -397,7 +397,22 @@ service cloud.firestore {
         && attachment().contentType is string
         && attachment().contentType.size() > 0
         && attachment().contentType.size() <= 255
-        && attachment().uploadedAt is number;
+        && attachment().uploadedAt is number
+        // Bounded against the SERVER's clock, which no other client timestamp
+        // in these rules is — because this one is load-bearing. The nightly
+        // pruneAttachments decides what to clean up by age, so a document
+        // claiming to be from the year 3000 is never swept and its bytes are
+        // billed forever. Only the upper side is bounded: a too-OLD value just
+        // means the document is swept sooner, which a retry fixes, whereas
+        // rejecting it would break attaching for anyone whose device clock is
+        // behind.
+        //
+        // An HOUR of slack, not minutes: the sweep's cutoff is 24 hours, so
+        // anything inside that window is still swept eventually and the attack
+        // needs a far-future value. A tight bound would instead refuse a real
+        // person whose clock is merely wrong — trading a rare cost leak for a
+        // broken feature.
+        && attachment().uploadedAt <= request.time.toMillis() + 3600000;
 
       // Clients neither edit nor delete an attachment.
       //

@@ -1,7 +1,11 @@
 import { collection, doc, orderBy, query, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytesResumable } from 'firebase/storage';
-import { attachmentStoragePath, sanitizeAttachmentName } from '@sabeel/shared';
+import {
+  attachmentStoragePath,
+  normalizeContentType,
+  sanitizeAttachmentName,
+} from '@sabeel/shared';
 import { db, functions, storage } from './firebase';
 import { EMULATOR_HOST, USE_EMULATORS } from './env';
 import { useLiveQuery } from './liveQuery';
@@ -155,10 +159,14 @@ export async function uploadAttachment(params: {
   // upload never starts. That is the right ordering — an unauthorized upload
   // should fail fast while online — but it means the caller must render the
   // pre-bytes state as "waiting", not as a spinner that is about to finish.
+  // Both fields normalised with the SAME shared helpers the server uses at
+  // finalize. The name for the reasons above; the content type because the row
+  // picks its icon from it, so an unnormalised value shows one glyph during the
+  // upload and a different one the instant the server rewrites it.
   const name = sanitizeAttachmentName(picked.name);
   await setDoc(target, {
     name,
-    contentType: picked.contentType,
+    contentType: normalizeContentType(picked.contentType),
     uploadedBy: user.uid,
     uploadedAt: Date.now(),
     status: 'uploading',

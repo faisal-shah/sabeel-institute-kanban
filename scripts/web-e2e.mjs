@@ -133,8 +133,13 @@ async function openCard(page, title) {
     await tile.waitFor({ timeout: 20000 });
     await tile.click({ timeout: 10000, force: attempt > 0 }).catch(() => {});
 
+    // "Opened" is proven by a control unique to the card screen, not by a
+    // heading. This used to wait for the text "Card", which CardScreen
+    // deliberately removed — the card's own title is the page heading, so a
+    // second one was noise. The card then opened correctly, the check failed,
+    // and the retry looked for the tile it had just navigated away from.
     const opened = await page
-      .getByText('Card', { exact: true })
+      .getByRole('button', { name: 'Share card' })
       .waitFor({ timeout: 8000 })
       .then(() => true)
       .catch(() => false);
@@ -519,6 +524,11 @@ try {
 
   // And the emptied column can now be deleted, which was the point.
   await admin.getByRole('button', { name: 'Delete column Blocked' }).click();
+  // Deleting a column is a TWO-step inline confirm — the ✕ only opens
+  // "Delete the column “Blocked”?", and the destructive action is the button
+  // inside it. Without this the ✕ never detaches and the wait below times out
+  // against a perfectly healthy app.
+  await admin.getByRole('button', { name: 'Delete column', exact: true }).click();
   // Assert the column's own delete control is gone, not that the WORD Blocked
   // has left the page — it also appears in the move panel's column dropdown, so
   // a text match resolves to something that never detaches.
@@ -558,8 +568,13 @@ try {
   }
   await admin.getByRole('button', { name: 'Done', exact: true }).click().catch(() => {});
 
-  // Assigned people are listed with a Remove control; that is the confirmation.
-  await admin.getByRole('button', { name: 'Remove' }).first().waitFor({ timeout: 20000 });
+  // Assigned people are listed with an unassign control; that is the
+  // confirmation. It is named "Unassign <person>" — an icon action carrying the
+  // person's name — not a bare "Remove".
+  await admin
+    .getByRole('button', { name: /^Unassign / })
+    .first()
+    .waitFor({ timeout: 20000 });
   check('the assignee picker lists assigned people and hides the rest', true);
   // Due date is a real <input type="date"> now, not preset buttons.
   const dueInput = admin.getByLabel('Due date');

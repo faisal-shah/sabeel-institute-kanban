@@ -147,6 +147,37 @@ try {
     }
   }
 
+  // ---- The upload actually SHOWS something ---------------------------------
+  // The progress bar is the only feedback during an upload, and it is easy for
+  // it to render invisibly — the first version painted accentSoft on inset,
+  // 1.13:1, so it showed nothing at all while working perfectly. Slow the
+  // confirm step so the state persists, then capture it and look.
+  await page.route('**/finalizeAttachment', async (r) => {
+    await new Promise((res) => setTimeout(res, 6000));
+    await r.continue();
+  });
+  {
+    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
+    await page.getByRole('button', { name: 'Attach a file' }).click();
+    await (await chooser).setFiles({
+      name: 'slow.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('watch the bar'),
+    });
+  }
+  // Wait for "Finishing…" specifically — that is fraction 1, i.e. a FULL bar.
+  // "Preparing…" is fraction null and paints an empty track, which would prove
+  // only that the track exists, not that the fill is visible. The fill is the
+  // part that was invisible before.
+  await page.getByText(/Finishing/).waitFor({ timeout: 20000 });
+  check('an upload in flight shows a filled progress bar, not a blank row', true);
+  await page.screenshot({ path: join(SHOTS, 'attach-uploading.png'), fullPage: true });
+  // Let the DELAYED confirm land before removing the route. Unrouting while the
+  // handler is still sleeping disposes the route, and its continue() then throws
+  // "Route is already handled".
+  await page.getByText(/TXT ·/).first().waitFor({ timeout: 40000 });
+  await page.unroute('**/finalizeAttachment');
+
   // ---- The failure path that actually works -------------------------------
   // Going offline does NOT fail a resumable upload: it resumes and finishes, so
   // "kill the network" is a false-negative generator. Block the CONFIRMATION
