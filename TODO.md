@@ -37,6 +37,10 @@ tells you the command to run.
       `roles/iam.serviceAccountTokenCreator` self-bound on
       `826656438175-compute@developer.gserviceaccount.com` so signed URLs can be
       minted. That grant fails ONLY in production — no local test can catch it.
+- [x] **Billing budget alert set** (2026-07-27). Attachments are the first thing
+      here with unbounded per-user cost, so this is worth having; it is done, and
+      nothing needs to re-raise it. Note the billing account carries four
+      projects, so a budget is only meaningful scoped to this one.
 - [x] **Enable Google as the only sign-in provider.** Authentication → Sign-in
       method → Google → Enable. Leave every other provider disabled.
       The provider will not save until **Support email** is set — that is the
