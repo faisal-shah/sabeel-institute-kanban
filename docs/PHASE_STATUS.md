@@ -381,6 +381,38 @@ both labels and greps them back, failing rather than trusting `sed`, and the
 timestamp is pinned to the org zone rather than the build machine's. See
 `docs/DEPLOY.md` step 4.
 
+**The Sentry cron canary had been reporting missed every day.** `healthCheck`
+carried its own hardcoded `America/New_York` — a second copy of the org zone,
+which silently did not move when the real one did, at which point its comment
+("well clear of the 08:00 run") was reasoning across two clocks. Worse, the
+monitor was upserted with **no timezone at all**, and Sentry defaults that to
+UTC: it expected a check-in at 03:15 UTC while the job ran at 07:15 UTC, four
+hours outside the 60-minute margin. A canary that cries wolf daily is worse than
+none, because you stop reading it. The monitor now sends its timezone, and
+`HEALTH_TIMEZONE` is `ORG_TIMEZONE` rather than a duplicate.
+
+**Cross-project cleanup, from the time-tracker maintainer's review.** Both repos
+are confirmed aligned on versioning (their `49c447f`): same no-leading-zeros
+shape, same `versionCode` formula, same pinned `TZ=America/Chicago` page
+timestamp. Two asks, both done — a stale comment here claiming their page used a
+bare `date` (it is pinned now), and `docs/VERSIONING-RULE.md`, which had grown a
+full second copy of the general rule that now lives in the `expo-firebase-stack`
+skill. It is a pointer plus the project-specific facts, same shape as
+`docs/STACK-GOTCHAS.md`. The shared skill itself had grown THREE overlapping
+versioning entries; consolidated to one.
+
+Their mutation technique, applied here: `ORG_TIMEZONE` was flipped back to
+`America/New_York` to confirm the new test actually goes red. It does, and it is
+the only one that does. Also swept the unit suites under UTC, Pacific/Kiritimati
+(+14), Pacific/Midway (-11) and Asia/Kolkata — all clean, so nothing silently
+depends on the build machine's zone.
+
+And their warning about the Gradle daemon is now guarded: `expo run:android`
+leaves one resident on ~3.7 GB, this machine runs earlyoom with `java` and
+`gradle` on its prefer list, and the emulator it kills mid-suite presents as
+ECONNREFUSED — i.e. as a broken diff. `test-emulator.sh` stops the daemon before
+starting emulators.
+
 ### 2026-07-26 — Mentions in edits, and two review findings — v0.1.33
 
 **@mentions did not work when editing a comment.** Three faults stacked, only

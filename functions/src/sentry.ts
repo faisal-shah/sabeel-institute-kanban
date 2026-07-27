@@ -77,9 +77,17 @@ export async function reportMessage(
  * Two-phase by design: `start` opens the check-in and `finish` closes it, which
  * also tells Sentry how long the run took.
  */
-function monitorConfig(schedule: string) {
+function monitorConfig(schedule: string, timezone: string) {
   return {
     schedule: { type: 'crontab' as const, value: schedule },
+    // NOT optional in practice. Sentry defaults a monitor's timezone to UTC, and
+    // the crontab above is the one handed to Cloud Scheduler, which runs it in
+    // the ORG timezone. Omitting this made Sentry expect 03:15 UTC while the job
+    // checked in at 07:15 UTC — outside the margin below, so the monitor
+    // reported MISSED every single day and the real check-in landed nowhere near
+    // its window. A canary that cries wolf daily is worse than no canary: you
+    // stop reading it, which is exactly when it has something to say.
+    timezone,
     // Generous margins: a cold start or a slow aggregation must not page anyone.
     checkinMargin: 60,
     maxRuntime: 10,
@@ -87,9 +95,16 @@ function monitorConfig(schedule: string) {
 }
 
 /** Returns a check-in id to pass to `finishCheckIn`, or null if Sentry is off. */
-export function startCheckIn(monitorSlug: string, schedule: string): string | null {
+export function startCheckIn(
+  monitorSlug: string,
+  schedule: string,
+  timezone: string,
+): string | null {
   if (!ensureSentry(process.env.SENTRY_DSN)) return null;
-  return Sentry.captureCheckIn({ monitorSlug, status: 'in_progress' }, monitorConfig(schedule));
+  return Sentry.captureCheckIn(
+    { monitorSlug, status: 'in_progress' },
+    monitorConfig(schedule, timezone),
+  );
 }
 
 export async function finishCheckIn(
@@ -97,9 +112,10 @@ export async function finishCheckIn(
   monitorSlug: string,
   status: 'ok' | 'error',
   schedule: string,
+  timezone: string,
 ): Promise<void> {
   if (!checkInId) return;
-  Sentry.captureCheckIn({ checkInId, monitorSlug, status }, monitorConfig(schedule));
+  Sentry.captureCheckIn({ checkInId, monitorSlug, status }, monitorConfig(schedule, timezone));
   await Sentry.flush(2000).catch(() => undefined);
 }
 

@@ -1,6 +1,6 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getFirestore } from 'firebase-admin/firestore';
-import { COLLECTIONS } from '@sabeel/shared';
+import { COLLECTIONS, ORG_TIMEZONE } from '@sabeel/shared';
 import {
   finishCheckIn,
   reportError,
@@ -29,12 +29,17 @@ import {
  */
 
 /**
- * Daily at 03:15 America/New_York — quiet hours, and well clear of the 08:00
+ * Daily at 03:15 in the ORG timezone — quiet hours, and well clear of the 08:00
  * `dueSoonReminders` run. Firestore's daily backup window is not configurable, so
  * this cannot be aligned against it; nothing here depends on that ordering.
+ *
+ * The zone is ORG_TIMEZONE, not a second copy of it. It was hardcoded here, and
+ * when the org zone moved this one silently did not — at which point "well clear
+ * of the 08:00 run" was reasoning across two different clocks and no longer
+ * meant anything.
  */
 const HEALTH_SCHEDULE = '15 3 * * *';
-const HEALTH_TIMEZONE = 'America/New_York';
+const HEALTH_TIMEZONE = ORG_TIMEZONE;
 const MONITOR_SLUG = 'firestore-health';
 
 /**
@@ -162,7 +167,7 @@ export async function runHealthCheck(now: number): Promise<{
 export const healthCheck = onSchedule(
   { schedule: HEALTH_SCHEDULE, timeZone: HEALTH_TIMEZONE, secrets: [sentryDsn] },
   async () => {
-    const checkInId = startCheckIn(MONITOR_SLUG, HEALTH_SCHEDULE);
+    const checkInId = startCheckIn(MONITOR_SLUG, HEALTH_SCHEDULE, HEALTH_TIMEZONE);
     try {
       const { counts, findings } = await runHealthCheck(Date.now());
       if (findings.length > 0) {
@@ -175,10 +180,10 @@ export const healthCheck = onSchedule(
         `healthCheck: ${JSON.stringify(counts)}` +
           `${findings.length ? ` — ${findings.length} finding(s)` : ''}`,
       );
-      await finishCheckIn(checkInId, MONITOR_SLUG, 'ok', HEALTH_SCHEDULE);
+      await finishCheckIn(checkInId, MONITOR_SLUG, 'ok', HEALTH_SCHEDULE, HEALTH_TIMEZONE);
     } catch (e) {
       await reportError(e);
-      await finishCheckIn(checkInId, MONITOR_SLUG, 'error', HEALTH_SCHEDULE);
+      await finishCheckIn(checkInId, MONITOR_SLUG, 'error', HEALTH_SCHEDULE, HEALTH_TIMEZONE);
       throw e;
     }
   },

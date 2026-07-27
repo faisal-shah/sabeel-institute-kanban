@@ -50,9 +50,9 @@ echo "Uploaded $ASSET to $REPO ($TAG)"
 # another timezone must not silently change what the label means. The zone is
 # spelled out because a bare "26/07 19:42" is ambiguous to a reader.
 #
-# Format matches the sibling time-tracker's page exactly, so the two download
-# pages on the same site read the same way. Theirs uses a bare `date` (whatever
-# the build machine is set to) — worth pinning there too.
+# Format and zone match the sibling time-tracker's page exactly, so the two
+# download pages on the shared site read the same way. Both are pinned; do not
+# "simplify" either back to a bare `date`.
 PUBLISHED="$(TZ=America/Chicago date '+%-d %B %Y, %-I:%M %p %Z')"
 if [ -d "$PAGES_DIR/.git" ]; then
   sed -i -E "s#(Current build: <strong>)v[0-9][^<]*#\\1v${VERSION}#" \

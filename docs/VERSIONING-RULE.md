@@ -1,160 +1,48 @@
-# App versioning rule (Apple-safe)
+# Versioning — project specifics
 
-For any Sabeel app that ships, or might one day ship, to a phone store.
-Adopting this costs about fifteen minutes now. Discovering it at iOS submission
-time costs a re-release, because by then the version is already tagged, built and
-installed on people's devices.
+**The general rule lives in the `expo-firebase-stack` skill** (`../agent-skills/`,
+public), under *"The version number is a store contract, and Android hides that
+from you"*. Read that first. It covers Apple's format constraints (TN2420), the
+`versionCode` field-width collision, the leading-zero hole, and why enforcement
+belongs in three places.
 
-## The rule
+This file used to hold a full copy of that rule. It does not any more, for the
+same reason `docs/STACK-GOTCHAS.md` is a stub: the rule is true for anyone on
+this stack and nothing in it names this project, so a second copy only drifts —
+and two documents disagreeing about the same rule is worse than one of them not
+existing. Agreed with the time-tracker maintainer, who raised it.
 
-**The app version is exactly three integers, `X.Y.Z`. One source of truth.
-Everything else is derived from it.**
+Everything below is what is true *here* and nowhere else.
 
-- No pre-release suffix (`1.2.3-beta.1`), no fourth component (`1.2.3.4`), no
-  leading `v` (`v1.2.3`), **no leading zeros** (`2026.07.01`, `01.2.3`).
-- At most 18 characters.
-- Strictly increasing, never reused. Once a version has been published, that
-  number is spent forever.
-- Keep it in ONE file (for Expo: `app.json` → `expo.version`). Native project
-  files must derive from it, never carry their own copy. Two copies desync
-  silently, and the symptom is every release reporting the same version to your
-  crash reporter.
+## This project
 
-Starting at `0.x` is fine and is **not** a blocker. `0.1.33 < 1.0.0`, so the
-eventual jump to 1.0 still increases.
+- **Source of truth:** `app/app.json` → `expo.version`. Currently on the **0.x
+  train** (0.1.x). Nothing derives a version from anywhere else.
+- **`versionCode`** is computed in `app/android/app/build.gradle` as
+  `major*1000000 + minor*1000 + patch`. It was `10000/100` until 2026-07-26,
+  which would have collided at 0.1.100 — see the deploy log for v0.1.33. Any
+  future change to those multipliers must produce a **larger** number than the
+  current scheme does for the current version, or the next release cannot install
+  over the last.
+- **Ceilings:** minor and patch max 999, major max 2147. Exceeding any of them
+  fails the Gradle build rather than computing a colliding number.
 
-## Why these exact constraints
+## Where enforcement is wired
 
-They are Apple's, from [Technical Note
-TN2420](https://developer.apple.com/library/archive/technotes/tn2420/_index.html).
-`CFBundleShortVersionString` must:
+| Where | Runs when | Catches |
+|---|---|---|
+| `scripts/check-version.mjs` | `web:export`, so CI runs it | a web-only release that never touches Gradle |
+| `app/android/app/build.gradle` | every native build | a build where nobody ran the script |
+| `scripts/publish-apk.sh` | every publish | the last gate before a tag and a public download exist |
 
-- contain only digits and periods, and begin and end with a digit;
-- have **at most three** period-separated components;
-- be **at most 18 characters**;
-- be unique and increase with every release.
+`check-version.mjs` **self-tests on every invocation** against seven bad shapes,
+including `2026.07.01`. That case exists because the obvious
+`^\d+\.\d+\.\d+$` accepts a date — a hole the time-tracker maintainer found in
+an earlier draft of this document, in code that had already shipped here.
 
-Android is far laxer about the version *name* — which is the trap. A scheme that
-has worked for years on Android can be rejected the first time it meets App Store
-Connect, and nothing warns you in between.
+## Sibling projects
 
-## The part that actually bites first: the Android versionCode
-
-Android needs an integer `versionCode` alongside the name, and the sane thing is
-to derive it from the semver. **Be careful how many digits you give each field.**
-
-A common scheme is `major*10000 + minor*100 + patch`. It gives each field two
-digits, and it collides:
-
-```
-0.1.99  -> 199
-0.1.100 -> 200
-0.2.0   -> 200   <-- same number
-```
-
-Android refuses to install an APK whose `versionCode` is not greater than the
-installed one, and Play rejects a duplicate outright. So the release after
-`0.1.99` simply does not go out. If you ship patches at any pace, this is much
-closer than it looks — we were about two months away.
-
-Use three digits per field:
-
-```
-versionCode = major*1000000 + minor*1000 + patch      // 0.1.7 -> 1007
-```
-
-Room for 999 minor and 999 patch, and major up to 2147 before Android's signed
-32-bit ceiling.
-
-**If you are changing an existing scheme, check the new formula produces a LARGER
-number than the old one did for your current version**, or your next release
-cannot be installed over the last. Widening from `10000/100` to `1000000/1000`
-is safe (`0.1.33`: 133 → 1033). Narrowing never is.
-
-Make the build **fail** on a malformed or out-of-range version rather than
-silently computing a wrong number. In Gradle:
-
-```groovy
-def expoVersion = new groovy.json.JsonSlurper()
-    .parse(file("$projectRoot/app.json")).expo.version
-// Same no-leading-zeros shape as the script — 2026.07.01 must not get through here either.
-if (!expoVersion.matches(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/)) {
-    throw new GradleException("app.json version '${expoVersion}' must be X.Y.Z, no leading zeros")
-}
-def (vMajor, vMinor, vPatch) = expoVersion.tokenize('.').collect { it.toInteger() }
-if (vMinor > 999 || vPatch > 999 || vMajor > 2147) {
-    throw new GradleException("app.json version '${expoVersion}' overflows the versionCode scheme")
-}
-def computedVersionCode = vMajor * 1000000 + vMinor * 1000 + vPatch
-
-// ...then, in defaultConfig:
-//   versionCode computedVersionCode
-//   versionName expoVersion
-```
-
-## Enforce it where it cannot be skipped
-
-A convention nobody checks is a convention that lasts until someone is in a
-hurry. Wire a check into CI **and** into the release step — the last gate before
-a tag and a public download exist, both of which are awkward to retract.
-
-```js
-// scripts/check-version.mjs
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
-const root = resolve(import.meta.dirname, '..');
-const version = JSON.parse(readFileSync(resolve(root, 'app/app.json'), 'utf8')).expo.version;
-
-// NOT /^\d+\.\d+\.\d+$/ — that accepts 2026.07.01.
-const SHAPE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-
-const problems = [];
-if (!SHAPE.test(version)) {
-  problems.push(`"${version}" is not three period-separated integers (X.Y.Z) without leading zeros.`);
-}
-if (version.length > 18) {
-  problems.push(`"${version}" exceeds the 18 characters Apple allows.`);
-}
-const [major, minor, patch] = version.split('.').map(Number);
-if (minor > 999 || patch > 999 || major > 2147) {
-  problems.push(`"${version}" overflows the Android versionCode scheme (minor/patch max 999, major max 2147).`);
-}
-
-if (problems.length) {
-  console.error('\nversion check FAILED (app/app.json -> expo.version)\n');
-  for (const p of problems) console.error(`  - ${p}`);
-  process.exit(1);
-}
-console.log(`version ok (${version}, store-legal)`);
-```
-
-**Bake the negative cases into the script so they run on every invocation**, and
-include `2026.07.01`. This is not belt-and-braces: the naive `^\d+\.\d+\.\d+$`
-above accepts a date, because `07` is digits — and that hole survived review here
-until a second pair of eyes pointed the regex at one. A self-test that runs only
-when someone remembers to run it is the same as no self-test.
-
-Enforce it in **three** places, because each catches what the others cannot:
-
-| Where | Catches |
-|---|---|
-| CI / lint script | a web-only release that never touches the native build |
-| the native build config (Gradle) | a build where nobody ran the script |
-| the publish/release step | the last gate before a tag and a public download exist |
-
-*The leading-zero hole and the always-on self-test came from the maintainer of a
-sibling project reviewing an earlier draft of this note. Both are now in the
-shared `expo-firebase-stack` skill.*
-
-## When iOS actually happens
-
-The version string above is already what iOS wants for
-`CFBundleShortVersionString`. Two things are still outstanding at that point:
-
-- **`CFBundleVersion` (the build number) is separate** and needs its own scheme.
-  On iOS it must increase within a version train and may be reused across
-  trains; on macOS it must increase monotonically forever and may never be
-  reused. Do not assume it can just mirror `versionCode`.
-- Git tags may keep a `v` prefix (`v1.2.3`). Apple never sees your tags — only
-  the value in the bundle. Do not strip the prefix from tags on Apple's account.
+The time-tracker is aligned: same shape check, same `versionCode` formula, same
+pinned `TZ=America/Chicago` timestamp and wording on its download page. Confirmed
+against their `49c447f`. If you change any of the three here, tell them — the two
+download pages sit on one site and are read side by side.

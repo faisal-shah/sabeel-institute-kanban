@@ -15,6 +15,25 @@ if [ -n "${JAVA_HOME:-}" ]; then
   export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
+# Stop any resident Gradle daemon FIRST.
+#
+# `npm run build:apk` passes --no-daemon, but `npm run android` (expo run:android)
+# does not, so a debug build leaves a daemon sitting on ~3.7 GB. This machine runs
+# earlyoom with `--prefer ^(...|java|gradle)$`, so under the memory pressure of
+# three emulators plus that daemon it kills a JVM — and the one it takes is
+# usually the Firestore emulator, mid-suite.
+#
+# The reason this is worth a guard rather than a note: the symptom does not look
+# like memory pressure. It presents as ECONNREFUSED and a wall of failed and
+# skipped tests, i.e. exactly like a broken diff, and you go looking at your own
+# changes. Reported by the time-tracker maintainer, who lost three runs to it.
+#
+# Stopping the daemon here rather than disabling it globally keeps the dev build
+# loop fast; it only costs a cold Gradle start on the next build.
+if [ -x app/android/gradlew ]; then
+  (cd app/android && ./gradlew --stop >/dev/null 2>&1) || true
+fi
+
 # The functions emulator runs the BUILT bundle, so build before starting it.
 # This also means the integration suite exercises the same esbuild output that
 # gets deployed, not the TypeScript sources.
