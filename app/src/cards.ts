@@ -481,6 +481,11 @@ export async function bulkCopyToBoard(params: {
       // card and must not inherit a subtask link to the SOURCE board's parent.
       // This literal is untyped, so nothing but this comment stops someone
       // spreading `...card` here and reintroducing it.
+      //
+      // Subcollections do not come either: a copy gets no comments, no activity
+      // and no ATTACHMENTS. Copying files would mean duplicating the bytes, and
+      // a copy is a new piece of work rather than a second reference to the
+      // same one. A MOVE keeps everything, because the card id does not change.
       createdAt: now,
       createdBy: params.user.uid,
       updatedAt: now,

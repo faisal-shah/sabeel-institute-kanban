@@ -163,7 +163,10 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
       </Heading>
 
       <Panel>
-        {error ? <Hint>{error}</Hint> : null}
+        {/* Body, not Hint: this is a failure the reader has to act on, and
+            Hint is the muted style reserved for small supporting copy. Same
+            shape Comments and CardScreen use for an action error. */}
+        {error ? <Body>{error}</Body> : null}
 
         {list.status === 'loading' ? <Spinner label="Loading files…" /> : null}
         {list.status === 'error' ? <LoadError what="the files" code={list.error} /> : null}

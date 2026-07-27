@@ -341,6 +341,47 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Review of the attachments release — v0.2.1
+
+A deliberate multi-pass review of v0.2.0, run because two defects had
+already escaped to production and both escaped the same way: **the emulator
+answered a question production would have refused.** Four defects found, all
+reproduced before being fixed.
+
+- **`attached` named the wrong person.** The activity entry took its actor from
+  whoever called `finalizeAttachment`, not from `uploadedBy`. Normally the same
+  person; wrong exactly when it is not. Proven with a manager confirming a
+  member's upload.
+- **Concurrent `finalizeAttachment` logged the file twice**, and concurrent
+  `deleteAttachment` logged the removal twice. Both were read-then-write across
+  two round-trips. Both now do the state transition in a transaction, and only
+  the caller whose transaction made the change writes the entry.
+- **The card-delete object sweep failed silently.** Its catch only wrote a
+  `logger.warn`, and nothing else will ever find those bytes — the nightly sweep
+  looks at documents, which `recursiveDelete` has just removed. It now reports
+  to Sentry: a permanent billable leak must not depend on someone reading a log.
+
+**The most important finding was about the tests, not the code.** The first race
+tests reproduced the bug once and then passed against code that was still
+broken. The functions emulator serialises concurrent calls to a WARM instance,
+so a race driven through a callable stops racing as soon as an earlier test has
+warmed it. The effects are now extracted from their callables
+(`applyFinalizeAttachment`, `applyDeleteAttachment` — the same split
+`runNotificationSweep` uses) and the races run in-process, where two promises
+genuinely interleave. Verified by reverting the transactions: red on 3 of 3 runs.
+
+Also settled by measurement rather than assumption, against the real project:
+V4 signing genuinely works (the runtime service account signed a probe object
+and the URL served it — the one thing no local test can prove); all 7 index
+probes pass, including the health canary's new collection-group count; the
+`SAFE_ID` guard on callable input accepts all 80 production card ids and 16
+board ids; the nightly `pruneAttachments` schedule is ENABLED; cards on archived
+boards stay editable, so attachments are consistent with existing card rules.
+
+Two residuals recorded rather than fixed, in CLAUDE.md: a signed URL already
+issued keeps working for up to an hour after someone loses board access, and
+there is no cap on how many files one card may hold.
+
 ### 2026-07-27 — Files on a card — v0.2.0
 
 **Attachments, reversing the 2026-07-19 decision not to have them.** Several

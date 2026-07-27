@@ -46,6 +46,13 @@ Key product invariants (do not silently change):
   anyone who saw a link would keep access after leaving a board. Clients cannot
   update or delete an attachment: a client delete would strand the bytes, and a
   delete trigger cannot name who did it.
+- **Two accepted residuals on attachments, both measured, neither a bug to
+  re-fix.** A signed URL already handed out keeps working for up to an hour
+  after someone is removed from a board — individual signed URLs cannot be
+  revoked, only the signing key rotated, which would kill every URL at once.
+  And there is **no cap on how many files a card may hold**: the 10 MB limit is
+  per file, so cost is bounded only by the budget alert. Both are fine for
+  fewer than fifty colleagues; neither survives contact with untrusted users.
 - **Descriptions and comments are PLAIN TEXT.** Decided 2026-07-20 and locked:
   no markdown rendering, no markdown syntax hints, no rich-text editor, no
   WebView. What someone types is what everyone sees. The markdown renderer and

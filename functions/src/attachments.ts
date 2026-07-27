@@ -148,7 +148,27 @@ export const finalizeAttachment = onCall(
   guarded(async (request: CallableRequest<{ cardId?: unknown; attachmentId?: unknown }>) => {
     const { cardId, attachmentId } = requireIds(request.data);
     const { uid } = await requireCardAccess(request, cardId);
+    return applyFinalizeAttachment(cardId, attachmentId, uid);
+  }),
+);
 
+/**
+ * The effect, separated from its callable.
+ *
+ * Extracted for the same reason `runNotificationSweep` and `diffCard` are: the
+ * wrapper can only be reached over HTTP, and the functions emulator serialises
+ * concurrent calls to a WARM instance — so a race test driven through the
+ * callable passes against code that is genuinely broken. (It reproduced once,
+ * on a cold start, and then stopped. A test that only fails sometimes is worse
+ * than no test.) In-process, two promises interleave for real.
+ */
+export async function applyFinalizeAttachment(
+  cardId: string,
+  attachmentId: string,
+  actorUid: string,
+) {
+  {
+    const uid = actorUid;
     const ref = db().doc(`cards/${cardId}/attachments/${attachmentId}`);
     const snap = await ref.get();
     if (!snap.exists) throw new HttpsError('not-found', 'No such attachment.');
@@ -182,13 +202,37 @@ export const finalizeAttachment = onCall(
       contentDisposition: contentDispositionFor(name, contentType),
     });
 
-    await ref.update({ status: 'ready', name, contentType, sizeBytes });
-    await recordActivity(cardId, { type: 'attached', actorUid: uid, to: name });
+    // The flip to `ready` is a TRANSACTION, and only the caller that performs it
+    // writes the activity entry.
+    //
+    // The early return above is a fast path, not a guard: two finalizes racing
+    // — a double tap, or a retry after a slow response — both read `uploading`,
+    // both proceed, and the card gets two "attached Budget.pdf" lines. Measured,
+    // not hypothetical.
+    const won = await db().runTransaction(async (tx) => {
+      const cur = await tx.get(ref);
+      if (!cur.exists) return null;
+      const data = cur.data() as AttachmentDoc;
+      if (data.status === 'ready') return null; // the other caller won
+      tx.update(ref, { status: 'ready', name, contentType, sizeBytes });
+      return data;
+    });
 
-    logger.info('attachment finalized', { cardId, attachmentId, actorUid: uid, sizeBytes });
+    if (won) {
+      // Attributed to whoever UPLOADED it, not to whoever called finalize.
+      // They are normally the same person, but the caller is not the authority
+      // on that — the document is — and "Sara attached budget.pdf" has to be
+      // true for the log to be worth keeping.
+      await recordActivity(cardId, {
+        type: 'attached',
+        actorUid: won.uploadedBy || uid,
+        to: name,
+      });
+      logger.info('attachment finalized', { cardId, attachmentId, actorUid: uid, sizeBytes });
+    }
     return { ok: true, sizeBytes, contentType };
-  }),
-);
+  }
+}
 
 /**
  * Remove an attachment: the object and its record, together.
@@ -207,33 +251,55 @@ export const deleteAttachment = onCall(
   guarded(async (request: CallableRequest<{ cardId?: unknown; attachmentId?: unknown }>) => {
     const { cardId, attachmentId } = requireIds(request.data);
     const { uid } = await requireCardAccess(request, cardId);
+    return applyDeleteAttachment(cardId, attachmentId, uid);
+  }),
+);
 
+/** The effect, separated from its callable — see applyFinalizeAttachment. */
+export async function applyDeleteAttachment(
+  cardId: string,
+  attachmentId: string,
+  actorUid: string,
+) {
+  {
+    const uid = actorUid;
     const ref = db().doc(`cards/${cardId}/attachments/${attachmentId}`);
-    const snap = await ref.get();
 
-    // The object goes first: while the record still exists, something knows
-    // which bytes to chase if this throws. Deleting at the CANONICAL path, not
-    // via a stored field, is what also catches bytes from an upload that never
-    // finalized — they are the only thing here that costs money indefinitely.
+    // The object goes FIRST, and the ordering is deliberate. If this throws, the
+    // record still exists, so something still knows which bytes to chase and the
+    // user can try again. Deleting the document first would, on the same
+    // failure, leave bytes that are unreferenced, invisible and billable — the
+    // nightly sweep only looks at documents, so nothing would ever find them.
+    //
+    // Deleting at the CANONICAL path rather than via a stored field is what also
+    // clears bytes from an upload that never finalized.
     await bucket()
       .file(attachmentStoragePath(cardId, attachmentId))
       .delete({ ignoreNotFound: true });
 
-    // Idempotent: a double tap or a retry must not write two removals.
-    if (!snap.exists) return { ok: true, removed: false };
-    const existing = snap.data() as AttachmentDoc;
-    await ref.delete();
+    // Deleting the record and deciding to log it must be ONE atomic step, or two
+    // concurrent removals both see the document and the card gets two "removed
+    // budget.pdf" lines. Only the caller whose transaction actually removed it
+    // writes the entry. Measured, not hypothetical.
+    const removed = await db().runTransaction(async (tx) => {
+      const cur = await tx.get(ref);
+      if (!cur.exists) return null;
+      tx.delete(ref);
+      return cur.data() as AttachmentDoc;
+    });
+
+    if (!removed) return { ok: true, removed: false };
 
     // An upload that never finished was never an attachment anyone saw, so
     // rolling one back is not a removal worth recording.
-    if (existing.status === 'ready') {
-      await recordActivity(cardId, { type: 'detached', actorUid: uid, from: existing.name });
+    if (removed.status === 'ready') {
+      await recordActivity(cardId, { type: 'detached', actorUid: uid, from: removed.name });
     }
 
     logger.info('attachment removed', { cardId, attachmentId, actorUid: uid });
     return { ok: true, removed: true };
-  }),
-);
+  }
+}
 
 /**
  * Mint a time-limited URL for one attachment.

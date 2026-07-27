@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { attachmentStoragePath, ATTACHMENT_MAX_BYTES } from '@sabeel/shared';
-import { runAttachmentSweep } from '../../src/attachments';
 import {
+  applyDeleteAttachment,
+  applyFinalizeAttachment,
+  runAttachmentSweep,
+} from '../../src/attachments';
+import {
+  adminAuth,
   adminBucket,
   adminDb,
   callFunction,
@@ -341,6 +346,62 @@ describe('getAttachmentUrl', () => {
       outsiderToken,
     );
     expect(denied.body.error?.status).toBe('PERMISSION_DENIED');
+  });
+});
+
+describe('concurrency — two people, or two taps, at the same moment', () => {
+  // Every one of these was a real defect found in review, reproduced here first.
+  // The shape is always the same: read state, decide, write — without the read
+  // and the write being one atomic step.
+
+  it('finalize attributes the file to whoever UPLOADED it, not whoever confirmed it', async () => {
+    const id = 'at_actor';
+    await uploaded(id, { name: 'actor.pdf', uploadedBy: MEM });
+    // The manager confirms an upload the member made.
+    await callFunction('finalizeAttachment', { cardId: CARD, attachmentId: id }, mgrToken);
+    const attached = (await activityFor()).filter((a) => a.type === 'attached' && a.to === 'actor.pdf');
+    expect(attached).toHaveLength(1);
+    expect(attached[0].actorUid).toBe(MEM);
+  });
+
+  it('two concurrent finalizes log the attachment ONCE', async () => {
+    const id = 'at_race_fin';
+    await uploaded(id, { name: 'racefin.pdf' });
+    // IN-PROCESS, not through the callable. The functions emulator serialises
+    // concurrent calls to a warm instance, so driving this over HTTP passes
+    // against genuinely broken code — verified. Two promises here interleave on
+    // real Firestore round-trips, which is the actual race.
+    await Promise.all(
+      Array.from({ length: 6 }, () => applyFinalizeAttachment(CARD, id, MEM)),
+    );
+    const attached = (await activityFor()).filter((a) => a.type === 'attached' && a.to === 'racefin.pdf');
+    expect(attached).toHaveLength(1);
+    expect((await attachmentRef(id).get()).data()!.status).toBe('ready');
+  });
+
+  it('two concurrent removals log the removal ONCE, and still clear the bytes', async () => {
+    const id = 'at_race_del';
+    await uploaded(id, { name: 'racedel.pdf' });
+    await callFunction('finalizeAttachment', { cardId: CARD, attachmentId: id }, memToken);
+    // In-process again, and for the same reason as the finalize race above.
+    await Promise.all(
+      Array.from({ length: 6 }, (_, i) => applyDeleteAttachment(CARD, id, i % 2 ? MGR : MEM)),
+    );
+    const detached = (await activityFor()).filter((a) => a.type === 'detached' && a.from === 'racedel.pdf');
+    expect(detached).toHaveLength(1);
+    expect((await attachmentRef(id).get()).exists).toBe(false);
+    expect(await objectExists(id)).toBe(false);
+  });
+
+  it('a disabled account is refused, not just a pending one', async () => {
+    const id = 'at_disabled';
+    await uploaded(id);
+    await adminAuth().setCustomUserClaims(MEM, { role: 'member', status: 'disabled' });
+    const token = await idTokenFor(MEM);
+    const res = await callFunction('finalizeAttachment', { cardId: CARD, attachmentId: id }, token);
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+    // Put it back, or every later test in this file runs as a disabled user.
+    await adminAuth().setCustomUserClaims(MEM, { role: 'member', status: 'active' });
   });
 });
 

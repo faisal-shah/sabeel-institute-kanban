@@ -1,7 +1,7 @@
 import './setup';
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
-import { guardedEvent, sentryDsn } from './sentry';
+import { guardedEvent, reportError, sentryDsn } from './sentry';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
@@ -54,11 +54,19 @@ export const onCardDeleted = onDocumentDeleted(
         .bucket()
         .deleteFiles({ prefix: `cards/${cardId}/attachments/` });
     } catch (e) {
-      // `deleteFiles` throws on the first failure and is not atomic. A Storage
-      // hiccup must never block the Firestore cleanup below, and the daily
-      // sweep is not the mechanism that would recover these — so log loudly
-      // rather than failing the trigger.
+      // `deleteFiles` throws on the first failure and is not atomic, and a
+      // Storage hiccup must never block the Firestore cleanup below — so this
+      // is caught rather than thrown.
+      //
+      // But it is REPORTED, not just logged. Nothing else will ever find these
+      // bytes: the nightly sweep looks at attachment documents, and
+      // recursiveDelete has just removed them all. So a silent failure here is
+      // a permanent, invisible, billable leak, and a warning in a log nobody
+      // reads is not a safety net. Sentry is how it surfaces.
       logger.warn('attachment objects not cleaned up', { cardId, error: String(e) });
+      await reportError(
+        new Error(`Orphaned attachment objects under cards/${cardId}: ${String(e)}`),
+      );
     }
 
     // Unlink the deleted card's subtasks. `parentId` lives on the CHILD, so
