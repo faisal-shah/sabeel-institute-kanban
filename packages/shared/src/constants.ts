@@ -20,7 +20,16 @@ export const ALLOWED_EMAIL_DOMAIN = 'oursabeel.com';
  * due-soon reminders. Deliberately NOT the per-entry work-local timezone
  * machinery the sibling time-tracker needed.
  */
-export const ORG_TIMEZONE = 'America/New_York';
+// Houston. This was 'America/New_York' — an hour out, and wrong in a way nothing
+// surfaced: due dates are all-day strings, so the only symptoms were a card
+// turning overdue an hour early and the "due soon" reminder arriving at 07:00
+// local instead of 08:00. Neither looks like a bug, which is why it survived.
+//
+// The sibling time-tracker has no equivalent constant to keep in step — it
+// buckets per entry in the timezone where the work happened (entry.timeZone),
+// deliberately. So there is nothing to sync; there is only this one value, and
+// it must match where the team actually is.
+export const ORG_TIMEZONE = 'America/Chicago';
 
 /** Columns every new board starts with. All renameable and removable. */
 export const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Done'] as const;

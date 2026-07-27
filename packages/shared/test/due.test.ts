@@ -45,8 +45,15 @@ describe('todayInOrgTz', () => {
   });
 
   it('uses the ORG timezone, not the viewer', () => {
-    // 2026-07-19T02:00Z is still 2026-07-18 in America/New_York.
+    // 02:00Z is still the previous day in Houston (UTC-5 in summer).
     expect(todayInOrgTz(new Date('2026-07-19T02:00:00Z'))).toBe('2026-07-18');
+  });
+
+  it('is CENTRAL, not Eastern — the hour between them is a whole day', () => {
+    // 04:30Z on 19 July is 23:30 on the 18th in Chicago but already 00:30 on the
+    // 19th in New York. Pinning a real instant is what makes this test fail if
+    // ORG_TIMEZONE is ever moved back; asserting the string alone would not.
+    expect(todayInOrgTz(new Date('2026-07-19T04:30:00Z'))).toBe('2026-07-18');
   });
 });
 

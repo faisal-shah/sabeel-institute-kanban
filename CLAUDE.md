@@ -17,6 +17,12 @@ Key product invariants (do not silently change):
 - **Phone-first, not phone-compatible.** The mobile board is its own layout (one
   column at a time, swipe between columns), not a squeezed desktop board. Every
   feature ships with a phone design.
+- **The team is in Houston — `ORG_TIMEZONE` is `America/Chicago`.** It shipped as
+  `America/New_York` and nothing surfaced it: due dates are all-day strings, so
+  the only symptoms were cards turning overdue an hour early and the due-soon
+  reminder firing at 07:00 local. Do not "align" it with the sibling
+  time-tracker — that project has no org timezone at all, by design, because it
+  buckets each entry in the timezone where the work happened.
 - **Three org-wide roles: admin / manager / member.** Managers create boards and
   may join any board; members see only boards they've been added to; admins alone
   approve accounts and promote people. There are NO per-board roles.

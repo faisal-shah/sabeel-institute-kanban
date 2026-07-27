@@ -46,10 +46,14 @@ echo "Uploaded $ASSET to $REPO ($TAG)"
 # behind that button is the build we just cut or last month's. "Did it actually
 # publish?" is otherwise unanswerable from the page.
 #
-# In the org timezone (matching ORG_TIMEZONE in @sabeel/shared), spelled out with
-# the zone, because a bare "26/07 19:42" is ambiguous to a reader and useless to
-# someone in another country.
-PUBLISHED="$(TZ=America/New_York date '+%-d %B %Y at %-I:%M %p %Z')"
+# Org timezone, PINNED rather than machine-local: a build cut from a laptop in
+# another timezone must not silently change what the label means. The zone is
+# spelled out because a bare "26/07 19:42" is ambiguous to a reader.
+#
+# Format matches the sibling time-tracker's page exactly, so the two download
+# pages on the same site read the same way. Theirs uses a bare `date` (whatever
+# the build machine is set to) — worth pinning there too.
+PUBLISHED="$(TZ=America/Chicago date '+%-d %B %Y, %-I:%M %p %Z')"
 if [ -d "$PAGES_DIR/.git" ]; then
   sed -i -E "s#(Current build: <strong>)v[0-9][^<]*#\\1v${VERSION}#" \
     "$PAGES_DIR/sabeel-kanban/index.html"
