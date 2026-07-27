@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { applyDeleteLabel } from '../../src/labels';
 import {
   adminDb,
   callFunction,
@@ -168,6 +169,35 @@ describe('deleteLabel', () => {
   it('reports a label that is not there rather than silently succeeding', async () => {
     const res = await callFunction('deleteLabel', { labelId: 'lb_missing' }, mgrToken);
     expect(res.body.error?.status).toBe('NOT_FOUND');
+  });
+
+  it('keeps the label when the sweep fails, so re-running finishes the job', async () => {
+    // The ordering guarantee, and the ONLY way to observe it: on the happy path
+    // sweep-then-delete and delete-then-sweep end in exactly the same state, so
+    // every other assertion in this file passes under either. Reversing the two
+    // lines in applyDeleteLabel turns THIS test red and nothing else.
+    //
+    // What it protects: a failure partway leaves the label present with some
+    // cards already stripped — incomplete but findable, and finished by running
+    // it again. Reversed, the same failure strands cards holding an id with
+    // nothing left to look it up by.
+    await putLabel('lb_partial');
+    await putCard('lb_partial_c', BOARD_A, ['lb_partial']);
+
+    await expect(
+      applyDeleteLabel('lb_partial', MGR, async () => {
+        throw new Error('sweep failed partway');
+      }),
+    ).rejects.toThrow('sweep failed partway');
+
+    expect((await labelRef('lb_partial').get()).exists).toBe(true);
+    expect(await labelsOn('lb_partial_c')).toEqual(['lb_partial']);
+
+    // …and the ordinary path still finishes it.
+    const res = await callFunction('deleteLabel', { labelId: 'lb_partial' }, mgrToken);
+    expect(res.status).toBe(200);
+    expect((await labelRef('lb_partial').get()).exists).toBe(false);
+    expect(await labelsOn('lb_partial_c')).toEqual([]);
   });
 
   it('is safe to run twice — the second pass finds nothing left to do', async () => {

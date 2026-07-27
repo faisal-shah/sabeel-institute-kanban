@@ -341,6 +341,46 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Three fixes from reviewing the label release — v0.3.1
+
+A structured review of v0.2.5–v0.3.0 turned up nine things; three were worth
+acting on. The other six are recorded in the review itself: two accepted
+residuals (no cap on the label collection; label names now readable by any
+active account rather than only board members), a first-load layout shift on
+tiles whose only meta is labels, opens being unavailable during an upload
+because `useAction` is single-slot, and a migration that does not validate the
+names it copies.
+
+**The duplicate check ran against an empty list while labels were loading.**
+All three call sites read `labels.data ?? []`, and `useLiveQuery` reports
+`data: undefined` for BOTH `loading` and `error` — so the fallback turned "not
+known yet" into "there are no labels", and `validateLabelName` waved every
+duplicate through. The error case is the sharp one: it is not a window, it
+persists, and the picker shows no chips either, so nobody can see what they are
+duplicating. The controls now stay disabled until the list is genuinely known.
+
+**The sweep-before-delete ordering had no test at all.** It is stated in the
+code, in the v0.3.0 entry and in that commit message as load-bearing — and
+reversing the two lines left all 251 tests green, because on the happy path both
+orders end identically. `applyDeleteLabel` is now extracted with an injectable
+sweep, which is the only way to observe the property: the new test passes a
+sweep that throws and asserts the label survives. Reversing the order now turns
+that one test red and nothing else.
+
+**`isLabelColor` was dead.** Exported, unit-tested, zero call sites — the plan
+had the callable using it and nothing ever did. The test made it look covered.
+Both are gone.
+
+Also confirmed, because they were the frightening ones: the delete sweep does
+NOT fire notifications (`onCardNotify` only reacts to assignee and column
+changes) and does not disturb board card counts (`onCardBoardCount` returns
+early when the active board is unchanged). Firestore rules `String.size()`
+counts CODE POINTS — probed directly, 20 emoji accepted and 41 ASCII refused —
+so the client's 40-UTF-16-unit cap is strictly the stricter of the two and can
+never hand the rules a name they reject. And all 32 migrated labels audited
+clean in production: in-palette colours, valid hex, exactly four fields, longest
+name 24 bytes.
+
 ### 2026-07-27 — Labels became org-wide — v0.3.0
 
 Labels lived on the board document, so the same idea had to be re-created on

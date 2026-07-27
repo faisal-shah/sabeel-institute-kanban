@@ -189,13 +189,6 @@ export function validateLabelName(
   return null;
 }
 
-/** A colour the app itself offers. The rules only check the hex SHAPE — the
- *  palette is a design constraint, not a security boundary, and restating the
- *  list in rules would be a second source of truth for it. */
-export function isLabelColor(color: string): boolean {
-  return (LABEL_COLORS as readonly string[]).includes(color);
-}
-
 /** The document body. The id is Firestore's, not ours — labels are real docs. */
 export function newLabel(params: {
   name: string;

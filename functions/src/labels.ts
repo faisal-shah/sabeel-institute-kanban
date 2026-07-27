@@ -94,10 +94,31 @@ export const deleteLabel = onCall({ secrets: [sentryDsn] }, guarded(async (reque
   const labelId = requireLabelId(request.data);
 
   const db = getFirestore();
-  const labelRef = db.doc(`labels/${labelId}`);
-  const label = await labelRef.get();
+  const label = await db.doc(`labels/${labelId}`).get();
   if (!label.exists) throw new HttpsError('not-found', 'No such label.');
 
+  const strippedFromCards = await applyDeleteLabel(labelId, uid);
+
+  logger.info('Deleted label', {
+    labelId,
+    name: label.data()?.name,
+    actorUid: uid,
+    strippedFromCards,
+  });
+
+  return { ok: true, strippedFromCards };
+}));
+
+/**
+ * Take the label off every card that carries it. Returns how many were changed.
+ *
+ * `updatedBy` is what makes the resulting history honest: `onCardWritten` diffs
+ * `labelIds`, sees the change and logs a `labels` entry against whoever is named
+ * here. Without it the log would credit whoever last edited the card. Exactly the
+ * mechanism `removeBoardMember` relies on for its `unassigned` entries.
+ */
+export async function sweepLabelFromCards(labelId: string, actorUid: string): Promise<number> {
+  const db = getFirestore();
   const carrying = await cardsWithLabel(labelId).get();
 
   let swept = 0;
@@ -106,22 +127,36 @@ export const deleteLabel = onCall({ secrets: [sentryDsn] }, guarded(async (reque
     for (const card of carrying.docs.slice(i, i + BATCH_LIMIT)) {
       batch.update(card.ref, {
         labelIds: FieldValue.arrayRemove(labelId),
-        updatedBy: uid,
+        updatedBy: actorUid,
         updatedAt: Date.now(),
       });
       swept += 1;
     }
     await batch.commit();
   }
+  return swept;
+}
 
-  await labelRef.delete();
-
-  logger.info('Deleted label', {
-    labelId,
-    name: label.data()?.name,
-    actorUid: uid,
-    strippedFromCards: swept,
-  });
-
-  return { ok: true, strippedFromCards: swept };
-}));
+/**
+ * The effect, separated from its callable — see applyDeleteAttachment.
+ *
+ * ORDER IS THE POINT. Cards are swept FIRST and the document deleted LAST, so a
+ * failure between the two leaves the label present with some cards already
+ * stripped: visibly incomplete, and finished by running it again, because
+ * `arrayRemove` is idempotent. Reversed, the same failure would leave cards
+ * holding an id with nothing left to find them by.
+ *
+ * `sweep` is injectable for ONE reason: on the happy path both orders produce an
+ * identical end state, so no assertion on the result can tell them apart. Passing
+ * a sweep that throws is the only way to observe the ordering at all — and
+ * without that, reversing the two lines below passes every other test here.
+ */
+export async function applyDeleteLabel(
+  labelId: string,
+  actorUid: string,
+  sweep: (labelId: string, actorUid: string) => Promise<number> = sweepLabelFromCards,
+): Promise<number> {
+  const swept = await sweep(labelId, actorUid);
+  await getFirestore().doc(`labels/${labelId}`).delete();
+  return swept;
+}

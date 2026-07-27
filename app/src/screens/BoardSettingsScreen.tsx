@@ -63,6 +63,17 @@ export function BoardSettingsScreen({
   // Labels are org-wide. This section edits ONE set that every board shows —
   // the copy below says so, because the screen it sits on does not.
   const labels = useLabels();
+  /**
+   * The label list, but ONLY once we actually have it.
+   *
+   * `useLiveQuery` reports `data: undefined` while loading AND on error, so the
+   * `?? []` this used to carry turned "not known yet" into "there are no
+   * labels" — and `validateLabelName` against an empty set waves every
+   * duplicate through. The result is a persistent org-wide label that only a
+   * manager can remove, created with no warning at all. Null here means the
+   * create controls stay disabled until the check can mean something.
+   */
+  const knownLabels = labels.status === 'ready' ? labels.data : null;
   const t = useTheme();
 
   const [newColumn, setNewColumn] = useState('');
@@ -144,7 +155,8 @@ export function BoardSettingsScreen({
   }
 
   async function addLabel() {
-    const problem = validateLabelName(newLabelName, labels.data ?? []);
+    if (knownLabels === null) return;
+    const problem = validateLabelName(newLabelName, knownLabels);
     if (problem) {
       setError(problem);
       return;
@@ -158,7 +170,8 @@ export function BoardSettingsScreen({
   async function saveLabelName(label: Label) {
     // Exclude the label being renamed, or "no change" fails its own uniqueness
     // check — the same self-exclusion renameColumn needs.
-    const problem = validateLabelName(labelDraft, labels.data ?? [], label.id);
+    if (knownLabels === null) return;
+    const problem = validateLabelName(labelDraft, knownLabels, label.id);
     if (problem) {
       setError(problem);
       return;
@@ -324,7 +337,7 @@ export function BoardSettingsScreen({
                 icon="check"
                 label={`Save name for ${l.name}`}
                 accent
-                disabled={busy || !labelDraft.trim()}
+                disabled={busy || !labelDraft.trim() || knownLabels === null}
                 onPress={() => saveLabelName(l)}
               />
               <IconAction
@@ -419,7 +432,7 @@ export function BoardSettingsScreen({
             label="Add label"
             accent
             size={24}
-            disabled={busy || !newLabelName.trim()}
+            disabled={busy || !newLabelName.trim() || knownLabels === null}
             onPress={addLabel}
           />
         </Row>

@@ -7,7 +7,6 @@ import {
   columnsPatch,
   defaultColumns,
   newBoard,
-  isLabelColor,
   newLabel,
   sortLabels,
   pushRecent,
@@ -249,13 +248,6 @@ describe('sortLabels', () => {
   });
 });
 
-describe('isLabelColor', () => {
-  it('accepts the palette and refuses anything else', () => {
-    for (const c of LABEL_COLORS) expect(isLabelColor(c)).toBe(true);
-    expect(isLabelColor('#123456')).toBe(false);
-    expect(isLabelColor('red')).toBe(false);
-  });
-});
 
 describe('pushRecent', () => {
   it('puts the board first', () => {

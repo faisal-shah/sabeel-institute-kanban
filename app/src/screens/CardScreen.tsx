@@ -77,6 +77,17 @@ export function CardScreen({
   // Org-wide. Every board offers the same labels, so this does not come from
   // the board document any more.
   const labels = useLabels();
+  /**
+   * The label list, but ONLY once we actually have it.
+   *
+   * `useLiveQuery` reports `data: undefined` while loading AND on error, so the
+   * `?? []` this used to carry turned "not known yet" into "there are no
+   * labels" — and `validateLabelName` against an empty set waves every
+   * duplicate through. The result is a persistent org-wide label that only a
+   * manager can remove, created with no warning at all. Null here means the
+   * create controls stay disabled until the check can mean something.
+   */
+  const knownLabels = labels.status === 'ready' ? labels.data : null;
   const boardCards = useBoardCards(boardId);
   const t = useTheme();
 
@@ -596,7 +607,7 @@ export function CardScreen({
             icon="add"
             label="New label"
             accent
-            disabled={busy}
+            disabled={busy || knownLabels === null}
             onPress={() => {
               setNewLabelName('');
               setNewLabelColor(LABEL_COLORS[0]);
@@ -643,9 +654,10 @@ export function CardScreen({
         <Button
           label="Add label"
           busy={busy}
-          disabled={busy || !newLabelName.trim()}
+          disabled={busy || !newLabelName.trim() || knownLabels === null}
           onPress={() => {
-            const problem = validateLabelName(newLabelName, labels.data ?? []);
+            if (knownLabels === null) return;
+            const problem = validateLabelName(newLabelName, knownLabels);
             if (problem) {
               setError(problem);
               return;
