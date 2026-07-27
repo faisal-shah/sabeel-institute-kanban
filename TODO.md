@@ -170,23 +170,14 @@ this before the APK goes to the team, not before "sharing" generally.
 
 ---
 
-## G. ClickUp export — for the migration
+## G. ClickUp export — **done, one-time, 2026-07-26**
 
-- [ ] **Export the existing boards from ClickUp.** Try the CSV export first
-      (Settings → Export). If it drops comments or assignees, an API token gets
-      a fuller export — show Claude a small sample and it'll say which you need.
-      → **Hand back:** the export file(s), placed in `migration/` (gitignored).
-- [ ] **Sit down with Claude to reconcile `migration/mapping.json`.** ClickUp
-      usernames → `@oursabeel.com` accounts, old list names → new board names,
-      statuses → columns. This is genuinely fuzzy and needs your judgement —
-      Claude proposes, you correct. Unmapped entries are hard errors, never
-      silent drops.
-- [ ] Review the **dry-run** output before authorising `--apply`.
+The migration ran and is finished. Nothing here is outstanding, and there is no
+recurring import: it was a single pass, confirmed complete by Faisal.
 
-> Needed at: Phase 14, after the production deploy and **before** the team is
-> onboarded.
-
----
+Kept only as history — the importer (`scripts/import-clickup.mjs`) and the
+`sourceId` field on cards are what it left behind, and both stay so a re-run
+would update rather than duplicate.
 
 ## H. Launch
 
