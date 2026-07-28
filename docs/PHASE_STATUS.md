@@ -341,6 +341,37 @@ the team.
 
 ## Deploy log
 
+### 2026-07-28 — A blocked popup no longer strands people — v0.5.1
+
+Three colleagues could not sign in on the web. The white page they saw is
+Firebase's own `/__/auth/handler`: "Unable to process request due to missing
+initial state." Reproduced exactly by loading that URL with no state.
+
+`authDomain` was already the hosting domain (`…web.app`), so the usual
+storage-partitioning fix was in place — confirmed on the RUNNING app, not just in
+source: the popup targets `web.app/__/auth/handler`. The cause was our own
+fallback. A link tapped inside WhatsApp opens an in-app browser, the popup is
+blocked, and we silently called `signInWithRedirect`. That returns to
+`/__/auth/handler`, which needs the `sessionStorage` written before the bounce —
+and the webview does not have it on return. Firebase then renders its error on a
+page **this app is not running on**: nothing can catch it, there is no way back,
+and re-opening the link lands on it again. Exactly what was described: first the
+notice, then "unable to open browser", then eventually working after opening it
+properly.
+
+A blocked popup now hands the choice over instead: it says the window was
+blocked, names the site to open in Safari or Chrome, and offers "Try anyway"
+which runs the redirect explicitly — still the right answer on a desktop browser
+whose popup blocker is merely set to block, which is what the fallback was for.
+
+Verified by blocking `window.open` exactly as an in-app browser does and driving
+the real exported bundle: the explanation appears, the button appears, and the
+page does **not** navigate away.
+
+**What this does not do:** make sign-in work *inside* the chat app's browser.
+That is broken by the browser's storage partitioning, not by our code. People are
+told to open it in a real browser, which works.
+
 ### 2026-07-28 — Shipped v0.5.0
 
 Deployed in order: indexes → functions → rules/storage → backfill → hosting →

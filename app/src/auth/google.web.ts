@@ -26,6 +26,27 @@ import { captureError } from '../sentry';
  */
 getRedirectResult(auth).catch((e) => captureError(e, { source: 'redirectSignIn' }));
 
+/**
+ * The popup was blocked and we are NOT redirecting behind the user's back.
+ *
+ * Its own class so the sign-in screen can offer the way out rather than print
+ * an error — see `SignInScreen`.
+ */
+export class PopupBlockedError extends Error {
+  readonly code = 'auth/popup-blocked';
+  constructor() {
+    super('The sign-in window was blocked.');
+    this.name = 'PopupBlockedError';
+  }
+}
+
+/** The explicit "try anyway" — a full-page redirect, only ever user-initiated. */
+export async function signInWithGoogleRedirect(): Promise<void> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN, prompt: 'select_account' });
+  await signInWithRedirect(auth, provider);
+}
+
 export async function signInWithGoogle(): Promise<void> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN, prompt: 'select_account' });
@@ -34,16 +55,30 @@ export async function signInWithGoogle(): Promise<void> {
     await signInWithPopup(auth, provider);
   } catch (e) {
     const code = (e as { code?: string }).code;
-    // Popups are routinely blocked inside the in-app browsers people actually
-    // arrive from — a link tapped in WhatsApp or Slack opens a webview, not the
-    // system browser. Falling back to a full-page redirect is what makes those
-    // arrivals work at all, and a shared link is the common way into this app.
+    // A blocked popup does NOT silently become a redirect any more.
+    //
+    // It used to, on the reasoning that a link tapped in WhatsApp or Slack opens
+    // a webview where popups are blocked, so a redirect was the only way in. In
+    // practice the redirect is where those arrivals DIED: it goes to Google and
+    // returns to `/__/auth/handler`, which needs the `sessionStorage` written
+    // before the bounce — and an in-app webview that hands the user off to the
+    // real browser does not have it. Firebase then renders "Unable to process
+    // request due to missing initial state" on its own page, which is a DEAD
+    // END: our app is not running there, so there is nothing to catch it, no
+    // way back, and re-opening the link restores that same page. Reported by
+    // three colleagues on 2026-07-28 and reproduced exactly by loading
+    // `/__/auth/handler` with no state.
+    //
+    // So the choice is handed to the person instead. The screen explains that
+    // the window was blocked, offers the link to open in a real browser, and
+    // offers `signInWithRedirect` explicitly — which still works on a desktop
+    // browser whose popup blocker is simply set to block, the case the fallback
+    // was originally for.
     if (
       code === 'auth/popup-blocked' ||
       code === 'auth/operation-not-supported-in-this-environment'
     ) {
-      await signInWithRedirect(auth, provider);
-      return;
+      throw new PopupBlockedError();
     }
 
     // Changing your mind is not a failure. Closing the Google popup, or opening

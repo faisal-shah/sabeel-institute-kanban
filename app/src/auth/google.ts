@@ -42,6 +42,21 @@ export async function googleSignOut(): Promise<void> {
   await GoogleSignin.signOut();
 }
 
+/**
+ * Web-only concepts, present here so the seam has one shape.
+ *
+ * Native has no popup to block and no redirect to fall back to — Play Services
+ * shows its own account sheet — so this can never be thrown and the redirect is
+ * never reachable. See `google.web.ts` for why the web side needs both.
+ */
+export class PopupBlockedError extends Error {
+  readonly code = 'auth/popup-blocked';
+}
+
+export async function signInWithGoogleRedirect(): Promise<void> {
+  await signInWithGoogle();
+}
+
 export async function signInWithGoogle(): Promise<void> {
   ensureConfigured();
   try {

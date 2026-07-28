@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
-import { signInWithGoogle, googleSignInAvailable } from '../auth/google';
+import {
+  signInWithGoogle,
+  signInWithGoogleRedirect,
+  googleSignInAvailable,
+  PopupBlockedError,
+} from '../auth/google';
 import { DEV_ACCOUNTS, devSignIn, devSignInAvailable } from '../auth/devSignIn';
 import { Body, Button, Caption, Card, Hint, Row, Screen, Title } from '../components/ui';
 import { radius, space } from '../theme';
@@ -13,13 +18,27 @@ export function SignInScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * The popup was blocked, so the way in is being offered rather than taken.
+   *
+   * This used to redirect automatically, and that is precisely how people got
+   * stuck: the redirect returns to Firebase's own `/__/auth/handler`, which
+   * needs the `sessionStorage` written before the bounce. An in-app browser —
+   * a link tapped in WhatsApp — does not have it on return, so Firebase renders
+   * "missing initial state" on a page this app is not running on. No way back,
+   * and re-opening the link lands on it again.
+   */
+  const [popupBlocked, setPopupBlocked] = useState(false);
+
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
+    setPopupBlocked(false);
     try {
       await fn();
     } catch (e) {
-      setError(toUserMessage(e, 'signIn'));
+      if (e instanceof PopupBlockedError) setPopupBlocked(true);
+      else setError(toUserMessage(e, 'signIn'));
     } finally {
       setBusy(false);
     }
@@ -63,6 +82,23 @@ export function SignInScreen() {
           // its single primary action reads better spanning the card.
           block
         />
+        {popupBlocked ? (
+          <View style={styles.blocked}>
+            <Body>Your browser blocked the sign-in window.</Body>
+            <Hint>
+              If you opened this from a chat app, open{' '}
+              {typeof window !== 'undefined' ? window.location.host : ''} in Safari
+              or Chrome instead — sign-in cannot finish inside an in-app browser.
+            </Hint>
+            <Button
+              label="Try anyway"
+              variant="secondary"
+              onPress={() => run(signInWithGoogleRedirect)}
+              busy={busy}
+              block
+            />
+          </View>
+        ) : null}
         <Hint>
           New accounts need an administrator&rsquo;s approval before you can use
           the boards.
@@ -115,6 +151,7 @@ export function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
+  blocked: { gap: space.sm, marginTop: space.sm },
   pane: { width: '100%', maxWidth: 460, alignSelf: 'center', gap: space.sm },
   header: { gap: space.xs, marginBottom: space.md, alignItems: 'center' },
   logoPlate: {
