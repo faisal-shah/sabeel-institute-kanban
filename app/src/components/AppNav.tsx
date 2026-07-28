@@ -20,6 +20,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sheet, SheetOption } from './Sheet';
+import { Caption } from './ui';
+import { BUILD_INFO } from '../build-info';
 import { useNav, type Route } from '../nav';
 import { useUnreadCount } from '../notifications';
 import { sessionCan, signOut, type SessionUser } from '../session';
@@ -89,19 +91,36 @@ export function AppNav({
     />
   ));
 
-  const account = (
+  // "More", not "Account": two of the things behind it — People and Stats — are
+  // organisation administration, not anything to do with your own account. The
+  // sections inside do the naming work, so nothing has to pretend otherwise.
+  const more = (
     <NavItem
-      icon="account-circle"
-      label="Account"
+      icon="more-horiz"
+      label="More"
       rail={rail}
-      active={active === 'users'}
+      active={active === 'users' || active === 'stats'}
       onPress={() => setMenuOpen(true)}
     />
   );
 
+  const canSeeStats = sessionCan.manageBoards(user);
+  const canSeePeople = sessionCan.administerUsers(user);
+
   const menu = (
-    <Sheet visible={menuOpen} title="Account" onClose={() => setMenuOpen(false)}>
-      {sessionCan.administerUsers(user) ? (
+    <Sheet visible={menuOpen} title="More" onClose={() => setMenuOpen(false)}>
+      {canSeeStats || canSeePeople ? <MenuSection label="Organisation" /> : null}
+      {canSeeStats ? (
+        <SheetOption
+          label="Stats"
+          detail="Activity across the boards"
+          onPress={() => {
+            setMenuOpen(false);
+            nav.push({ name: 'stats' });
+          }}
+        />
+      ) : null}
+      {canSeePeople ? (
         <SheetOption
           label="People"
           detail="Approve accounts and set roles"
@@ -111,6 +130,8 @@ export function AppNav({
           }}
         />
       ) : null}
+
+      {canSeeStats || canSeePeople ? <MenuSection label="You" /> : null}
       <SheetOption
         label="Sign out"
         onPress={() => {
@@ -118,6 +139,15 @@ export function AppNav({
           void signOut();
         }}
       />
+
+      {/* The running build, in the app rather than only on the sign-in screen.
+          "Is that fixed for you?" is unanswerable once you are signed in if the
+          only place the version appears is the screen you have already left. */}
+      <View style={styles.build}>
+        <Caption>
+          Sabeel Kanban · v{BUILD_INFO.version} · {BUILD_INFO.commit}
+        </Caption>
+      </View>
     </Sheet>
   );
 
@@ -136,7 +166,7 @@ export function AppNav({
         ]}
       >
         <View style={styles.railTabs}>{items}</View>
-        {account}
+        {more}
         {menu}
       </View>
     );
@@ -156,9 +186,17 @@ export function AppNav({
       ]}
     >
       {items}
-      {account}
+      {more}
       {menu}
     </View>
+  );
+}
+
+/** A quiet divider label inside the More sheet. */
+function MenuSection({ label }: { label: string }) {
+  const t = useTheme();
+  return (
+    <Text style={[styles.section, { color: t.text.secondary }]}>{label.toUpperCase()}</Text>
   );
 }
 
@@ -236,6 +274,8 @@ const styles = StyleSheet.create({
   itemBar: { flex: 1, paddingHorizontal: space.xs },
   itemRail: { width: 60, paddingHorizontal: space.xs, marginBottom: space.xs },
   label: { fontSize: 11, fontWeight: '500' },
+  section: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, marginTop: space.xs },
+  build: { alignItems: 'center', paddingTop: space.xs },
   badge: {
     position: 'absolute',
     top: -5,

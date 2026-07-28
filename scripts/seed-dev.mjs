@@ -81,7 +81,7 @@ for (const who of ['sara', 'omar']) {
 }
 // Section/account actions live in the app-wide nav now: People is inside the
 // Account menu (bottom of the left rail on wide, where this seed runs).
-await admin.getByRole('button', { name: 'Account' }).click();
+await admin.getByRole('button', { name: 'More' }).click();
 await admin.getByRole('button', { name: 'People' }).click();
 // Wait for the QUEUE, not for the word "People".
 //

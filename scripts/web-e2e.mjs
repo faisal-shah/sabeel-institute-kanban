@@ -237,7 +237,7 @@ try {
   // shell moved it there and this script was not updated, so the whole suite
   // had been aborting here. CI does not run the e2e, which is why it rotted
   // unnoticed.
-  await admin.getByRole('button', { name: 'Account' }).click();
+  await admin.getByRole('button', { name: 'More' }).click();
   await admin.getByRole('button', { name: 'People' }).click();
   await admin.getByText('People', { exact: true }).waitFor({ timeout: 15000 });
   await admin.getByText('sara@oursabeel.com').waitFor({ timeout: 20000 });
@@ -260,13 +260,13 @@ try {
   // both a nav item and a page heading, so it matches twice and the strict
   // locator throws. This phrasing also says what un-gating actually means.
   await sara.getByText('Waiting for approval').waitFor({ state: 'detached', timeout: 25000 });
-  await sara.getByRole('button', { name: 'Account' }).waitFor({ timeout: 15000 });
+  await sara.getByRole('button', { name: 'More' }).waitFor({ timeout: 15000 });
   check('approved member un-gates live', true);
 
   // Look for People where it actually lives — INSIDE the Account menu. This
   // used to probe a top-level button that exists for nobody, so it passed
   // without testing anything, which for an access check is worse than no test.
-  await sara.getByRole('button', { name: 'Account' }).click();
+  await sara.getByRole('button', { name: 'More' }).click();
   // Sign out is in the menu for everyone, so it proves the sheet is open
   // without matching the nav button that opened it.
   await sara.getByRole('button', { name: 'Sign out' }).waitFor({ timeout: 15000 });
@@ -275,6 +275,20 @@ try {
     .isVisible()
     .catch(() => false);
   check('a member does NOT get admin tools', !saraSeesPeople);
+  // Stats is manager-and-above. Checked in the same breath as People because
+  // both are gated in the More sheet and a member reaching either would be the
+  // same mistake.
+  const saraSeesStats = await sara
+    .getByRole('button', { name: 'Stats' })
+    .isVisible()
+    .catch(() => false);
+  check('a member does NOT see Stats', !saraSeesStats);
+  // The version belongs to everyone, and is the whole point of putting it here.
+  const saraSeesBuild = await sara
+    .getByText(/Sabeel Kanban · v\d/)
+    .isVisible()
+    .catch(() => false);
+  check('the running version is visible in the More menu', saraSeesBuild);
   await sara.getByRole('button', { name: 'Cancel' }).first().click();
   await sara.screenshot({ path: join(SHOTS, 'p1-member-home-light.png'), fullPage: true });
 
@@ -1178,6 +1192,70 @@ try {
   // Attachments have their own focused suite, so a stale check in the long
   // access/board flow above cannot block them:
   //   bash scripts/e2e.sh scripts/attachments-e2e.mjs
+
+  // ---- Stats --------------------------------------------------------------
+  // The admin has spent this whole run creating boards, cards and comments, so
+  // the counters must have something in them. That is the real assertion: not
+  // "the screen renders" but "the triggers actually counted the work this
+  // script just did".
+  await backToBoards(admin);
+  await admin.getByRole('button', { name: 'More' }).click();
+  await admin.getByRole('button', { name: 'Stats' }).click();
+  await admin.getByText('Stats', { exact: true }).first().waitFor({ timeout: 20000 });
+
+  // A bar's accessible label carries its value, which is also how a screen
+  // reader gets anything at all out of a chart. Match a NON-ZERO one: most
+  // columns in a sixty-day window are legitimately empty, so `.first()` finds a
+  // quiet day and proves nothing.
+  const bar = admin.getByLabel(/^[1-9]\d* cards created, /).first();
+  await bar.waitFor({ timeout: 20000 });
+  const barLabel = (await bar.getAttribute('aria-label')) ?? '';
+  check(
+    'stats counted the cards this run created',
+    /^[1-9]\d* cards created, /.test(barLabel),
+    barLabel.slice(0, 60),
+  );
+
+  // Tapping a bar reads it out. This is what lets the per-bar numbers disappear
+  // when bars get thin, so it has to actually work.
+  await bar.click();
+  await admin.waitForTimeout(300);
+  const readout = await admin
+    .getByText(/^\d+ cards created · /)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check('tapping a bar shows its exact figure', readout);
+
+  for (const mode of ['Weekly', 'Monthly', 'Daily']) {
+    await admin.getByRole('button', { name: new RegExp(`^${mode} filter`) }).click();
+    await admin.waitForTimeout(250);
+  }
+  check('bucketing switches without reloading', true);
+
+  await admin.getByRole('button', { name: 'Comments filter, off' }).click();
+  await admin.waitForTimeout(250);
+  check(
+    'switching metric redraws the chart',
+    await admin
+      .getByLabel(/^[1-9]\d* comments, /)
+      .first()
+      .isVisible()
+      .catch(() => false),
+  );
+
+  // The board filter must offer the boards this run made, and narrow to one.
+  await admin.getByRole('button', { name: /^Board filter/ }).click();
+  await admin.getByRole('button', { name: 'Fundraising 2026' }).click();
+  await admin.waitForTimeout(600);
+  check(
+    'stats can be narrowed to a single board',
+    await admin
+      .getByRole('button', { name: /^Board filter, currently Fundraising 2026/ })
+      .isVisible()
+      .catch(() => false),
+  );
+  await admin.screenshot({ path: join(SHOTS, 'p12-stats-light.png'), fullPage: true });
 
   // ---- Dark mode ----------------------------------------------------------
   // Re-emulate the colour scheme on the page we already have, rather than

@@ -558,6 +558,29 @@ service cloud.firestore {
     // array-contains me`) is authorized by the assignee arm of the card read rule
     // above — no parent lookup, exactly as before, but now a plain query.
 
+    // ---- Stats ----
+    // Usage counters, server-written only — same trust model as activity and
+    // notifications. A client that could write these could lie about them, and
+    // rules have no way to check a count against reality.
+    //
+    // Managers and admins, deliberately. They can already open every board, so a
+    // per-board count tells them nothing they could not sit and tally by hand;
+    // members get no Stats screen at all, the way People is hidden from
+    // non-admins. `isManager()` already implies `isActive()`.
+    //
+    // `{scope}` is a boardId or the org-wide `_all` roll-up. Both are covered by
+    // the same rule on purpose: an org-wide total is strictly less revealing
+    // than the per-board numbers it is made of.
+    match /stats/{scope} {
+      allow get, list: if isManager();
+      allow create, update, delete: if false;
+
+      match /months/{month} {
+        allow get, list: if isManager();
+        allow create, update, delete: if false;
+      }
+    }
+
     // ---- Everything else ----
     // Comments, activity and notifications arrive with their phases. This
     // catch-all keeps the deny-by-default posture testable, and makes a future

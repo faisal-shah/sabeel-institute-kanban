@@ -599,6 +599,58 @@ comments where the export carries them. ClickUp attachments are not imported —
 the export does not carry the files themselves.
 Anything the script cannot map is reported, never guessed at.
 
+## Stats (added 2026-07-28)
+
+A manager-and-admin screen showing how the boards are actually used: cards
+created, cards archived, comments, active people, files added and files removed —
+one metric at a time, as a bar chart bucketed by day, calendar week (Sunday to
+Saturday) or calendar month, filterable to one board or all of them. Plus a
+headline figure for attachment bytes currently stored. History is kept for good.
+
+**Counting happens at event time, not in a nightly job**, and that is the whole
+design. The alternative — sweep yesterday at midnight and store the totals — was
+considered and dropped for three reasons:
+
+1. **A sweep cannot see a removal.** The attachment document is deleted when the
+   file is removed, so by midnight there is nothing left to count. Only counting
+   as it happens sees it at all.
+2. **It deletes the live/historical split.** Incremented on write, today's bucket
+   is already correct, so there is no second code path for "the current day" and
+   no way for the two to disagree.
+3. **The volume never justified it.** Measured: about 7.5 events a day across the
+   whole organisation. Counting costs roughly 16 extra small writes a day.
+
+**A counter must never be able to damage, block or duplicate the thing it
+counts.** `recordStat` therefore runs after the primary work has committed and
+never rejects — because `guardedEvent` rethrows, so a throw inside a trigger
+retries it, and `onCardWritten` writes activity with generated ids, meaning a
+retry would write a SECOND copy of a card's history rather than repair anything.
+On the attachment paths the counter sits inside the existing winner-only
+transaction branches, beside `bumpAttachmentCount`, so a double tap or a retried
+finalize cannot count a file twice.
+
+**Data model.** `stats/{scope}/months/{YYYY-MM}` where scope is a board id or the
+org-wide `_all`; every event writes both, so "all boards" is one read path rather
+than a fan-in over eighteen. A month per document means a year of history is 12
+reads and stays 12. Active people is stored as a uid ARRAY, not a count, because
+a distinct count cannot be derived from sums. Day keys are computed in
+`ORG_TIMEZONE` — a UTC key would file an evening's work under the next day.
+`days` is exempted from indexing in `firestore.indexes.json`: Firestore
+recursively indexes map subfields, which would put ~250 unused index entries on
+the most frequently written document in the system.
+
+**Two accepted residuals.** Firestore triggers are at-least-once, so a retry can
+double-count; that is tolerable only because `scripts/backfill-stats.mjs` can
+rebuild any range exactly from the source documents, which all still exist. The
+exception is `bytesRemoved`: the activity log records that a file was detached
+and its name, not its size, so that one series is forward-only and cannot be
+reconstructed.
+
+**Imports show as spikes**, and the screen says so. Cards brought in by a ClickUp
+import or a restore carry the date they were written, so those days look like
+enormous ones — 45 cards on 2026-07-25. They are not filtered out, because board
+card counts and these numbers have to agree.
+
 ## Open questions
 
 - **Notification event list** — proposed above, needs Faisal's confirmation before

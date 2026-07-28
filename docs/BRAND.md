@@ -42,7 +42,7 @@ The guide's stated principles, which the app follows:
   selected states.
 - **Ensure accessibility** — strong contrast between text and background.
 
-## Two deliberate departures, and why
+## Three deliberate departures, and why
 
 **1. Body text is a darkened taupe, not Mushroom Taupe.**
 The palette lists Mushroom Taupe (`#A58D7A`) for support text. On Warm Ivory that
@@ -62,7 +62,23 @@ signal is deepened** — `#C6A15B` is ~2.1:1 on ivory, so the `warning` token us
 `#977535`. True gold stays true where it is decoration (dividers, borders), not
 signal.
 
-**2. There is no dark mode — single light theme (decided 2026-07-21).**
+**2. Chart bars are a darkened sage, not Soft Sage (added 2026-07-28).**
+The same rule as above, reaching a third place. Soft Sage `#A8B89A` measures
+**1.79:1** on canvas, **1.96:1** on surface and **1.57:1** on inset — below even
+the 3:1 floor WCAG sets for non-text content, so bars drawn in it are barely
+separable from the page they sit on. `chart.bar` is therefore `#616B59`: the same
+hue at 58%, measuring 4.75 / 5.20 / 4.17:1. Sage is still the right family by the
+brand's own reading — data is decoration, not identity — so raspberry stays
+reserved for the identity accent, and is used in the chart only to mark the bar
+you have selected.
+
+There is exactly ONE bar colour, because the chart shows one metric at a time. A
+second, lighter tint for the in-progress period was measured and rejected:
+anything light enough to read as different fails 3:1, and anything that passes
+sits at 1.29:1 against the main bar, which is not a difference anyone can see.
+The unfinished period is drawn **outlined** instead.
+
+**3. There is no dark mode — single light theme (decided 2026-07-21).**
 The palette defines only a light appearance and the app ships only that;
 `app.json` pins `userInterfaceStyle: "light"`. `useTheme()` returns one theme.
 An earlier build had a derived dark palette; it was removed, not disabled — a

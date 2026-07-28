@@ -65,6 +65,10 @@ function build() {
       high: p.priorityHigh,
       urgent: p.priorityUrgent,
     } satisfies Record<Priority, string>,
+    /** Data visualisation. One bar colour — the chart shows one metric at a time. */
+    chart: {
+      bar: p.chartBar,
+    },
     effect: {
       overlay: p.overlay,
       shadow: p.shadow,

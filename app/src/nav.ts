@@ -25,6 +25,7 @@ export type Route =
   | { name: 'myWork' }
   | { name: 'search' }
   | { name: 'users' }
+  | { name: 'stats' }
   | { name: 'notifications' };
 
 let stack: Route[] = [{ name: 'boards' }];

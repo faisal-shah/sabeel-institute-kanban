@@ -341,6 +341,48 @@ the team.
 
 ## Deploy log
 
+### 2026-07-28 — Stats, and Account becomes More — v0.5.0 (built, not yet deployed)
+
+A Stats screen for managers and admins: cards created, cards archived, comments,
+active people, files added and files removed, one metric at a time, bucketed by
+day / calendar week / calendar month, filterable to one board or all. Plus the
+attachment bytes currently stored. The fifth nav item is renamed **More** and
+sectioned ORGANISATION / YOU, because two of the things behind it (People,
+Stats) are org administration rather than anything to do with your account — and
+it now shows the running version, which previously appeared only on the screen
+you leave when you sign in.
+
+Counting happens at event time; there is no scheduled job. See
+`docs/PRODUCT_BRIEF.md` § Stats for why, and for the rule the design exists to
+enforce: a counter must never be able to damage, block or duplicate the thing it
+counts.
+
+Verified: 327 shared + 27 functions unit; 193 rules + 94 trigger tests in the
+emulator, including a 30-card burst asserting exactly 30 `created` activity
+entries (no trigger retried) and the counters reaching exactly 30. Four mutation
+checks each went red on the intended test — UTC day key, dropped `_all` fan-out,
+finalize hook hoisted above the ready guard, and `recordStat` allowed to rethrow.
+Web e2e 84/84. A dedicated chart suite (`scripts/stats-e2e.mjs`) seeds a year of
+dense data and runs **190 checks across nine viewport widths** (320→1600),
+asserting at each that axis labels never overlap, are never truncated, are never
+sliced by the scroll edge, that bars stay tappable, and that the page never
+scrolls sideways. Looked at on web at 320/768/1600 and on Android — where the
+More sheet, the calendar-strip axis, the gridlines and tap-to-read were all
+confirmed by screenshot.
+
+Three bugs the checks caught that reading the code would not have: every axis
+label rendered as "2…" because react-native-web sizes `Text` inline and ignored
+its width; a label sliced by the scroll edge turned "13 Jul" into "3 Jul", a
+wrong date rather than a missing one; and the first truncation test passed while
+the UI was visibly broken, because it searched `textContent` for an ellipsis that
+only exists in pixels.
+
+Backfill: `scripts/backfill-stats.mjs` rebuilds history from cards, comments,
+attachments and the activity log. Dry-run by default, writes only under
+`stats/**`, never touches today, and refuses to write if its reconstruction
+disagrees with a direct count. Dry run against production reconciles (96 cards,
+49 comments) and shows the expected import spike of 45 cards on 2026-07-25.
+
 ### 2026-07-28 — Subscribe to a card's comments — v0.4.0
 
 You could only hear about a card's comments if it was assigned to you. Someone

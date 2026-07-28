@@ -3,6 +3,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/v2';
 import { guardedEvent, sentryDsn } from './sentry';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { recordStat } from './stats';
 
 /**
  * Keeps `commentCount` on the card in step with its comments subcollection.
@@ -39,5 +40,21 @@ export const onCommentWritten = onDocumentWritten(
       // there is nothing to keep in step and this is not an error worth alerting on.
       logger.debug('commentCount update skipped', { cardId, error: String(e) });
     }
+
+    // Usage counters. Only a NEW comment counts: a deletion is not negative
+    // activity, and the day it was written is still the day the work happened.
+    if (!created) return;
+
+    // The board is not in this trigger's path — comments live under the card —
+    // so it costs one read. At this volume that is cheaper and far clearer than
+    // denormalising `boardId` onto every comment for a counter's benefit.
+    const comment = after!.data()!;
+    const card = await cardRef.get();
+    await recordStat(
+      (card.data()?.boardId as string) ?? '',
+      (comment.createdAt as number) ?? Date.now(),
+      { comments: 1 },
+      (comment.authorUid as string) ?? '',
+    );
   }),
 );

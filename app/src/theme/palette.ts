@@ -56,6 +56,25 @@ export const palette = {
   // signal (borders, dividers); the semantic tokens keep those separate.
   warning: '#977535',
 
+  // Soft Sage darkened to #616B59 so a chart bar is actually visible.
+  //
+  // The THIRD instance of the departure BRAND.md already documents twice (body
+  // text is a darkened taupe; `warning` is a deepened gold): a brand colour that
+  // starts carrying meaning has to earn its contrast first. Soft Sage #A8B89A is
+  // 1.79:1 on ivory and 1.57:1 on inset — below even the 3:1 floor for non-text,
+  // so bars drawn in it are barely separable from the page they sit on.
+  //
+  // #616B59 is the same hue at 58% and measures 4.75:1 on canvas, 5.20:1 on
+  // surface, 4.17:1 on inset. Sage is right for this by the brand's own reading
+  // — data is decoration, not identity — so raspberry stays reserved.
+  //
+  // Only ONE bar colour: the chart shows one metric at a time. A second tint was
+  // measured and rejected — anything light enough to read as "different" fails
+  // 3:1, and anything that passes sits at 1.29:1 against this one, which is not
+  // a difference anyone can see. The in-progress bucket is drawn OUTLINED
+  // instead.
+  chartBar: '#616B59',
+
   // Priority is a FUNCTIONAL scale, not brand colour: it must read as urgency.
   // With raspberry now plum, these oranges/reds no longer risk reading as it.
   priorityNone: '#A58D7A',

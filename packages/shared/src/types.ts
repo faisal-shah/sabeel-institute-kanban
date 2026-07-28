@@ -254,6 +254,78 @@ export type ActivityType =
   /** A file was removed. `from` carries its name. */
   | 'detached';
 
+// ---- Stats -----------------------------------------------------------------
+
+/**
+ * The plain running totals a day can accumulate. Every one is a COUNT of things
+ * that happened that day, so bucketing by week or month is a sum.
+ *
+ * Deliberately not including "people active": that is a DISTINCT count, and
+ * distinct counts cannot be derived from sums — see `actors` below.
+ */
+export type StatsCounter =
+  | 'cardsCreated'
+  | 'cardsArchived'
+  | 'comments'
+  | 'filesAdded'
+  | 'filesRemoved'
+  | 'bytesAdded'
+  | 'bytesRemoved';
+
+/**
+ * One day's activity for one scope.
+ *
+ * Every field is optional and only written when non-zero, so a quiet day costs
+ * nothing and a quiet month is a nearly empty document.
+ */
+export type StatsDay = Partial<Record<StatsCounter, number>> & {
+  /**
+   * Who did anything at all that day — not a count.
+   *
+   * Stored as uids so that a week's "active people" is the SIZE OF THE UNION
+   * across its days, not the sum of its daily counts, which would count the
+   * same person once per day they worked. `arrayUnion` dedupes on write, and
+   * the org-wide `_all` scope's array is the true union across boards for the
+   * same reason. Bounded by headcount, so an array is the right shape.
+   */
+  actors?: string[];
+};
+
+/**
+ * A month of daily buckets for one scope, at `stats/{scope}/months/{YYYY-MM}`.
+ *
+ * A month per document rather than a day per document: a year of history is 12
+ * reads instead of 365, and it STAYS 12 as history accumulates. Worst case is
+ * around 11 KB — 31 days of counters plus a headcount of uids each — which is
+ * far inside the 1 MB document limit even after years of use.
+ *
+ * `days` and `actors` are exempted from indexing in firestore.indexes.json.
+ * Firestore auto-indexes every nested map field, which would put ~250 index
+ * entries on the most frequently written document in the system, for data that
+ * is only ever read by document id.
+ */
+export interface StatsMonthDoc {
+  /** A `boardId`, or `STATS_ALL_SCOPE` for the org-wide roll-up. */
+  scope: string;
+  /** `YYYY-MM`, matching the document id. Denormalised so a doc is readable alone. */
+  month: string;
+  /** Keyed by day-of-month, `'01'`…`'31'`. Sparse — absent means nothing happened. */
+  days: Record<string, StatsDay>;
+}
+
+/**
+ * The org-wide document at `stats/_all`, holding STOCKS rather than flows.
+ *
+ * Storage is the amount held right now, not an amount that happened on a day,
+ * so it is maintained as a running total beside the daily deltas. Deriving it
+ * by summing `bytesAdded - bytesRemoved` over all time would need every day
+ * ever to be present and correct; a running total needs only the current value.
+ */
+export interface StatsRootDoc {
+  bytesStored: number;
+  filesStored: number;
+}
+
 /** Trigger-written only. Clients have no write access at all. */
 export interface ActivityDoc {
   type: ActivityType;

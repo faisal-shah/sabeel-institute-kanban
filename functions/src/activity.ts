@@ -4,6 +4,7 @@ import { logger } from 'firebase-functions/v2';
 import { guardedEvent, sentryDsn } from './sentry';
 import { getFirestore } from 'firebase-admin/firestore';
 import { diffCard, type CardSnapshot } from '@sabeel/shared';
+import { recordStat } from './stats';
 
 /**
  * Card history, written by the server so it cannot be forged.
@@ -78,5 +79,27 @@ export const onCardWritten = onDocumentWritten(
       // card change itself has already committed by the time this runs.
       logger.warn('activity write failed', { boardId, cardId, error: String(e) });
     }
+
+    // Usage counters, AFTER the batch and deliberately not part of it.
+    //
+    // Putting these in the batch above would mean a counter failure took the
+    // activity entries down with it — and because this trigger writes activity
+    // with GENERATED ids, the retry that followed would not repair the card's
+    // history, it would write a second copy of every line. `recordStat` never
+    // rejects, so the two concerns stay independent in both directions.
+    //
+    // `archived` fires on both archive and restore, so it is counted only when
+    // it changed TO true. Any entry at all means this person did something
+    // today, which is what makes "active people" broader than the six charted
+    // metrics — a move or an edit counts, even though neither has its own bar.
+    await recordStat(
+      boardId,
+      at,
+      {
+        cardsCreated: entries.some((e) => e.type === 'created') ? 1 : 0,
+        cardsArchived: entries.some((e) => e.type === 'archived' && e.to === 'true') ? 1 : 0,
+      },
+      actorUid,
+    );
   }),
 );

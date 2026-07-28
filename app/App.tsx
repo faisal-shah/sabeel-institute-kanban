@@ -35,6 +35,7 @@ import { MyWorkScreen } from './src/screens/MyWorkScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
+import { StatsScreen } from './src/screens/StatsScreen';
 import { NavClaimedEdgesContext, Screen, Spinner } from './src/components/ui';
 
 function renderScreen(route: Route, user: SessionUser) {
@@ -69,6 +70,8 @@ function renderScreen(route: Route, user: SessionUser) {
       return <SearchScreen user={user} />;
     case 'users':
       return <UsersScreen actor={user} />;
+    case 'stats':
+      return <StatsScreen user={user} />;
     default:
       return <BoardsScreen user={user} />;
   }

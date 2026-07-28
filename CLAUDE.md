@@ -115,6 +115,15 @@ Key product invariants (do not silently change):
   lives.
 - **Boards archive, never hard-delete. Cards can be deleted, but only by
   managers/admins** — members archive.
+- **Stats are server-written, manager-gated, and must never be able to break what
+  they count.** `recordStat` runs AFTER the primary work commits and never
+  rejects: `guardedEvent` rethrows, so a throw inside a trigger retries it, and
+  `onCardWritten` writes activity with generated ids — a retry would duplicate a
+  card's history rather than repair it. On the attachment paths the counter sits
+  inside the existing winner-only transaction branches, never above them. Day
+  keys use `ORG_TIMEZONE`. Drift is acceptable only because
+  `scripts/backfill-stats.mjs` rebuilds any range from the source documents;
+  `bytesRemoved` is the one series that cannot be reconstructed.
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one
   document write. Never reintroduce an array-of-ids ordering.
 

@@ -25,6 +25,7 @@ import {
 } from '@sabeel/shared';
 import { guarded, guardedEvent, sentryDsn } from './sentry';
 import { isEmulatorProject } from './env';
+import { recordStat } from './stats';
 
 /**
  * Card attachments: the three things a client cannot do for itself.
@@ -146,6 +147,23 @@ async function bumpAttachmentCount(cardId: string, by: number): Promise<void> {
 }
 
 /**
+ * The board a card is on, for the usage counters.
+ *
+ * Read here rather than threaded down from `requireCardAccess`, because these
+ * effects are also reached from the nightly sweep, where there is no request and
+ * nobody has looked the card up. Returns '' if the card has gone, which
+ * `recordStat` treats as nothing to record.
+ */
+async function boardIdForCard(cardId: string): Promise<string> {
+  try {
+    const card = await db().doc(`cards/${cardId}`).get();
+    return (card.data()?.boardId as string) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Confirm the bytes arrived, record what actually landed, and publish the file.
  *
  * The client reports nothing that matters here: the size is read from the
@@ -249,6 +267,16 @@ export async function applyFinalizeAttachment(
     // exactly one winner, so this cannot double-count. `increment` because two
     // uploads finishing together must both land.
     await bumpAttachmentCount(cardId, 1);
+    // Usage counters, in the SAME winner-only branch and for the same reason.
+    // Above the transaction — or above the `status === 'ready'` fast path
+    // earlier in this function — a double tap or a retried finalize would count
+    // the file twice and inflate stored bytes by its size permanently.
+    await recordStat(
+      await boardIdForCard(cardId),
+      Date.now(),
+      { filesAdded: 1, bytesAdded: sizeBytes },
+      won.uploadedBy || actorUid,
+    );
     logger.info('attachment finalized', { cardId, attachmentId, actorUid, sizeBytes });
   }
   return { ok: true, sizeBytes, contentType };
@@ -315,6 +343,15 @@ export async function applyDeleteAttachment(
     // Only READY files were ever counted, so only they are subtracted. Rolling
     // back a half-finished upload must not push the badge negative.
     await bumpAttachmentCount(cardId, -1);
+    // Same branch, same reason — and it is what keeps the stored-bytes total
+    // honest: an upload that never became ready was never added to it, so
+    // subtracting it here would drive the headline figure negative.
+    await recordStat(
+      await boardIdForCard(cardId),
+      Date.now(),
+      { filesRemoved: 1, bytesRemoved: removed.sizeBytes ?? 0 },
+      actorUid,
+    );
   }
 
   logger.info('attachment removed', { cardId, attachmentId, actorUid });

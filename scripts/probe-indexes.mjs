@@ -147,6 +147,22 @@ const probes = [
     run: () =>
       db.collection('cards').where('labelIds', 'array-contains', ANY).limit(1).get(),
   },
+  {
+    name: 'stats chart (months by document id range)',
+    used_by: 'the Stats screen — useStats',
+    // Deliberately probed even though it needs NO composite: the chart reads a
+    // RANGE of month documents by id, and `days` is exempted from indexing in
+    // firestore.indexes.json. If that exemption were ever written as something
+    // Firestore rejects, or the range query shape changed to filter on content,
+    // this is where it would surface rather than in front of a manager.
+    run: () =>
+      db
+        .collection(`stats/_all/months`)
+        .orderBy('__name__')
+        .startAt('2000-01')
+        .limit(1)
+        .get(),
+  },
 ];
 
 let failed = 0;

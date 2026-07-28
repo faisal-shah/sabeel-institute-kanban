@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { attachmentStoragePath, ATTACHMENT_MAX_BYTES } from '@sabeel/shared';
+import {
+  attachmentStoragePath,
+  ATTACHMENT_MAX_BYTES,
+  todayInOrgTz,
+  STATS_ALL_SCOPE,
+} from '@sabeel/shared';
 import {
   applyDeleteAttachment,
   applyFinalizeAttachment,
@@ -43,6 +48,29 @@ const attachmentRef = (attachmentId: string, cardId = CARD) =>
 
 const objectExists = async (attachmentId: string, cardId = CARD) =>
   (await adminBucket().file(attachmentStoragePath(cardId, attachmentId)).exists())[0];
+
+/**
+ * Today's usage counters for this suite's board.
+ *
+ * Read as a DELTA around the operation under test, never as an absolute: other
+ * tests in this file attach and remove files against the same board on the same
+ * day, so an absolute expectation would pass or fail depending on test order.
+ */
+async function statsToday(): Promise<{ filesAdded: number; bytesAdded: number; filesRemoved: number }> {
+  const day = todayInOrgTz();
+  const snap = await adminDb().doc(`stats/${BOARD}/months/${day.slice(0, 7)}`).get();
+  const d = snap.data()?.days?.[day.slice(8, 10)] ?? {};
+  return {
+    filesAdded: d.filesAdded ?? 0,
+    bytesAdded: d.bytesAdded ?? 0,
+    filesRemoved: d.filesRemoved ?? 0,
+  };
+}
+
+async function storedBytes(): Promise<number> {
+  const snap = await adminDb().doc(`stats/${STATS_ALL_SCOPE}`).get();
+  return snap.data()?.bytesStored ?? 0;
+}
 
 async function putObject(attachmentId: string, bytes = 32, cardId = CARD): Promise<void> {
   await adminBucket()
@@ -390,9 +418,10 @@ describe('concurrency — two people, or two taps, at the same moment', () => {
     expect(attached[0].actorUid).toBe(MEM);
   });
 
-  it('two concurrent finalizes log the attachment ONCE', async () => {
+  it('two concurrent finalizes log the attachment ONCE, and count it once', async () => {
     const id = 'at_race_fin';
     await uploaded(id, { name: 'racefin.pdf' });
+    const before = await statsToday();
     // IN-PROCESS, not through the callable. The functions emulator serialises
     // concurrent calls to a warm instance, so driving this over HTTP passes
     // against genuinely broken code — verified. Two promises here interleave on
@@ -403,6 +432,49 @@ describe('concurrency — two people, or two taps, at the same moment', () => {
     const attached = (await activityFor()).filter((a) => a.type === 'attached' && a.to === 'racefin.pdf');
     expect(attached).toHaveLength(1);
     expect((await attachmentRef(id).get()).data()!.status).toBe('ready');
+
+    // The counter lives in the same winner-only branch as the activity entry.
+    // Six callers, one file: anything else and stored bytes are permanently
+    // overstated, because nothing ever subtracts the surplus.
+    const after = await statsToday();
+    expect(after.filesAdded - before.filesAdded).toBe(1);
+    expect(after.bytesAdded - before.bytesAdded).toBe(32);
+  });
+
+  it('a RETRIED finalize counts the file once', async () => {
+    // The other half of the guard: not concurrency, but the same caller trying
+    // again after a lost response. This one is caught by the `status === 'ready'`
+    // fast path rather than by the transaction, so it is a genuinely separate
+    // path to the same mistake — and the counter has to sit below BOTH.
+    const id = 'at_retry_fin';
+    await uploaded(id, { name: 'retryfin.pdf' });
+    const before = await statsToday();
+    const stored0 = await storedBytes();
+
+    await applyFinalizeAttachment(CARD, id, MEM);
+    await applyFinalizeAttachment(CARD, id, MEM);
+    await applyFinalizeAttachment(CARD, id, MEM);
+
+    const after = await statsToday();
+    expect(after.filesAdded - before.filesAdded).toBe(1);
+    expect((await storedBytes()) - stored0).toBe(32);
+  });
+
+  it('rolling back an unfinalized upload counts nothing and moves no bytes', async () => {
+    // An upload that never became ready was never added to the stored total, so
+    // subtracting it on rollback would drive the headline figure negative — the
+    // reason the counter sits inside the `status === 'ready'` branch on removal
+    // too, beside `bumpAttachmentCount`.
+    const id = 'at_rollback_stats';
+    await uploaded(id, { name: 'never.pdf' });
+    const before = await statsToday();
+    const stored0 = await storedBytes();
+
+    await applyDeleteAttachment(CARD, id, MEM);
+
+    const after = await statsToday();
+    expect(after.filesRemoved - before.filesRemoved).toBe(0);
+    expect(await storedBytes()).toBe(stored0);
   });
 
   it('two concurrent removals log the removal ONCE, and still clear the bytes', async () => {
