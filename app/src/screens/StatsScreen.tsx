@@ -130,6 +130,12 @@ export function StatsScreen({ user }: { user: SessionUser }) {
           <Hint>Change</Hint>
         </Pressable>
       </Row>
+      {/* A failed board read must not look like an org with no boards. Both
+          queries resolve to `data: undefined` on error exactly as they do while
+          loading, and `?? []` below would turn either into an empty picker. */}
+      {active.status === 'error' || archived.status === 'error' ? (
+        <Caption>Boards could not be loaded, so the filter is incomplete.</Caption>
+      ) : null}
 
       {/*
         TWO SEPARATE QUESTIONS — which period, and which measure — so they have
@@ -181,13 +187,19 @@ export function StatsScreen({ user }: { user: SessionUser }) {
 
       <Panel>
         <Heading>Files stored</Heading>
-        {totals.status === 'error' ? (
+        {/* Three states, not two.
+            `LiveState` reports `data: undefined` for BOTH loading and error, so
+            `data?.bytesStored ?? 0` rendered "0 B across 0 files" while the
+            read was still in flight — a plausible, wrong, and quietly alarming
+            figure for anyone who has just uploaded something. */}
+        {totals.status === 'loading' ? (
+          <Body>…</Body>
+        ) : totals.status === 'error' ? (
           <Caption>Not available</Caption>
         ) : (
           <Body>
-            {formatBytes(totals.data?.bytesStored ?? 0)} across{' '}
-            {totals.data?.filesStored ?? 0} file
-            {(totals.data?.filesStored ?? 0) === 1 ? '' : 's'}
+            {formatBytes(totals.data.bytesStored)} across {totals.data.filesStored} file
+            {totals.data.filesStored === 1 ? '' : 's'}
           </Body>
         )}
         {/* Storage is billed to the organisation, not to a board, and the
@@ -515,15 +527,21 @@ function Chart({
 
       <View style={styles.chartRow} onLayout={onLayout}>
         {/* Value axis. Three references are enough to read a bar against and
-            few enough not to fence the data in. */}
+            few enough not to fence the data in.
+
+            The middle one is `max / 2` EXACTLY, not rounded. The line is drawn
+            at half the plot height whatever `max` is, so rounding its label
+            makes it lie about where it sits: a max of 3 labelled the midline 2
+            while drawing it at 1.5, and a max of 1 — an ordinary quiet day —
+            labelled it 0, putting two lines marked zero on the same chart. */}
         <View style={styles.axis}>
-          {[max, Math.round(max / 2), 0].map((v, i) => (
+          {[max, max / 2, 0].map((v, i) => (
             <Text
               key={i}
               style={[type_.caption, styles.axisValue, { color: t.text.secondary }]}
               numberOfLines={1}
             >
-              {v}
+              {axisValue(v)}
             </Text>
           ))}
         </View>
@@ -703,6 +721,17 @@ function calendarGrid(
   // A major rule replaces the minor one at the same place rather than doubling it.
   for (const i of major) minor.delete(i);
   return { minor, major };
+}
+
+/**
+ * An axis figure, exact.
+ *
+ * Halving an odd maximum gives a fraction, and the gridline really is drawn at
+ * that fraction — so it is shown rather than rounded away. One decimal is
+ * enough: `max` is a nice number, so the only fraction that ever occurs is .5.
+ */
+function axisValue(v: number): string {
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
 /** Round a peak up to something a person reads easily: 1, 2 or 5 × a power of ten. */

@@ -198,15 +198,25 @@ try {
           b.x < plotBox.x + plotBox.width &&
           (b.x < plotBox.x - 0.5 || b.x + b.width > plotBox.x + plotBox.width + 0.5),
       );
-      check(`${tag}: no label sliced by the scroll edge`, sliced.length === 0,
+      check(`${tag}: no label sliced by the scroll edge`,
+        boxes.length > 0 && sliced.length === 0,
         sliced.map((c) => c.text).join(','));
 
       // Bars stay wide enough to hit, and the panel never scrolls sideways.
-      const narrow = await page.evaluate(() =>
-        [...document.querySelectorAll('[data-testid="stats-bar"]')]
-          .filter((el) => el.getBoundingClientRect().width < 18).length,
+      // Counted, not just filtered: `filter(...).length === 0` is also true when
+      // there are NO bars at all, so the check would pass on a blank chart —
+      // the vacuous-assertion trap that let an empty bar satisfy an earlier
+      // version of this suite.
+      const bars = await page.evaluate(() =>
+        [...document.querySelectorAll('[data-testid="stats-bar"]')].map(
+          (el) => el.getBoundingClientRect().width,
+        ),
       );
-      check(`${tag}: bars stay tappable`, narrow === 0);
+      check(
+        `${tag}: bars stay tappable`,
+        bars.length > 0 && bars.every((w) => w >= 18),
+        `${bars.length} bars, narrowest ${bars.length ? Math.min(...bars).toFixed(0) : 'n/a'}px`,
+      );
 
       const bleeds = await page.evaluate(
         (w) => document.documentElement.scrollWidth > w + 1,

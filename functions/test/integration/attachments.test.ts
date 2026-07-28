@@ -18,6 +18,7 @@ import {
   idTokenFor,
   makeUser,
   shutdown,
+  waitFor,
   waitUntilGone,
 } from './emulatorClient';
 
@@ -94,9 +95,13 @@ async function putRecord(
 }
 
 /** An uploaded-but-unfinalized attachment, the state after a successful upload. */
-async function uploaded(attachmentId: string, over: Record<string, unknown> = {}) {
-  await putRecord(attachmentId, over);
-  await putObject(attachmentId);
+async function uploaded(
+  attachmentId: string,
+  over: Record<string, unknown> = {},
+  cardId = CARD,
+) {
+  await putRecord(attachmentId, over, cardId);
+  await putObject(attachmentId, 32, cardId);
 }
 
 const activityFor = async (cardId = CARD) =>
@@ -566,5 +571,59 @@ describe('deleting a card takes its attachment objects with it', () => {
     });
     const docs = await adminDb().collection(`cards/${cardId}/attachments`).get();
     expect(docs.empty).toBe(true);
+  });
+
+  it('subtracts the deleted files from the stored total', async () => {
+    // A permanent card delete never goes through `applyDeleteAttachment` — it is
+    // `recursiveDelete` plus a prefix sweep — so the stored total had nothing
+    // subtracting these bytes. It climbed on every delete and could not
+    // self-correct, because `bytesRemoved` is forward-only and the attachment
+    // documents are gone moments later.
+    const cardId = 'at_doomed_stats';
+    await adminDb().doc(`cards/${cardId}`).set({
+      boardId: BOARD,
+      title: 'Doomed with files',
+      description: '',
+      columnId: 'c1',
+      rank: 'V',
+      assigneeUids: [],
+      priority: 'none',
+      labelIds: [],
+      archived: false,
+      commentCount: 0,
+      createdAt: Date.now(),
+      createdBy: MEM,
+      updatedAt: Date.now(),
+      updatedBy: MEM,
+    });
+    // Two READY files of known size, and one still uploading — the unfinished
+    // one was never added to the total, so it must not be subtracted from it.
+    await uploaded('doomed_a', { name: 'a.pdf' }, cardId);
+    await uploaded('doomed_b', { name: 'b.pdf' }, cardId);
+    await applyFinalizeAttachment(cardId, 'doomed_a', MEM);
+    await applyFinalizeAttachment(cardId, 'doomed_b', MEM);
+    await putRecord('doomed_partial', {}, cardId);
+
+    const before = await storedBytes();
+    const beforeRemoved = (await statsToday()).filesRemoved;
+
+    await adminDb().doc(`cards/${cardId}`).delete();
+
+    // Wait on the RECORDING, not on a byte total.
+    //
+    // The first version of this waited for `bytesStored` to equal
+    // `before - 64` and passed against code that recorded nothing — a value
+    // that never moves satisfies "wait until it equals X" only by timing out,
+    // and it was the wait that was wrong, not the arithmetic. Waiting on the
+    // event itself fails loudly and immediately when the event never happens.
+    const after = await waitFor('the cascade to record the removal', async () => {
+      const s = await statsToday();
+      return s.filesRemoved > beforeRemoved ? s : undefined;
+    });
+
+    // Two ready files, not three: the unfinished upload was never counted, so
+    // subtracting it would drive the stored total negative.
+    expect(after.filesRemoved - beforeRemoved).toBe(2);
+    expect(await storedBytes()).toBe(before - 64);
   });
 });

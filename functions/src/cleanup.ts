@@ -4,6 +4,8 @@ import { logger } from 'firebase-functions/v2';
 import { guardedEvent, reportError, sentryDsn } from './sentry';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import type { AttachmentDoc } from '@sabeel/shared';
+import { recordStat } from './stats';
 
 /**
  * Delete a card's `comments` and `activity` when the card itself is deleted, and
@@ -30,7 +32,48 @@ export const onCardDeleted = onDocumentDeleted(
     // at the same id before it fired, recursiveDelete would wrongly take the live
     // one and its subcollections with it. Only clean up a genuine orphan.
     if ((await ref.get()).exists) return;
+
+    // The files about to vanish, READ BEFORE they do.
+    //
+    // A permanent card delete does not go through `applyDeleteAttachment` — it
+    // is `recursiveDelete` plus the object sweep below — so nothing else on this
+    // path ever subtracts these bytes from the stored total. Left alone, the
+    // "Files stored" figure climbs every time a manager deletes a card that had
+    // files, and it CANNOT self-correct: `bytesRemoved` is forward-only, and by
+    // the time anyone noticed, the attachment documents would be long gone.
+    //
+    // Only `ready` files count, because only those were ever added to the total
+    // — the same rule `applyDeleteAttachment` follows.
+    const doomed = await db
+      .collection(`cards/${cardId}/attachments`)
+      .get()
+      .then((s) => s.docs.map((d) => d.data() as AttachmentDoc).filter((a) => a.status === 'ready'))
+      .catch(() => [] as AttachmentDoc[]);
+
     await db.recursiveDelete(ref);
+
+    // AFTER the delete succeeded, from data captured before it.
+    //
+    // The ordering is what makes this exactly-once without any marker: if this
+    // trigger is retried, the read above finds nothing (the documents are gone),
+    // so nothing is recorded a second time. A crash in the gap loses the
+    // decrement rather than doubling it — the safe direction, and repairable,
+    // since `backfill-stats.mjs` re-seeds the stored total from the live sum.
+    //
+    // No actor: the deleted document's `updatedBy` is whoever last EDITED the
+    // card, not necessarily whoever deleted it, and a guess here would put the
+    // wrong person into "active people". `recordStat` skips `actors` on ''.
+    if (doomed.length > 0) {
+      await recordStat(
+        (event.data?.data()?.boardId as string) ?? '',
+        Date.now(),
+        {
+          filesRemoved: doomed.length,
+          bytesRemoved: doomed.reduce((n, a) => n + (a.sizeBytes ?? 0), 0),
+        },
+        '',
+      );
+    }
 
     // The card's attachment OBJECTS. `recursiveDelete` above removes their
     // documents, but Firestore knows nothing about the bucket.

@@ -52,7 +52,17 @@ export const onCommentWritten = onDocumentWritten(
     const card = await cardRef.get();
     await recordStat(
       (card.data()?.boardId as string) ?? '',
-      (comment.createdAt as number) ?? Date.now(),
+      // SERVER time, not the comment's own `createdAt`.
+      //
+      // `createdAt` is client-supplied and rules do not pin it — the create rule
+      // lists it in `hasOnly` but never constrains its value — so a client can
+      // write any number at all. Bucketing on it would let a caller place a
+      // count on an arbitrary day, and worse, address an arbitrary month
+      // document: `stats/{board}/months/9999-12` and as many more as it liked.
+      // Server time also matches every other counter (`onCardWritten`, both
+      // attachment paths, the delete cascade), and differs from the comment's
+      // own timestamp by milliseconds in the normal case.
+      Date.now(),
       { comments: 1 },
       (comment.authorUid as string) ?? '',
     );

@@ -341,6 +341,58 @@ the team.
 
 ## Deploy log
 
+### 2026-07-28 — Deep review of everything since v0.4.0
+
+A multi-pass review before shipping v0.5.0, prompted by several errors that
+shared one shape: **a check or a claim that can be true while the property is
+false.** Five defects fixed, each with a test proven to fail without it.
+
+1. **A permanent card delete never subtracted its files from the stored total.**
+   `onCardDeleted` is `recursiveDelete` plus a bucket prefix sweep and never
+   touches `applyDeleteAttachment`, where the counter lives — so "Files stored"
+   climbed on every delete and could not self-correct, `bytesRemoved` being
+   forward-only. Now read before the delete, recorded after it, with no actor
+   (the deleted card's `updatedBy` is whoever last EDITED it).
+2. **Comment counts bucketed on client-supplied `createdAt`.** Rules list it in
+   `hasOnly` but never constrain its value, so a caller could place a count on
+   any day — and address any month document it named. Now server time, like
+   every other counter.
+3. **The middle gridline lied about its own position.** `Math.round(max / 2)`
+   against a line drawn at exactly half height: a max of 3 labelled it 2 while
+   sitting at 1.5, and a max of 1 — an ordinary quiet day — put two lines
+   marked zero on the same chart.
+4. **The storage figure showed "0 B across 0 files" while still loading**, and a
+   failed board read silently emptied the filter. Both are the `LiveState`
+   trap: `data: undefined` means loading AND error.
+5. **The trigger tests were date-dependent** — asserting a hardcoded `2026-07` /
+   `28` against triggers that bucket on `Date.now()`. Green only on the day they
+   were written; every later day would have looked like a broken feature.
+
+Two instrument defects, which matter more than the bugs:
+
+- **A failed functions build leaves the emulator running the PREVIOUS bundle.**
+  A mutation that deleted a call orphaned its import, tsc failed, esbuild never
+  ran, and the test went green — reported as "this test cannot catch the bug"
+  when the truth was "the bug was never in the binary". Only trigger tests are
+  affected; tests importing `../../src/*` run the source. Recorded in the
+  expo-firebase-stack skill, along with the rule: **check the build's exit code,
+  and prefer type-clean mutations.**
+- **Two assertions passed vacuously**: one waited for a derived byte total to
+  reach a value it could only reach by the work happening (a value that never
+  moves cannot satisfy an equality wait), and one used `filter(...).length === 0`
+  which is also true with no bars at all. Both now assert the event and the
+  count.
+
+Claims audit: every contrast figure in `palette.ts` and `BRAND.md` was
+recomputed and matches exactly, old and new — including the open-question table,
+which I nearly reported as wrong before checking its column headers. The volume
+figures re-verified. The import-spike claim had already been corrected.
+
+Verified after the fixes: 327 + 27 unit, 193 + 96 emulator, 84/84 web e2e,
+271/271 chart checks across nine widths, **11/11 index probes against
+production** (the stats probe had never actually been run), and the backfill
+proven idempotent by two `--write` runs producing byte-identical documents.
+
 ### 2026-07-28 — Stats, and Account becomes More — v0.5.0 (built, not yet deployed)
 
 A Stats screen for managers and admins: cards created, cards archived, comments,

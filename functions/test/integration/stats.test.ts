@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { STATS_ALL_SCOPE } from '@sabeel/shared';
+import { STATS_ALL_SCOPE, todayInOrgTz } from '@sabeel/shared';
 import { recordStat } from '../../src/stats';
 import { adminDb, makeUser, shutdown, waitFor } from './emulatorClient';
 
@@ -148,9 +148,21 @@ describe('recordStat', () => {
 });
 
 describe('stats triggers', () => {
-  const waitBucket = (scope: string, dd: string, field: string, want: number) =>
-    waitFor(`stats ${scope} ${dd}.${field} == ${want}`, async () => {
-      const day = await bucket(scope, '2026-07', dd);
+  /**
+   * Triggers bucket on the SERVER's today, not on the timestamps in the fixture.
+   *
+   * These once asserted against a hardcoded '2026-07' / '28' and were green only
+   * because that happened to be the day they were written — they would have gone
+   * red every day after, looking exactly like a broken feature. The day key has
+   * to come from the same helper the code uses.
+   */
+  const TODAY = todayInOrgTz();
+  const todayBucket = (scope: string) =>
+    bucket(scope, TODAY.slice(0, 7), TODAY.slice(8, 10));
+
+  const waitBucket = (scope: string, field: string, want: number) =>
+    waitFor(`stats ${scope} ${TODAY}.${field} == ${want}`, async () => {
+      const day = await todayBucket(scope);
       return (day[field] ?? 0) === want ? true : undefined;
     });
 
@@ -163,7 +175,7 @@ describe('stats triggers', () => {
       .doc('cards/st_trig_c1')
       .set(card({ boardId: scope, createdAt: MIDDAY, updatedAt: MIDDAY }));
 
-    await waitBucket(scope, '28', 'cardsCreated', 1);
+    await waitBucket(scope, 'cardsCreated', 1);
   });
 
   it('counts an archive, and does not count the restore as one', async () => {
@@ -172,12 +184,12 @@ describe('stats triggers', () => {
     await adminDb()
       .doc('cards/st_trig_c2')
       .set(card({ boardId: scope, createdAt: MIDDAY, updatedAt: MIDDAY }));
-    await waitBucket(scope, '28', 'cardsCreated', 1);
+    await waitBucket(scope, 'cardsCreated', 1);
 
     await adminDb()
       .doc('cards/st_trig_c2')
       .update({ archived: true, updatedAt: MIDDAY, updatedBy: MGR });
-    await waitBucket(scope, '28', 'cardsArchived', 1);
+    await waitBucket(scope, 'cardsArchived', 1);
 
     await adminDb()
       .doc('cards/st_trig_c2')
@@ -185,7 +197,7 @@ describe('stats triggers', () => {
     // Restoring is not archiving. If the trigger keyed off "the archived field
     // changed" rather than "changed TO true", this would now be 2.
     await new Promise((r) => setTimeout(r, 1500));
-    expect((await bucket(scope, '2026-07', '28')).cardsArchived).toBe(1);
+    expect((await todayBucket(scope)).cardsArchived).toBe(1);
   });
 
   it('survives a burst without duplicating history', async () => {
@@ -211,7 +223,7 @@ describe('stats triggers', () => {
     }
     await batch.commit();
 
-    await waitBucket(scope, '28', 'cardsCreated', N);
+    await waitBucket(scope, 'cardsCreated', N);
 
     // Exactly one `created` line per card. More than one means a trigger was
     // retried and the card's history was duplicated — the failure this whole
@@ -223,6 +235,29 @@ describe('stats triggers', () => {
       }),
     );
     expect(perCard).toEqual(Array.from({ length: N }, () => 1));
+  });
+
+  it('counts a comment on SERVER time, whatever the client claims', async () => {
+    // `createdAt` is client-supplied and rules never constrain its value, so
+    // bucketing on it would let a caller put the count on any day it named —
+    // and address any month document it named, `stats/{board}/months/9999-12`
+    // included. The count belongs to the day the server saw it.
+    const scope = 'st_trig_spoof';
+    await adminDb().doc(`boards/${scope}`).set(board());
+    await adminDb()
+      .doc('cards/st_trig_spoof_c')
+      .set(card({ boardId: scope, createdAt: MIDDAY, updatedAt: MIDDAY }));
+    await adminDb().doc('cards/st_trig_spoof_c/comments/cm1').set({
+      authorUid: MGR,
+      body: 'from the future',
+      mentionUids: [],
+      createdAt: Date.UTC(2099, 0, 1),
+    });
+
+    await waitBucket(scope, 'comments', 1);
+    // And nothing was written under the claimed year.
+    const bogus = await adminDb().doc(`stats/${scope}/months/2099-01`).get();
+    expect(bogus.exists).toBe(false);
   });
 
   it('counts a comment', async () => {
@@ -238,6 +273,6 @@ describe('stats triggers', () => {
       createdAt: MIDDAY,
     });
 
-    await waitBucket(scope, '28', 'comments', 1);
+    await waitBucket(scope, 'comments', 1);
   });
 });
