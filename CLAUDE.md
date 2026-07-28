@@ -93,7 +93,10 @@ Key product invariants (do not silently change):
   before ANY design or color decision** — new screens, components, illustrations,
   charts, anything. Warm Ivory `#F6EBDD` (foundation) / Soft Sage `#A8B89A`
   (calm) / Dark Raspberry `#83114F` (brand identity, used with purpose) / Antique
-  Gold `#C6A15B` (sparingly) / Mushroom Taupe `#A58D7A` (support).
+  Gold `#C6A15B` (sparingly) / Mushroom Taupe `#A58D7A` (support). BRAND.md also
+  carries one **open, undecided** question — whether muted captions that carry
+  real meaning should move to `Hint` — with the measurements and affected sites
+  already written down. Do not act on it without asking.
 - **Ordinary actions are icons, not labelled buttons.** Edit, delete, move,
   archive, assign, close — these have settled conventions, and a full-width
   labelled button for each costs a row of vertical space every time. This was
