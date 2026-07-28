@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { CARD_TITLE_MAX, childrenOf, linkableUnder, type BoardColumn } from '@sabeel/shared';
 import type { Card } from '../cards';
-import { Body, Button, Caption, Hint, IconAction, Row, TextField } from './ui';
+import { Body, Button, Hint, IconAction, Row, TextField } from './ui';
 import { radius, space, useTheme } from './../theme';
 
 /**
@@ -135,7 +135,7 @@ export function Subtasks({
             { borderColor: t.border.subtle, backgroundColor: t.bg.inset },
           ]}
         >
-          <Caption>Link an existing card</Caption>
+          <Hint>Link an existing card</Hint>
           <TextField
             value={filter}
             onChangeText={setFilter}

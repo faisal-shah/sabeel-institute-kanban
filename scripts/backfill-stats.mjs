@@ -35,6 +35,11 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { ORG_TIMEZONE, STATS_ALL_SCOPE } from '@sabeel/shared';
+// The SAME day-key helper the live counters use. This script exists to repair
+// drift in those counters, so a second implementation of the rule could only
+// ever file the repair on different days than the thing it repairs — and it
+// would look like it worked, because the numbers would move.
+import { todayInOrgTz } from '../packages/shared/lib/due.js';
 
 const projectId = process.env.GCLOUD_PROJECT;
 if (!projectId) {
@@ -46,20 +51,7 @@ const WRITE = process.argv.includes('--write');
 initializeApp({ credential: applicationDefault(), projectId });
 const db = getFirestore();
 
-/**
- * The org-local day an instant falls on.
- *
- * Must match `recordStat` exactly. Bucketing by UTC would file every evening's
- * work under the next day, so a rebuild would silently disagree with the live
- * counters it is meant to repair.
- */
-const dayKeyFor = (ms) =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: ORG_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(ms));
+const dayKeyFor = (ms) => todayInOrgTz(new Date(ms));
 
 const TODAY = dayKeyFor(Date.now());
 

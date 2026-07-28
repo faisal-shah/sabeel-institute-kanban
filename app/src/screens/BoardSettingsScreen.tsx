@@ -34,7 +34,6 @@ import { useNav } from '../nav';
 import {
   Body,
   Button,
-  Caption,
   Hint,
   Card,
   Heading,
@@ -497,7 +496,7 @@ export function BoardSettingsScreen({
       </Heading>
       {!isMember ? (
         <Card>
-          <Body muted>
+          <Body>
             You are not a member of this board. Join to be assignable to its
             cards and to see it under your own boards.
           </Body>
@@ -563,7 +562,7 @@ export function BoardSettingsScreen({
               { borderColor: t.border.subtle, backgroundColor: t.bg.inset },
             ]}
           >
-            <Caption>Add someone</Caption>
+            <Hint>Add someone</Hint>
             {/* Capped and scrollable: this section must not grow with the
                 directory. Same shape as the assignee and subtask pickers. */}
             <ScrollView style={styles.pickerList} nestedScrollEnabled>
@@ -648,7 +647,7 @@ export function BoardSettingsScreen({
 
       <Heading>Archive</Heading>
       <Card>
-        <Body muted>
+        <Body>
           Archiving hides the board from everyone&rsquo;s list. Boards are never
           permanently deleted — too much work accumulates in them.
         </Body>

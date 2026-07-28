@@ -28,7 +28,7 @@ export function PendingScreen({ user }: { user: SessionUser }) {
           You&rsquo;re signed in as {user.email}. An administrator needs to
           approve your account before you can see any boards.
         </Body>
-        <Body muted>
+        <Body>
           This page updates by itself the moment that happens — no need to sign
           out or refresh.
         </Body>

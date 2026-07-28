@@ -87,56 +87,42 @@ If the brand ever wants dark, a `dark` variant goes back into
 `app/src/theme/palette.ts` and `useTheme()` is the single place that would
 select it; no screen would change, because screens only ever read role tokens.
 
-## Open question: muted captions that carry meaning (raised 2026-07-28)
+## Resolved: muted captions that carry meaning (2026-07-28)
 
-**Not decided, and nothing has been changed for it.** Recorded so the audit does
-not have to be redone.
-
-Departure 1 above keeps Mushroom Taupe for "borders, dividers, shadows and muted
-captions, exactly where its softness is an asset and **contrast is not
-load-bearing**." That boundary is the right one. The question is whether every
-`Caption` in the app actually sits inside it — several do not.
-
-Measured with `relativeLuminance` from `@sabeel/shared`:
+Departure 1 keeps Mushroom Taupe for "borders, dividers, shadows and muted
+captions". The question was whether small text that carries real meaning — an
+empty state, a helper sentence, an error, a control's label — may sit at that
+contrast. Re-measured on all four backgrounds:
 
 | Text token | on `canvas` | on `surface` | on `inset` | on `accentSoft` |
 |---|---|---|---|---|
 | `Caption` → `text.muted` `#A58D7A` | **2.67:1** | **2.92:1** | **2.34:1** | **2.07:1** |
 | `Hint` → `text.secondary` `#6A5748` | 5.81:1 | 6.37:1 | 5.10:1 | 4.51:1 |
 
-WCAG AA wants 4.5:1 for small text. At 2.3–2.9:1 muted captions fail even the
-3:1 floor that applies to large text and to non-text UI components.
+`Caption` fails AA everywhere, and fails even the 3:1 floor for non-text on three
+of the four.
 
-Most `Caption` uses are genuinely decoration and are fine as they are — "Add
-someone", "Move the selection to", "Link an existing card", the `▾` glyph in
-`Select`. Each labels a control that carries the meaning itself.
+**Decision: the line already stated in `ui.tsx` is the rule, and it is now
+followed.** `Caption` is for text you could delete without losing information;
+anything that conveys content is `Hint`. Thirty-five sites moved to `Hint`;
+seven remain on `Caption`, all of them genuinely disposable — timestamps, the
+build stamp, a file's type, "current", and two counts that repeat what the list
+beside them already shows.
 
-These carry information nothing else on screen carries:
+`Caption` was not the only route to `text.muted`. `Body` had a `muted` variant,
+and **every one of its seven callers used it for something that carried
+meaning** — an empty state, an instruction, "You are not a member of this
+board". Those are now plain `Body` (same size, `text.secondary`), and the prop
+is **removed** rather than left unused, so nothing invites the next person to
+reach for it.
 
-| Where | What it says |
-|---|---|
-| `components/ActivityLog.tsx` | the entire activity entry — "Faisal moved it to Done · 5m ago" |
-| `components/Comments.tsx` | comment attribution: who wrote it, when, whether edited |
-| `screens/MyWorkScreen.tsx` | `in {board name}` — the only board indicator on a cross-board screen |
-| `screens/SearchScreen.tsx` | "Showing the first 50…" — that results are being HIDDEN |
-| `components/BulkBar.tsx` | `N selected`, immediately before moving or archiving those N |
-| `components/CardFace.tsx` | the subtask and file badges, whose whole job is at-a-glance reading |
+`text.muted` itself is **not** darkened. Doing so would collapse the difference
+between muted and secondary, so counts and timestamps would stop receding and
+every screen would read as busier — the softness is the point where the text is
+decoration. The fix was to stop using it for things that are not.
 
-Departure 1 already notes the raw taupe is "genuinely hard to read on a phone
-outdoors", which is an ordinary situation for this team, and worse for anyone
-with reduced contrast sensitivity.
-
-**Two ways out, if it is ever taken up.**
-
-*Swap those sites to `Hint`* — same size, 5.1–6.4:1, a component change in about
-eight places, no palette change and no brand decision. This honours the boundary
-above rather than overriding it: the rule is right, it is being applied to text
-that does carry meaning.
-
-*Or darken `text.muted`* — one line, fixes every site, and follows the same
-"legibility wins" precedent set twice already. The cost is real: at ~4.5:1 it
-lands close to `text.secondary` at 5.8:1 and the Body / Hint / Caption hierarchy
-partly collapses, and that softness is doing deliberate work.
+Same size either way (`type.caption` for both), so this is a colour change only
+and shifts no layout.
 
 ## The logo
 

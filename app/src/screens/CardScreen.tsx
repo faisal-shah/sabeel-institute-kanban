@@ -44,7 +44,6 @@ import { Sheet } from '../components/Sheet';
 import {
   Body,
   Button,
-  Caption,
   Hint,
   IconAction,
   Card as Panel,
@@ -239,7 +238,7 @@ export function CardScreen({
               as the page's heading, so a second one was pure noise. */}
         </View>
         <View style={styles.headerActions}>
-          {note ? <Caption>{note}</Caption> : null}
+          {note ? <Hint>{note}</Hint> : null}
           {/* Subscribing is about the COMMENTS, so the label says so — a bare
               "Subscribe" would imply you hear about every field on the card,
               which was considered and deliberately not built. */}
@@ -290,7 +289,7 @@ export function CardScreen({
             ) : (
               <View style={styles.grow}>
                 <Hint>Subtask of</Hint>
-                <Body muted>a card that isn&rsquo;t showing here</Body>
+                <Body>a card that isn&rsquo;t showing here</Body>
                 <Hint>It may have been archived, moved to another board, or deleted.</Hint>
               </View>
             )}
@@ -528,7 +527,7 @@ export function CardScreen({
 
       <Heading>Due date</Heading>
       <Panel>
-        {overdue ? <Caption>Overdue</Caption> : null}
+        {overdue ? <Hint>Overdue</Hint> : null}
         <DateField
           value={c.dueDate}
           label="Due date"

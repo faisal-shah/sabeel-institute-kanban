@@ -50,7 +50,6 @@ import { useNav } from '../../nav';
 import {
   Body,
   Button,
-  Caption,
   Card as Panel,
   Hint,
   IconAction,
@@ -115,7 +114,7 @@ function CardTile({
         subtaskCount={subtaskCount}
       />
       {selectionActive ? (
-        <Caption>{selected ? '✓ selected' : 'tap to select'}</Caption>
+        <Hint>{selected ? '✓ selected' : 'tap to select'}</Hint>
       ) : null}
     </Pressable>
   );
@@ -346,9 +345,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
             <Body>—</Body>
           )}
           {!renaming ? (
-            <Caption>
+            <Hint>
               {columns.length > 0 ? `${page + 1} of ${columns.length}` : 'No columns'}
-            </Caption>
+            </Hint>
           ) : null}
         </View>
         {!renaming ? (
@@ -398,10 +397,10 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       />
 
       {!selection.active && (byColumn.get(current?.id ?? '')?.length ?? 0) > 0 ? (
-        <Caption>
+        <Hint>
           Tap a card to open it. Long-press to start selecting, then tap others
           to move or archive them together.
-        </Caption>
+        </Hint>
       ) : null}
 
       {/* The pager is MEASURED by this wrapper, not by the ScrollView itself, so

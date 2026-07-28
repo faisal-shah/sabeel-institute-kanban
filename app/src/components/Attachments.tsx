@@ -272,7 +272,7 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
                 <View style={styles.text}>
                   <Body numberOfLines={1}>{a.name}</Body>
                   {isOpening ? (
-                    <Caption>Opening…</Caption>
+                    <Hint>Opening…</Hint>
                   ) : ready ? (
                     <Caption>
                       {kindOf(a.name)}

@@ -136,7 +136,7 @@ export function BulkBar({
 
       {mode === 'move' ? (
         <>
-          <Caption>Move the selection to</Caption>
+          <Hint>Move the selection to</Hint>
           <Row style={styles.wrap}>
             {/* A dropdown rather than one button per column: the bar sits over
                 the board, so it must stay small however many columns exist. */}
@@ -167,7 +167,7 @@ export function BulkBar({
 
       {mode === 'moveToBoard' ? (
         <>
-          <Caption>Copy or move the selection to another board</Caption>
+          <Hint>Copy or move the selection to another board</Hint>
           <Hint>
             Labels are cleared, and anyone not on the destination board is
             unassigned.
@@ -250,7 +250,7 @@ export function BulkBar({
 
       {mode === 'assign' ? (
         <>
-          <Caption>Assign or unassign across the selection</Caption>
+          <Hint>Assign or unassign across the selection</Hint>
           {members.length === 0 ? (
             <Hint>No board members available.</Hint>
           ) : null}

@@ -190,22 +190,27 @@ export function Heading({
   );
 }
 
+/**
+ * Body copy. There is no `muted` variant, deliberately.
+ *
+ * There was one, and every caller used it for something that carried meaning —
+ * an empty state, an instruction, "you are not a member of this board". At
+ * `text.muted` that is 2.07–2.92:1 depending on the surface: below AA, and below
+ * the 3:1 non-text floor on most of them. The prop is REMOVED rather than left
+ * unused, because a dormant style invites the next person to reach for it.
+ * Genuinely disposable metadata is `Caption`; see its note below.
+ */
 export function Body({
   children,
-  muted,
   numberOfLines,
 }: {
   children: ReactNode;
-  muted?: boolean;
   /** Truncate rather than wrap — for a name sharing its row with an action. */
   numberOfLines?: number;
 }) {
   const t = useTheme();
   return (
-    <Text
-      numberOfLines={numberOfLines}
-      style={[type.body, { color: muted ? t.text.muted : t.text.secondary }]}
-    >
+    <Text numberOfLines={numberOfLines} style={[type.body, { color: t.text.secondary }]}>
       {children}
     </Text>
   );
@@ -217,8 +222,15 @@ export function Body({
  * which is the only job muted's ~2.7:1 contrast is legible enough for.
  *
  * If the small text CONVEYS content — an empty-state message, a field label, an
- * email, a helper sentence — it is not a caption. Use `Hint`, which is the same
- * size at a readable colour. See docs/BRAND.md / the sabeel-color-scheme skill.
+ * email, a helper sentence, an error, the label on a control — it is not a
+ * caption. Use `Hint`, which is the same size at a readable colour.
+ *
+ * This was audited across the app on 2026-07-28 and thirty-five sites moved to
+ * `Hint`; `text.muted` measures 2.07–2.92:1 depending on the surface, which
+ * fails AA and, on three of the four backgrounds, the 3:1 non-text floor too.
+ * What is left on `Caption` is disposable by that test — timestamps, the build
+ * stamp, a file's type, a count the list beside it already shows. See
+ * docs/BRAND.md § Resolved.
  */
 export function Caption({ children }: { children: ReactNode }) {
   const t = useTheme();
@@ -690,7 +702,7 @@ export function Spinner({ label }: { label?: string }) {
   return (
     <View style={styles.centre}>
       <ActivityIndicator color={t.accent.base} />
-      {label ? <Caption>{label}</Caption> : null}
+      {label ? <Hint>{label}</Hint> : null}
     </View>
   );
 }
@@ -728,7 +740,7 @@ export function ProgressBar({ fraction, label }: { fraction: number | null; labe
       <View style={[styles.progressTrack, { backgroundColor: t.bg.inset }]}>
         <View style={[styles.progressFill, { backgroundColor: t.accent.base, width: `${pct}%` }]} />
       </View>
-      <Caption>{label}</Caption>
+      <Hint>{label}</Hint>
     </View>
   );
 }

@@ -61,6 +61,21 @@ export function startOfMonth(dayKey: string): string {
   return `${dayKey.slice(0, 7)}-01`;
 }
 
+/**
+ * The first of the month `n` calendar months before `dayKey`'s.
+ *
+ * Calendar months, not 30-day approximations: "twelve months back" has to mean
+ * twelve months whichever months they are, and a fixed 30 lands short or long
+ * depending on how many 31-day months and Februaries the span happens to cross.
+ */
+export function monthsBack(dayKey: string, n: number): string {
+  const y = Number(dayKey.slice(0, 4));
+  const m = Number(dayKey.slice(5, 7)) - 1 - n; // 0-based, may go negative
+  const year = y + Math.floor(m / 12);
+  const month = ((m % 12) + 12) % 12;
+  return `${year}-${String(month + 1).padStart(2, '0')}-01`;
+}
+
 /** Which bucket a day belongs to, as that bucket's first day. */
 export function bucketStart(dayKey: string, bucketing: StatsBucketing): string {
   if (bucketing === 'week') return startOfWeek(dayKey);

@@ -17,6 +17,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card,
   CardGrid,
   Heading,
@@ -143,7 +144,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       {sessionCan.manageBoards(user) ? (
         creating ? (
           <Card style={styles.form}>
-            <Caption>New board</Caption>
+            <Hint>New board</Hint>
             <TextInput
               value={newName}
               onChangeText={setNewName}
@@ -209,7 +210,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
       {!hasAny ? (
         <Card style={styles.form}>
-          <Body muted>
+          <Body>
             {sessionCan.manageBoards(user)
               ? 'No boards yet. Create one to get started.'
               : 'You are not on any boards yet. A manager can add you to one.'}
@@ -311,10 +312,10 @@ function ArchivedBoards({
       />
       {open ? (
         <>
-          <Caption>
+          <Hint>
             Archived boards are hidden from everyone. Open one and use Restore in
             its settings to bring it back.
-          </Caption>
+          </Hint>
           <CardGrid>
             {list.map((b) => (
               <BoardRow

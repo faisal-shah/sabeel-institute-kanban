@@ -20,6 +20,7 @@ import {
   Body,
   Button,
   Caption,
+  Hint,
   Card as Panel,
   Heading,
   IconAction,
@@ -115,7 +116,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                 <Row style={styles.between}>
                   <View style={styles.grow}>
                     <Body>{spec.label}</Body>
-                    <Caption>{spec.description}</Caption>
+                    <Hint>{spec.description}</Hint>
                   </View>
                   {/* A setting that is on or off is a toggle, not a button that
                       says which way it is currently pointing. */}
@@ -132,17 +133,17 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
             );
           })}
 
-          <Caption>
+          <Hint>
             Alerts keeps the last {NOTIFICATION_RETENTION_DAYS} days. Anything
             older is removed automatically — the card itself keeps its comments
             and history.
-          </Caption>
+          </Hint>
 
           <Heading>Mute a board</Heading>
-          <Caption>
+          <Hint>
             Muting silences everything from a board without changing what you are
             told about elsewhere.
-          </Caption>
+          </Hint>
           {(boards.data ?? []).map((b) => {
             const isMuted = muted.includes(b.id);
             return (
@@ -167,11 +168,11 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
       ) : (
         <>
           <Row style={styles.between}>
-            <Caption>
+            <Hint>
               {items.length === 0
                 ? 'Nothing here yet.'
                 : `${unread} unread of ${items.length}`}
-            </Caption>
+            </Hint>
             {/* A tight gap: each IconAction is a laid-out 44pt box, so a wide
                 one would push this bar past a narrow phone. */}
             <Row style={styles.actions}>

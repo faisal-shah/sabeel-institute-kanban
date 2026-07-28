@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Caption, Hint, IconAction, Row } from './ui';
+import { Body, Button, Hint, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
 
 /**
@@ -118,10 +118,10 @@ export function AssigneePicker({
       ))}
 
       {available.length === 0 ? (
-        <Caption>
+        <Hint>
           {emptyHint ??
             'Everyone on this board is already assigned. Add more people in board Settings.'}
-        </Caption>
+        </Hint>
       ) : picking ? (
         <View
           style={[
@@ -129,7 +129,7 @@ export function AssigneePicker({
             { borderColor: t.border.subtle, backgroundColor: t.bg.inset },
           ]}
         >
-          <Caption>Assign someone</Caption>
+          <Hint>Assign someone</Hint>
           {/* Capped and scrollable: the section must not grow with the board. */}
           <ScrollView style={styles.pickerList} nestedScrollEnabled>
             {available.map((m) => (

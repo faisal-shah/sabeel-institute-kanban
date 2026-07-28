@@ -3,10 +3,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent }
 import {
   STATS_ALL_SCOPE,
   STATS_METRICS,
-  addDays,
   aggregate,
   formatBytes,
-  startOfMonth,
+  monthsBack,
   startOfWeek,
   todayInOrgTz,
   toDailySeries,
@@ -20,7 +19,6 @@ import type { SessionUser } from '../session';
 import { Sheet, SheetOption } from '../components/Sheet';
 import {
   Body,
-  Caption,
   Card as Panel,
   FilterChip,
   Heading,
@@ -68,7 +66,7 @@ const BUCKETINGS = [
  */
 export function StatsScreen({ user }: { user: SessionUser }) {
   const today = todayInOrgTz();
-  const from = startOfMonth(addDays(today, -30 * (STATS_MONTHS_BACK - 1)));
+  const from = monthsBack(today, STATS_MONTHS_BACK - 1);
 
   const [scope, setScope] = useState<string>(STATS_ALL_SCOPE);
   const [bucketing, setBucketing] = useState<StatsBucketing>('day');
@@ -134,7 +132,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
           queries resolve to `data: undefined` on error exactly as they do while
           loading, and `?? []` below would turn either into an empty picker. */}
       {active.status === 'error' || archived.status === 'error' ? (
-        <Caption>Boards could not be loaded, so the filter is incomplete.</Caption>
+        <Hint>Boards could not be loaded, so the filter is incomplete.</Hint>
       ) : null}
 
       {/*
@@ -195,7 +193,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
         {totals.status === 'loading' ? (
           <Body>…</Body>
         ) : totals.status === 'error' ? (
-          <Caption>Not available</Caption>
+          <Hint>Not available</Hint>
         ) : (
           <Body>
             {formatBytes(totals.data.bytesStored)} across {totals.data.filesStored} file

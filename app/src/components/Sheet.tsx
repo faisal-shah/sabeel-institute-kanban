@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Body, Button, Caption } from './ui';
+import { Body, Button, Caption, Hint } from './ui';
 import { radius, space, useTheme } from '../theme';
 
 /**
@@ -104,7 +104,7 @@ export function SheetOption({
       <View style={styles.optionText}>
         <Body>{label}</Body>
         {selected ? <Caption>current</Caption> : null}
-        {detail ? <Caption>{detail}</Caption> : null}
+        {detail ? <Hint>{detail}</Hint> : null}
       </View>
     </Pressable>
   );

@@ -7,7 +7,6 @@ import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boa
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
-  Caption,
   Card as Panel,
   CardGrid,
   FilterChip,
@@ -171,7 +170,7 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
                       labels={allLabels.data ?? NO_LABELS}
                       boardMembers={board?.members ?? NO_MEMBERS}
                     />
-                    <Caption>in {board?.name ?? 'a board'}</Caption>
+                    <Hint>in {board?.name ?? 'a board'}</Hint>
                   </Panel>
                 </Pressable>
               );

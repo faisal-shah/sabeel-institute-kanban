@@ -100,7 +100,7 @@ export function BoardArchiveScreen({
 
       {archived.length === 0 ? (
         <Panel>
-          <Body muted>Nothing is archived on this board.</Body>
+          <Body>Nothing is archived on this board.</Body>
           <Hint>
             Archiving a card takes it off the board but keeps it — it will show up
             here, and can be put back at any time.

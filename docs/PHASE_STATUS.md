@@ -341,6 +341,50 @@ the team.
 
 ## Deploy log
 
+### 2026-07-28 — Judgement calls from the review
+
+Decided with Faisal after the review, one at a time:
+
+- **The backfill now imports `todayInOrgTz`** instead of reimplementing the
+  org-timezone day-key rule. It is the script that repairs drift in the live
+  counters, so a second copy of the rule could only ever file the repair on
+  different days than the thing it repairs — and it would look like it worked,
+  because the numbers would move.
+- **The chart's history window uses calendar months** (`monthsBack`) rather than
+  330 days snapped to the 1st. `STATS_MONTHS_BACK` now means what it says at
+  every month of the year; the property is asserted for all twelve.
+- **The `'unknown'` actor fallback is left unguarded.** Traced and unreachable:
+  rules require the author fields, every server sweep either sets `updatedBy` or
+  produces no diff at all, and a delete returns no entries. A guard there would
+  be defensive code at an internal boundary.
+- **`Screen` spacing its children only on wide layouts is deferred** to its own
+  change after v0.5.0. Real, and measured — the stats chips sat 9px under the
+  dropdown where 16 was intended — but the fix moves the vertical rhythm of
+  every screen at once and deserves a screenshot sweep of its own.
+- **The muted-caption question in BRAND.md is closed** — see below.
+
+### 2026-07-28 — Muted text that carries meaning moves to Hint
+
+`text.muted` measures 2.07–2.92:1 depending on the surface: below AA, and below
+even the 3:1 non-text floor on three of four backgrounds. `ui.tsx` already drew
+the line — `Caption` is "text you could delete without losing information" — and
+the failures were the places that rule was not being followed.
+
+Thirty-five `Caption` sites moved to `Hint`. Seven remain, all disposable:
+timestamps, the build stamp, a file's type, "current", two counts the adjacent
+list already shows.
+
+`Caption` was not the only route to the colour. `Body` had a `muted` variant and
+**every one of its seven callers used it for meaning** — empty states,
+instructions, "You are not a member of this board". Those are plain `Body` now,
+and the prop is removed rather than left unused.
+
+`text.muted` itself is NOT darkened: that would collapse the distinction with
+`text.secondary`, so counts and timestamps would stop receding and every screen
+would read busier. Same type size throughout, so this shifts no layout — a
+colour change only, which is why it was safe to include here while the `Screen`
+spacing fix was not.
+
 ### 2026-07-28 — Deep review of everything since v0.4.0
 
 A multi-pass review before shipping v0.5.0, prompted by several errors that

@@ -9,7 +9,7 @@ import {
 import { db } from '../firebase';
 import { useLiveQuery } from '../liveQuery';
 import type { BoardMemberProfile } from '../boards';
-import { Caption, Hint, Row, Spinner } from './ui';
+import { Hint, Row, Spinner } from './ui';
 import { StyleSheet, View } from 'react-native';
 import { radius, space, useTheme } from '../theme';
 
@@ -100,7 +100,7 @@ export function ActivityLog({
       {entries.map((e) => (
         <Row key={e.id} style={styles.row}>
           <View style={[styles.tick, { backgroundColor: t.border.strong }]} />
-          <Caption>
+          <Hint>
             {nameFor(e.actorUid)}{' '}
             {e.type === null
               ? 'made a change'
@@ -111,7 +111,7 @@ export function ActivityLog({
                   cardTitleFor,
                 )}{' '}
             · {when(e.at)}
-          </Caption>
+          </Hint>
         </Row>
       ))}
     </View>

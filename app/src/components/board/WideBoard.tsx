@@ -27,7 +27,6 @@ import { useNav } from '../../nav';
 import {
   Body,
   Button,
-  Caption,
   Card as Panel,
   Hint,
   IconAction,
@@ -352,7 +351,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
             { backgroundColor: t.bg.raised, borderColor: t.border.strong },
           ]}
         >
-          <Caption>Move “{moving.title}” to</Caption>
+          <Hint>Move “{moving.title}” to</Hint>
           <Row style={styles.wrap}>
             {columns.map((col) => (
               <Button

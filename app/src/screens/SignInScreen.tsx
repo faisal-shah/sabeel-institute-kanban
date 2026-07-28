@@ -3,7 +3,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
 import { signInWithGoogle, googleSignInAvailable } from '../auth/google';
 import { DEV_ACCOUNTS, devSignIn, devSignInAvailable } from '../auth/devSignIn';
-import { Body, Button, Caption, Card, Row, Screen, Title } from '../components/ui';
+import { Body, Button, Caption, Card, Hint, Row, Screen, Title } from '../components/ui';
 import { radius, space } from '../theme';
 import sabeelLogo from '../../assets/brand/sabeel-logo.png';
 import { toUserMessage } from '../errors';
@@ -50,7 +50,7 @@ export function SignInScreen() {
           />
         </View>
         <Title>Kanban</Title>
-        <Body muted>Sign in with your @{ALLOWED_EMAIL_DOMAIN} account.</Body>
+        <Body>Sign in with your @{ALLOWED_EMAIL_DOMAIN} account.</Body>
       </View>
 
       <Card>
@@ -63,10 +63,10 @@ export function SignInScreen() {
           // its single primary action reads better spanning the card.
           block
         />
-        <Caption>
+        <Hint>
           New accounts need an administrator&rsquo;s approval before you can use
           the boards.
-        </Caption>
+        </Hint>
       </Card>
 
       {error ? (
@@ -82,7 +82,7 @@ export function SignInScreen() {
       */}
       {devSignInAvailable ? (
         <Card>
-          <Caption>Dev sign-in (emulator only)</Caption>
+          <Hint>Dev sign-in (emulator only)</Hint>
           <Row style={styles.wrap}>
             {DEV_ACCOUNTS.map((name) => (
               <Button
@@ -94,10 +94,10 @@ export function SignInScreen() {
               />
             ))}
           </Row>
-          <Caption>
+          <Hint>
             &ldquo;intruder@gmail.com&rdquo; is deliberately outside the org
             domain — the server deletes it on sight.
-          </Caption>
+          </Hint>
         </Card>
       ) : null}
 

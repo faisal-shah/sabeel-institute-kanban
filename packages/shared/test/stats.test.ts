@@ -3,6 +3,7 @@ import {
   aggregate,
   bucketStart,
   monthKeysBetween,
+  monthsBack,
   startOfMonth,
   startOfWeek,
   toDailySeries,
@@ -66,6 +67,38 @@ describe('startOfMonth / bucketStart', () => {
     expect(bucketStart('2026-07-28', 'day')).toBe('2026-07-28');
     expect(bucketStart('2026-07-28', 'week')).toBe('2026-07-26');
     expect(bucketStart('2026-07-28', 'month')).toBe('2026-07-01');
+  });
+});
+
+describe('monthsBack', () => {
+  it('counts CALENDAR months, not thirty-day steps', () => {
+    expect(monthsBack('2026-07-28', 0)).toBe('2026-07-01');
+    expect(monthsBack('2026-07-28', 1)).toBe('2026-06-01');
+    expect(monthsBack('2026-07-28', 11)).toBe('2025-08-01');
+  });
+
+  it('crosses year boundaries in both directions of the arithmetic', () => {
+    expect(monthsBack('2026-01-15', 1)).toBe('2025-12-01');
+    expect(monthsBack('2026-01-15', 12)).toBe('2025-01-01');
+    expect(monthsBack('2026-01-15', 13)).toBe('2024-12-01');
+    expect(monthsBack('2026-03-01', 25)).toBe('2024-02-01');
+  });
+
+  it('is unaffected by month lengths — the bug the old 30-day maths had', () => {
+    // Eleven months back from any day in a given month is the same month,
+    // whatever mix of 28-, 30- and 31-day months lies between.
+    for (const day of ['2026-03-31', '2026-03-01', '2026-03-15']) {
+      expect(monthsBack(day, 11)).toBe('2025-04-01');
+    }
+  });
+
+  it('always spans exactly n+1 month keys, every month of the year', () => {
+    // The property STATS_MONTHS_BACK actually promises. The old derivation
+    // (330 days, then snap) could yield 11 or 13 depending on the months.
+    for (let m = 1; m <= 12; m++) {
+      const day = `2026-${String(m).padStart(2, '0')}-15`;
+      expect(monthKeysBetween(monthsBack(day, 11), day)).toHaveLength(12);
+    }
   });
 });
 

@@ -17,7 +17,7 @@ import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
   Body,
-  Caption,
+  Hint,
   CardGrid,
   FilterChip,
   Card as Panel,
@@ -261,10 +261,10 @@ export function SearchScreen({ user }: { user: SessionUser }) {
                 : `${total} card${total === 1 ? '' : 's'}`}
           </Heading>
           {total > RESULT_CAP ? (
-            <Caption>
+            <Hint>
               Showing the first {RESULT_CAP}. Narrow it with a filter or a search
               term.
-            </Caption>
+            </Hint>
           ) : null}
         </>
       ) : null}
@@ -285,10 +285,10 @@ export function SearchScreen({ user }: { user: SessionUser }) {
                   labels={allLabels.data ?? NO_LABELS}
                   boardMembers={board?.members ?? NO_MEMBERS}
                 />
-                <Caption>
+                <Hint>
                   in {board?.name ?? 'a board'}
                   {c.archived ? ' · archived' : ''}
-                </Caption>
+                </Hint>
               </Panel>
             </Pressable>
           );

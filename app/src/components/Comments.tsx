@@ -7,7 +7,6 @@ import type { BoardMemberProfile } from '../boards';
 import {
   Body,
   Button,
-  Caption,
   Hint,
   Card as Panel,
   IconAction,
@@ -84,10 +83,10 @@ export function Comments({
                 These are quiet text actions with a generous hitSlop — the touch
                 target stays finger-sized while the visual footprint is a word. */}
             <Row style={styles.between}>
-              <Caption>
+              <Hint>
                 {nameFor.get(c.authorUid) ?? 'Someone'} · {when(c.createdAt)}
                 {c.editedAt ? ' · edited' : ''}
-              </Caption>
+              </Hint>
               {editing !== c.id ? (
                 <Row style={styles.actions}>
                   {/* Only the author edits: a manager rewriting someone's words
@@ -151,10 +150,10 @@ export function Comments({
               <>
                 <Body>{c.body}</Body>
                 {c.mentionUids.length > 0 ? (
-                  <Caption>
+                  <Hint>
                     mentioned{' '}
                     {c.mentionUids.map((u) => nameFor.get(u) ?? 'someone').join(', ')}
-                  </Caption>
+                  </Hint>
                 ) : null}
               </>
             )}
@@ -208,10 +207,10 @@ export function Comments({
             members. If you are the only one, say so rather than letting the
             autocomplete look broken. */}
         {candidates.length <= 1 ? (
-          <Caption>
+          <Hint>
             You are the only member of this board, so there is nobody to mention
             yet. Add people under board Settings.
-          </Caption>
+          </Hint>
         ) : null}
       </Panel>
     </>
