@@ -646,9 +646,17 @@ exception is `bytesRemoved`: the activity log records that a file was detached
 and its name, not its size, so that one series is forward-only and cannot be
 reconstructed.
 
-**Imports show as spikes**, and the screen says so. Cards brought in by a ClickUp
-import or a restore carry the date they were written, so those days look like
-enormous ones — 45 cards on 2026-07-25. They are not filtered out, because board
+**Imports do NOT show as spikes, and this was checked rather than assumed.** The
+first version of this screen carried a caveat saying they did, on the strength of
+a 45-card day (2026-07-25) that looked like a bulk write. It was not one: those
+cards carry no `sourceId`, have 45 distinct `createdAt` instants spread over nine
+hours, and were made by three different people. It was simply a busy day. The
+real ClickUp imports are 19 cards spread over six days, the largest being nine,
+each with its own timestamp.
+
+The caveat was removed, because it was worse than useless — it told the team to
+discount their most productive day as an artifact. Imported cards are still
+counted on the day they were written, and still not filtered out, since board
 card counts and these numbers have to agree.
 
 ## Open questions

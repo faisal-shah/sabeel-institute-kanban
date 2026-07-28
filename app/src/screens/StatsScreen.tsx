@@ -570,14 +570,6 @@ function Chart({
       {points.some((p) => p.end >= today && p.start <= today) ? (
         <Hint>The outlined bar is the period so far, not a finished one.</Hint>
       ) : null}
-      {/* Said plainly, because the alternative is someone finding a 45-card day
-          and believing it. Cards brought in by an import or a restore carry the
-          date they were written, so those days look enormous. Not hidden and not
-          silently filtered — board card counts and these numbers have to agree. */}
-      <Hint>
-        Days when boards were imported or restored show every card at once, so they
-        stand out as spikes.
-      </Hint>
     </Panel>
   );
 }

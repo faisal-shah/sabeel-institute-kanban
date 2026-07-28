@@ -395,7 +395,13 @@ Backfill: `scripts/backfill-stats.mjs` rebuilds history from cards, comments,
 attachments and the activity log. Dry-run by default, writes only under
 `stats/**`, never touches today, and refuses to write if its reconstruction
 disagrees with a direct count. Dry run against production reconciles (96 cards,
-49 comments) and shows the expected import spike of 45 cards on 2026-07-25.
+49 comments).
+
+The 45-card day on 2026-07-25 was first taken for an import spike and captioned
+as one on the screen. It is not: no `sourceId`, 45 distinct `createdAt` instants
+across nine hours, three different people — a busy day, not a bulk write. The
+real imports are 19 cards over six days. The caption was removed; it would have
+told the team to discount their best day.
 
 ### 2026-07-28 — Subscribe to a card's comments — v0.4.0
 
