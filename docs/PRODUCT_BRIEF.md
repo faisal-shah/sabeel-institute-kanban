@@ -40,6 +40,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Card extras | **Comments with @mentions**, **per-card activity history**. |
 | Cross-board view | **"My Work"** — every card assigned to me across every board, sorted by due date. First-class screen, and the phone's default landing surface. |
 | Due dates | **All-day dates only** (`YYYY-MM-DD`), no time-of-day, no start dates. |
+| Card subscriptions | **Comments only.** Anyone who can see a card may subscribe to its comment thread (2026-07-28). Assignees are unaffected and may also subscribe, which keeps the interest after they are unassigned. Not "watchers": no other change notifies. |
 | Labels | **Org-wide.** One set every board shares (changed 2026-07-27; they were per board). Any active member may add one; managers rename and delete. |
 | Description format | **Plain text.** Superseded markdown on 2026-07-20 — see "Why plain text". |
 | Search | **Global across the boards you belong to**, client-side matching. See "Search". |
@@ -153,6 +154,8 @@ cards/{cardId}                                   # TOP-LEVEL collection; keyed t
   title, description                             # plain text
   columnId, rank: string
   assigneeUids: [uid, …]                         # MUST be members of boardId's board (rule-enforced)
+  subscriberUids: [uid, …]                       # comment subscribers. SAME membership rule, and for a sharper
+                                                 # reason: the read rule has a subscriber arm, so this grants read
   dueDate?: string                               # 'YYYY-MM-DD' — an all-day date, NOT a timestamp
   priority: none|low|med|high|urgent
   labelIds: [id, …], archived: bool, archivedAt?  # ids into labels/*; survive a cross-board move
@@ -430,8 +433,16 @@ Deny-by-default.
   cannot invent columns.
 - **Every uid in a card's `assigneeUids` must be in the parent board's
   `memberUids`.** Load-bearing for My Work — see above.
-- A card is also readable by anyone in its own `assigneeUids`, which is what makes
-  the collection-group query legal without a parent lookup.
+- **The same is true of `subscriberUids`**, and for a sharper reason: the read
+  rule has a subscriber arm too, so subscribing IS a grant of read. Without the
+  membership rule, adding your own uid to any card whose id you learned would be
+  a way into a board you are not on. `removeBoardMember` clears it alongside
+  `assigneeUids`, a cross-board move filters it, and a copy starts without it.
+- A card is also readable by anyone in its own `assigneeUids` or
+  `subscriberUids`, which is what makes both cross-board queries legal without a
+  parent lookup. Neither arm widens access — both lists are constrained to board
+  members, so anyone matching could already read the card through membership.
+  What they buy is a query that needs no per-row board read.
 - No client may write their own `role` or `status`; both are claims, set only by
   the admin-only `setUserAccess` callable.
 - Comment `authorUid` must equal `request.auth.uid`; edits restricted to the

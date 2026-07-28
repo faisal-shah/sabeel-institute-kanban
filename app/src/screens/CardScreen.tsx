@@ -20,6 +20,7 @@ import {
   restoreCard,
   updateCard,
   useCard,
+  subscribeToCard,
   useBoardCards,
   type Card,
 } from '../cards';
@@ -159,6 +160,12 @@ export function CardScreen({
 
   const today = todayInOrgTz();
   const overdue = c.dueDate !== undefined && c.dueDate < today;
+
+  /** Whether I follow this card's comments. Assignment does NOT imply it — an
+   *  assignee already hears about comments through `commentOnMyCard`, and
+   *  subscribing separately is what makes the interest survive being
+   *  unassigned. */
+  const subscribed = c.subscriberUids.includes(user.uid);
   // Only board members may be assigned — the rule the My Work query depends on.
   // Sourced from the board doc so non-admins (who cannot list users) still see
   // who they can assign.
@@ -233,6 +240,18 @@ export function CardScreen({
         </View>
         <View style={styles.headerActions}>
           {note ? <Caption>{note}</Caption> : null}
+          {/* Subscribing is about the COMMENTS, so the label says so — a bare
+              "Subscribe" would imply you hear about every field on the card,
+              which was considered and deliberately not built. */}
+          <IconAction
+            icon={subscribed ? 'notifications-active' : 'notifications-none'}
+            label={
+              subscribed ? 'Unsubscribe from comments' : 'Subscribe to comments'
+            }
+            accent={subscribed}
+            disabled={busy}
+            onPress={() => run(() => subscribeToCard(cardId, user, !subscribed))}
+          />
           <IconAction icon="share" label="Share card" onPress={onShare} />
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </View>

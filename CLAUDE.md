@@ -75,8 +75,17 @@ Key product invariants (do not silently change):
 - **Assignees must be board members**, rules-enforced. This is what makes the
   cross-board "My Work" collection-group query legal without a parent lookup —
   breaking it breaks My Work's security model.
-- **No WIP limits, no watchers, no card start dates.** All considered, all
-  declined.
+- **No WIP limits, no card start dates.** Both considered, both declined.
+- **Subscribing to a card means subscribing to its COMMENTS** (added 2026-07-28,
+  narrowing the older "no watchers" decision rather than overturning it). Nothing
+  else about the card notifies a subscriber — notifying on every change was
+  considered and dropped, because `myCardMoved` already ships off for firing
+  constantly and ten more triggers beside it would be worse. Assignees are
+  unchanged; an assignee may also subscribe, which is how the interest survives
+  being unassigned. **`subscriberUids` is a grant of READ** — the card read rule
+  has a subscriber arm so the cross-board query needs no per-row board lookup —
+  so it carries every constraint `assigneeUids` does: members only, cleared by
+  `removeBoardMember`, filtered on a cross-board move, and absent from a copy.
 - **BRAND COLORS ARE FIXED.** `docs/BRAND.md` is the authority — it restates the
   designer's **Option 1** palette (2026-07-21), which **supersedes** the older
   `docs/brand/sabeel-color-usage-guide.jpg` (kept for history only). The same

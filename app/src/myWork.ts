@@ -37,25 +37,55 @@ export interface MyWorkCard {
  * The `archived` filter is applied client-side rather than in the query so the
  * whole thing needs only the automatic single-field array index.
  */
+/**
+ * Shared mapper for both cross-board card queries below. Extracted rather than
+ * duplicated: the two differ ONLY in which array they match on, and a second
+ * copy of this is how one of them quietly stops filtering archived cards.
+ */
+function toMyWorkCards(docs: { id: string; data: Record<string, unknown> }[]): MyWorkCard[] {
+  return docs
+    .map((d) => ({
+      id: d.id,
+      boardId: (d.data.boardId as string) ?? '',
+      title: (d.data.title as string) ?? '',
+      columnId: (d.data.columnId as string) ?? '',
+      dueDate: d.data.dueDate as string | undefined,
+      priority: (d.data.priority as Priority) ?? 'none',
+      labelIds: (d.data.labelIds as string[]) ?? [],
+      assigneeUids: (d.data.assigneeUids as string[]) ?? [],
+      archived: Boolean(d.data.archived),
+    }))
+    .filter((c) => !c.archived);
+}
+
 export function useMyWork(user: SessionUser) {
   return useLiveQuery<MyWorkCard[]>(
     'my-work',
     () =>
       query(collection(db, 'cards'), where('assigneeUids', 'array-contains', user.uid)),
-    (docs) =>
-      docs
-        .map((d) => ({
-          id: d.id,
-          boardId: (d.data.boardId as string) ?? '',
-          title: (d.data.title as string) ?? '',
-          columnId: (d.data.columnId as string) ?? '',
-          dueDate: d.data.dueDate as string | undefined,
-          priority: (d.data.priority as Priority) ?? 'none',
-          labelIds: (d.data.labelIds as string[]) ?? [],
-          assigneeUids: (d.data.assigneeUids as string[]) ?? [],
-          archived: Boolean(d.data.archived),
-        }))
-        .filter((c) => !c.archived),
+    toMyWorkCards,
+    [user.uid],
+  );
+}
+
+/**
+ * Every card I subscribed to, across every board — the Subscribed half of My
+ * Work.
+ *
+ * The same shape as `useMyWork` for the same reasons, and legal for the same
+ * one: the `array-contains` constraint on my own uid is what the read rule's
+ * subscriber arm can prove, so an unconstrained query would be rejected.
+ *
+ * Board names resolve from the caller's own board list here too, because
+ * subscribing requires board membership exactly as assignment does — so every
+ * board appearing in this list is already one they can see.
+ */
+export function useMySubscriptions(user: SessionUser) {
+  return useLiveQuery<MyWorkCard[]>(
+    'my-subscriptions',
+    () =>
+      query(collection(db, 'cards'), where('subscriberUids', 'array-contains', user.uid)),
+    toMyWorkCards,
     [user.uid],
   );
 }

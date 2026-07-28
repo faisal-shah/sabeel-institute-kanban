@@ -253,6 +253,7 @@ export const onCommentNotify = onDocumentWritten(
     const boardId = (card.data()?.boardId as string) ?? '';
     const cardTitle = card.data()?.title as string | undefined;
     const assignees = (card.data()?.assigneeUids as string[]) ?? [];
+    const subscribers = (card.data()?.subscriberUids as string[]) ?? [];
 
     const actorName = await nameOf(authorUid);
 
@@ -270,10 +271,27 @@ export const onCommentNotify = onDocumentWritten(
 
     if (!created) return;
 
-    const others = assignees.filter((u) => !mentionUids.includes(u));
+    // Precedence: mention, then assignee, then subscriber. Each group excludes
+    // the ones above it, so a person who is mentioned AND assigned AND
+    // subscribed gets exactly ONE notification for one comment. Without that,
+    // caring about a card more would simply mean being told more times.
+    const assignedOnly = assignees.filter((u) => !mentionUids.includes(u));
     await notify({
       event: 'commentOnMyCard',
-      recipients: await loadRecipients(others),
+      recipients: await loadRecipients(assignedOnly),
+      actorUid: authorUid,
+      actorName,
+      boardId,
+      cardId,
+      cardTitle,
+    });
+
+    const subscribedOnly = subscribers.filter(
+      (u) => !mentionUids.includes(u) && !assignees.includes(u),
+    );
+    await notify({
+      event: 'commentOnSubscribed',
+      recipients: await loadRecipients(subscribedOnly),
       actorUid: authorUid,
       actorName,
       boardId,

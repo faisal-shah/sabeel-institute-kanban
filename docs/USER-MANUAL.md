@@ -135,6 +135,12 @@ Tap any card to open the full view.
 
   The list closes when you click away, and picking a name never loses your place
   in the box.
+- **Subscribe** — the **bell** in the card's header. Tap it to hear about new
+  comments on a card even when it isn't assigned to you; tap again to stop. It
+  turns solid while you're subscribed. Subscribing is about the *conversation* —
+  nothing else on the card notifies you. A card assigned to you already sends you
+  its comments, but subscribing as well means you keep hearing about it if you're
+  later unassigned.
 
   You can edit your own comment with the **pencil**, and the **@** works there
   too — mention someone in an edit and they're told, once. Correcting the wording
@@ -479,6 +485,10 @@ appears everywhere at once.
 Open any board → **settings → Labels**. Deleting removes it from every card that
 carries it, and tells you how many first — counting live cards and archived ones
 separately, because a card in the archive is one no board will show you.
+
+**…follow a card that isn't mine?**
+Open it → the **bell** in the header. It appears under **My work → Subscribed**,
+and you'll hear about new comments.
 
 **…find every card with a particular label?**
 **Search** → **Filter by label**, and pick one. Pick more than one and you get

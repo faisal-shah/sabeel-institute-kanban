@@ -18,6 +18,7 @@ export type NotifyEvent =
   | 'mention'
   | 'assigned'
   | 'commentOnMyCard'
+  | 'commentOnSubscribed'
   | 'dueSoon'
   | 'myCardMoved'
   | 'newUserPending';
@@ -132,6 +133,20 @@ export interface CardDoc {
    * security. A move drops any assignee who isn't a member of the destination.
    */
   assigneeUids: string[];
+  /**
+   * Who has subscribed to this card's COMMENTS. Not "watchers" — nothing else
+   * about the card notifies them (see docs/PRODUCT_BRIEF.md).
+   *
+   * Subject to the same board-membership rule as `assigneeUids`, and for a
+   * sharper reason: the card read rule has a subscriber arm, so subscribing is
+   * a grant of read access. Membership is what keeps that from being a way into
+   * a board you are not on, and `removeBoardMember` clears this for the same
+   * reason it clears assignees.
+   *
+   * Optional because cards written before it existed do not carry it — read as
+   * `?? []`, and rules compare it with `.get('subscriberUids', [])`.
+   */
+  subscriberUids?: string[];
   /** All-day date as `YYYY-MM-DD`. Never a timestamp — timestamps drift. */
   dueDate?: string;
   priority: Priority;

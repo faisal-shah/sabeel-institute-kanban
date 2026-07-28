@@ -287,6 +287,20 @@ service cloud.firestore {
         return newCard().assigneeUids is list
           && newCard().assigneeUids.hasOnly(destBoard().memberUids);
       }
+      /**
+       * Subscribers are held to the SAME rule as assignees, and for a sharper
+       * reason: the read rule below has a subscriber arm, so being subscribed
+       * grants read. Without this, adding your own uid to any card you happened
+       * to learn the id of would be a way into a board you are not on.
+       *
+       * `.get('subscriberUids', [])` rather than plain access — a card written
+       * before the field existed carries no such key, and requiring it would
+       * make every one of them permanently uneditable.
+       */
+      function subscribersAreMembers() {
+        return newCard().get('subscriberUids', []) is list
+          && newCard().get('subscriberUids', []).hasOnly(destBoard().memberUids);
+      }
       // Clients cannot invent columns. `columnIds` is the board's flat id list.
       function columnExists() {
         return newCard().columnId in destBoard().columnIds;
@@ -299,6 +313,7 @@ service cloud.firestore {
         // listed, or writes to those cards would break.
         return newCard().keys().hasOnly([
             'boardId', 'title', 'description', 'columnId', 'rank', 'assigneeUids',
+            'subscriberUids',
             'dueDate', 'priority', 'labelIds', 'archived', 'archivedAt',
             'commentCount', 'attachmentCount', 'parentId', 'createdAt',
             'createdBy', 'updatedAt', 'updatedBy', 'sourceId',
@@ -328,15 +343,25 @@ service cloud.firestore {
           && (!('parentId' in newCard())
               || (newCard().parentId is string && newCard().parentId.size() <= 200))
           && columnExists()
-          && assigneesAreMembers();
+          && assigneesAreMembers()
+          && subscribersAreMembers();
       }
 
-      // Assignee arm FIRST so "My Work" (`where assigneeUids array-contains me`)
-      // is authorized with ZERO board reads; the board-view query falls through
-      // to the membership arm, whose board read is cached across the whole list
-      // (all rows share one boardId). Managers match the membership arm with no
-      // read (they see every board).
+      // Assignee and subscriber arms FIRST so the two cross-board "My Work"
+      // queries (`assigneeUids array-contains me`, `subscriberUids
+      // array-contains me`) are authorized with ZERO board reads; the board-view
+      // query falls through to the membership arm, whose board read is cached
+      // across the whole list (all rows share one boardId). Managers match the
+      // membership arm with no read (they see every board).
+      //
+      // Neither arm WIDENS access: both lists are constrained to board members
+      // on every write, so anyone matching here could already read the card
+      // through the membership arm. What they buy is a list query that needs no
+      // per-row board lookup — a cross-board list has a different boardId on
+      // every row, so the membership arm would mean one get() each.
       allow get, list: if (isActive() && request.auth.uid in resource.data.assigneeUids)
+        || (isActive()
+            && request.auth.uid in resource.data.get('subscriberUids', []))
         || (isActive() && memberOf(boardById(resource.data.boardId)));
 
       allow create: if isActive()

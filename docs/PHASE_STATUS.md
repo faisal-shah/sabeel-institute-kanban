@@ -341,6 +341,54 @@ the team.
 
 ## Deploy log
 
+### 2026-07-28 — Subscribe to a card's comments — v0.4.0
+
+You could only hear about a card's comments if it was assigned to you. Someone
+who cares about a piece of work without owning it now gets a bell in the card
+header, and the cards they follow under **My work → Subscribed**.
+
+This narrows a recorded decision rather than overturning it. "No watchers" stays
+true in the sense that mattered: a subscriber hears about **comments and nothing
+else**. Notifying on every change was explored and dropped — `myCardMoved`
+already ships off with the reason in the code ("on an active board this fires
+constantly, and it is how notification fatigue starts"), and ten more triggers
+beside it would be worse. Assignees are untouched.
+
+**Subscribing grants READ, and that is the whole of the risk.** Putting a
+Subscribed list in My Work forces it: the query is only legal because the read
+rule can prove it is constrained to the caller, so it needs a subscriber arm
+beside the assignee one. Four consequences follow, each mirroring `assigneeUids`:
+subscribers must be board members (rules-enforced); `removeBoardMember` clears
+them, or someone taken off a board keeps reading its cards; a cross-board move
+drops those who are not members of the destination; and a copy carries none,
+since a copy has no comments to have subscribed to.
+
+Three mutations, each red on exactly one test: dropping the membership
+constraint, dropping the assignee exclusion from the notification, and skipping
+the clear on member removal.
+
+`removeBoardMember` now pairs `boardId ==` with `subscriberUids array-contains`,
+which is an equality plus an array-contains — **not** servable by automatic
+indexes. The composite is in `firestore.indexes.json` beside the assignee one it
+mirrors, with probes for it and for the My Work query, so a missing index cannot
+be discovered in production the way the attachment sweep once was.
+
+Smaller things worth recording. Subscribing writes `updatedBy` because the rules
+pin it, but deliberately leaves `updatedAt` alone: `diffCard` ignores
+`subscriberUids`, so no activity entry appears, no notification fires, and the
+card does not jump to the top of Search's newest-first browse order. Following a
+conversation should not look like doing work on it. And the notification order is
+mention → assignee → subscriber with each group excluding the ones above, so
+caring about a card in three ways still sends exactly one notification.
+
+The `NOTIFY_EVENTS.length <= 6` guard — "every addition is a tax on attention" —
+was raised to 7 with the justification written into the test, which is the point
+of having the guard at all.
+
+Verified: 306 + 27 unit, 185 rules, 79 functions, web 77/77, attachments 17/17.
+On the AVD: the bell fills raspberry when subscribed, and My work shows
+"Assigned (0) / Subscribed (1)" with the same due-date grouping.
+
 ### 2026-07-27 — Four decided review items, and a nightly flake — v0.3.4
 
 The four items from the v0.3.3 review that were held for a decision.

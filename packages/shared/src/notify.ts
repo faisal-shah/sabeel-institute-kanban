@@ -35,6 +35,16 @@ export const NOTIFY_EVENTS: NotifyEventSpec[] = [
     defaultOn: true,
   },
   {
+    event: 'commentOnSubscribed',
+    label: 'A comment on a card you subscribe to',
+    description:
+      'Discussion on a card you chose to follow, even if it is not assigned to you.',
+    // ON by default, unlike `myCardMoved`: subscribing is already an opt-in you
+    // made card by card, so the volume is bounded by your own choices rather
+    // than by how busy the boards are.
+    defaultOn: true,
+  },
+  {
     event: 'dueSoon',
     label: 'A card assigned to you is due soon',
     description: 'A morning reminder before the due date.',
@@ -102,6 +112,7 @@ export function notificationText(params: {
     case 'assigned':
       return `${params.actorName} assigned you ${card}`;
     case 'commentOnMyCard':
+    case 'commentOnSubscribed':
       return `${params.actorName} commented on ${card}`;
     case 'dueSoon':
       return `${card} is due soon`;

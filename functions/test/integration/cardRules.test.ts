@@ -181,6 +181,69 @@ describe('the My Work query (top-level cards)', () => {
   });
 });
 
+describe('the Subscribed query, and what subscribing may NOT do', () => {
+  it('is allowed when constrained to your own subscriptions', async () => {
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(ctx('member1', 'member'), 'cards'),
+          where('subscriberUids', 'array-contains', 'member1'),
+        ),
+      ),
+    );
+  });
+
+  it('is refused when asking for someone else’s subscriptions', async () => {
+    await assertFails(
+      getDocs(
+        query(
+          collection(ctx('member1', 'member'), 'cards'),
+          where('subscriberUids', 'array-contains', 'member2'),
+        ),
+      ),
+    );
+  });
+
+  it('lets a board member subscribe themselves', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        subscriberUids: ['member1'],
+        updatedBy: 'member1',
+      }),
+    );
+  });
+
+  it('REFUSES a subscriber who is not on the board', async () => {
+    // The load-bearing one. The read rule has a subscriber arm, so without this
+    // constraint adding a uid to any card you knew the id of would be a way into
+    // a board you are not on.
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        subscriberUids: ['outsider'],
+        updatedBy: 'member1',
+      }),
+    );
+    // …and only the membership was in the way.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        subscriberUids: ['member2'],
+        updatedBy: 'member1',
+      }),
+    );
+  });
+
+  it('still edits a card written before subscriberUids existed', async () => {
+    // `.get('subscriberUids', [])` on both sides. With plain access every card
+    // predating the field would be permanently uneditable.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'Renamed with no subscriber field present',
+        updatedBy: 'member1',
+      }),
+    );
+  });
+});
+
 describe('creating cards', () => {
   it('a board member can create one', async () => {
     await assertSucceeds(setDoc(doc(ctx('member1', 'member'), 'cards/new1'), card()));

@@ -56,6 +56,16 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
     .where('assigneeUids', 'array-contains', uid)
     .get();
 
+  // …and cards they SUBSCRIBED to, which matters for the same reason and a
+  // little more sharply. The card read rule has a subscriber arm, so leaving
+  // the uid behind would keep read access to this board's cards open to someone
+  // who is no longer on it — the very leak clearing `assigneeUids` prevents.
+  const subscribed = await db
+    .collection('cards')
+    .where('boardId', '==', boardId)
+    .where('subscriberUids', 'array-contains', uid)
+    .get();
+
   const batch = db.batch();
   batch.update(boardRef, {
     memberUids: FieldValue.arrayRemove(uid),
@@ -73,6 +83,13 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
       updatedAt: Date.now(),
     });
   }
+  for (const card of subscribed.docs) {
+    // Only the subscription — no `updatedBy`/`updatedAt`. A subscription is not
+    // a property of the work, so removing one is not an edit anybody should see
+    // in the card's history or in the Search browse order.
+    batch.update(card.ref, { subscriberUids: FieldValue.arrayRemove(uid) });
+  }
+
   await batch.commit();
 
   logger.info('Removed board member', {
@@ -80,6 +97,7 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
     uid,
     actorUid: auth.uid,
     unassignedCards: assigned.size,
+    unsubscribedCards: subscribed.size,
   });
 
   return { ok: true, unassignedCards: assigned.size };

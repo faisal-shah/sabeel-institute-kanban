@@ -1,5 +1,7 @@
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -36,6 +38,8 @@ export interface Card {
   columnId: string;
   rank: string;
   assigneeUids: string[];
+  /** Who subscribed to this card's comments. See CardDoc.subscriberUids. */
+  subscriberUids: string[];
   dueDate?: string;
   priority: Priority;
   labelIds: string[];
@@ -61,6 +65,7 @@ function toCard(id: string, d: Record<string, unknown>): Card {
     columnId: (d.columnId as string) ?? '',
     rank: (d.rank as string) ?? '',
     assigneeUids: (d.assigneeUids as string[]) ?? [],
+    subscriberUids: (d.subscriberUids as string[]) ?? [],
     dueDate: d.dueDate as string | undefined,
     priority: (d.priority as Priority) ?? 'none',
     labelIds: (d.labelIds as string[]) ?? [],
@@ -211,6 +216,31 @@ export async function updateCard(
   await updateDoc(cardRef(cardId), {
     ...patched,
     updatedAt: Date.now(),
+    updatedBy: user.uid,
+  });
+}
+
+/**
+ * Subscribe to (or unsubscribe from) a card's comments.
+ *
+ * Deliberately NOT routed through `updateCard`, and the difference is the point:
+ * this writes `updatedBy` because the rules pin it to the writer, but leaves
+ * `updatedAt` alone. Subscribing is not an edit to the work.
+ *
+ * That combination is what keeps it invisible where it should be. `diffCard`
+ * does not look at `subscriberUids`, so no activity entry is written; the
+ * notify trigger only reacts to assignment and column changes, so nothing is
+ * sent; and leaving `updatedAt` untouched keeps the card out of the top of
+ * Search's newest-first browse order. Following a conversation should not look
+ * like doing work on it.
+ */
+export async function subscribeToCard(
+  cardId: string,
+  user: SessionUser,
+  subscribed: boolean,
+): Promise<void> {
+  await updateDoc(cardRef(cardId), {
+    subscriberUids: subscribed ? arrayUnion(user.uid) : arrayRemove(user.uid),
     updatedBy: user.uid,
   });
 }
@@ -448,6 +478,10 @@ export async function bulkMoveToBoard(params: {
       // them because the ids were board-local and would have resolved to
       // nothing. Assignees still have to be filtered — membership IS per board.
       assigneeUids: keepMembers(card.assigneeUids, params.destMemberUids),
+      // Subscribers get the SAME filter, and must: the read rule has a
+      // subscriber arm, so carrying one across to a board they are not on would
+      // hand them access — and the rules would reject the write anyway.
+      subscriberUids: keepMembers(card.subscriberUids, params.destMemberUids),
       // Scoped to the cards travelling together: kept only when the parent is
       // coming too, otherwise cleared rather than left dangling.
       parentId: keptParent ?? deleteField(),
@@ -486,6 +520,9 @@ export async function bulkCopyToBoard(params: {
       archived: false,
       commentCount: 0,
       attachmentCount: 0,
+      // No subscribers: a copy has no comments, so there is no conversation to
+      // have subscribed to. Same reasoning as commentCount above.
+      subscriberUids: [],
       // NOTE: `parentId` is deliberately absent — a copy is a new, independent
       // card and must not inherit a subtask link to the SOURCE board's parent.
       // This literal is untyped, so nothing but this comment stops someone

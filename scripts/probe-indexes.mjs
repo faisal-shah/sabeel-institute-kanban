@@ -117,6 +117,27 @@ const probes = [
         .get(),
   },
   {
+    name: 'unsubscribe on member removal (boardId + subscriberUids)',
+    used_by: 'the removeBoardMember callable',
+    // array-contains PLUS an equality, so an automatic single-field index does
+    // NOT serve it — it needs the composite beside the assignee one. If this
+    // fails, removing someone from a board leaves their subscriptions behind,
+    // and the card read rule's subscriber arm keeps their access open.
+    run: () =>
+      db
+        .collection('cards')
+        .where('boardId', '==', ANY)
+        .where('subscriberUids', 'array-contains', ANY)
+        .limit(1)
+        .get(),
+  },
+  {
+    name: 'my subscriptions (subscriberUids array-contains)',
+    used_by: 'the Subscribed tab in My Work',
+    run: () =>
+      db.collection('cards').where('subscriberUids', 'array-contains', ANY).limit(1).get(),
+  },
+  {
     name: 'label usage (labelIds array-contains)',
     used_by: 'the countLabelUsage and deleteLabel callables',
     // A single-field auto index at COLLECTION scope, which cards get for free —
@@ -124,7 +145,7 @@ const probes = [
     // label depends on it: if this query fails, the sweep cannot find the cards
     // carrying the label and they keep an id pointing at nothing.
     run: () =>
-      db.collection('cards').where('labelIds', 'array-contains', 'probe').limit(1).get(),
+      db.collection('cards').where('labelIds', 'array-contains', ANY).limit(1).get(),
   },
 ];
 

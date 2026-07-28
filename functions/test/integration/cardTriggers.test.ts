@@ -1,4 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
+import { FieldValue } from 'firebase-admin/firestore';
 import {
   adminDb,
   callFunction,
@@ -159,5 +160,27 @@ describe('removeBoardMember activity attribution', () => {
     });
     expect(entry.actorUid).toBe(MGR);
     expect(entry.to).toBe(MEM);
+  });
+
+  it('also clears their SUBSCRIPTIONS, which are a grant of read access', async () => {
+    // The card read rule has a subscriber arm, so a uid left behind here keeps
+    // someone who is no longer on the board able to read its cards — the exact
+    // leak clearing assigneeUids exists to prevent.
+    await adminDb()
+      .doc('boards/ct_b1')
+      .update({ memberUids: FieldValue.arrayUnion(MEM) });
+    await adminDb()
+      .doc('cards/ct_unsub')
+      .set(card({ subscriberUids: [MEM], createdBy: MGR, updatedBy: MGR }));
+
+    const token = await idTokenFor(MGR);
+    const res = await callFunction('removeBoardMember', { boardId: 'ct_b1', uid: MEM }, token);
+    expect(res.status).toBe(200);
+
+    await waitFor('the subscription to be gone', async () => {
+      const snap = await adminDb().doc('cards/ct_unsub').get();
+      const subs = (snap.data()?.subscriberUids ?? []) as string[];
+      return subs.includes(MEM) ? undefined : true;
+    });
   });
 });

@@ -5,6 +5,7 @@ import { adminDb, makeUser, shutdown, waitFor } from './emulatorClient';
 const AUTHOR = 'nt_author';
 const MENTIONED = 'nt_mentioned';
 const ASSIGNEE = 'nt_assignee';
+const SUBSCRIBER = 'nt_subscriber';
 
 async function inbox(uid: string, type: string) {
   const snap = await adminDb()
@@ -29,13 +30,14 @@ beforeAll(async () => {
   await makeUser({ uid: AUTHOR, email: `${AUTHOR}@oursabeel.com`, role: 'member', status: 'active', displayName: 'Ada' });
   await makeUser({ uid: MENTIONED, email: `${MENTIONED}@oursabeel.com`, role: 'member', status: 'active', displayName: 'Ben' });
   await makeUser({ uid: ASSIGNEE, email: `${ASSIGNEE}@oursabeel.com`, role: 'member', status: 'active', displayName: 'Cara' });
+  await makeUser({ uid: SUBSCRIBER, email: `${SUBSCRIBER}@oursabeel.com`, role: 'member', status: 'active', displayName: 'Dev' });
   await adminDb().doc('boards/nt_b1').set({
     name: 'Ops',
     description: '',
     archived: false,
     columns: [{ id: 'c1', name: 'To Do' }],
     columnIds: ['c1'],
-    memberUids: [AUTHOR, MENTIONED, ASSIGNEE],
+    memberUids: [AUTHOR, MENTIONED, ASSIGNEE, SUBSCRIBER],
     memberProfiles: {},
     createdAt: 1,
     createdBy: AUTHOR,
@@ -47,6 +49,7 @@ beforeAll(async () => {
     columnId: 'c1',
     rank: 'V',
     assigneeUids: [ASSIGNEE],
+    subscriberUids: [SUBSCRIBER],
     priority: 'none',
     labelIds: [],
     archived: false,
@@ -97,6 +100,60 @@ describe('onCommentCreated notifications', () => {
     // The mention has landed; the dedup means no commentOnMyCard was written.
     const onMyCard = await inbox(ASSIGNEE, 'commentOnMyCard');
     expect(onMyCard).toHaveLength(0);
+  });
+});
+
+describe('subscribers hear about comments', () => {
+  it('notifies someone who subscribed but is not assigned', async () => {
+    await clearInbox(SUBSCRIBER);
+    await comment('any thoughts?', []);
+    const entries = await waitFor('commentOnSubscribed entry', async () => {
+      const got = await inbox(SUBSCRIBER, 'commentOnSubscribed');
+      return got.length > 0 ? got : undefined;
+    });
+    expect(entries[0].text).toContain('commented on');
+  });
+
+  it('sends ONE notification to someone who is mentioned AND subscribed', async () => {
+    // Caring about a card in more ways must not mean being told more times.
+    await clearInbox(SUBSCRIBER);
+    await comment(`over to you @${SUBSCRIBER}`, [SUBSCRIBER]);
+    await waitFor('the mention', async () => {
+      const got = await inbox(SUBSCRIBER, 'mention');
+      return got.length > 0 ? got : undefined;
+    });
+    // Give the subscriber branch every chance to fire before asserting absence.
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(await inbox(SUBSCRIBER, 'commentOnSubscribed')).toHaveLength(0);
+  });
+
+  it('sends ONE notification to someone who is assigned AND subscribed', async () => {
+    await adminDb()
+      .doc('cards/nt_card')
+      .update({ subscriberUids: [SUBSCRIBER, ASSIGNEE] });
+    await clearInbox(ASSIGNEE);
+    await comment('status?', []);
+    await waitFor('the assignee entry', async () => {
+      const got = await inbox(ASSIGNEE, 'commentOnMyCard');
+      return got.length > 0 ? got : undefined;
+    });
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(await inbox(ASSIGNEE, 'commentOnSubscribed')).toHaveLength(0);
+    await adminDb().doc('cards/nt_card').update({ subscriberUids: [SUBSCRIBER] });
+  });
+
+  it('never notifies the person who wrote the comment', async () => {
+    await adminDb()
+      .doc('cards/nt_card')
+      .update({ subscriberUids: [SUBSCRIBER, AUTHOR] });
+    await clearInbox(AUTHOR);
+    await comment('thinking out loud', []);
+    await waitFor('someone else to have been told', async () => {
+      const got = await inbox(SUBSCRIBER, 'commentOnSubscribed');
+      return got.length > 0 ? got : undefined;
+    });
+    expect(await inbox(AUTHOR, 'commentOnSubscribed')).toHaveLength(0);
+    await adminDb().doc('cards/nt_card').update({ subscriberUids: [SUBSCRIBER] });
   });
 });
 

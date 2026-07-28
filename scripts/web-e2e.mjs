@@ -838,6 +838,55 @@ try {
   check('My Work groups by due state', showsToday);
   await sara.screenshot({ path: join(SHOTS, 'p6-mywork-light.png'), fullPage: true });
 
+  // ---- Subscribing to a card's comments -----------------------------------
+  // Sara subscribes to a card she is NOT assigned to. The whole point of the
+  // feature is hearing about a conversation on work that is not yours.
+  // NOT backToBoards() — that waits for the "New board" button, which a MEMBER
+  // never sees (asserted a few checks above). Navigate by the rail instead.
+  await sara.getByRole('button', { name: 'Boards', exact: true }).first().click();
+  await sara.getByText('Fundraising 2026').first().waitFor({ timeout: 20000 });
+  await sara.getByText('Fundraising 2026').first().click();
+  await openCard(sara, 'Book venue');
+  await sara.getByRole('button', { name: 'Subscribe to comments' }).click();
+  check(
+    'subscribing flips the control to unsubscribe',
+    await sara
+      .getByRole('button', { name: 'Unsubscribe from comments' })
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  await sara.getByRole('button', { name: 'My work' }).click();
+  await sara.getByText('My work').first().waitFor({ timeout: 20000 });
+  // The Assigned list must NOT contain it — she is not assigned to it, and the
+  // two lists answering different questions is the reason there are two.
+  check(
+    'a subscribed card is absent from Assigned',
+    !(await sara.getByText('Book venue').first().isVisible().catch(() => false)),
+  );
+  await sara.getByRole('button', { name: /^Subscribed \(1\)/ }).click();
+  check(
+    'and present under Subscribed',
+    await sara
+      .getByText('Book venue')
+      .first()
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  // The admin comments; Sara hears about it even though it is not her card.
+  await backToBoards(admin);
+  await admin.getByText('Fundraising 2026').first().click();
+  await openCard(admin, 'Book venue');
+  const venueBox = admin.getByPlaceholder('Add a comment — @ to mention someone');
+  await venueBox.waitFor({ timeout: 20000 });
+  await venueBox.click();
+  await venueBox.pressSequentially('caterer confirmed', { delay: 10 });
+  await admin.getByRole('button', { name: 'Comment', exact: true }).click();
+  await admin.getByText('caterer confirmed').waitFor({ timeout: 20000 });
+
   // ---- Notifications inbox (Phase 10) -------------------------------------
   // Sara was @mentioned and assigned, so her inbox should hold entries written
   // by the triggers — not by any client.
@@ -848,6 +897,18 @@ try {
   await sara.getByText('Notifications').first().waitFor({ timeout: 20000 });
   await sara.getByText('mentioned you', { exact: false }).waitFor({ timeout: 25000 });
   check('an @mention lands in the recipient inbox', true);
+
+  // The subscription notification — a comment on a card that is not hers, and
+  // on which she was not mentioned. Nothing but the subscription explains it.
+  check(
+    'a comment on a subscribed card reaches the subscriber',
+    await sara
+      .getByText('commented on', { exact: false })
+      .first()
+      .waitFor({ timeout: 25000 })
+      .then(() => true)
+      .catch(() => false),
+  );
 
   // A DIFFERENT notification from the mention waited on above, written by a
   // different trigger, so it arrives on its own schedule.

@@ -37,6 +37,20 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "boardId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "subscriberUids",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "archived",
           "order": "ASCENDING"
         },

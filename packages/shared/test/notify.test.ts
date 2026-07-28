@@ -19,8 +19,33 @@ describe('the default event set', () => {
     expect(DEFAULT_NOTIFY_PREFS.dueSoon).toBe(true);
   });
 
+  it('ships subscribed-comments ON, because subscribing is already a choice', () => {
+    // Unlike `myCardMoved`, whose volume is set by how busy the boards are,
+    // this one is bounded by how many cards you deliberately subscribed to.
+    expect(DEFAULT_NOTIFY_PREFS.commentOnSubscribed).toBe(true);
+  });
+
   it('stays small — every addition is a tax on attention', () => {
-    expect(NOTIFY_EVENTS.length).toBeLessThanOrEqual(6);
+    // Raised from 6 to 7 on 2026-07-28 for `commentOnSubscribed`, and the point
+    // of this assertion is that raising it has to be a decision rather than a
+    // side effect. The justification: subscribing to a card's comments is the
+    // only way a non-assignee could follow a discussion at all, and the wider
+    // "notify me on every change" version was considered and dropped precisely
+    // to keep this number from climbing.
+    expect(NOTIFY_EVENTS.length).toBeLessThanOrEqual(7);
+  });
+});
+
+describe('notificationText', () => {
+  it('reads the same for a comment however you came to care about the card', () => {
+    // The recipient does not need to be told WHY they are hearing about it.
+    const args = { actorName: 'Sara', cardTitle: 'Fix signup' };
+    expect(notificationText({ ...args, event: 'commentOnSubscribed' })).toBe(
+      notificationText({ ...args, event: 'commentOnMyCard' }),
+    );
+    expect(notificationText({ ...args, event: 'commentOnSubscribed' })).toBe(
+      'Sara commented on \u201cFix signup\u201d',
+    );
   });
 });
 

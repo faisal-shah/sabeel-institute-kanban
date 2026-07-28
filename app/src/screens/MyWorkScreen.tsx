@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
-import { Pressable, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { groupByDue, todayInOrgTz, type Label } from '@sabeel/shared';
 import { useLabels } from '../labels';
-import { useMyWork, type MyWorkCard } from '../myWork';
+import { useMySubscriptions, useMyWork, type MyWorkCard } from '../myWork';
 import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boards';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -10,14 +10,17 @@ import {
   Caption,
   Card as Panel,
   CardGrid,
+  FilterChip,
   Heading,
   Hint,
+  Row,
   LoadError,
   Screen,
   Spinner,
   Title,
 } from '../components/ui';
 import { CardFace } from '../components/CardFace';
+import { space } from '../theme';
 
 const NO_LABELS: Label[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
@@ -29,7 +32,16 @@ const NO_MEMBERS: BoardMemberProfile[] = [];
 export function MyWorkScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const work = useMyWork(user);
+  const subs = useMySubscriptions(user);
   const boards = useMyBoards(user);
+  /**
+   * Which half of My Work is showing.
+   *
+   * BOTH queries run regardless, so switching is instant and the counts on the
+   * chips are real. Two `array-contains` queries over a collection of tens of
+   * cards is not a cost worth a spinner.
+   */
+  const [mode, setMode] = useState<'assigned' | 'subscribed'>('assigned');
   const today = todayInOrgTz();
 
   // Labels are org-wide, so they resolve without knowing which board a card is
@@ -61,19 +73,30 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
    * `useMyBoards` drops archived boards, gives a member the boards they belong
    * to (and assignment implies membership), and a manager every live board.
    */
-  const visible = useMemo(
-    () => (work.data ?? []).filter((c) => boardById.has(c.boardId)),
-    [work.data, boardById],
+  const onVisibleBoard = useCallback(
+    (cards: MyWorkCard[] | undefined) =>
+      (cards ?? []).filter((c) => boardById.has(c.boardId)),
+    [boardById],
   );
+  const assigned = useMemo(() => onVisibleBoard(work.data), [work.data, onVisibleBoard]);
+  const subscribed = useMemo(() => onVisibleBoard(subs.data), [subs.data, onVisibleBoard]);
 
+  // A card assigned to you AND subscribed appears in both lists, deliberately:
+  // the two answer different questions, and hiding it from one would make the
+  // counts disagree with what you can see.
+  const visible = mode === 'assigned' ? assigned : subscribed;
   const groups = useMemo(() => groupByDue(visible, today), [visible, today]);
 
   // Wait for BOTH: filtering against a board list that has not arrived yet would
   // briefly show "nothing assigned to you" to someone who has plenty.
-  if (work.status === 'loading' || boards.status === 'loading') {
+  if (
+    work.status === 'loading' ||
+    subs.status === 'loading' ||
+    boards.status === 'loading'
+  ) {
     return <Spinner label="Loading your work…" />;
   }
-  if (work.status === 'error' || boards.status === 'error') {
+  if (work.status === 'error' || subs.status === 'error' || boards.status === 'error') {
     return (
       <Screen width="list">
         <Title>My work</Title>
@@ -89,10 +112,32 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
       {/* No Back button: My work is a tab root reached from the nav bar, never
           pushed, so there is nothing to go back to. */}
       <Title>My work</Title>
+
+      {/* A mode switch, not two filters: exactly one is ever active, so the
+          chips read as "which list am I looking at". Counts are shown because
+          both queries are already running and "is there anything over there?"
+          is the question a hidden tab always raises. */}
+      <Row style={styles.modes}>
+        <FilterChip
+          label={`Assigned (${assigned.length})`}
+          active={mode === 'assigned'}
+          onPress={() => setMode('assigned')}
+        />
+        <FilterChip
+          label={`Subscribed (${subscribed.length})`}
+          active={mode === 'subscribed'}
+          onPress={() => setMode('subscribed')}
+        />
+      </Row>
+
       <Hint>
-        {total === 0
-          ? 'Nothing is assigned to you right now.'
-          : `${total} card${total === 1 ? '' : 's'} assigned to you across all your boards.`}
+        {mode === 'assigned'
+          ? total === 0
+            ? 'Nothing is assigned to you right now.'
+            : `${total} card${total === 1 ? '' : 's'} assigned to you across all your boards.`
+          : total === 0
+            ? 'You have not subscribed to any cards. Open a card and use the bell to follow its comments.'
+            : `${total} card${total === 1 ? '' : 's'} whose comments you follow.`}
       </Hint>
 
       {groups.map((g) => (
@@ -129,3 +174,7 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  modes: { flexWrap: 'wrap', gap: space.xs },
+});
