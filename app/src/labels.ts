@@ -75,15 +75,25 @@ export async function updateLabel(
   });
 }
 
-const countUsageFn = httpsCallable<{ labelId: string }, { count: number }>(
+/** How many cards carry a label, split by whether they are live or archived. */
+export interface LabelUsage {
+  active: number;
+  archived: number;
+}
+
+const countUsageFn = httpsCallable<{ labelId: string }, LabelUsage>(
   functions,
   'countLabelUsage',
 );
 
-/** "Delete Finance Request?" and "Delete it, removing it from 12 cards?" differ. */
-export async function countLabelUsage(labelId: string): Promise<number> {
+/**
+ * "Delete Finance Request?" and "Delete it, removing it from 12 cards?" are
+ * different questions — and so are "12 cards" and "2 cards plus 10 in the
+ * archive", which is why the two come back separately.
+ */
+export async function countLabelUsage(labelId: string): Promise<LabelUsage> {
   const res = await countUsageFn({ labelId });
-  return res.data.count;
+  return res.data;
 }
 
 const deleteLabelFn = httpsCallable<

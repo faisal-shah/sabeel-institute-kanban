@@ -156,6 +156,26 @@ describe('mentionSuggestions', () => {
   });
 });
 
+describe('completeMention truncation', () => {
+  const sara = { uid: 'u1', displayName: 'Sara Ahmed', email: 'sara@oursabeel.com' };
+
+  it('leaves a comfortable comment alone', () => {
+    expect(completeMention('hey @sa', '', sara, 100)).toBe('hey @sara ');
+  });
+
+  it('clamps a completion that would exceed the cap', () => {
+    // The field caps TYPING; nothing capped the value the completion sets, so
+    // the post failed with a bare permission-denied from the rules.
+    const out = completeMention('hey @sa', '', sara, 8);
+    expect(out).toHaveLength(8);
+    expect(out).toBe('hey @sar');
+  });
+
+  it('is unbounded when no cap is given', () => {
+    expect(completeMention('hey @sa', '', sara)).toBe('hey @sara ');
+  });
+});
+
 describe('activeMentionQuery', () => {
   it('detects a mention being typed', () => {
     expect(activeMentionQuery('hey @sa')).toBe('sa');

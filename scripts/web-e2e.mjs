@@ -15,6 +15,8 @@
  *   node scripts/web-e2e.mjs
  */
 import { chromium } from 'playwright';
+// The app's own org-timezone date, so this script cannot drift from ORG_TIMEZONE.
+import { todayInOrgTz } from '../packages/shared/lib/due.js';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFile, mkdir } from 'node:fs/promises';
@@ -617,16 +619,16 @@ try {
   // Due date is a real <input type="date"> now, not preset buttons.
   const dueInput = admin.getByLabel('Due date');
   await dueInput.waitFor({ timeout: 15000 });
-  // The ORG timezone's today, not UTC's. `toISOString()` rolls over hours before
-  // America/New_York does, so an evening run set a date the app then grouped
-  // under "Next 7 days" and the "Today" assertion failed — a real flake that
-  // only appeared after ~20:00 local and looked like a regression.
-  const orgToday = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+  // The ORG timezone's today, not UTC's, and not a timezone written out here.
+  // `toISOString()` rolls over hours early and the assertion below then fails
+  // because the card groups under "Next 7 days" — a real flake that only appears
+  // late in the evening and reads as a regression.
+  //
+  // Restating the zone was the SAME bug one level up: this said America/New_York
+  // and stayed saying it when ORG_TIMEZONE moved to Chicago, so between 23:00
+  // and midnight Central the test wrote tomorrow's date and could never pass.
+  // `todayInOrgTz` is the app's own function, so the two cannot drift again.
+  const orgToday = todayInOrgTz();
   await dueInput.fill(orgToday);
   await admin.waitForTimeout(1500);
   check('a card can be assigned and given a due date', true);
@@ -759,7 +761,22 @@ try {
     }),
   );
 
-  // Picking a mention must NOT steal focus: you have to be able to keep typing.
+  // Clicking AWAY closes the list — a draft left ending in "@sa" used to leave
+  // it floating over the card indefinitely.
+  await commentBox.click();
+  await commentBox.pressSequentially(' @', { delay: 10 });
+  await rows.first().waitFor({ timeout: 15000 });
+  // react-native-web renders headings as plain divs, so getByRole('heading')
+  // matches nothing. Click a section title by TEXT — "Subtasks" is inert and,
+  // unlike the Danger zone heading, nowhere near Archive or Delete.
+  await admin.getByText('Subtasks').first().click();
+  await admin.waitForTimeout(700);
+  check('clicking away closes the mention list', (await rows.count()) === 0);
+
+  // …and this is the pair that matters. Closing on blur is only safe because it
+  // is DEFERRED: a click fires mousedown → blur → click, so an immediate close
+  // would destroy the row being clicked and the pick would silently never
+  // happen. These two checks have to move together.
   await commentBox.click();
   await commentBox.pressSequentially(' @', { delay: 10 });
   await rows.first().waitFor({ timeout: 15000 });
@@ -901,6 +918,67 @@ try {
   await admin.getByText('Draft newsletter').first().waitFor({ timeout: 20000 });
   check('archived cards are findable when explicitly included', true);
   await admin.screenshot({ path: join(SHOTS, 'p11-search-light.png'), fullPage: true });
+
+  // ---- Filtering search by label ------------------------------------------
+  // The picker offers only labels not already chosen, and a card matches ANY of
+  // them — so a second label must WIDEN the result, not empty it.
+  await searchBox.fill('');
+  // The archived-search check above leaves the Archived chip ON, and it is
+  // exclusive rather than additive — leaving it would filter labels against the
+  // archive alone, where none of these labels live.
+  await admin.getByRole('button', { name: 'Archived filter, on' }).click();
+  await admin
+    .getByRole('button', { name: 'Archived filter, off' })
+    .waitFor({ timeout: 15000 });
+  await admin.waitForTimeout(600);
+
+  // The result count is a plain div (see above), and reads "Nothing to show"
+  // rather than "0 cards" when empty.
+  const resultCount = async () => {
+    if (await admin.getByText('Nothing to show').isVisible().catch(() => false)) return 0;
+    const label = await admin
+      .getByText(/^\d+ (cards?|match(es)?)$/)
+      .first()
+      .textContent();
+    return Number((label ?? '').replace(/\D/g, '') || '0');
+  };
+
+  const allCount = await resultCount();
+  const labelSelect = admin.getByLabel('Filter by label');
+  await labelSelect.waitFor({ timeout: 15000 });
+  // `cross-board` is the one actually applied to a card, further up.
+  await labelSelect.selectOption({ label: 'cross-board' });
+  await admin.waitForTimeout(800);
+  const oneLabel = await resultCount();
+  check(
+    'picking a label narrows the results',
+    oneLabel > 0 && oneLabel < allCount,
+    `${oneLabel} of ${allCount}`,
+  );
+
+  // `urgent-fix` is on NO card, which is what makes this discriminating: under
+  // "any" the result is unchanged, under "all" it would collapse to zero. This
+  // is the check that fails if the semantics are ever flipped.
+  await labelSelect.selectOption({ label: 'urgent-fix' });
+  await admin.waitForTimeout(800);
+  const twoLabels = await resultCount();
+  check(
+    'a second label matches ANY of them rather than all',
+    twoLabels === oneLabel && twoLabels > 0,
+    `${twoLabels} with two labels vs ${oneLabel} with one`,
+  );
+
+  // Each pick is a chip; tapping it drops the label again.
+  await admin.getByRole('button', { name: 'urgent-fix' }).first().click();
+  await admin.waitForTimeout(800);
+  const afterDrop = await resultCount();
+  check('removing a label chip leaves the rest filtering', afterDrop === oneLabel);
+  await admin.getByRole('button', { name: 'cross-board' }).first().click();
+  await admin.waitForTimeout(600);
+  check(
+    'and clearing every chip returns to the full list',
+    (await resultCount()) === allCount,
+  );
 
   // ---- The label set is not scoped to a board -----------------------------
   // The whole claim of global labels, and the only way to prove it is a board

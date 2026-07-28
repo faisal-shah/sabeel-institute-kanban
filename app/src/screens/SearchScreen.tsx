@@ -6,6 +6,7 @@ import {
   rankMatches,
   type Priority,
   todayInOrgTz,
+  sortLabels,
   type Label,
   type SearchableCard,
 } from '@sabeel/shared';
@@ -28,6 +29,7 @@ import {
   Title,
 } from '../components/ui';
 import { CardFace } from '../components/CardFace';
+import { Select } from '../components/Select';
 import { space } from '../theme';
 
 const NO_LABELS: Label[] = [];
@@ -54,6 +56,14 @@ export function SearchScreen({ user }: { user: SessionUser }) {
   const [archivedOnly, setArchivedOnly] = useState(false);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [priority, setPriority] = useState<Priority | undefined>(undefined);
+  /**
+   * Labels to filter by, built up one at a time.
+   *
+   * A row of every label was deliberately avoided — see the note above the chips
+   * below — so the picker offers only what has NOT been chosen and each pick
+   * becomes a chip you can drop again.
+   */
+  const [labelIds, setLabelIds] = useState<string[]>([]);
   const [cards, setCards] = useState<SearchableCard[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +135,18 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     };
   }, [boardIds, archivedOnly]);
 
+  // Split the org-wide set into what is already filtering and what the picker
+  // can still offer. Sorted the way the rest of the app sorts labels, so an
+  // emoji-prefixed name files under its word rather than under the emoji.
+  const chosenLabels = useMemo(
+    () => sortLabels((allLabels.data ?? []).filter((l) => labelIds.includes(l.id))),
+    [allLabels.data, labelIds],
+  );
+  const offerableLabels = useMemo(
+    () => sortLabels((allLabels.data ?? []).filter((l) => !labelIds.includes(l.id))),
+    [allLabels.data, labelIds],
+  );
+
   // Search BROWSES by default: with no text and no chips it lists everything you
   // can see, newest first. It used to show nothing until you typed, which meant
   // the only route to an archived card was knowing its name — you cannot search
@@ -140,7 +162,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     const today = todayInOrgTz();
     const matched = filterCards(
       cards,
-      { text, archivedOnly, priority, due: overdueOnly ? 'overdue' : undefined },
+      { text, archivedOnly, priority, labelIds, due: overdueOnly ? 'overdue' : undefined },
       today,
     );
     // With a query, rank by relevance. Without one, the useful order is what
@@ -149,7 +171,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
       ? rankMatches(matched, text)
       : [...matched].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     return { results: ordered.slice(0, RESULT_CAP), total: ordered.length };
-  }, [cards, text, archivedOnly, priority, overdueOnly]);
+  }, [cards, text, archivedOnly, priority, overdueOnly, labelIds]);
 
   return (
     <Screen width="list">
@@ -190,7 +212,35 @@ export function SearchScreen({ user }: { user: SessionUser }) {
               onPress={() => setPriority((cur) => (cur === p ? undefined : p))}
             />
           ))}
+          {/* One chip per label you have PICKED — tapping it drops the label
+              again, the same gesture the other chips use. */}
+          {chosenLabels.map((l) => (
+            <FilterChip
+              key={l.id}
+              label={l.name}
+              active
+              onPress={() => setLabelIds((cur) => cur.filter((id) => id !== l.id))}
+            />
+          ))}
         </Row>
+
+        {/* The picker is a closed control that costs ONE line until opened, and
+            it only ever lists labels not already chosen — so it shrinks as you
+            go and disappears once everything is picked. A card matches ANY of
+            them: requiring all would empty the list on the second pick. */}
+        {offerableLabels.length > 0 ? (
+          <Select
+            label="Filter by label"
+            value=""
+            options={[
+              { value: '', label: labelIds.length > 0 ? 'Add another label…' : 'Filter by label…' },
+              ...offerableLabels.map((l) => ({ value: l.id, label: l.name })),
+            ]}
+            onChange={(id) => {
+              if (id) setLabelIds((cur) => [...cur, id]);
+            }}
+          />
+        ) : null}
       </View>
 
       {error ? (

@@ -535,6 +535,10 @@ export const TextField = forwardRef<TextInput, {
    * `mentionKeys` platform pair, which is empty on native.
    */
   onKeyPress?: TextInputProps['onKeyPress'];
+  /** Focus tracking, for a field whose UI depends on it — today only the
+   *  @mention list, which has to disappear when you look away. */
+  onFocus?: TextInputProps['onFocus'];
+  onBlur?: TextInputProps['onBlur'];
 }>(function TextField(
   {
     value,
@@ -546,6 +550,8 @@ export const TextField = forwardRef<TextInput, {
     label,
     maxLength,
     onKeyPress,
+    onFocus,
+    onBlur,
   },
   ref,
 ) {
@@ -565,6 +571,8 @@ export const TextField = forwardRef<TextInput, {
       autoFocus={autoFocus}
       maxLength={maxLength}
       onKeyPress={onKeyPress}
+      onFocus={onFocus}
+      onBlur={onBlur}
       accessibilityLabel={label ?? placeholder}
       style={[
         styles.input,

@@ -34,7 +34,18 @@ export interface SearchableCard {
 export interface CardFilters {
   text?: string;
   assigneeUid?: string;
-  labelId?: string;
+  /**
+   * Match a card carrying ANY of these labels. Empty or absent means no label
+   * filter at all.
+   *
+   * "Any" rather than "all", and that is not the same shape as `archivedOnly`
+   * below. Widening WITHIN one facet still narrows against no filter — the trap
+   * there was a filter that merged two disjoint sets, live cards and archived
+   * ones, into a single result. Requiring every label would also be useless at
+   * this size: few cards carry two SPECIFIC labels, so a second pick would
+   * almost always empty the list.
+   */
+  labelIds?: string[];
   priority?: Priority;
   /** `overdue` and `soon` need today's date to mean anything. */
   due?: 'any' | 'overdue' | 'today' | 'soon' | 'none';
@@ -82,7 +93,13 @@ export function filterCards(
     if (filters.assigneeUid && !c.assigneeUids.includes(filters.assigneeUid)) {
       return false;
     }
-    if (filters.labelId && !c.labelIds.includes(filters.labelId)) return false;
+    if (
+      filters.labelIds &&
+      filters.labelIds.length > 0 &&
+      !filters.labelIds.some((id) => c.labelIds.includes(id))
+    ) {
+      return false;
+    }
     if (filters.priority && c.priority !== filters.priority) return false;
 
     switch (filters.due) {
@@ -112,7 +129,7 @@ export function hasActiveFilters(filters: CardFilters): boolean {
   return Boolean(
     (filters.text && filters.text.trim()) ||
       filters.assigneeUid ||
-      filters.labelId ||
+      (filters.labelIds && filters.labelIds.length > 0) ||
       filters.priority ||
       (filters.due && filters.due !== 'any') ||
       filters.archivedOnly,

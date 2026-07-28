@@ -5,6 +5,7 @@ import {
   LABEL_COLORS,
   columnDeleteBlocked,
   columnsPatch,
+  describeLabelUsage,
   defaultColumns,
   newBoard,
   newLabel,
@@ -211,6 +212,30 @@ describe('newLabel', () => {
     expect(
       'id' in newLabel({ name: 'x', color: '#83114F', createdBy: 'u1', now: 1 }),
     ).toBe(false);
+  });
+});
+
+describe('describeLabelUsage', () => {
+  it('says nothing uses it', () => {
+    expect(describeLabelUsage({ active: 0, archived: 0 })).toBe('No cards use it.');
+  });
+
+  it('counts live cards alone when nothing is archived', () => {
+    expect(describeLabelUsage({ active: 1, archived: 0 })).toBe('It is on 1 card.');
+    expect(describeLabelUsage({ active: 4, archived: 0 })).toBe('It is on 4 cards.');
+  });
+
+  it('says so when every card is archived', () => {
+    // Otherwise "on 3 cards" sends someone looking for cards no board shows.
+    expect(describeLabelUsage({ active: 0, archived: 3 })).toBe(
+      'It is on 3 cards, all archived.',
+    );
+  });
+
+  it('separates the two when there are both', () => {
+    expect(describeLabelUsage({ active: 2, archived: 1 })).toBe(
+      'It is on 2 cards, plus 1 card in the archive.',
+    );
   });
 });
 

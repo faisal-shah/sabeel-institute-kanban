@@ -38,7 +38,12 @@ async function putLabel(id: string, name = 'Finance'): Promise<void> {
   await labelRef(id).set({ name, color: '#83114F', createdAt: Date.now(), createdBy: MEM });
 }
 
-async function putCard(id: string, boardId: string, labelIds: string[]): Promise<void> {
+async function putCard(
+  id: string,
+  boardId: string,
+  labelIds: string[],
+  archived = false,
+): Promise<void> {
   await cardRef(id).set({
     boardId,
     title: `card ${id}`,
@@ -48,7 +53,7 @@ async function putCard(id: string, boardId: string, labelIds: string[]): Promise
     assigneeUids: [],
     priority: 'none',
     labelIds,
-    archived: false,
+    archived,
     commentCount: 0,
     createdAt: Date.now(),
     createdBy: MEM,
@@ -97,7 +102,25 @@ describe('countLabelUsage', () => {
     // is the point of doing it server-side rather than from the client.
     const res = await callFunction('countLabelUsage', { labelId: 'lb_wide' }, mgrToken);
     expect(res.status).toBe(200);
-    expect((res.body.result as { count: number }).count).toBe(3);
+    expect(res.body.result).toEqual({ active: 3, archived: 0 });
+  });
+
+  it('separates archived cards from live ones', async () => {
+    // "on 3 cards" reads very differently when two of them are in the archive
+    // and no board will ever show them.
+    await putLabel('lb_split');
+    await putCard('lb_s_live', BOARD_A, ['lb_split']);
+    await putCard('lb_s_arch1', BOARD_A, ['lb_split'], true);
+    await putCard('lb_s_arch2', BOARD_B, ['lb_split'], true);
+
+    const res = await callFunction('countLabelUsage', { labelId: 'lb_split' }, mgrToken);
+    expect(res.body.result).toEqual({ active: 1, archived: 2 });
+  });
+
+  it('reports zero for a label nothing carries', async () => {
+    await putLabel('lb_unused');
+    const res = await callFunction('countLabelUsage', { labelId: 'lb_unused' }, mgrToken);
+    expect(res.body.result).toEqual({ active: 0, archived: 0 });
   });
 
   it('is refused to a member, and to a caller with no token', async () => {
@@ -124,7 +147,9 @@ describe('deleteLabel', () => {
     await putLabel('lb_kill');
     await putLabel('lb_keep');
     await putCard('lb_d_a1', BOARD_A, ['lb_kill', 'lb_keep']);
-    await putCard('lb_d_b1', BOARD_B, ['lb_kill']);
+    // Archived too: the label has to come off cards nobody is looking at, or a
+    // restore from the archive would resurrect a reference to nothing.
+    await putCard('lb_d_b1', BOARD_B, ['lb_kill'], true);
     await putCard('lb_d_b2', BOARD_B, ['lb_keep']);
 
     const res = await callFunction('deleteLabel', { labelId: 'lb_kill' }, mgrToken);

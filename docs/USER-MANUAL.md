@@ -133,6 +133,9 @@ Tap any card to open the full view.
   typing to narrow it, or tap a name. On a computer you can stay on the keyboard:
   **↑/↓** to move, **Enter** or **Tab** to pick, **Esc** to dismiss.
 
+  The list closes when you click away, and picking a name never loses your place
+  in the box.
+
   You can edit your own comment with the **pencil**, and the **@** works there
   too — mention someone in an edit and they're told, once. Correcting the wording
   afterwards doesn't notify anyone again.
@@ -474,7 +477,12 @@ appears everywhere at once.
 
 **…rename or delete a label?** *(managers)*
 Open any board → **settings → Labels**. Deleting removes it from every card that
-carries it, and says how many first.
+carries it, and tells you how many first — counting live cards and archived ones
+separately, because a card in the archive is one no board will show you.
+
+**…find every card with a particular label?**
+**Search** → **Filter by label**, and pick one. Pick more than one and you get
+cards carrying **any** of them. Each pick becomes a chip; tap it to drop it.
 
 **…add someone to a board?** *(managers)*
 Board **settings → Members** → add them. (They must be an approved account first.)

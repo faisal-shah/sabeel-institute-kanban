@@ -205,6 +205,22 @@ export function newLabel(params: {
 }
 
 /**
+ * The sentence shown before deleting a label.
+ *
+ * Live and archived cards are counted separately because they read completely
+ * differently: three cards on boards you can see is a very different prospect
+ * from three cards nobody will ever look at again. Here rather than inline in
+ * the screen so the plurals and the zero cases can be tested.
+ */
+export function describeLabelUsage(usage: { active: number; archived: number }): string {
+  const card = (n: number) => `${n} card${n === 1 ? '' : 's'}`;
+  if (usage.active === 0 && usage.archived === 0) return 'No cards use it.';
+  if (usage.archived === 0) return `It is on ${card(usage.active)}.`;
+  if (usage.active === 0) return `It is on ${card(usage.archived)}, all archived.`;
+  return `It is on ${card(usage.active)}, plus ${card(usage.archived)} in the archive.`;
+}
+
+/**
  * Display order.
  *
  * Sorted HERE rather than with a Firestore `orderBy('name')` because that orders

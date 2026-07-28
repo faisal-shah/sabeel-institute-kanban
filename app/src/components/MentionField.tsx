@@ -57,6 +57,15 @@ const ROW_GAP = space.xs;
 const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
 /** Four rows, then it scrolls — the cap AssigneePicker settled on. */
 const VISIBLE_ROWS = 4;
+/**
+ * How long a blur waits before closing the list.
+ *
+ * It CANNOT close immediately. On web a click fires mousedown → blur → click, so
+ * unmounting the row on blur destroys the thing being clicked and the pick never
+ * happens — trading a lingering popover for a broken one. `accept` refocuses on
+ * the next tick, which cancels the pending close, so a real pick never sees it.
+ */
+const BLUR_GRACE_MS = 200;
 const LIST_MAX_HEIGHT = ROW_PITCH * VISIBLE_ROWS;
 
 export const MentionField = forwardRef<TextInput, {
@@ -103,6 +112,18 @@ export const MentionField = forwardRef<TextInput, {
   const [pitch, setPitch] = useState(ROW_PITCH);
 
   /** Escape closes the list; typing anything else brings it back. */
+  /** Whether the box has focus. A draft left ending in "@sa" used to keep the
+   *  popover on screen indefinitely, floating over the card. */
+  const [focused, setFocused] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelPendingBlur = useCallback(() => {
+    if (blurTimer.current !== null) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+  }, []);
+  useEffect(() => cancelPendingBlur, [cancelPendingBlur]);
+
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState(0);
   /**
@@ -115,7 +136,7 @@ export const MentionField = forwardRef<TextInput, {
    */
   const highlightRef = useRef(0);
 
-  const open = suggestions.length > 0 && query !== dismissedFor;
+  const open = focused && suggestions.length > 0 && query !== dismissedFor;
 
   // Narrowing the query shortens the list, so an index chosen against the old
   // one can point past the end. Reset on every change rather than clamping
@@ -136,7 +157,7 @@ export const MentionField = forwardRef<TextInput, {
 
   const accept = useCallback(
     (candidate: MentionCandidate) => {
-      onChangeText(completeMention(value, '', candidate));
+      onChangeText(completeMention(value, '', candidate, COMMENT_BODY_MAX));
       setDismissedFor(null);
       // Picking a suggestion BLURS the box — whether by click or by tab-then-
       // enter — and without this you cannot carry on typing, which makes the
@@ -234,6 +255,14 @@ export const MentionField = forwardRef<TextInput, {
         }}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        onFocus={() => {
+          cancelPendingBlur();
+          setFocused(true);
+        }}
+        onBlur={() => {
+          cancelPendingBlur();
+          blurTimer.current = setTimeout(() => setFocused(false), BLUR_GRACE_MS);
+        }}
         multiline
         maxLength={COMMENT_BODY_MAX}
         {...keyProps}

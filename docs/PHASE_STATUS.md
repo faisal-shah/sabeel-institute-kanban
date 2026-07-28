@@ -341,6 +341,53 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Four decided review items, and a nightly flake — v0.3.4
+
+The four items from the v0.3.3 review that were held for a decision.
+
+**The mention popover now closes when you look away.** A draft left ending in
+`@sa` kept it on screen indefinitely. The close is DEFERRED by 200ms and that is
+the whole design: a click fires mousedown → blur → click, so closing immediately
+destroys the row being clicked and the pick silently never happens. Proven by
+mutation — removing the grace period turns "picking a mention keeps focus in the
+comment box" red and nothing else.
+
+**Completing a mention can no longer overflow the comment cap.** `maxLength`
+caps typing but says nothing about a value set in code, so a comment at 5000
+characters ending in `@sa` posted at 5003 and failed with a bare
+permission-denied. `completeMention` truncates. Truncation can land inside the
+handle, leaving a mention that resolves to nobody — accepted, and it needs a
+comment within a few characters of the cap to reach.
+
+**Deleting a label counts live and archived cards separately.** "On 3 cards"
+reads very differently when two of them are in the archive. Done with one
+`select('archived')` read partitioned in memory rather than two `count()`
+queries: `labelIds array-contains` plus `archived ==` needs a COMPOSITE index —
+this project already carries one of that shape for `removeBoardMember` — and a
+missing composite fails only in production, which is how the attachment sweep
+broke once already.
+
+**Search can filter by label.** A dropdown offering only labels not yet picked,
+one removable chip per pick. `CardFilters.labelId` becomes `labelIds`, matching
+**any** of them: requiring all would empty the list on the second pick, since few
+cards carry two specific labels. That widening does not repeat the `archivedOnly`
+trap, which merged live and archived cards into one result — widening inside one
+facet still narrows against no filter.
+
+**And a real flake, found by refusing to accept "flake".** "My Work groups by
+due state" failed twice and passed once on identical code. The e2e sets the due
+date using a timezone written out as `America/New_York` — with a comment
+explaining the evening rollover it was written to fix — and it was never updated
+when `ORG_TIMEZONE` moved to Chicago. Between 23:00 and midnight Central it
+writes tomorrow's date, the card groups under "Next 7 days", and the assertion
+cannot pass. Measured at 23:07: the script wrote 2026-07-28 while the app's today
+was 2026-07-27. It now calls the app's own `todayInOrgTz`, so the two cannot
+drift again. Restating a constant was the same mistake one level up from the one
+the comment describes.
+
+Verified: 304 + 27 unit, 180 rules, 74 functions, web 73/73 (up from 68),
+attachments 17/17.
+
 ### 2026-07-27 — Review of v0.2.5–v0.3.2: fourteen fixes — v0.3.3
 
 A second, harder review pass over everything since the attachment badge. The

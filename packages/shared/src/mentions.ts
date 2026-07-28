@@ -110,15 +110,30 @@ export function activeMentionQuery(textUpToCaret: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Replace the mention being typed with a complete handle. */
+/**
+ * Replace the mention being typed with a complete handle.
+ *
+ * `maxLength` truncates the RESULT. The field's own `maxLength` caps typing but
+ * says nothing about a value set programmatically, so completing a mention on a
+ * comment already at the limit produced a body a few characters over — and the
+ * only symptom was a bare permission-denied when posting, because the rules cap
+ * it too.
+ *
+ * Truncating can land inside the handle, leaving a mention that resolves to
+ * nobody. That is the accepted trade at this size: it needs a comment within a
+ * few characters of 5000 to happen at all, and losing the tail of a mention is
+ * better than a write that fails with nothing to explain it.
+ */
 export function completeMention(
   textUpToCaret: string,
   rest: string,
   candidate: MentionCandidate,
+  maxLength?: number,
 ): string {
   const replaced = textUpToCaret.replace(
     /(^|\s)@([A-Za-z0-9._%+-]*)$/,
     `$1@${handleFor(candidate.email)} `,
   );
-  return replaced + rest;
+  const full = replaced + rest;
+  return maxLength === undefined ? full : full.slice(0, maxLength);
 }

@@ -58,20 +58,27 @@ function cardsWithLabel(labelId: string) {
 }
 
 /**
- * How many cards a deletion would strip the label from, so the UI can warn
- * before doing it — "Delete Finance Request?" and "Delete Finance Request,
- * removing it from 12 cards?" are different questions.
+ * How many cards a deletion would strip the label from, split by whether those
+ * cards are live or archived — "on 2 cards" reads very differently when one of
+ * them is in the archive and invisible on every board.
  *
- * A `count()` aggregation rather than reading the documents: the client only
- * needs the number, and this is the same shape `countMemberAssignments` uses for
- * the identical warning before removing a board member.
+ * Read-and-partition rather than two `count()` aggregations, and that is a
+ * deliberate index decision: `labelIds array-contains` together with
+ * `archived ==` is an array-contains plus an equality, which Firestore cannot
+ * serve from its automatic single-field indexes. It would need a composite —
+ * this project already carries one of exactly that shape for `removeBoardMember`
+ * (`boardId + assigneeUids`) — and a missing composite fails only in production,
+ * which is how the attachment sweep broke once already. `select()` fetches the
+ * one field, `deleteLabel` reads the same set anyway, and there are ten label
+ * references in the entire database.
  */
 export const countLabelUsage = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ labelId?: unknown }>) => {
   requireCurator(request);
   const labelId = requireLabelId(request.data);
 
-  const used = await cardsWithLabel(labelId).count().get();
-  return { count: used.data().count };
+  const used = await cardsWithLabel(labelId).select('archived').get();
+  const archived = used.docs.filter((d) => d.data().archived === true).length;
+  return { active: used.size - archived, archived };
 }));
 
 /**

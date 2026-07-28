@@ -5,6 +5,7 @@ import {
   LABEL_COLORS,
   LABEL_NAME_MAX,
   columnsPatch,
+  describeLabelUsage,
   localId,
   validateBoardName,
   validateColumnName,
@@ -25,6 +26,7 @@ import {
   deleteLabel,
   updateLabel,
   useLabels,
+  type LabelUsage,
 } from '../labels';
 import { useAllUsers } from '../users';
 import type { SessionUser } from '../session';
@@ -90,7 +92,7 @@ export function BoardSettingsScreen({
   /** The label awaiting a delete confirmation, and how many cards carry it
    *  (null = still counting, exactly like the member removal above). */
   const [pendingLabel, setPendingLabel] = useState<Label | null>(null);
-  const [pendingLabelCards, setPendingLabelCards] = useState<number | null>(null);
+  const [pendingLabelCards, setPendingLabelCards] = useState<LabelUsage | null>(null);
   /** Which label is being renamed inline, and the text so far. */
   const [renamingLabel, setRenamingLabel] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState('');
@@ -197,7 +199,7 @@ export function BoardSettingsScreen({
         if (labelCountReq.current === req) setPendingLabelCards(n);
       })
       .catch(() => {
-        if (labelCountReq.current === req) setPendingLabelCards(0);
+        if (labelCountReq.current === req) setPendingLabelCards({ active: 0, archived: 0 });
       });
   }
 
@@ -446,13 +448,11 @@ export function BoardSettingsScreen({
           <Body>
             {pendingLabelCards === null
               ? `Delete “${pendingLabel.name}”? Checking how many cards use it…`
-              : pendingLabelCards > 0
-                ? `Delete “${pendingLabel.name}”? It is on ${pendingLabelCards} card${
-                    pendingLabelCards === 1 ? '' : 's'
-                  } across every board, and will be removed from ${
-                    pendingLabelCards === 1 ? 'it' : 'them'
-                  }. This cannot be undone.`
-                : `Delete “${pendingLabel.name}”? No cards use it.`}
+              : `Delete “${pendingLabel.name}”? ${describeLabelUsage(pendingLabelCards)}${
+                  pendingLabelCards.active + pendingLabelCards.archived > 0
+                    ? ' It will be removed from all of them, across every board. This cannot be undone.'
+                    : ''
+                }`}
           </Body>
           <Row>
             <Button
