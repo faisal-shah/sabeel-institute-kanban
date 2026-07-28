@@ -17,7 +17,10 @@
  *
  * WHAT IT CANNOT REBUILD: `bytesRemoved`. The activity log records that a file
  * was detached and its name, not its size. Removals are counted (`filesRemoved`)
- * but historic bytes removed stay zero. Going forward the trigger records both.
+ * but historic bytes removed stay zero. Going forward the trigger records both —
+ * and because of that, a re-run PRESERVES any `bytesRemoved` already recorded
+ * rather than resetting it. A repair tool that destroys the one series with no
+ * other source is not a repair tool.
  *
  * SAFETY
  *  - `--dry-run` is the DEFAULT. Writing requires `--write`.
@@ -224,12 +227,26 @@ for (const [scope, months] of buckets) {
     }
 
     if (WRITE) {
-      // Preserve any day the live triggers own. `add()` already refuses to
-      // build today, but the EXISTING document may hold it, and this write
-      // replaces `days` wholesale — so carry those entries across untouched.
       const existing = (await ref.get()).data()?.days ?? {};
       for (const [dd, v] of Object.entries(existing)) {
-        if (`${month}-${dd}` >= TODAY) next[dd] = v;
+        // Preserve any day the live triggers own. `add()` already refuses to
+        // build today, but the EXISTING document may hold it, and this write
+        // replaces `days` wholesale — so carry those entries across untouched.
+        if (`${month}-${dd}` >= TODAY) {
+          next[dd] = v;
+          continue;
+        }
+        // For every OLDER day, carry `bytesRemoved` across too.
+        //
+        // It is the one series this script cannot rebuild — the activity log
+        // records that a file was detached and its NAME, not its size — so a
+        // rebuild would silently reset it to zero. Destroying the only series
+        // that has no other source would defeat the point of a repair tool, and
+        // it would do it quietly: the numbers would move, so it would look like
+        // the repair working. Everything else here is reconstructable and is
+        // deliberately overwritten.
+        if (v?.bytesRemoved && next[dd]) next[dd].bytesRemoved = v.bytesRemoved;
+        else if (v?.bytesRemoved) next[dd] = { bytesRemoved: v.bytesRemoved };
       }
       await ref.set({ scope, month, days: next }, { merge: false });
     }
