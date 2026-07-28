@@ -117,7 +117,7 @@ export const deleteLabel = onCall({ secrets: [sentryDsn] }, guarded(async (reque
  * here. Without it the log would credit whoever last edited the card. Exactly the
  * mechanism `removeBoardMember` relies on for its `unassigned` entries.
  */
-export async function sweepLabelFromCards(labelId: string, actorUid: string): Promise<number> {
+async function sweepLabelFromCards(labelId: string, actorUid: string): Promise<number> {
   const db = getFirestore();
   const carrying = await cardsWithLabel(labelId).get();
 

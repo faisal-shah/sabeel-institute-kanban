@@ -38,13 +38,26 @@ import {
   type MentionCandidate,
 } from '@sabeel/shared';
 import { useMentionKeys } from '../mentionKeys';
-import { Body, Caption, Hint, TextField } from './ui';
+import { Body, Hint, TextField } from './ui';
 import { radius, space, useTheme } from '../theme';
 
-/** Fixed so the highlighted row can be scrolled to without measuring it. */
+/**
+ * Row geometry, in ONE place because three things have to agree: the row's own
+ * height, how far `scrollTo` jumps per row, and how tall the list may get.
+ *
+ * The pitch is the height PLUS the gap under it, and that is the whole reason
+ * this is derived rather than written out. Scrolling by the bare height drifts
+ * by one gap per row — four pixels looks like nothing until row twelve, where
+ * the cumulative error is most of a row and arrowing to the bottom of the list
+ * scrolls to the wrong person.
+ */
 const ROW_HEIGHT = 60;
+const ROW_GAP = space.xs;
+/** Starting guess. The real pitch is measured — see `pitch` below. */
+const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
 /** Four rows, then it scrolls — the cap AssigneePicker settled on. */
-const LIST_MAX_HEIGHT = ROW_HEIGHT * 4;
+const VISIBLE_ROWS = 4;
+const LIST_MAX_HEIGHT = ROW_PITCH * VISIBLE_ROWS;
 
 export const MentionField = forwardRef<TextInput, {
   value: string;
@@ -78,9 +91,29 @@ export const MentionField = forwardRef<TextInput, {
     [query, candidates, prioritiseUids],
   );
 
+  /**
+   * The real height of a row, measured rather than assumed.
+   *
+   * `ROW_HEIGHT` is a MINIMUM, not a fact: text scales with the reader's system
+   * font size, so at the largest accessibility setting two lines no longer fit
+   * in 60px. A fixed height would clip the name; a fixed pitch would scroll to
+   * the wrong row. Measuring the first one costs one layout pass and is correct
+   * at every scale.
+   */
+  const [pitch, setPitch] = useState(ROW_PITCH);
+
   /** Escape closes the list; typing anything else brings it back. */
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState(0);
+  /**
+   * The highlight again, synchronously.
+   *
+   * Held-down arrow keys repeat about every 33ms and React renders in about 16,
+   * so two moves can land against the same state value and the highlight stops
+   * one short. Same reason the attachment row keeps a ref beside its `busy`:
+   * state is a frame late, and key repeat is faster than a frame.
+   */
+  const highlightRef = useRef(0);
 
   const open = suggestions.length > 0 && query !== dismissedFor;
 
@@ -89,11 +122,17 @@ export const MentionField = forwardRef<TextInput, {
   // after the fact: the top match is what someone wants after typing more.
   useEffect(() => {
     setHighlighted(0);
+    highlightRef.current = 0;
+    // The list is capped and stays MOUNTED while you keep typing, so narrowing
+    // from ten matches to two leaves it scrolled past the end — a popover
+    // showing blank space. Put it back to the top with the highlight.
+    list.current?.scrollTo({ y: 0, animated: false });
   }, [query]);
 
   // Belt and braces — state resets are asynchronous, so a render can still land
   // with the previous index against the new list.
   const index = Math.min(highlighted, Math.max(0, suggestions.length - 1));
+  highlightRef.current = index;
 
   const accept = useCallback(
     (candidate: MentionCandidate) => {
@@ -111,14 +150,16 @@ export const MentionField = forwardRef<TextInput, {
   const keyProps = useMentionKeys({
     active: open,
     onMove: (delta) => {
-      const next = (index + delta + suggestions.length) % suggestions.length;
+      const from = highlightRef.current;
+      const next = (from + delta + suggestions.length) % suggestions.length;
+      highlightRef.current = next;
       setHighlighted(next);
       // Without this, arrowing past the fourth row highlights something that is
       // scrolled out of sight and the list appears to stop responding.
-      list.current?.scrollTo({ y: next * ROW_HEIGHT, animated: true });
+      list.current?.scrollTo({ y: next * pitch, animated: true });
     },
     onAccept: () => {
-      const pick = suggestions[index];
+      const pick = suggestions[highlightRef.current];
       if (pick) accept(pick);
     },
     onDismiss: () => setDismissedFor(query),
@@ -133,9 +174,14 @@ export const MentionField = forwardRef<TextInput, {
             { borderColor: t.border.subtle, backgroundColor: t.bg.inset },
           ]}
         >
-          <Caption>
-            Mention{suggestions.length > 4 ? ` — ${suggestions.length} people` : ''}
-          </Caption>
+          {/* Hint, not Caption. Both are caption-SIZED; the difference is the
+              colour, and `Caption` is text.muted — 2.34:1 on this background,
+              which fails WCAG AA and even the 3:1 floor for non-text. `Hint` is
+              text.secondary at 5.10:1. */}
+          <Hint>
+            Mention
+            {suggestions.length > VISIBLE_ROWS ? ` — ${suggestions.length} people` : ''}
+          </Hint>
           {/* `keyboardShouldPersistTaps` is NOT optional here and is not
               inherited from the Screen's scroll view. This list is used with the
               keyboard up, and without it the first tap on a name only dismisses
@@ -149,6 +195,11 @@ export const MentionField = forwardRef<TextInput, {
             {suggestions.map((s, i) => (
               <Pressable
                 key={s.uid}
+                onLayout={
+                  i === 0
+                    ? (e) => setPitch(e.nativeEvent.layout.height + ROW_GAP)
+                    : undefined
+                }
                 accessibilityRole="button"
                 accessibilityLabel={`Mention ${s.displayName}`}
                 accessibilityState={{ selected: i === index }}
@@ -214,11 +265,13 @@ const styles = StyleSheet.create({
   },
   list: { maxHeight: LIST_MAX_HEIGHT },
   option: {
-    height: ROW_HEIGHT,
+    // MINIMUM, not fixed: at a large system font size the two lines need more,
+    // and clipping someone's name is worse than a taller list.
+    minHeight: ROW_HEIGHT,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,
     paddingHorizontal: space.md,
-    marginBottom: space.xs,
+    marginBottom: ROW_GAP,
   },
 });

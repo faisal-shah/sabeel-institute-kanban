@@ -702,6 +702,10 @@ try {
 
   // ArrowDown then Enter must pick the SECOND row, which is the only thing that
   // proves the highlight moved rather than Enter just taking the top match.
+  // Bail cleanly rather than throwing on labels[1]: a stack trace here would
+  // abort the run and lose the forty-odd checks after it, turning one seed
+  // change into a total blackout.
+  if (labels.length < 2) throw new Error(`need 2+ mention candidates, got ${labels.length}`);
   const wanted = labels[1].replace(/^Mention\s+/, '').split(/\s+/)[0].toLowerCase();
   await admin.keyboard.press('ArrowDown');
   await admin.keyboard.press('Enter');
@@ -734,7 +738,31 @@ try {
       .catch(() => false),
   );
 
+  // Look at the popover on WEB, not just Android — `position: absolute` with
+  // `bottom: '100%'` is the one part of this that could render differently under
+  // react-native-web.
+  await admin.screenshot({ path: join(SHOTS, 'p8-mention-popover-light.png') });
+
+  // Tab accepts as well as Enter. Verified rather than assumed because the user
+  // manual promises it, and because preventDefault has to stop Tab doing its
+  // normal job of moving focus out of the box.
+  const beforeTab = await commentBox.inputValue();
+  await admin.keyboard.press('Tab');
+  await admin.waitForTimeout(500);
+  const afterTab = await commentBox.inputValue();
+  check('Tab accepts the highlighted person', afterTab !== beforeTab, afterTab);
+  check(
+    'and Tab does not move focus out of the box',
+    await admin.evaluate(() => {
+      const el = document.activeElement;
+      return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
+    }),
+  );
+
   // Picking a mention must NOT steal focus: you have to be able to keep typing.
+  await commentBox.click();
+  await commentBox.pressSequentially(' @', { delay: 10 });
+  await rows.first().waitFor({ timeout: 15000 });
   await rows.first().click();
   await admin.waitForTimeout(400);
   const focused = await admin.evaluate(() => {

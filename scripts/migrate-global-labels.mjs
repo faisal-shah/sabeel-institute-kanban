@@ -75,6 +75,29 @@ if (part === 'part-a') {
     seen.set(l.id, l.board);
   }
 
+  // The rules validate the WHOLE document on update, so a label copied in with a
+  // name over the cap — or a colour that is not a hex — is one no manager can
+  // ever rename or recolour afterwards. Production was clean when this first
+  // ran; the check is here for the re-run that matters, after a restore from a
+  // backup predating the migration. Abort rather than mint something unfixable.
+  const LABEL_NAME_MAX = 40;
+  const malformed = found.filter(
+    (l) =>
+      typeof l.name !== 'string' ||
+      l.name.trim().length === 0 ||
+      [...l.name].length > LABEL_NAME_MAX ||
+      typeof l.color !== 'string' ||
+      !/^#[0-9A-Fa-f]{6}$/.test(l.color),
+  );
+  if (malformed.length > 0) {
+    console.error('ABORT: these labels would be uneditable once created:');
+    for (const l of malformed) {
+      console.error(`  ${JSON.stringify(l.name)} ${JSON.stringify(l.color)} on "${l.board}"`);
+    }
+    console.error('Fix them on their board first, then re-run.');
+    process.exit(1);
+  }
+
   console.log(`${found.length} label(s) across ${boards.size} board(s):`);
   for (const l of found) console.log(`  ${l.name}  ${l.color}  (${l.id}) — ${l.board}`);
 

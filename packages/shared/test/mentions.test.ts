@@ -77,6 +77,36 @@ describe('mentionSuggestions', () => {
     expect(mentionSuggestions('khan', people).map((p) => p.uid)).toEqual(['u3']);
   });
 
+  it('does not match the shared email DOMAIN, which would match everybody', () => {
+    // Every account is @oursabeel.com. Matching the whole address meant that
+    // typing `@o` — or s, e, a, u, r, b, l, c, m — returned all 13 people and
+    // the list appeared not to narrow at all.
+    for (const q of ['o', 'u', 'r', 'b', 'l', 'ours', 'oursabeel', '.com']) {
+      expect(
+        mentionSuggestions(q, people).length,
+        `"${q}" must not match everyone`,
+      ).toBeLessThan(people.length);
+    }
+    // The handle IS the local part, so nothing that mattered was lost.
+    expect(mentionSuggestions('omar', people).map((p) => p.uid)).toEqual(['u4']);
+  });
+
+  it('ranks a match at the START above one in the middle', () => {
+    // "@s" matches Sara Ahmed at the start and Faisal Shah in the middle
+    // ("fai-s-al"). Alphabetical alone put Faisal first, which is not who you
+    // meant. Both are still offered — surnames are a real way to search.
+    expect(mentionSuggestions('s', people).map((p) => p.uid)).toEqual([
+      'u1', // Sara Ahmed  — handle starts with s
+      'u3', // Sarah Khan  — handle starts with s
+      'u2', // Faisal Shah — "Shah" and "faisal" both contain s
+    ]);
+  });
+
+  it('prefers the prioritised person even over a start-match', () => {
+    // Being on the card outranks how well the letters line up.
+    expect(mentionSuggestions('s', people, { prioritise: ['u2'] })[0].uid).toBe('u2');
+  });
+
   it('is case-insensitive', () => {
     expect(mentionSuggestions('FAISAL', people).map((p) => p.uid)).toEqual(['u2']);
   });

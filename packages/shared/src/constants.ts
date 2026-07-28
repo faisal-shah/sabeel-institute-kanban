@@ -127,6 +127,7 @@ export const COLLECTIONS = {
   users: 'root',
   boards: 'root',
   cards: 'root',
+  labels: 'root',
   comments: 'group',
   activity: 'group',
   attachments: 'group',

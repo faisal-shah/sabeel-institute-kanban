@@ -341,6 +341,69 @@ the team.
 
 ## Deploy log
 
+### 2026-07-27 — Review of v0.2.5–v0.3.2: fourteen fixes — v0.3.3
+
+A second, harder review pass over everything since the attachment badge. The
+ones worth recording, roughly by how much they could bite:
+
+**Rank collision when a card opened faster than its board.** `CardScreen`
+renders as soon as the card and board arrive, but two controls — the Column
+dropdown and subtask creation — compute a rank from `boardCards.data ?? []`.
+An unloaded list is indistinguishable from an empty column, so
+`rankBetween(null, null)` returned the fixed FIRST rank: the card jumped to the
+top of a column it should have joined the end of, and collided with whatever
+already held that rank. Both controls now wait on `boardCards.status`. Pre-
+existing, and the same "not loaded is not empty" shape as the label bug fixed in
+v0.3.1.
+
+**Typing `@o` narrowed nothing.** `mentionSuggestions` matched the whole email
+address, and every account is `@oursabeel.com` — so `o, u, r, s, a, b, e, l, c,
+m` each matched all thirteen people. Matching the handle (which IS the local
+part) and the display name loses nothing and makes narrowing work. The cap of 5
+had been hiding it.
+
+**No preference for matches at the start.** `@s` put Faisal above Sara, because
+"fai-s-al" matches and F sorts first. Start-matches now rank above middle-
+matches inside each priority group; both are still offered, because surnames are
+a real way to search.
+
+**The suggestion scroll drifted.** Rows are 60px tall with a 4px gap, but
+`scrollTo` jumped by 60 — a gap per row, so by row twelve the target was most of
+a row out. One derived `ROW_PITCH` now feeds the row, the scroll and the height
+cap.
+
+**Rows were a fixed height.** At the largest accessibility font size two lines
+no longer fit in 60px and the name clipped. The height is a minimum now and the
+real pitch is measured from the first row, which is correct at any scale.
+
+**Held arrow keys dropped steps.** Key repeat is ~33ms and React renders in
+~16ms, so two moves landed against one state value. A ref beside the state, the
+same fix the attachment row already carries.
+
+**Narrowing left the list scrolled past the end.** It stays mounted while you
+type, so going from ten matches to two showed blank space. It scrolls back to
+the top with the highlight.
+
+**`labels` was not in the data-loss canary.** Every other top-level collection
+is watched; a new one was not. Added with a deliberately tolerant drop rule —
+the set is meant to be curated, so pruning must not page anyone.
+
+**The migration copied without validating.** A name over the cap or a colour
+that is not a hex would create a label no manager could ever rename, because the
+update rule validates the whole document. Production was clean; this matters for
+the re-run after a restore, which is now documented in DEPLOY.md — it was in no
+document at all.
+
+Plus: `sweepLabelFromCards` was exported and never imported (same dead-export
+shape as `isLabelColor` in v0.3.1); a rules comment claimed the UI credits a
+label's `createdBy` when nothing displays it; the popover header used `Caption`,
+which is `text.muted` at 2.34:1 on that background — `Hint` is `text.secondary`
+at 5.10:1; and the web e2e would have thrown rather than failed cleanly if a
+board ever had fewer than two people to mention, losing the forty checks after
+it.
+
+Verified: 294 + 27 unit, 180 rules, 72 functions, web 68/68, attachments 17/17.
+
 ### 2026-07-27 — The @mention list is reachable — v0.3.2
 
 Reported: typing `@` in a comment shows only a handful of people and, unlike the

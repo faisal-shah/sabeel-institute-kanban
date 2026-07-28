@@ -50,8 +50,12 @@ export function extractMentions(
 
 /**
  * Candidates for the autocomplete, given what has been typed after the "@".
- * Matches on handle, display name or email so people can type whichever they
- * remember.
+ *
+ * Matches on the HANDLE and the display name — deliberately not the whole email.
+ * Every account is on one domain, so matching the full address meant every
+ * letter of "oursabeel.com" matched everybody: typing `@o`, `@s`, `@e`, `@a`,
+ * `@u`, `@r`, `@b`, `@l`, `@c` or `@m` narrowed nothing at all. The handle IS
+ * the local part, so nothing is lost.
  *
  * EVERY match is returned. This used to stop at five, which on a board with the
  * whole organisation on it meant eight people were unreachable unless you
@@ -75,16 +79,24 @@ export function mentionSuggestions(
       ? [...candidates]
       : candidates.filter(
           (c) =>
-            handleFor(c.email).includes(q) ||
-            c.displayName.toLowerCase().includes(q) ||
-            c.email.toLowerCase().includes(q),
+            handleFor(c.email).includes(q) || c.displayName.toLowerCase().includes(q),
         );
+
+  // A match ANYWHERE counts — people search by surname — but a match at the
+  // START is almost always the one meant. Without this, typing "@s" put Faisal
+  // above Sara, because "fai-s-al" matches and F sorts first.
+  const startsWith = (c: MentionCandidate) =>
+    q.length > 0 &&
+    (handleFor(c.email).startsWith(q) || c.displayName.toLowerCase().startsWith(q));
 
   const top = new Set(opts.prioritise ?? []);
   return matches.sort((a, b) => {
     const aTop = top.has(a.uid);
     const bTop = top.has(b.uid);
     if (aTop !== bTop) return aTop ? -1 : 1;
+    const aPre = startsWith(a);
+    const bPre = startsWith(b);
+    if (aPre !== bPre) return aPre ? -1 : 1;
     return a.displayName.localeCompare(b.displayName);
   });
 }

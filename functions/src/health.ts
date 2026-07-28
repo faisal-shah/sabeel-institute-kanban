@@ -80,6 +80,11 @@ const DROP_RULES: Record<string, DropRule> = {
   // zeroTolerance here would page on normal use.
   attachments: { minDrop: 5, fraction: 0.2 },
   notifications: { minDrop: 5, fraction: 0.2 },
+  // Tolerant on purpose, like attachments. The org-wide label set is meant to be
+  // CURATED — the 32 that arrived from the per-board arrays include several
+  // near-duplicates somebody is expected to prune in one sitting — so a normal
+  // tidy-up must not page anyone. Losing the whole set still would.
+  labels: { minDrop: 8, fraction: 0.34 },
 };
 
 export type Counts = Record<string, number>;

@@ -218,6 +218,24 @@ Functions and rules do not: redeploy the previous commit. For Firestore data, se
 disaster recovery below — boards still archive rather than delete, and only
 managers may permanently remove cards, because prevention beats restoring.
 
+### Restoring across the label migration
+
+A restore from a backup taken **before 2026-07-27** brings back boards that still
+carry a `labels` array and a `labels` collection that may be missing entries. The
+deployed rules reject a board write containing that field, so managers would find
+those boards uneditable, and any label not in the collection would render as
+nothing on its cards.
+
+Re-run the migration after such a restore:
+
+```
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/migrate-global-labels.mjs part-a
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/migrate-global-labels.mjs part-b
+```
+
+Both are idempotent and both abort rather than guess — part A on a duplicate id
+or a label the rules would refuse, part B if anything has not been copied yet.
+
 ## Backups and disaster recovery
 
 Two native Firestore layers, both Google-managed settings with no code to

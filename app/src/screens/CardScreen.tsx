@@ -133,6 +133,19 @@ export function CardScreen({
   const c = card.data;
   const b = board.data;
 
+  /**
+   * Whether the board's OTHER cards have arrived.
+   *
+   * This screen deliberately renders as soon as the card and board do — waiting
+   * on a whole-board query to show one card would be a visibly slower open. But
+   * two controls here compute a rank from that list, and `?? []` makes an
+   * unloaded list indistinguishable from an empty column: `rankBetween(null,
+   * null)` then returns the fixed FIRST rank, so the card lands at the top of a
+   * column it should have joined the end of — and collides with whatever card
+   * already holds that rank. Both controls wait instead; it is brief.
+   */
+  const cardsReady = boardCards.status === 'ready';
+
   if (!c || !b) {
     return (
       <Screen width="read">
@@ -332,6 +345,7 @@ export function CardScreen({
           <Select
             label="Column"
             value={c.columnId}
+            disabled={busy || !cardsReady}
             options={b.columns.map((col) => ({ value: col.id, label: col.name }))}
             onChange={(toColumnId) =>
               run(async () => {
@@ -424,7 +438,7 @@ export function CardScreen({
           parentId={cardId}
           boardCards={boardCards.data ?? NO_CARDS}
           columns={b.columns}
-          busy={busy}
+          busy={busy || !cardsReady}
           onOpen={(id) => nav.push({ name: 'card', boardId, cardId: id })}
           onCreate={(childTitle) =>
             run(async () => {
