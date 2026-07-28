@@ -341,6 +341,38 @@ the team.
 
 ## Deploy log
 
+### 2026-07-28 — Shipped v0.5.0
+
+Deployed in order: indexes → functions → rules/storage → backfill → hosting →
+APK. Every surface in one batch.
+
+- **Indexes** first, and the `months.days` exemption confirmed live (`indexes: 0`
+  on the field), so the hottest document in the system is not carrying ~250
+  index entries nothing queries.
+- **Backfill** dry-run reconciled (96 cards / 49 comments) and then wrote 16
+  month documents. Verified afterwards against the live truth: `bytesStored`
+  3,348,094 and `filesStored` 5 **agree exactly** with a direct sum of the ready
+  attachments.
+- **Web** live and serving `0.5.0 · 711f09b` — checked by fetching the deployed
+  bundle, not by trusting the deploy output.
+- **APK** built, then installed and RUN before publishing (R8 strips
+  reflection-reached classes, so a release build that was never launched is not
+  verified). Launches clean at v0.5.0. Published as a release asset on the fixed
+  `kanban-latest` tag; the pages repo still holds **zero** `.apk` blobs.
+- **11/11 index probes** green against production after the deploy.
+
+**One artifact, and it is permanent unless corrected: the deploy day itself.**
+The backfill deliberately never writes today, and the triggers only gained the
+counting code partway through 28 July — so the 18 cards created that day are
+counted nowhere. Re-running `scripts/backfill-stats.mjs --write` on any later
+day rebuilds 28 July from the source documents (which all still exist) and
+`set`s it wholesale, so it is safely repairable and does not double count. Only
+`bytesRemoved` for that day is unrecoverable, and it was zero.
+
+The versioned GitHub Release failed on the first attempt with
+`target_commitish is invalid` — the commits had not been pushed yet. Push first,
+then publish.
+
 ### 2026-07-28 — Judgement calls from the review
 
 Decided with Faisal after the review, one at a time:
