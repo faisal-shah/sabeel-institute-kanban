@@ -157,7 +157,7 @@ try {
     await page.waitForTimeout(450);
 
     for (const view of ['Daily', 'Weekly', 'Monthly']) {
-      await page.getByRole('button', { name: new RegExp(`^${view} filter`) }).click();
+      await page.getByRole('radio', { name: view, exact: true }).click();
       await page.waitForTimeout(400);
 
       const boxes = await labelBoxes(page);
@@ -223,6 +223,61 @@ try {
         boxes.some((b) => /[A-Za-z]/.test(b.text)),
         boxes.map((b) => b.text).join(' ').slice(0, 46),
       );
+
+      // CONTROL SPACING. The period chips and the metric chips answer two
+      // different questions, and they have to look like it. They did not: every
+      // child of `Screen` gets the same 8px gap, and the wrapped metric chips
+      // sat 4px apart inside their own group — so all six read as one set, with
+      // a filled chip in each looking like two selections in one control.
+      //
+      // Measured rather than eyeballed, and measured as a RATIO: absolute gaps
+      // drift with the type scale, but "between groups is at least twice within
+      // a group" is the property that actually makes them read as separate.
+      const spacing = await page.evaluate(() => {
+        const chips = [...document.querySelectorAll('[role="button"]')].filter((el) =>
+          /(filter, (on|off))$/.test(el.getAttribute('aria-label') ?? ''),
+        );
+        const period = [...document.querySelectorAll('[role="radio"]')];
+        if (chips.length < 6 || period.length !== 3) return null;
+        const box = (el) => el.getBoundingClientRect();
+        const metrics = chips.map(box);
+        const periodBottom = Math.max(...period.map((el) => box(el).bottom));
+        const metricTop = Math.min(...metrics.map((b) => b.top));
+        // The largest vertical gap between wrapped rows WITHIN the metric group.
+        const tops = [...new Set(metrics.map((b) => Math.round(b.top)))].sort((a, b) => a - b);
+        const withinGroup =
+          tops.length > 1
+            ? tops[1] - Math.max(...metrics.filter((b) => Math.round(b.top) === tops[0]).map((b) => b.bottom))
+            : null;
+        // And the dropdown above must not crowd the first chip either.
+        const picker = document.querySelector('[aria-label^="Board filter"]');
+        return {
+          betweenGroups: metricTop - periodBottom,
+          withinGroup,
+          belowPicker: Math.min(...period.map((el) => box(el).top)) - box(picker).bottom,
+        };
+      });
+      check(`${tag}: chip groups are visibly separate`,
+        spacing !== null && spacing.betweenGroups >= 12 &&
+          (spacing.withinGroup === null || spacing.betweenGroups >= spacing.withinGroup * 1.8),
+        spacing && `between ${Math.round(spacing.betweenGroups)}px, within ${
+          spacing.withinGroup === null ? 'n/a' : Math.round(spacing.withinGroup)}px`);
+      // The period control must not be another row of pills.
+      const distinct = await page.evaluate(() => {
+        const radios = [...document.querySelectorAll('[role="radio"]')];
+        const group = document.querySelector('[role="radiogroup"]');
+        if (!group || radios.length !== 3) return false;
+        const g = group.getBoundingClientRect();
+        // Segments sit flush inside ONE bordered object: no gaps between them.
+        const xs = radios.map((r) => r.getBoundingClientRect()).sort((a, b) => a.x - b.x);
+        const flush = xs.every((b, i) => i === 0 || b.x - xs[i - 1].right < 1.5);
+        return flush && g.width < 220;
+      });
+      check(`${tag}: period is one segmented object, not chips`, distinct);
+
+      check(`${tag}: chips clear the board dropdown`,
+        spacing !== null && spacing.belowPicker >= 12,
+        spacing && `${Math.round(spacing.belowPicker)}px`);
 
       if (CAPTURE.has(width)) {
         await page.screenshot({

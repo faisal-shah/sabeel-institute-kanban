@@ -1227,8 +1227,10 @@ try {
     .catch(() => false);
   check('tapping a bar shows its exact figure', readout);
 
+  // Period is a segmented icon control, not chips — each segment is a radio
+  // carrying the word its icon replaces.
   for (const mode of ['Weekly', 'Monthly', 'Daily']) {
-    await admin.getByRole('button', { name: new RegExp(`^${mode} filter`) }).click();
+    await admin.getByRole('radio', { name: mode, exact: true }).click();
     await admin.waitForTimeout(250);
   }
   check('bucketing switches without reloading', true);

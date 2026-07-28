@@ -370,7 +370,21 @@ scrolls sideways. Looked at on web at 320/768/1600 and on Android — where the
 More sheet, the calendar-strip axis, the gridlines and tap-to-read were all
 confirmed by screenshot.
 
-Three bugs the checks caught that reading the code would not have: every axis
+Period selection is a **segmented icon control**, not chips. Chips each turn on
+and off, which says "combine any of these"; a segmented control is one object
+with one part lit, which says "choose one". Rendered as two chip rows the six
+controls read as a single wrapped set with two selections lit, and no amount of
+space fixed that — a different SHAPE did. The spacing hierarchy behind it is now
+asserted as a ratio (between groups ≥ 2× within a group), because absolute gaps
+drift with the type scale.
+
+Also found: **`Screen` gaps its children only on WIDE layouts.** The gap lives on
+`styles.capped`, which is applied only when a maxWidth is set, so on a phone
+every child is flush unless it carries its own margin. That is why the controls
+sat nine pixels under the board dropdown. Fixed locally here rather than in
+`Screen`, which would change every screen at once.
+
+Four bugs the checks caught that reading the code would not have: every axis
 label rendered as "2…" because react-native-web sizes `Text` inline and ignored
 its width; a label sliced by the scroll edge turned "13 Jul" into "3 Jul", a
 wrong date rather than a missing one; and the first truncation test passed while

@@ -509,6 +509,66 @@ export function IconAction({
   );
 }
 
+/**
+ * A segmented icon control — pick exactly one of a few.
+ *
+ * Deliberately NOT a row of `FilterChip`s. Chips are separate pills that each
+ * turn on and off, so a row of them says "combine any of these"; a segmented
+ * control is one object with one part lit, which says "choose one". Put both on
+ * a screen as pills and they read as a single wrapped set with two selections —
+ * which is exactly what the Stats screen did before this existed.
+ *
+ * Icons, per the standing rule that ordinary choices are icons rather than
+ * labelled buttons, with each label carried on `accessibilityLabel` so nothing
+ * is lost to a screen reader. Segments are 44pt so they stay finger-sized.
+ */
+export function SegmentedIcons<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { key: T; icon: MaterialIconName; label: string }[];
+  value: T;
+  onChange: (next: T) => void;
+}) {
+  const t = useTheme();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      style={[
+        styles.segmented,
+        { borderColor: t.border.strong, backgroundColor: t.bg.surface },
+      ]}
+    >
+      {options.map((o) => {
+        const on = o.key === value;
+        return (
+          <Pressable
+            key={o.key}
+            accessibilityRole="radio"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: on, checked: on }}
+            onPress={() => onChange(o.key)}
+            style={({ pressed }) => [
+              styles.segment,
+              on ? { backgroundColor: t.accent.base } : null,
+              pressed && !on ? { backgroundColor: t.bg.inset } : null,
+            ]}
+          >
+            <MaterialIcons
+              name={o.icon}
+              size={20}
+              // text.secondary, not text.muted: an icon is non-text content and
+              // needs 3:1: muted is 2.34:1 on this surface and fails it.
+              color={on ? t.accent.onAccent : t.text.secondary}
+            />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function Row({
   children,
   style,
@@ -726,6 +786,15 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  /** One object with one part lit — see SegmentedIcons. */
+  segmented: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  segment: { minWidth: 52, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   /** Title left, its one action right, both on the baseline of the section. */
   headingRow: {
     flexDirection: 'row',

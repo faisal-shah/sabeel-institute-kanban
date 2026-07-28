@@ -28,6 +28,7 @@ import {
   LoadError,
   Row,
   Screen,
+  SegmentedIcons,
   Spinner,
   Title,
 } from '../components/ui';
@@ -43,6 +44,17 @@ import { radius, space, type as type_, useTheme } from '../theme';
  * switching between them stays instant and reads nothing.
  */
 const WINDOW: Record<StatsBucketing, number> = { day: 60, week: 26, month: 12 };
+
+/**
+ * The period control. Material's own calendar-view glyphs, which say "grouped by
+ * day / week / month" more directly than any three words would, and each keeps
+ * its word on `accessibilityLabel`.
+ */
+const BUCKETINGS = [
+  { key: 'day' as const, icon: 'calendar-view-day' as const, label: 'Daily' },
+  { key: 'week' as const, icon: 'calendar-view-week' as const, label: 'Weekly' },
+  { key: 'month' as const, icon: 'calendar-view-month' as const, label: 'Monthly' },
+];
 
 /**
  * How the boards are actually being used.
@@ -107,7 +119,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
     <Screen>
       <Title>Stats</Title>
 
-      <Row>
+      <Row style={styles.pickerRow}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Board filter, currently ${scopeName}`}
@@ -119,31 +131,46 @@ export function StatsScreen({ user }: { user: SessionUser }) {
         </Pressable>
       </Row>
 
-      {/* Bucketing. Exactly one active, so these read as a segmented control
-          rather than as filters that combine. */}
-      <Row>
-        {(['day', 'week', 'month'] as StatsBucketing[]).map((b) => (
-          <FilterChip
-            key={b}
-            label={b === 'day' ? 'Daily' : b === 'week' ? 'Weekly' : 'Monthly'}
-            active={bucketing === b}
-            onPress={() => setBucketing(b)}
-          />
-        ))}
-      </Row>
+      {/*
+        TWO SEPARATE QUESTIONS — which period, and which measure — so they have
+        to look like two controls.
 
-      {/* One metric at a time. Six small charts stacked would each get about
-          forty points of height on a phone, and six horizontal scrollers on one
-          page fight the vertical scroll. */}
-      <View style={styles.metrics}>
-        {STATS_METRICS.map((m) => (
-          <FilterChip
-            key={m.key}
-            label={m.label}
-            active={metric === m.key}
-            onPress={() => setMetric(m.key)}
-          />
-        ))}
+        They did not. `Screen` gives every child `gap: space.sm` (8), and the
+        wrapped metric chips used `space.xs` (4) between their own rows: 8
+        between the groups against 4 within one is not a difference anyone can
+        see, so all six chips read as a single wrapped set, with a filled
+        raspberry chip in each looking like two selections in one group.
+
+        The fix is a spacing HIERARCHY, not more space: `space.sm` inside a
+        group, `space.lg` between them — a clean 2× step. Grouping them under
+        one parent is what makes that expressible at all; as three siblings of
+        `Screen` every gap was necessarily the same.
+      */}
+      <View style={styles.controls}>
+        {/* Period is a pick-ONE, so it is a segmented control, not chips. Chips
+            each turn on and off, which says "combine any of these" — and next to
+            the metric chips the two groups read as one wrapped set with two
+            selections lit. A different SHAPE separates them far more reliably
+            than any amount of space could. */}
+        <SegmentedIcons
+          options={BUCKETINGS}
+          value={bucketing}
+          onChange={setBucketing}
+        />
+
+        {/* One metric at a time. Six small charts stacked would each get about
+            forty points of height on a phone, and six horizontal scrollers on
+            one page fight the vertical scroll. */}
+        <View style={styles.chipGroup}>
+          {STATS_METRICS.map((m) => (
+            <FilterChip
+              key={m.key}
+              label={m.label}
+              active={metric === m.key}
+              onPress={() => setMetric(m.key)}
+            />
+          ))}
+        </View>
       </View>
 
       {months.status === 'loading' ? (
@@ -726,7 +753,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  /**
+   * The dropdown is a third kind of control; separate it like one.
+   *
+   * The margin is carried HERE rather than left to the screen, because `Screen`
+   * only gaps its children on WIDE layouts — the gap lives on `styles.capped`,
+   * which is applied only when a maxWidth is set. On a phone its children are
+   * flush, so anything that needs air has to ask for it. That is why the chips
+   * were sitting nine pixels under the dropdown.
+   */
+  pickerRow: { marginBottom: space.lg },
+  /** Between the two chip groups — twice the gap used inside one. */
+  controls: { gap: space.lg },
+  /** Within one group. Applies to the wrapped rows too, so chips never crowd. */
+  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   readout: { minHeight: 22, justifyContent: 'center' },
   chartRow: { flexDirection: 'row', alignItems: 'flex-end' },
   axis: {
