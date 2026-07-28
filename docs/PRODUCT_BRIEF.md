@@ -644,7 +644,17 @@ double-count; that is tolerable only because `scripts/backfill-stats.mjs` can
 rebuild any range exactly from the source documents, which all still exist. The
 exception is `bytesRemoved`: the activity log records that a file was detached
 and its name, not its size, so that one series is forward-only and cannot be
-reconstructed.
+reconstructed. The backfill therefore **preserves** any `bytesRemoved` already
+recorded on a day it rebuilds rather than resetting it — a repair tool that
+destroys the only series with no other source is not a repair tool, and it would
+do so quietly, because every other number would move and it would look like the
+repair working.
+
+**The day a deploy lands is a hole, once.** The backfill never writes the current
+day (the live triggers own it), so on the day counting first starts, events
+before the deploy are recorded by neither. Re-running on any later day rebuilds
+it from source. This cannot recur: from the following midnight the triggers cover
+every day in full, so "skip today" costs nothing thereafter.
 
 **Imports do NOT show as spikes, and this was checked rather than assumed.** The
 first version of this screen carried a caveat saying they did, on the strength of
