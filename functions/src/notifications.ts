@@ -271,14 +271,23 @@ export const onCommentNotify = onDocumentWritten(
 
     if (!created) return;
 
-    // Precedence: mention, then assignee, then subscriber. Each group excludes
-    // the ones above it, so a person who is mentioned AND assigned AND
-    // subscribed gets exactly ONE notification for one comment. Without that,
-    // caring about a card more would simply mean being told more times.
-    const assignedOnly = assignees.filter((u) => !mentionUids.includes(u));
+    // Precedence: mention, then SUBSCRIBER, then assignee. Each group excludes
+    // the ones above it, so a person who is mentioned AND subscribed AND
+    // assigned gets exactly ONE notification for one comment — caring about a
+    // card in more ways must not mean being told more times.
+    //
+    // Subscription outranks assignment deliberately, and the order matters
+    // because each event has its own preference. Subscribing is a per-card
+    // choice someone made by hand; "a comment on a card assigned to you" is a
+    // blanket default. Someone with many assignments who turns that default off
+    // and then taps the bell on ONE card is saying "just this one" — with the
+    // order reversed they would get nothing at all, and the bell would be a
+    // control that silently does nothing. The message text is identical either
+    // way, so nothing else can tell the difference.
+    const subscribedOnly = subscribers.filter((u) => !mentionUids.includes(u));
     await notify({
-      event: 'commentOnMyCard',
-      recipients: await loadRecipients(assignedOnly),
+      event: 'commentOnSubscribed',
+      recipients: await loadRecipients(subscribedOnly),
       actorUid: authorUid,
       actorName,
       boardId,
@@ -286,12 +295,12 @@ export const onCommentNotify = onDocumentWritten(
       cardTitle,
     });
 
-    const subscribedOnly = subscribers.filter(
-      (u) => !mentionUids.includes(u) && !assignees.includes(u),
+    const assignedOnly = assignees.filter(
+      (u) => !mentionUids.includes(u) && !subscribers.includes(u),
     );
     await notify({
-      event: 'commentOnSubscribed',
-      recipients: await loadRecipients(subscribedOnly),
+      event: 'commentOnMyCard',
+      recipients: await loadRecipients(assignedOnly),
       actorUid: authorUid,
       actorName,
       boardId,

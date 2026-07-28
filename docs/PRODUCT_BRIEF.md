@@ -266,8 +266,10 @@ UI warns how many cards will be unassigned.
 
 Required indexes (all COLLECTION scope on the top-level `cards`): `(boardId,
 archived, rank)` for the board view, `(boardId, assigneeUids array-contains)` for
-board-member removal, and `(archived, dueDate)` for the due-soon sweep. My Work
-itself needs only the automatic single-field `assigneeUids` array-contains index.
+board-member removal, `(boardId, subscriberUids array-contains)` for the
+unsubscribe half of that same removal, and `(archived, dueDate)` for the due-soon
+sweep. My Work itself needs only the automatic single-field array-contains
+indexes on `assigneeUids` and `subscriberUids`.
 The emulator does not enforce composite indexes — verify in production (see
 `docs/INHERITED-STACK.md`, lesson 6, and `scripts/probe-indexes.mjs`).
 

@@ -17,27 +17,6 @@ export interface MyWorkCard {
 }
 
 /**
- * Every card assigned to me, across every board — the cross-board "My Work"
- * view, and the phone's most useful screen.
- *
- * Cards are a top-level collection, so this is a plain COLLECTION query. Two
- * things make it work:
- *
- *  1. The `array-contains` constraint on my own uid is mandatory. Rules only
- *     permit a list they can prove is restricted to the caller (the read rule's
- *     assignee arm); an unconstrained `collection('cards')` would be every card
- *     in the organisation and is rejected outright.
- *
- *  2. The board id is now a FIELD on the card; the board NAME is resolved from
- *     the caller's own board list. That works because assignment implies board
- *     membership, so every board appearing here is already one the user can see
- *     — which is why no board name is denormalised onto cards and no fan-out is
- *     needed when a board is renamed.
- *
- * The `archived` filter is applied client-side rather than in the query so the
- * whole thing needs only the automatic single-field array index.
- */
-/**
  * Shared mapper for both cross-board card queries below. Extracted rather than
  * duplicated: the two differ ONLY in which array they match on, and a second
  * copy of this is how one of them quietly stops filtering archived cards.
@@ -58,6 +37,27 @@ function toMyWorkCards(docs: { id: string; data: Record<string, unknown> }[]): M
     .filter((c) => !c.archived);
 }
 
+/**
+ * Every card assigned to me, across every board — the cross-board "My Work"
+ * view, and the phone's most useful screen.
+ *
+ * Cards are a top-level collection, so this is a plain COLLECTION query. Two
+ * things make it work:
+ *
+ *  1. The `array-contains` constraint on my own uid is mandatory. Rules only
+ *     permit a list they can prove is restricted to the caller (the read rule's
+ *     assignee arm); an unconstrained `collection('cards')` would be every card
+ *     in the organisation and is rejected outright.
+ *
+ *  2. The board id is now a FIELD on the card; the board NAME is resolved from
+ *     the caller's own board list. That works because assignment implies board
+ *     membership, so every board appearing here is already one the user can see
+ *     — which is why no board name is denormalised onto cards and no fan-out is
+ *     needed when a board is renamed.
+ *
+ * The `archived` filter is applied client-side rather than in the query so the
+ * whole thing needs only the automatic single-field array index.
+ */
 export function useMyWork(user: SessionUser) {
   return useLiveQuery<MyWorkCard[]>(
     'my-work',

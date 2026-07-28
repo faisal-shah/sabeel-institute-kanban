@@ -859,6 +859,11 @@ try {
 
   await sara.getByRole('button', { name: 'My work' }).click();
   await sara.getByText('My work').first().waitFor({ timeout: 20000 });
+  // POSITIVE CONTROL FIRST. Waiting only for the page title and then sampling
+  // for absence is the check that passes because nothing has rendered yet — so
+  // wait for a card that MUST be in the Assigned list before asserting that the
+  // subscribed one is not.
+  await sara.getByText('Fix signup flow').first().waitFor({ timeout: 20000 });
   // The Assigned list must NOT contain it — she is not assigned to it, and the
   // two lists answering different questions is the reason there are two.
   check(

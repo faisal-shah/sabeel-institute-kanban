@@ -385,7 +385,35 @@ The `NOTIFY_EVENTS.length <= 6` guard — "every addition is a tax on attention"
 was raised to 7 with the justification written into the test, which is the point
 of having the guard at all.
 
-Verified: 306 + 27 unit, 185 rules, 79 functions, web 77/77, attachments 17/17.
+Three review passes over the change found five more things, two of which would
+have shipped as real defects.
+
+**The bell could silently do nothing.** Precedence was mention → assignee →
+subscriber, so someone who had turned off "a comment on a card assigned to you"
+and then deliberately subscribed to one card got NOTHING: the assignee branch
+claimed them, and their preference dropped it. Subscription now outranks
+assignment, because a per-card choice made by hand should beat a blanket
+default, and the message text is identical either way so nothing else can tell.
+Reverting the order turns exactly one test red.
+
+**A failure in the Subscribed query took down the whole screen.** My Work is the
+phone's landing surface; a secondary list must not cost you the primary one. The
+error is now fatal only for the list being viewed, and a chip whose query failed
+shows "?" rather than a count — reporting 0 for a query that errored is the same
+"not loaded is not empty" lie that has bitten this codebase twice already.
+
+Also: the e2e's "absent from Assigned" check sampled without a positive control
+first, so it would have passed even if the list had rendered nothing at all;
+`useMyWork`'s docstring — the one explaining why the query is legal — ended up
+orphaned above the extracted mapper; and the brief's index list still claimed My
+Work needed a single index.
+
+One hypothesis was disproved by measuring rather than reasoning: removeBoardMember
+issues TWO `batch.update` calls on the same card when someone is both assigned
+and subscribed. Firestore applies both field masks rather than throwing or
+clobbering — verified with a throwaway emulator probe rather than assumed.
+
+Verified: 306 + 27 unit, 185 rules, 80 functions, web 77/77, attachments 17/17.
 On the AVD: the bell fills raspberry when subscribed, and My work shows
 "Assigned (0) / Subscribed (1)" with the same due-date grouping.
 

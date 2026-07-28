@@ -127,19 +127,34 @@ describe('subscribers hear about comments', () => {
     expect(await inbox(SUBSCRIBER, 'commentOnSubscribed')).toHaveLength(0);
   });
 
-  it('sends ONE notification to someone who is assigned AND subscribed', async () => {
+  it('sends ONE notification to someone assigned AND subscribed — the SUBSCRIBED one', async () => {
+    // The per-card choice outranks the blanket default. Someone who turned off
+    // "comments on cards assigned to me" and then subscribed to this one is
+    // saying "just this one"; the other order would send them nothing.
     await adminDb()
       .doc('cards/nt_card')
       .update({ subscriberUids: [SUBSCRIBER, ASSIGNEE] });
     await clearInbox(ASSIGNEE);
     await comment('status?', []);
-    await waitFor('the assignee entry', async () => {
-      const got = await inbox(ASSIGNEE, 'commentOnMyCard');
+    await waitFor('the subscribed entry', async () => {
+      const got = await inbox(ASSIGNEE, 'commentOnSubscribed');
       return got.length > 0 ? got : undefined;
     });
     await new Promise((r) => setTimeout(r, 2500));
-    expect(await inbox(ASSIGNEE, 'commentOnSubscribed')).toHaveLength(0);
+    expect(await inbox(ASSIGNEE, 'commentOnMyCard')).toHaveLength(0);
     await adminDb().doc('cards/nt_card').update({ subscriberUids: [SUBSCRIBER] });
+  });
+
+  it('still sends the assignee event when they have NOT subscribed', async () => {
+    // The positive control for the exclusion above: without it this would be
+    // the only assignee path and the swap could silently break it.
+    await clearInbox(ASSIGNEE);
+    await comment('plain assignee case', []);
+    const got = await waitFor('the assignee entry', async () => {
+      const e = await inbox(ASSIGNEE, 'commentOnMyCard');
+      return e.length > 0 ? e : undefined;
+    });
+    expect(got).toHaveLength(1);
   });
 
   it('never notifies the person who wrote the comment', async () => {

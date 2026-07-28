@@ -96,7 +96,15 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
   ) {
     return <Spinner label="Loading your work…" />;
   }
-  if (work.status === 'error' || subs.status === 'error' || boards.status === 'error') {
+  // Only the list being VIEWED can take the screen down. A failure in the other
+  // one must not cost you the phone's most useful screen — and its chip shows
+  // "?" rather than a count, because reporting 0 for a query that errored is
+  // the same "not loaded is not empty" lie that has bitten this codebase twice.
+  const activeFailed = mode === 'assigned' ? work.status === 'error' : subs.status === 'error';
+  const countFor = (state: { status: string }, list: MyWorkCard[]) =>
+    state.status === 'error' ? '?' : String(list.length);
+
+  if (activeFailed || boards.status === 'error') {
     return (
       <Screen width="list">
         <Title>My work</Title>
@@ -119,12 +127,12 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
           is the question a hidden tab always raises. */}
       <Row style={styles.modes}>
         <FilterChip
-          label={`Assigned (${assigned.length})`}
+          label={`Assigned (${countFor(work, assigned)})`}
           active={mode === 'assigned'}
           onPress={() => setMode('assigned')}
         />
         <FilterChip
-          label={`Subscribed (${subscribed.length})`}
+          label={`Subscribed (${countFor(subs, subscribed)})`}
           active={mode === 'subscribed'}
           onPress={() => setMode('subscribed')}
         />
