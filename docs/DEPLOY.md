@@ -69,8 +69,9 @@ From then on, promote everyone else in-app under **People**.
 
 ## Public download page
 
-The app repo is private, so its releases are not publicly downloadable. The team
-downloads from GitHub Pages instead — public, free bandwidth, no account needed:
+The team downloads from a GitHub Pages site rather than from the repo's own
+releases — a plain page with one button, free bandwidth, no GitHub account and
+no navigating a release list:
 
 <https://faisal-shah.github.io/sabeel-kanban/>
 

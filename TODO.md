@@ -18,15 +18,22 @@ tells you the command to run.
 ## Stats backfill — done
 
 - [x] Re-ran `scripts/backfill-stats.mjs --write` on 29 July (2026) to fill the
-      28 July hole left by `v0.5.0` deploying mid-afternoon. Verified in
-      production: 20 created, 31 archived, 10 comments, 7 active people.
+      28 July hole left by `v0.5.0` deploying mid-afternoon. The dry run's
+      self-check agreed with a direct count of the source documents before
+      anything was written.
 
 ---
 
 ## A. GitHub — done
 
-- [x] Private repo created and pushed (2026-07-19):
+- [x] Repo created and pushed (2026-07-19):
       https://github.com/faisal-shah/sabeel-institute-kanban
+- [x] **It is PUBLIC** (confirmed 2026-07-29). Audited on that date: no secret
+      file, DSN, service-account key or token has ever been committed, in the
+      working tree or anywhere in history; no ClickUp export; no APK or large
+      blob; and none of the `@oursabeel.com` addresses in the repo is a real
+      account — they are all fixtures. What IS committed is public by design:
+      the Firebase web config, `google-services.json` and `firestore.rules`.
 - [x] CI green on the Phase 0 commit.
 
 ---
@@ -173,7 +180,7 @@ update that Android will accept as this app.**
 
 The original note said to close this "before the APK goes to the team". It has
 gone to the team; the app is in daily use. That does not make it urgent on its
-own — the repo is private and the audience is a dozen colleagues — but the
+own — the audience is a dozen colleagues who install deliberately — but the
 condition it was written against has passed, so this is now a standing risk
 rather than a pre-launch task. Swapping keystores also forces a **reinstall for
 everyone** (Android refuses an update signed by a different key), which is the
@@ -206,8 +213,8 @@ would update rather than duplicate.
 
 ## H. Launch — **done**
 
-- [x] **Roles decided and in place.** Production currently holds 3 admins,
-      4 managers and 9 members, all active (checked 2026-07-29).
+- [x] **Roles decided and in place.** Admins, managers and members are all
+      assigned in production and the distribution was verified (2026-07-29).
 - [x] **First admin bootstrapped** after the first deploy (2026-07-19); everyone
       since has been approved and promoted in-app.
 - [x] **Notification event list confirmed** and shipped. `myCardMoved` is off by
