@@ -1,5 +1,12 @@
 # Migrating from ClickUp
 
+> **Done — one pass, 2026-07-26.** Three boards (Ideas / Action Items /
+> Fundraiser) came across from a CSV export. There is no recurring import. What
+> it left behind is `scripts/import-clickup.mjs` and the `sourceId` field on
+> cards, and both stay: a card's document id is its ClickUp task id, so a re-run
+> would update rather than duplicate. This page is the record of how it was
+> done and the shape a second migration would take.
+
 A one-time, dev-side, human-in-the-loop move. It is **not** an app feature and
 never ships to users.
 
@@ -29,8 +36,11 @@ you correct, and anything unresolved is a hard error rather than a silent drop.
 
 ### Option B: API export (if the CSV drops things)
 
-CSV commonly loses comment threads and sometimes assignee lists. If that
-matters:
+CSV commonly loses comment threads and sometimes assignee lists. **The real
+migration used Option A and this was never needed, so no fetch script exists** —
+what follows is the design, not a command you can run today.
+
+If that matters:
 
 1. ClickUp → **Settings → Apps → API Token** → generate a personal token.
 2. **Do not paste the token into chat.** Put it in `migration/.env`:
@@ -38,8 +48,9 @@ matters:
    CLICKUP_TOKEN=pk_xxx
    CLICKUP_TEAM_ID=xxxxx
    ```
-3. Run `node scripts/clickup-fetch.mjs` — it walks Spaces → Folders → Lists →
-   Tasks → Comments and writes `migration/clickup-export.json`.
+3. Write a fetch step that walks Spaces → Folders → Lists → Tasks → Comments and
+   writes `migration/clickup-export.json`, then teach
+   `scripts/import-clickup.mjs` to read that shape as well as CSV.
 
 **Show me a small sample either way** (5–10 rows, or one task's JSON) before the
 full export. The exact CSV column names vary by ClickUp plan and view, and the

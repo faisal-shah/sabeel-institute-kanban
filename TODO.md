@@ -166,11 +166,18 @@ SDKs are wired by hand instead — see `docs/SECRETS.md`.
 
 ## F. Release signing — **a debug-signed APK is already published**
 
-v0.1.0 (2026-07-19) ships signed with the **debug keystore**, which is committed
-to this repo. That was fine for getting a build onto your own phone, and it is
-why the debug SHA-1 is the one registered in Firebase — but it means **anyone
-with this repo can sign an update that Android will accept as this app.** Close
-this before the APK goes to the team, not before "sharing" generally.
+**Every release so far, up to and including v0.6.1, is signed with the debug
+keystore**, which is committed to this repo. That is why the debug SHA-1 is the
+one registered in Firebase — and it means **anyone with this repo can sign an
+update that Android will accept as this app.**
+
+The original note said to close this "before the APK goes to the team". It has
+gone to the team; the app is in daily use. That does not make it urgent on its
+own — the repo is private and the audience is a dozen colleagues — but the
+condition it was written against has passed, so this is now a standing risk
+rather than a pre-launch task. Swapping keystores also forces a **reinstall for
+everyone** (Android refuses an update signed by a different key), which is the
+real reason to plan it rather than slip it into a release.
 
 - [ ] **Generate a real release keystore** and store it where you will not lose
       it — losing it means never being able to update the app. Claude will give
@@ -197,16 +204,15 @@ Kept only as history — the importer (`scripts/import-clickup.mjs`) and the
 `sourceId` field on cards are what it left behind, and both stay so a re-run
 would update rather than duplicate.
 
-## H. Launch
+## H. Launch — **done**
 
-- [ ] Decide who the **admins** are (they alone approve accounts and promote
-      people) and who the **managers** are (they create boards and can join any
-      board).
-- [ ] You'll be bootstrapped as the first admin by a script after the first
-      deploy; everyone else is promoted in-app.
-- [ ] Confirm the **notification event list** in `docs/PRODUCT_BRIEF.md` before
-      Phase 10 — it's the one thing Claude proposed rather than being told, and
-      it governs how noisy the app feels.
+- [x] **Roles decided and in place.** Production currently holds 3 admins,
+      4 managers and 9 members, all active (checked 2026-07-29).
+- [x] **First admin bootstrapped** after the first deploy (2026-07-19); everyone
+      since has been approved and promoted in-app.
+- [x] **Notification event list confirmed** and shipped. `myCardMoved` is off by
+      default because it fires constantly on a busy board — the reason the
+      later "subscribe to a card" work was narrowed to comments only.
 
 ---
 

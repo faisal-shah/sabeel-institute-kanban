@@ -216,6 +216,25 @@ Two rules this encodes, both learned expensively:
 
 `app/src/ciCoverage.test.ts` fails if CI ever stops running this.
 
+### Screenshots for the user manual
+
+Different job, different script. `screens-e2e.mjs` asserts; this one only
+produces the images `docs/USER-MANUAL.md` embeds, at the two sizes
+`render-manual.py` lays out for:
+
+```sh
+scripts/dev.sh web              # emulators + web + seed, and WAIT for the seed
+node scripts/manual-shots.mjs   # all 21 → docs/manual/img/
+node scripts/manual-shots.mjs stats search   # or just the ones that changed
+python3 docs/render-manual.py   # rebuild docs/USER-MANUAL.pdf
+```
+
+It covers **every** image the manual uses except `pending.png`, which needs an
+account that has signed in and not been approved — and the dev seed approves
+everyone it creates. Cover new screens here when you add them: an image with no
+generator is an image that quietly goes stale, which is exactly what happened to
+`search-*` when only six of the twenty were covered.
+
 **Native is a separate check** — web is not evidence about native rendering. To
 look at the real Android app against seeded data:
 
@@ -254,5 +273,12 @@ With the emulators running and the app open:
 ## Where things live
 
 - `docs/PRODUCT_BRIEF.md` — decisions and data model. Start here.
-- `docs/PHASE_STATUS.md` — what's built, what's next, exit criteria.
+- `docs/PHASE_STATUS.md` — what's built, and the **deploy log**: what shipped,
+  when, and what it broke.
+- `docs/USER-MANUAL.md` — the guide the team reads; `USER-MANUAL.pdf` beside it.
+- `docs/DEPLOY.md` — deploying, the release APK, the download page, rollback.
+- `docs/BRAND.md` — the colour authority. Read before any design decision.
+- `docs/INHERITED-STACK.md` — what the sibling time-tracker already paid for.
+- `docs/STACK-GOTCHAS.md` — a stub; the traps live in the public
+  `expo-firebase-stack` skill, because they are true for anyone on this stack.
 - `TODO.md` — the console work only you can do.

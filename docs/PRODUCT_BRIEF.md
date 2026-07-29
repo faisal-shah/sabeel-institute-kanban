@@ -327,15 +327,41 @@ Firestore has no full-text search, and adding Algolia/Typesense would mean a thi
 project exists to avoid. So search is **client-side, scoped to the boards you
 belong to**:
 
-- Fan out one lightweight query per member board, fetching `title`, `description`,
-  `columnId` and `dueDate`; match case-insensitive substrings on title and
-  description; group results by board.
+- **One `boardId in [...]` query per 30 boards**, not one per board — the
+  30-value ceiling on `in` is the only reason it chunks at all. Archived cards
+  are excluded *server-side* unless the Archived filter asks for them, so the
+  common case fetches strictly less rather than fetching everything and
+  filtering.
+- Matching is case-insensitive substring on title and description, in memory, so
+  typing re-filters without re-reading.
 - The persistent local cache makes repeat searches essentially free and lets
   search work offline over boards already visited.
 - Honest limits: it matches substrings, not stems or fuzzy spellings, and it costs
   reads proportional to your card count. Fine for a few thousand cards across
   <50 people. **Revisit past roughly 10,000 cards** — at that point the answer is
   a proper search service, not a cleverer client.
+
+**Search browses by default.** With nothing typed and nothing selected it lists
+every card you can see, newest first. It used to show nothing until you typed,
+which made the filters unreachable without inventing a query first.
+
+**The filter set**, and why it is split across two rows: the binary toggles
+(Archived, Overdue, Urgent, High) stay one tap each; the two *unbounded lists* —
+board and label — live behind a single `Filters` control rather than becoming
+two more dropdowns stacked above the results. Whatever they pick returns as a
+chip in the same row, removable by the same gesture as everything else, so "what
+am I filtering by?" is answered by one readable row. A clear-all icon appears
+only when something is active.
+
+**Filters live in `app/src/viewState.ts`, not in the screen.** `App.tsx` renders
+one screen per route, so opening a result unmounts Search; held in `useState`,
+the whole search died on the way to a card and Back returned a blank screen.
+Session-only, deliberately — a reload forgets.
+
+**The keyboard is a width question, not a platform one.** Autofocus is
+`Platform.OS === 'web' && isWide`. Keying it off the platform alone opened the
+on-screen keyboard over the results in a *phone browser*, which is web too — and
+is how a good part of this team uses the app.
 
 ## Bulk actions
 
@@ -671,12 +697,18 @@ card counts and these numbers have to agree.
 
 ## Open questions
 
-- **Notification event list** — proposed above, needs Faisal's confirmation before
-  the notifications phase.
-- **Due-soon timing** — how many days ahead, and what hour does the reminder fire?
-  Needs `ORG_TIMEZONE` pinned too.
+- ~~**Notification event list**~~ — **settled and shipped.** `myCardMoved` is
+  off by default because it fires constantly on a busy board; that is also why
+  subscribing to a card was later narrowed to its *comments* rather than adding
+  ten more triggers beside it.
+- ~~**Due-soon timing**~~ — **settled.** `dueSoonReminders` runs on `0 8 * * *`
+  in `ORG_TIMEZONE`, which is `America/Chicago` (Houston, where the team is —
+  not the sibling time-tracker's, which deliberately has no org timezone at all).
 - **Board privacy from managers** — currently impossible by design. Flagged in
   case the team has a board that needs it.
+- **Muted captions that carry meaning** — whether `Caption` sites conveying real
+  information should move to `Hint`. Measured and written up in `docs/BRAND.md`;
+  deliberately **not acted on** without Faisal's say-so.
 - **Duplicating a board / board templates** — worth it if the nonprofit runs
   repeating programs with the same column structure. Not currently planned.
 
@@ -686,8 +718,11 @@ Reversible, low-stakes, and not worth a round trip — flag any you dislike:
 
 - **New boards start with To Do / In Progress / Done**, all renameable and
   removable. A blank board is a worse first run than a wrong-but-editable one.
-- **Priorities are none / low / medium / high / urgent**, shown as a colored dot
-  on the card face and never as a sort default.
+- **Priorities are none / low / medium / high / urgent**, shown on the card face
+  as a small coloured badge carrying the word (*Urgent*, *High*, …) and never as
+  a sort default. A bare dot was the original call and was dropped: a colour
+  alone is unreadable to anyone who cannot separate the hues, and it forces a
+  legend nobody has. *none* shows no badge at all.
 - **Boards are archived, never hard-deleted.** Archiving hides a board from
   everyone's list and is admin-reversible; a board is far too much accumulated
   work to expose a destroy button for. (Cards are different — they're small, and

@@ -226,7 +226,10 @@ carries over and, more importantly, what was learned the hard way there.
   `SWEEP_WIDTHS=320` while iterating. Reach for this on any change to a shared
   component, the theme, or a layout; it is the only check that sees a phone
   layout, and a bug on one side of the breakpoint is invisible from the other.
-- Web: `npx expo start --web` in `app/` (emulator-backed via env flag).
+- Web: `npm run dev:web` (or `scripts/dev.sh web`) — these set
+  `EXPO_PUBLIC_USE_EMULATORS=1`. Bare `npx expo start --web` in `app/` does NOT,
+  and points at **production Firebase**; nothing in the UI says which backend
+  you are on.
 - CI (GitHub Actions): lint + typecheck + unit + emulator tests on every push.
   Keep it green. No deploys from CI.
 
@@ -252,8 +255,16 @@ Playwright for web) — never claim a screen works because the code looks right.
 
 ## Conventions
 
-- Commit at phase boundaries (see `docs/PHASE_STATUS.md` once it exists); work
-  autonomously within a phase.
+- **The phases are finished and the app is in production.** Work ships as
+  numbered releases; commit at the end of a coherent change and work
+  autonomously within one. Every release gets an entry in the **deploy log** at
+  the top of `docs/PHASE_STATUS.md` — `scripts/publish-apk.sh` pulls the GitHub
+  release notes straight from it, so a missing entry fails the publish.
+- **The user manual is part of the app.** A change to any screen means
+  `docs/USER-MANUAL.md`, then `node scripts/manual-shots.mjs` for its images,
+  then `python3 docs/render-manual.py` for the PDF — all three, same batch.
+  Add new screens to the generator; an image with no generator goes stale
+  unnoticed.
 - Before ANY significant install (global/system/major framework), ask first;
   routine project-local npm deps of the locked stack are fine.
 - All repo artifacts (docs, plans, protocols) live in this repo.

@@ -10,7 +10,7 @@ web. "The code looks right" is not verification.
 
 | Phase | What | Status |
 |---|---|---|
-| 0 | Scaffold + CI + theming | **complete** (2026-07-19: 15 tests green; light+dark verified by screenshot on `tb_emu` and web export; esbuild inlining of `@sabeel/shared` verified) |
+| 0 | Scaffold + CI + theming | **complete** (2026-07-19: 15 tests green; verified by screenshot on `tb_emu` and web export; esbuild inlining of `@sabeel/shared` verified). The derived dark palette this phase shipped was **removed** on 2026-07-21 — the app is a single light theme. |
 | 1 | Auth + approval + roles | **complete** (2026-07-19: 83 tests + 11 e2e checks green; live un-gating verified on web AND Android by screenshot) |
 | 2 | Boards + membership | **complete** (2026-07-19) |
 | 3 | Columns + cards + ordering | **complete** (2026-07-19) |
@@ -24,29 +24,47 @@ web. "The code looks right" is not verification.
 | 11 | Search + archive | **complete** (2026-07-19) |
 | 12 | Polish + deploy readiness | **complete** (2026-07-19) |
 | 13 | Production deploy | **complete** (2026-07-20) — live at sabeel-institute-kanban.web.app; APKs published; indexes probed in production |
-| 14 | ClickUp import + launch | **blocked on a sample export** — the parser cannot be written without seeing real column names |
+| 14 | ClickUp import + launch | **complete** (2026-07-26) — three boards imported from a CSV export in one pass; `scripts/import-clickup.mjs` and the `sourceId` field remain so a re-run would update, not duplicate. See `docs/MIGRATION.md`. |
+| — | Since launch | The app is **in production and in daily use**. Work now ships as numbered releases rather than phases; the **deploy log** below is the running record. |
 
-## What works today (2026-07-19)
+## What works today (2026-07-29, v0.6.1)
 
-Phases 0-12 are complete. Everything below runs against the emulators:
+Every phase is complete and the app is **live and in daily use** at
+<https://sabeel-institute-kanban.web.app> with an Android APK beside it:
 
 - Google-only sign-in restricted to `@oursabeel.com`, enforced server-side, with
   admin approval that un-gates the app live. A rejected account is told why
   rather than left spinning.
 - Admin people-management: approve, reject, disable, change roles.
-- Boards with columns, labels and membership; favourites and recents.
-- Cards with markdown descriptions, assignees, all-day due dates, priority and
-  labels; archive and (manager-only) delete.
+- Boards with columns and membership; favourites and recents. **Labels are
+  org-wide**, one set every board shares — any member creates one, managers
+  rename, recolour and delete.
+- Cards with **plain-text** descriptions and comments (markdown was removed
+  2026-07-20 — the renderer and parser were deleted, not disabled), assignees,
+  all-day due dates, priority, labels, subtasks, and **file attachments**
+  (10 MB each, any type, downloaded through short-lived signed URLs).
+- Archive and (manager-only) delete; boards archive and never hard-delete.
 - Web: multi-column board with real drag-and-drop. Android: swipe-paged single
   column with a "Move to…" sheet.
-- Multi-select and bulk move/assign/archive/delete on both surfaces.
-- Comments with @mentions, and a tamper-proof per-card activity history.
+- Multi-select and bulk move/assign/archive/delete on both surfaces, including
+  cross-board move and copy.
+- Comments with @mentions, per-card **comment subscriptions**, and a
+  tamper-proof per-card activity history.
 - Notifications: in-app inbox with unread badge, per-event preferences,
   per-board mute, and a daily due-soon sweep.
-- My Work across every board, and global search across the boards you belong to.
+- My Work across every board, and search across the boards you belong to, with
+  filters for archived, overdue, priority, label and board that survive
+  navigating away.
+- **Stats** (managers/admins): cards created and archived, comments, active
+  people and file counts by day, calendar week or calendar month, server-counted
+  and stored so the screen opens instantly.
 - Sabeel brand palette (Option 1) and logo; single light theme, no dark mode.
 
-**Tests: 196 unit + 124 emulator integration + 46 browser e2e checks.**
+**Tests: 371 unit + 193 emulator integration + 494 browser e2e checks**, the last
+across four suites — access and board flow (91), attachments (17), the stats
+chart at nine widths (271), and every screen at five widths (115). All four run
+in CI on every push, and `app/src/ciCoverage.test.ts` fails if one is ever left
+out of the workflow.
 
 See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
 `docs/DEPLOY.md` for the production checklist.
@@ -55,15 +73,21 @@ See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
 
 - **Push delivery is unverifiable locally.** FCM needs a real project, so the
   emulator suite proves the triggers fire, the preference logic, and that inbox
-  entries are written — but not that a phone buzzes. Confirm at Phase 13.
-- **Board filters** (by assignee/label/priority within a board) exist in
-  `@sabeel/shared` with tests, but are only surfaced through global search, not
-  as a filter bar on the board itself.
-- **No user-manual screenshots yet.** The manual is written; the images should
-  be regenerated once the real project exists so they show real data.
+  entries are written — but not that a phone buzzes. Verified in production.
+- **Web push is inert** until a VAPID key exists (`TODO.md` § I). Android push
+  works.
+- **Board filters** (by assignee/label/priority *within* a board) exist in
+  `@sabeel/shared` with tests, but are surfaced only through Search, not as a
+  filter bar on the board itself. Deliberate for now — a filter bar is a row of
+  board nobody can see.
+- **Two accepted residuals on attachments**, both measured and neither a bug to
+  re-fix: a signed URL already handed out keeps working for up to an hour after
+  someone leaves a board, and there is no cap on how many files one card may
+  hold. Both are fine below fifty colleagues; neither survives untrusted users.
+- **A simultaneous double-create can make two labels with the same name.**
+  Uniqueness is case-insensitive and checked on the client only.
 
-Nothing before Phase 13 needs a real Firebase project — everything runs against
-the emulators. Faisal's console tasks are tracked in `TODO.md`.
+Faisal's console tasks are tracked in `TODO.md`.
 
 ---
 

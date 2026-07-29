@@ -48,9 +48,10 @@ SDK, but it needs gcloud ADC or `GOOGLE_APPLICATION_CREDENTIALS`:
 GCLOUD_PROJECT=sabeel-institute-kanban node scripts/grant-admin.mjs you@oursabeel.com
 ```
 
-**Without those credentials**, use the temporary one-shot instead
-(`functions/src/bootstrap.ts`), which is how this project was bootstrapped on
-2026-07-19:
+**Without those credentials**, the fallback is a temporary one-shot function.
+This project was bootstrapped that way on 2026-07-19; the file no longer exists,
+because step 4 is to delete it. Recreate it as `functions/src/bootstrap.ts` only
+if you are standing up a *new* project:
 
 1. Sign in through the app once so the account exists (you will land `pending`).
 2. `firebase deploy --only functions:bootstrapFirstAdmin`
@@ -73,10 +74,15 @@ downloads from GitHub Pages instead — public, free bandwidth, no account neede
 
 <https://faisal-shah.github.io/sabeel-kanban/>
 
-Update it from `../faisal-shah.github.io` by copying the new APKs over the
-existing ones **keeping the same filenames** (the links must not go stale) and
-bumping the version line in `sabeel-kanban/index.html`. That repo's
-`sabeel-kanban/README.md` records the history-size cost and what to do about it.
+**Never `git add` an APK — to that repo or any other.** The download is a GitHub
+**Release asset** on the fixed rolling tag `kanban-latest`, so the URL on the
+page never changes and only the version *label* is edited. Committing a binary
+per release is what bloated the pages history (~31 MB each) and had to be
+rewritten out; `*.apk` is gitignored there as the backstop, and
+`scripts/publish-apk.sh` fails if a binary ever lands in that history again.
+
+`scripts/publish-apk.sh` is the only supported way to publish. See
+**Android release APK** below for the whole sequence.
 
 ## Android release APKs
 

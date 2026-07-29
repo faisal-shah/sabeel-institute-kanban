@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.1.26 · July 2026*
+*For app version 0.6.1 · July 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -66,7 +66,10 @@ A slim navigation bar is always in reach — **along the bottom on a phone**, an
 - **My Work** — every card assigned to you, across every board.
 - **Search** — find a card by its words.
 - **Alerts** — what you've been told about; a badge shows how many are unread.
-- **Account** — People (admins only) and Sign out.
+- **More** — everything that isn't a place you go often: **Stats** (managers and
+  admins), **People** (admins), and **Sign out**. It also shows the version of
+  the app you're running, which is the first thing to quote if something looks
+  wrong.
 
 Open a board or a card and the phone's bottom bar steps aside, giving the board
 the whole screen; it returns when you go back to a list. In a browser the left
@@ -263,18 +266,38 @@ open it.
 </div>
 
 Search lists **every card on every board you're on**, newest first — you don't
-have to type anything. Typing narrows it by title and description; it matches
-whole words and parts of words, but not misspellings.
+have to type anything, and **the keyboard stays shut** until you tap the box, so
+you can browse and filter without it covering half the results. Typing narrows by
+title and description; it matches whole words and parts of words, but not
+misspellings.
 
-Above the results are **filter chips**:
+Above the results are **filter chips**. The first row is one tap each:
 
 - **Archived** — shows **only** archived cards, and hides the live ones. This is
   the other way to find something you archived, alongside a board's own archive.
 - **Overdue** — only cards past their due date.
 - **Urgent** / **High** — only cards at that priority.
 
-Tap a chip to turn it on, tap again to turn it off, and combine them freely. If
-there are more results than fit on screen the app says so, rather than quietly
+The second row starts with **Filters**, which opens a panel holding the two
+filters that are *lists* rather than switches:
+
+- **Board** — narrow to a single board.
+- **Label** — pick one or several; you get cards carrying **any** of them.
+
+Whatever you pick comes back as **its own chip** in that second row, so the
+answer to "what am I filtering by?" is always one row you can read at a glance —
+and tapping a chip removes that filter, the same gesture as everything else. When
+anything is active, a **clear-filters** icon appears at the end of the row and
+switches everything off at once. It is only there when there is something to
+clear.
+
+**Your search survives leaving it.** Open a result, then come back, and the text,
+the chips and the board and label picks are all as you left them — you don't have
+to rebuild a search to look at a second card. Filters reset when the app is
+reloaded, because a filter you set last week isn't one you meant to still be
+looking through today.
+
+If there are more results than fit on screen the app says so, rather than quietly
 cutting the list short. Tap a result to open the card.
 
 ## 1.9 Notifications
@@ -311,7 +334,7 @@ in on the device.
 
 ## 1.10 Signing out
 
-**Account → Sign out** (in the navigation bar). Signing out clears your session on
+**More → Sign out** (in the navigation bar). Signing out clears your session on
 this phone or browser and stops it receiving that account's notifications. The
 next sign-in shows Google's account chooser, which is how you switch accounts.
 
@@ -397,6 +420,42 @@ back, exactly as it was.
 Archiving keeps a card out of the way but recoverable; deletion is final and takes
 its comments and history with it. When in doubt, archive.
 
+## 2.5 Stats — how the boards are being used
+
+<div class="pair">
+  <figure><img class="wide" src="manual/img/stats-wide.png" alt="Stats in a browser"><figcaption>In a browser</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/stats-phone.png" alt="Stats on a phone"><figcaption>On a phone</figcaption></figure>
+</div>
+
+**More → Stats.** Managers and admins only. It answers "is this being used, and
+by whom?" — nothing about individual performance, and nothing you can drill into
+a person with.
+
+Three controls sit above the chart:
+
+- **The board** — one board, or **All boards**. Archived boards stay in the list
+  and are marked, because archiving a board doesn't retract the work that
+  happened on it.
+- **Daily / Weekly / Monthly** — the three calendar icons. Weeks run
+  **Sunday to Saturday** and months are real calendar months, not rolling
+  windows, so a week here is the week everyone means.
+- **What to measure** — cards created, cards archived, comments, **active
+  people**, files added, files removed.
+
+**Active people** counts how many *different* people did something that day — not
+who signed in. Opening the app changes nothing; creating a card, commenting or
+attaching a file does.
+
+The chart scrolls sideways when there are more bars than fit; **tap a bar** for
+its exact figure and date. The **last bar is outlined rather than filled** because
+today isn't finished yet — a half-day next to whole ones would read as a decline
+that hasn't happened. Below it, **Files stored** gives the total size held across
+all attachments.
+
+History goes back **twelve months** and is kept indefinitely. Figures for past
+days are counted once and stored, so the screen opens instantly however much
+history there is; only the current day is worked out live.
+
 ---
 
 # Part 3 — For admins
@@ -411,7 +470,7 @@ approve accounts and change roles.
   <figure><img class="narrow" src="manual/img/people-phone.png" alt="The People screen on a phone"><figcaption>On a phone</figcaption></figure>
 </div>
 
-Open **Account → People**. It lists everyone who has signed in. A new account
+Open **More → People**. It lists everyone who has signed in. A new account
 waits on **pending** and sees nothing until you approve it — approve it here and
 their screen unlocks live, wherever they are. Admins also get a push notification
 when someone is waiting.
@@ -491,8 +550,20 @@ Open it → the **bell** in the header. It appears under **My work → Subscribe
 and you'll hear about new comments.
 
 **…find every card with a particular label?**
-**Search** → **Filter by label**, and pick one. Pick more than one and you get
-cards carrying **any** of them. Each pick becomes a chip; tap it to drop it.
+**Search → Filters → Label**, and pick one. Pick more than one and you get cards
+carrying **any** of them. Each pick becomes a chip; tap it to drop it.
+
+**…search within one board only?**
+**Search → Filters → Board**. It becomes a chip like everything else — tap the
+chip to go back to searching everywhere.
+
+**…clear every filter at once?**
+The **clear-filters** icon at the end of the chip row. It only appears when
+something is actually filtering.
+
+**…see how much the boards are being used?** *(managers/admins)*
+**More → Stats** — cards created and archived, comments, how many different
+people were active, and files, by day, week or month.
 
 **…add someone to a board?** *(managers)*
 Board **settings → Members** → add them. (They must be an approved account first.)
@@ -501,7 +572,7 @@ Board **settings → Members** → add them. (They must be an approved account f
 Open the card → delete. Members **archive** instead.
 
 **…let a new team member in?** *(admins)*
-They sign in once with Google → **Account → People** → **Approve** their pending
+They sign in once with Google → **More → People** → **Approve** their pending
 card.
 
 **…make someone a manager or admin?** *(admins)*
@@ -526,6 +597,8 @@ stay.
 | No push notifications arriving | Permission not granted on this device, or that kind is muted | Allow notifications when the app asks, and check **Alerts → Settings** |
 | A red "Live data error" bar | The app couldn't reach the server or was refused | It clears when the connection recovers; if it persists, tell Faisal what the bar says |
 
-*Manual source: `docs/USER-MANUAL.md` (images in `docs/manual/img/`, screenshots
-of the web app at desktop and phone widths). PDF: `docs/USER-MANUAL.pdf`, built
-with `docs/render-manual.py`. Update all three together when the app changes.*
+*Manual source: `docs/USER-MANUAL.md`. Its images live in `docs/manual/img/` and
+are regenerated from the seeded dev stack by `node scripts/manual-shots.mjs`
+(every one except `pending.png`, which needs an unapproved account). The PDF is
+built from the markdown by `python3 docs/render-manual.py`. When the app
+changes, update all three in the same batch — text, images, PDF.*

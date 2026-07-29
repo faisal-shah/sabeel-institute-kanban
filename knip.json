@@ -2,7 +2,13 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
     "app": {
-      "entry": ["index.ts", "App.tsx", "**/*.web.ts", "**/*.web.tsx"],
+      "entry": [
+        "index.ts",
+        "App.tsx",
+        "**/*.web.ts",
+        "**/*.web.tsx",
+        "src/**/*.test.ts"
+      ],
       "project": ["src/**/*.{ts,tsx}", "*.{ts,tsx}"]
     },
     "functions": {

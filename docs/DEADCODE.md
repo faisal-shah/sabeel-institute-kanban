@@ -9,6 +9,26 @@ consumers, so **anything unused gets deleted, not deprecated** — code kept
 "in case" is a liability, and nothing here is load-bearing for anyone outside
 this repo.
 
+## What a clean run looks like
+
+Two **unlisted dependencies** — `expo-updates` and `expo-system-ui`, both
+attributed to `app/app.json`. Neither appears in that file; knip's Expo plugin
+infers them from Expo's own defaults. Do not install them to quiet the report.
+
+Everything else should be empty. If a category that used to be empty is not,
+something changed — and the two most recent examples were both *config* drift
+rather than dead code:
+
+- The app workspace gained a test runner, and knip did not know about it, so
+  every `app/src/**/*.test.ts` came back as an "unused file". Fixed by listing
+  them as entries in `knip.json`.
+- `scripts/*.mjs` imported `firebase-admin` while nothing at the root declared
+  it — it resolved only because npm hoisted it out of `functions/`. Every
+  backfill and migration script rested on that. Now declared at the root.
+
+**A workspace that uses a package must declare it**, even in a monorepo that
+hoists. Hoisting is a resolution accident, not a dependency.
+
 ## Two things knip gets wrong here, and one you must not "fix"
 
 **Platform seams.** `Foo.web.tsx` is resolved by the bundler, not by an import,

@@ -1,0 +1,193 @@
+/**
+ * Regenerate the USER MANUAL's screenshots from the seeded dev stack.
+ *
+ *   scripts/dev.sh web            # emulators + web + seed, and WAIT for the seed
+ *   node scripts/manual-shots.mjs
+ *   node scripts/manual-shots.mjs stats search    # just these
+ *
+ * This is a DOC-ASSET GENERATOR, not a regression test — it is the sibling of
+ * `screens-e2e.mjs`, which asserts, and deliberately not the same thing. What it
+ * guarantees is only that every image in `docs/USER-MANUAL.md` can be rebuilt by
+ * running one command, because an image with no generator is an image that
+ * quietly goes stale. Six of these were a release behind before any generator
+ * existed; `search-*` was a release behind again after the Search redesign,
+ * because only six of the twenty were covered. So now all of them are.
+ *
+ * SIZES ARE PART OF THE LAYOUT. The manual pairs a `wide` figure with a
+ * `narrow` one, and `render-manual.py` prints them at 116 mm and 46 mm. 1280x900
+ * and 390x844 are the capture sizes; 1280 is wide enough to stay sharp at
+ * 116 mm on paper. Do not "tidy" them.
+ *
+ * NOTE: it drives the real UI, so every click must be aimed precisely. On the
+ * WIDE board each card row carries its own Archive button right beside the
+ * title, and a stray `Back`/`.first()` click there silently archives the card
+ * the next run then cannot find. Click by exact text, never by proximity.
+ *
+ * `pending.png` is the ONE image still captured by hand: it needs an account
+ * that has signed in and NOT been approved, and the dev seed approves everyone
+ * it creates. It is also the most stable screen in the app. Everything else
+ * here is automatic.
+ */
+import { chromium } from 'playwright';
+import { mkdir } from 'node:fs/promises';
+
+const OUT = 'docs/manual/img';
+const BASE = process.env.MANUAL_BASE ?? 'http://127.0.0.1:8086';
+const BOARD = 'Fundraising 2026';
+const CARD = 'Draft the donor letter';
+
+/** [tag, width, height] — the two shapes the manual lays out for. */
+const VIEWPORTS = [
+  ['wide', 1280, 900],
+  ['phone', 390, 844],
+];
+
+const only = process.argv.slice(2);
+const wanted = (name) => only.length === 0 || only.includes(name);
+
+const browser = await chromium.launch();
+await mkdir(OUT, { recursive: true });
+
+async function fresh(w, h, { signIn = true } = {}) {
+  const p = await browser.newPage({ viewport: { width: w, height: h } });
+  // Confirmations are accepted, and LOGGED — a dialog firing here means a click
+  // landed somewhere it should not have.
+  p.on('dialog', (d) => {
+    console.log('  DIALOG FIRED:', d.message().slice(0, 70));
+    void d.accept();
+  });
+  p.on('pageerror', (e) => console.log('  PAGEERROR:', e.message.slice(0, 90)));
+  await p.goto(BASE, { waitUntil: 'networkidle' });
+  if (!signIn) return p;
+  await p.getByRole('button', { name: 'faisal', exact: true }).click();
+  await p.getByRole('button', { name: 'More' }).waitFor({ timeout: 90000 });
+  return p;
+}
+
+/**
+ * Reach a tab root, THEN tap the tab.
+ *
+ * On a phone the bottom bar renders on tab roots only, so a pushed screen has no
+ * nav to tap and we have to walk Back first. On a wide layout the rail is always
+ * there and this is a no-op.
+ */
+async function nav(p, label) {
+  for (let i = 0; i < 6; i += 1) {
+    const tab = p.getByRole('button', { name: label, exact: true }).first();
+    if (await tab.isVisible().catch(() => false)) {
+      await tab.click();
+      await p.waitForTimeout(900);
+      return;
+    }
+    const back = p.getByRole('button', { name: 'Back' }).first();
+    if (!(await back.isVisible().catch(() => false))) break;
+    await back.click();
+    await p.waitForTimeout(700);
+  }
+  throw new Error(`could not reach the "${label}" tab`);
+}
+
+async function openBoard(p) {
+  await nav(p, 'Boards');
+  await p.getByText(BOARD).first().click();
+  await p.getByText(CARD).first().waitFor({ timeout: 60000 });
+  await p.waitForTimeout(1500);
+}
+
+/** Every image the manual pairs. Each gets the page already signed in. */
+const SHOTS = {
+  boards: async (p) => {
+    await nav(p, 'Boards');
+  },
+  board: openBoard,
+  card: async (p) => {
+    await openBoard(p);
+    await p.getByText(CARD).first().click();
+    await p.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 30000 });
+  },
+  bulk: async (p, tag) => {
+    await openBoard(p);
+    if (tag === 'wide') {
+      // Wide exposes a real checkbox per row; phone has none, by design.
+      await p.getByRole('checkbox', { name: `Select ${CARD}` }).click();
+      await p.getByRole('checkbox', { name: 'Select Book the venue' }).click();
+    } else {
+      // Long-press starts a selection. Holding the pointer down is what
+      // `onLongPress` listens for — a plain click only opens the card.
+      await p.getByText(CARD).first().click({ delay: 900 });
+      await p.waitForTimeout(700);
+      await p.getByText('Book the venue').first().click();
+    }
+    await p.getByText(/\d+ selected/).first().waitFor({ timeout: 15000 });
+  },
+  mywork: async (p) => {
+    await nav(p, 'My Work');
+  },
+  search: async (p) => {
+    await nav(p, 'Search');
+    await p.waitForTimeout(1200);
+  },
+  alerts: async (p) => {
+    await nav(p, 'Alerts');
+    await p.waitForTimeout(1500);
+  },
+  settings: async (p) => {
+    await openBoard(p);
+    await p.getByRole('button', { name: 'Board settings' }).click();
+    await p.waitForTimeout(1500);
+  },
+  people: async (p) => {
+    await nav(p, 'Boards');
+    await p.getByRole('button', { name: 'More' }).click();
+    await p.getByRole('button', { name: 'People' }).click();
+    await p.waitForTimeout(1500);
+  },
+  stats: async (p) => {
+    await nav(p, 'Boards');
+    await p.getByRole('button', { name: 'More' }).click();
+    await p.getByRole('button', { name: 'Stats' }).click();
+    // The chart derives from a live subscription; screenshotting mid-load gives
+    // a spinner, which is not what the manual is describing.
+    await p.getByText('in this period', { exact: false }).first().waitFor({ timeout: 30000 });
+    await p.waitForTimeout(1200);
+  },
+};
+
+let made = 0;
+for (const [tag, w, h] of VIEWPORTS) {
+  for (const [name, drive] of Object.entries(SHOTS)) {
+    if (!wanted(name)) continue;
+    // A fresh page per shot. Reusing one made a failed step poison every image
+    // after it, and the cost is a few seconds.
+    const p = await fresh(w, h);
+    try {
+      await drive(p, tag);
+      await p.waitForTimeout(600);
+      await p.screenshot({ path: `${OUT}/${name}-${tag}.png` });
+      console.log(`  ${name}-${tag}.png`);
+      made += 1;
+    } catch (e) {
+      console.error(`  FAILED ${name}-${tag}: ${String(e).split('\n')[0].slice(0, 110)}`);
+      process.exitCode = 1;
+    } finally {
+      await p.close();
+    }
+  }
+}
+
+// The sign-in screen is unauthenticated, so it is captured once, not per pair —
+// and it carries the version string, which is exactly why it must be reshot on a
+// release rather than left as whatever build it first showed.
+if (wanted('signin')) {
+  const p = await fresh(1280, 900, { signIn: false });
+  await p.getByText('Sign in with Google').waitFor({ timeout: 30000 });
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: `${OUT}/signin.png` });
+  console.log('  signin.png');
+  made += 1;
+  await p.close();
+}
+
+await browser.close();
+console.log(`\n${made} images written to ${OUT}/`);
+console.log('pending.png is captured by hand — see the header for why.');
