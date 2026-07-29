@@ -19,6 +19,7 @@ import {
 import { db, functions } from './firebase';
 import { useLiveDoc, useLiveQuery } from './liveQuery';
 import type { SessionUser } from './session';
+import { createViewStore } from './viewState';
 
 export interface BoardMemberProfile {
   uid: string;
@@ -229,3 +230,10 @@ export function useMyBoardPrefs(user: SessionUser) {
     [user.uid],
   );
 }
+
+
+/**
+ * The boards-list filter text. Same reason as the two above: typing to find a
+ * board, opening it, and coming back used to hand you the unfiltered list again.
+ */
+export const boardsView = createViewStore<{ filter: string }>({ filter: '' });

@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { groupByDue, todayInOrgTz, type Label } from '@sabeel/shared';
 import { useLabels } from '../labels';
-import { useMySubscriptions, useMyWork, type MyWorkCard } from '../myWork';
+import { myWorkView, useMySubscriptions, useMyWork, type MyWorkCard } from '../myWork';
 import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boards';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -40,7 +40,8 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
    * chips are real. Two `array-contains` queries over a collection of tens of
    * cards is not a cost worth a spinner.
    */
-  const [mode, setMode] = useState<'assigned' | 'subscribed'>('assigned');
+  const { mode } = myWorkView.use();
+  const setMode = (m: 'assigned' | 'subscribed') => myWorkView.set({ mode: m });
   const today = todayInOrgTz();
 
   // Labels are org-wide, so they resolve without knowing which board a card is

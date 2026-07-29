@@ -16,8 +16,8 @@
  * natural moment to forget. Within a session it survives everything — a card, a
  * different tab, a rotation — until the clear control on the screen is used.
  */
-import { useEffect, useState } from 'react';
 import type { Priority } from '@sabeel/shared';
+import { createViewStore } from './viewState';
 
 export interface SearchFilters {
   text: string;
@@ -39,36 +39,45 @@ export const EMPTY_SEARCH_FILTERS: SearchFilters = {
   boardId: undefined,
 };
 
-let current: SearchFilters = EMPTY_SEARCH_FILTERS;
-const listeners = new Set<(f: SearchFilters) => void>();
+const store = createViewStore<SearchFilters>(EMPTY_SEARCH_FILTERS);
 
-function emit() {
-  // A fresh object each time, so a subscriber's `useState` actually re-renders.
-  const snapshot = { ...current };
-  listeners.forEach((l) => l(snapshot));
-}
+/** The filters right now, without subscribing. */
+export const getSearchFilters = store.get;
 
-/** Merge a change in. Callers only ever name the field they are changing. */
-export function setSearchFilters(patch: Partial<SearchFilters>): void {
-  current = { ...current, ...patch };
-  emit();
-}
+/**
+ * Merge a change in. Pass a FUNCTION when the new value derives from the old —
+ * see `createViewStore` for why a plain object loses a rapid second tap.
+ */
+export const setSearchFilters = store.set;
 
-export function clearSearchFilters(): void {
-  current = EMPTY_SEARCH_FILTERS;
-  emit();
-}
+export const clearSearchFilters = store.reset;
 
-export function useSearchFilters(): SearchFilters {
-  const [f, setF] = useState<SearchFilters>(current);
-  useEffect(() => {
-    listeners.add(setF);
-    // Re-read on mount: the value may have changed while this screen was gone,
-    // which is the entire point of the module.
-    setF(current);
-    return () => {
-      listeners.delete(setF);
-    };
-  }, []);
-  return f;
+export const useSearchFilters = store.use;
+
+/**
+ * Turn chosen label ids into chips, keeping ids that no longer resolve.
+ *
+ * Pure, and separate from the screen so it can be tested: the case it exists for
+ * is hard to stage in a browser and easy to get wrong. `deleteLabel` can remove
+ * a label while someone is filtering by it, and the previous code built chips by
+ * filtering the org-wide set down to the chosen ids — so a dead id produced NO
+ * chip while still narrowing the results. Search went empty with no cause on
+ * screen and nothing to tap.
+ *
+ * The rule: every active filter is visible and removable, even a broken one.
+ */
+export function labelChips(
+  labelIds: readonly string[],
+  labels: readonly { id: string; name: string }[],
+  sort: <T extends { name: string }>(ls: T[]) => T[],
+): { id: string; name: string }[] {
+  const byId = new Map(labels.map((l) => [l.id, l]));
+  const known = sort(
+    labelIds
+      .map((id) => byId.get(id))
+      .filter((l): l is { id: string; name: string } => l !== undefined)
+      .map((l) => ({ id: l.id, name: l.name })),
+  );
+  const missing = labelIds.filter((id) => !byId.has(id));
+  return [...known, ...missing.map((id) => ({ id, name: 'Deleted label' }))];
 }

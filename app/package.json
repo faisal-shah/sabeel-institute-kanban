@@ -8,7 +8,8 @@
     "android": "node ../scripts/preflight-metro.mjs && expo run:android",
     "web": "expo start --web",
     "web:export": "node ../scripts/check-version.mjs && node ../scripts/check-web-template.mjs && node ../scripts/gen-build-info.mjs && expo export --platform web --output-dir dist-web --clear",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

@@ -1,6 +1,7 @@
 import { collection, query, where } from 'firebase/firestore';
 import type { Priority } from '@sabeel/shared';
 import { db } from './firebase';
+import { createViewStore } from './viewState';
 import { useLiveQuery } from './liveQuery';
 import type { SessionUser } from './session';
 
@@ -89,3 +90,16 @@ export function useMySubscriptions(user: SessionUser) {
     [user.uid],
   );
 }
+
+
+/**
+ * Which half of My Work you are looking at.
+ *
+ * Outside the component for the same reason Search's filters are: opening a card
+ * unmounts the screen, so choosing Subscribed and tapping through to a card put
+ * you back on Assigned. My Work is the phone's default landing surface, which
+ * makes that the most-hit version of the bug.
+ */
+export const myWorkView = createViewStore<{ mode: 'assigned' | 'subscribed' }>({
+  mode: 'assigned',
+});

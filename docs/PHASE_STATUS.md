@@ -341,6 +341,45 @@ the team.
 
 ## Deploy log
 
+### 2026-07-29 — Review of the search work: five findings
+
+Five passes over the new code and the components sharing its patterns.
+
+1. **An active filter could become INVISIBLE while still narrowing.** A board can
+   be archived and a label can be deleted while selected; both then drop out of
+   the lists the chips are built from, so the chip vanished while the filter kept
+   applying — zero results, no cause on screen, nothing to tap. Both now always
+   render a chip ("Unavailable board", "Deleted label"). The rule is now stated
+   and tested: **every active filter is visible and removable, even a broken one.**
+2. **Every chip handler read stale state.** `!archivedOnly`, `priority === p`,
+   `labelIds.filter(...)` all closed over the value from their own render, so two
+   taps landing in one batch both computed from the same snapshot and one was
+   lost. The store now takes a functional patch and every derived update uses it.
+   `MentionField` was bitten by this exact thing — "key repeat is faster than a
+   render" — so it was a known trap, not a theoretical one.
+3. **The Filters chip lied to screen readers.** It announced "Filters filter,
+   off": a filter state a sheet-opening action does not have. `FilterChip` now
+   takes an accessibility override, and the chip is no longer a fake toggle.
+4. **The same state-loss bug existed on two more screens.** My Work's
+   Assigned/Subscribed choice — the phone's default landing surface, so the
+   most-hit version — and the boards list's filter text. Rather than a third
+   near-identical module, the mechanism was extracted to
+   `app/src/viewState.ts` and all three now share it.
+5. **`app/` had no test runner at all.** A `src/**/*.test.ts` file sat on disk
+   and would never have executed — coverage that does not exist but looks like it
+   does. Added a node-environment vitest config scoped to `.ts` only, so pure
+   logic is testable while components stay with the Playwright suites and
+   screenshots.
+
+Every new assertion was mutation-checked, and two mutations had to be redone
+because the first attempt proved nothing: one corrupted the READ path as well as
+the write, and one broke the mode switch outright so the run aborted before
+reaching the check under test. The faithful mutation — a store that works within
+a mount and is not re-read on remount — fails exactly the three restoration
+checks, reporting `text "" (wanted "Fix"), board chip false`.
+
+Verified: 335 + 27 + 8 unit, 193 + 96 emulator, 91/91 web e2e, 271/271 chart.
+
 ### 2026-07-29 — Search remembers, filters by board, and stops grabbing the keyboard
 
 Four things, three of them friction people hit and one a missing filter.

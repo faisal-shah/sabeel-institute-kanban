@@ -17,6 +17,7 @@ import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
   clearSearchFilters,
+  labelChips,
   setSearchFilters,
   useSearchFilters,
 } from '../searchFilters';
@@ -147,8 +148,19 @@ export function SearchScreen({ user }: { user: SessionUser }) {
   // Split the org-wide set into what is already filtering and what the picker
   // can still offer. Sorted the way the rest of the app sorts labels, so an
   // emoji-prefixed name files under its word rather than under the emoji.
+  /**
+   * A chip for every chosen label id — INCLUDING one whose label no longer
+   * exists.
+   *
+   * This used to filter the org-wide set down to the chosen ids, so an id that
+   * resolved to nothing produced no chip at all while still narrowing the
+   * results. `deleteLabel` makes that reachable: a manager deletes a label you
+   * are filtering by, and Search silently goes empty with no cause on screen and
+   * nothing to tap. The rule is that EVERY active filter is visible and
+   * removable, so an unresolvable one still gets a chip.
+   */
   const chosenLabels = useMemo(
-    () => sortLabels((allLabels.data ?? []).filter((l) => labelIds.includes(l.id))),
+    () => labelChips(labelIds, allLabels.data ?? NO_LABELS, sortLabels),
     [allLabels.data, labelIds],
   );
   const offerableLabels = useMemo(
@@ -160,7 +172,14 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     () => [...(boards.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
     [boards.data],
   );
-  const boardName = boardId ? boardById.get(boardId)?.name : undefined;
+  /**
+   * Same rule for the board. A board can be ARCHIVED while it is selected, which
+   * drops it out of `useMyBoards` — and out of the fetch — so the filter would
+   * keep narrowing to a board whose chip had disappeared.
+   */
+  const boardName = boardId
+    ? (boardById.get(boardId)?.name ?? 'Unavailable board')
+    : undefined;
 
   /**
    * Whether anything is narrowing the results — the ONE condition the clear
@@ -240,12 +259,12 @@ export function SearchScreen({ user }: { user: SessionUser }) {
           <FilterChip
             label="Archived"
             active={archivedOnly}
-            onPress={() => setSearchFilters({ archivedOnly: !archivedOnly })}
+            onPress={() => setSearchFilters((f) => ({ archivedOnly: !f.archivedOnly }))}
           />
           <FilterChip
             label="Overdue"
             active={overdueOnly}
-            onPress={() => setSearchFilters({ overdueOnly: !overdueOnly })}
+            onPress={() => setSearchFilters((f) => ({ overdueOnly: !f.overdueOnly }))}
           />
           {(['urgent', 'high'] as const).map((p) => (
             <FilterChip
@@ -253,16 +272,23 @@ export function SearchScreen({ user }: { user: SessionUser }) {
               label={p === 'urgent' ? 'Urgent' : 'High'}
               active={priority === p}
               onPress={() =>
-                setSearchFilters({ priority: priority === p ? undefined : p })
+                setSearchFilters((f) => ({ priority: f.priority === p ? undefined : p }))
               }
             />
           ))}
         </Row>
 
         <Row style={styles.chips}>
+          {/* An ACTION, not a toggle: it opens the picker below. `active` stayed
+              false because lighting it while the sheet is open describes a state
+              nobody sees (the sheet covers it), and whatever gets picked already
+              shows as its own chip beside this one. The label is overridden for
+              the same reason — "Filters filter, off" announces a filter state
+              this control does not have. */}
           <FilterChip
             label="Filters"
-            active={filtersOpen}
+            active={false}
+            accessibilityLabel="Filters"
             onPress={() => setFiltersOpen(true)}
           />
           {/* The board reads as a chip like the rest, so the answer to "what am
@@ -280,7 +306,9 @@ export function SearchScreen({ user }: { user: SessionUser }) {
               label={l.name}
               active
               onPress={() =>
-                setSearchFilters({ labelIds: labelIds.filter((id) => id !== l.id) })
+                setSearchFilters((f) => ({
+                  labelIds: f.labelIds.filter((id) => id !== l.id),
+                }))
               }
             />
           ))}
@@ -338,7 +366,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
               key={l.id}
               label={l.name}
               onPress={() => {
-                setSearchFilters({ labelIds: [...labelIds, l.id] });
+                setSearchFilters((f) => ({ labelIds: [...f.labelIds, l.id] }));
                 setFiltersOpen(false);
               }}
             />

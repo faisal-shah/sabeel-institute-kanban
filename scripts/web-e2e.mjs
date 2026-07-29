@@ -895,6 +895,22 @@ try {
       .catch(() => false),
   );
 
+  // The SAME class of bug Search had: opening a card unmounts the screen, so the
+  // Assigned/Subscribed choice died with it and Back landed you on Assigned. My
+  // Work is the phone's default landing surface, so this is the most-hit version.
+  await sara.getByText('Book venue').first().click();
+  await sara.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 20000 });
+  await sara.getByRole('button', { name: 'Back' }).first().click();
+  await sara.waitForTimeout(1200);
+  check(
+    'My Work stays on Subscribed after opening a card and coming back',
+    await sara
+      .getByText('Book venue')
+      .first()
+      .isVisible()
+      .catch(() => false),
+  );
+
   // The admin comments; Sara hears about it even though it is not her card.
   await backToBoards(admin);
   await admin.getByText('Fundraising 2026').first().click();
@@ -1033,7 +1049,7 @@ try {
    * section drives.
    */
   const pickInFilters = async (name) => {
-    await admin.getByRole('button', { name: 'Filters filter, off' }).click();
+    await admin.getByRole('button', { name: 'Filters', exact: true }).click();
     await admin.getByRole('button', { name, exact: true }).click();
     await admin.waitForTimeout(700);
   };
@@ -1079,7 +1095,7 @@ try {
   // earlier attempt combined text + Urgent + board and matched nothing, so the
   // click had no card to find — a test that fails for a reason unrelated to the
   // thing it is testing.
-  await admin.getByRole('button', { name: 'Filters filter, off' }).click();
+  await admin.getByRole('button', { name: 'Filters', exact: true }).click();
   await admin.getByRole('button', { name: 'Fundraising 2026', exact: true }).click();
   await admin.waitForTimeout(800);
   check(

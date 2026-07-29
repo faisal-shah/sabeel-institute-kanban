@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, TextInput } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BOARD_NAME_MAX, sortBoardsForList } from '@sabeel/shared';
 import {
+  boardsView,
   createBoard,
   noteBoardOpened,
   toggleFavourite,
@@ -75,7 +76,8 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const boards = useMyBoards(user);
   const prefs = useMyBoardPrefs(user);
-  const [filter, setFilter] = useState('');
+  const { filter } = boardsView.use();
+  const setFilter = (v: string) => boardsView.set({ filter: v });
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);

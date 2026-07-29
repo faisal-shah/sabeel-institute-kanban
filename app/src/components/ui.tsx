@@ -673,17 +673,28 @@ export function FilterChip({
   label,
   active,
   onPress,
+  accessibilityLabel,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  /**
+   * Override for a chip that is NOT a toggle.
+   *
+   * The default announces "<label> filter, on/off", which is right for a chip
+   * that turns a filter on and wrong for one that opens a picker — a screen
+   * reader would describe a filter state the control does not have.
+   */
+  accessibilityLabel?: string;
 }) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={active ? `${label} filter, on` : `${label} filter, off`}
+      accessibilityLabel={
+        accessibilityLabel ?? (active ? `${label} filter, on` : `${label} filter, off`)
+      }
       onPress={onPress}
       style={({ pressed }) => [
         styles.filterChip,
