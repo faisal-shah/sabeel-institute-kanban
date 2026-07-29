@@ -785,11 +785,11 @@ const styles = StyleSheet.create({
   /**
    * The dropdown is a third kind of control; separate it like one.
    *
-   * The margin is carried HERE rather than left to the screen, because `Screen`
-   * only gaps its children on WIDE layouts — the gap lives on `styles.capped`,
-   * which is applied only when a maxWidth is set. On a phone its children are
-   * flush, so anything that needs air has to ask for it. That is why the chips
-   * were sitting nine pixels under the dropdown.
+   * `Screen` gaps its children by `space.sm`, which is the right rhythm between
+   * peers and too little to separate a board filter from the period and metric
+   * controls under it. The extra margin buys that separation deliberately, at
+   * every width — it is a design choice about this screen, not compensation for
+   * the layout.
    */
   pickerRow: { marginBottom: space.lg },
   /** Between the two chip groups — twice the gap used inside one. */

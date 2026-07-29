@@ -103,7 +103,28 @@ export function Screen({
   // react-native-web resolves the same tree differently, so web looked correct
   // throughout. Verified on a device 2026-07-19.
   const body = (
-    <View style={[!scroll && styles.fill, maxWidth ? [styles.capped, { maxWidth }] : null]}>
+    <View
+      style={[
+        !scroll && styles.fill,
+        /**
+         * The content column, and its gap, apply at EVERY width.
+         *
+         * They used to ride on the same style object as `maxWidth`, which is
+         * undefined on a phone — so a screen's top-level children sat flush at
+         * 0px there and 8px apart on a desktop. Measured, not guessed: 390px
+         * reported `row-gap: normal` and gaps of [0, 0] where 1024px reported 8.
+         * Nothing looked broken, because most components carry their own
+         * spacing; the screens that did not were quietly tighter on the surface
+         * this app is designed around.
+         *
+         * `full` opts out. The board manages its own vertical rhythm and an
+         * inherited gap would push its pager around — and since `full` never got
+         * the style at any width, it was already consistent.
+         */
+        width === 'full' ? null : styles.column,
+        maxWidth ? { maxWidth } : null,
+      ]}
+    >
       {children}
     </View>
   );
@@ -851,8 +872,8 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },
-  /** Centred column on wide screens; the caller supplies the maxWidth. */
-  capped: {
+  /** The screen's content column. Centred, and the caller supplies any maxWidth. */
+  column: {
     width: '100%',
     alignSelf: 'center',
     gap: space.sm,
