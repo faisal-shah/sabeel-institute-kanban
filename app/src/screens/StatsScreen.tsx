@@ -17,8 +17,10 @@ import { useMyBoards, useArchivedBoards } from '../boards';
 import { STATS_MONTHS_BACK, useStatsMonths, useStoredTotals } from '../stats';
 import type { SessionUser } from '../session';
 import { Sheet, SheetOption } from '../components/Sheet';
+import { useNav } from '../nav';
 import {
   Body,
+  Button,
   Card as Panel,
   FilterChip,
   Heading,
@@ -65,6 +67,7 @@ const BUCKETINGS = [
  * why the controls are instant and never flash a spinner.
  */
 export function StatsScreen({ user }: { user: SessionUser }) {
+  const nav = useNav();
   const today = todayInOrgTz();
   const from = monthsBack(today, STATS_MONTHS_BACK - 1);
 
@@ -102,7 +105,10 @@ export function StatsScreen({ user }: { user: SessionUser }) {
   if (months.status === 'error') {
     return (
       <Screen>
-        <Title>Stats</Title>
+        <Row style={styles.between}>
+          <Title>Stats</Title>
+          <Button label="Back" variant="secondary" onPress={nav.pop} />
+        </Row>
         <LoadError what="stats" code={months.error} />
       </Screen>
     );
@@ -115,7 +121,10 @@ export function StatsScreen({ user }: { user: SessionUser }) {
 
   return (
     <Screen>
-      <Title>Stats</Title>
+      <Row style={styles.between}>
+        <Title>Stats</Title>
+        <Button label="Back" variant="secondary" onPress={nav.pop} />
+      </Row>
 
       <Row style={styles.pickerRow}>
         <Pressable
@@ -761,6 +770,7 @@ function describeBucket(p: StatsPoint, bucketing: StatsBucketing): string {
 const AXIS_LABEL_H = 16;
 
 const styles = StyleSheet.create({
+  between: { justifyContent: 'space-between' },
   picker: {
     flexDirection: 'row',
     alignItems: 'center',

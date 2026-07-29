@@ -161,6 +161,7 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
                   key={`${c.boardId}/${c.id}`}
                   accessibilityRole="button"
                   accessibilityLabel={c.title}
+                  testID={`card-${c.title}`}
                   onPress={() =>
                     nav.push({ name: 'card', boardId: c.boardId, cardId: c.id })
                   }

@@ -219,6 +219,13 @@ carries over and, more importantly, what was learned the hard way there.
   perfectly successful build.
 - Web screenshots: `node scripts/web-shot.mjs` after a web export — captures
   the (light-only) UI and fails on any page error.
+- **Every screen at every width: `bash scripts/e2e.sh scripts/screens-e2e.mjs`.**
+  Ten authenticated screens x five widths straddling the breakpoint, each
+  screenshotted to `shots/screens/` AND asserted — sideways scroll, same-layer
+  control overlap, a way out of every screen, the right board layout.
+  `SWEEP_WIDTHS=320` while iterating. Reach for this on any change to a shared
+  component, the theme, or a layout; it is the only check that sees a phone
+  layout, and a bug on one side of the breakpoint is invisible from the other.
 - Web: `npx expo start --web` in `app/` (emulator-backed via env flag).
 - CI (GitHub Actions): lint + typecheck + unit + emulator tests on every push.
   Keep it green. No deploys from CI.

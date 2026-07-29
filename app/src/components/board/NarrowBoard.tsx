@@ -97,6 +97,11 @@ function CardTile({
       onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={selected ? `${card.title}, selected` : card.title}
+      // Same handle the web board emits, so ONE selector addresses a card on
+      // every layout. It existed only on `WideBoard.web.tsx`, which meant every
+      // e2e suite ran wide and the phone board — the layout this app is designed
+      // around — had no automated coverage at all.
+      testID={`card-${card.title}`}
       style={({ pressed }) => [
         styles.card,
         {

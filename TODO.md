@@ -15,23 +15,11 @@ tells you the command to run.
 
 ---
 
-## Do this on 29 July or later (one command, then it is done)
+## Stats backfill — done
 
-`v0.5.0` shipped mid-afternoon on 28 July, and the stats counters only started
-recording when the functions deployed. The backfill never rewrites the current
-day, so **28 July shows as empty in Stats** even though 18 cards were created.
-
-Running it again on any later day rebuilds that day from the cards, comments and
-activity log — all still present — and replaces the bucket wholesale, so it
-cannot double count:
-
-```sh
-GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-stats.mjs          # read it
-GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-stats.mjs --write
-```
-
-Hand back: nothing. The dry run prints a self-check and refuses to write if the
-reconstruction disagrees with a direct count.
+- [x] Re-ran `scripts/backfill-stats.mjs --write` on 29 July (2026) to fill the
+      28 July hole left by `v0.5.0` deploying mid-afternoon. Verified in
+      production: 20 created, 31 archived, 10 comments, 7 active people.
 
 ---
 

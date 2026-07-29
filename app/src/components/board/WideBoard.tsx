@@ -287,6 +287,8 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                           : nav.push({ name: 'card', boardId, cardId: card.id })
                       }
                       onLongPress={() => selection.toggle(card.id)}
+                      // Matches the web board and the narrow one — see NarrowBoard.
+                      testID={`card-${card.title}`}
                       style={[
                         styles.card,
                         {

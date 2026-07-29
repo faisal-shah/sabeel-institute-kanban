@@ -38,6 +38,7 @@ import {
 import { CardFace } from '../components/CardFace';
 import { Sheet, SheetOption } from '../components/Sheet';
 import { space } from '../theme';
+import { useLayout } from '../theme/layout';
 
 /** A quiet divider inside the Filters sheet — the shape AppNav's More menu uses. */
 function MenuSection({ label }: { label: string }) {
@@ -61,6 +62,7 @@ const NO_MEMBERS: BoardMemberProfile[] = [];
  */
 export function SearchScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
+  const { isWide } = useLayout();
   const boards = useMyBoards(user);
   const allLabels = useLabels();
 
@@ -241,12 +243,18 @@ export function SearchScreen({ user }: { user: SessionUser }) {
           value={text}
           onChangeText={(v) => setSearchFilters({ text: v })}
           placeholder="Search cards across your boards"
-          // WEB only. Search browses by default now, so on a phone the keyboard
-          // opened straight over the list the screen exists to show. On a
-          // desktop there is no keyboard to be in the way and Search is a screen
-          // you open in order to type, so the cursor is a courtesy.
-          // `theme/layout.ts` keys `canDragAndDrop` off the same check.
-          autoFocus={Platform.OS === 'web'}
+          // DESKTOP only — which is a width question, not a platform one.
+          //
+          // Search browses by default now, so a keyboard opening straight over
+          // the list the screen exists to show is the bug. On a desktop there is
+          // no keyboard to be in the way and Search is a screen you open in
+          // order to type, so the cursor is a courtesy.
+          //
+          // `Platform.OS === 'web'` alone is NOT that distinction: a phone
+          // browser is web too, and several colleagues use the app exactly that
+          // way, so autofocus opened the on-screen keyboard for them — the
+          // native case was fixed and the one it was fixed for was not.
+          autoFocus={Platform.OS === 'web' && isWide}
         />
 
         {/* Two rows, and the split is deliberate.

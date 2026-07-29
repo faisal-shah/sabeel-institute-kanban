@@ -80,3 +80,11 @@ jobs:
       # if a new e2e script is ever left out of this list.
       - name: Stats chart end-to-end (web)
         run: bash scripts/e2e.sh scripts/stats-e2e.mjs
+
+      # Every authenticated screen at five widths straddling the breakpoint.
+      # Replaces four hand-run screenshot scripts that could not fail; the one it
+      # most directly supersedes sat inside a try/catch that logged and continued.
+      # Its first working run found Stats had shipped with no Back button and no
+      # tab bar — a dead end on a phone browser.
+      - name: Every screen, every width (web)
+        run: bash scripts/e2e.sh scripts/screens-e2e.mjs

@@ -176,38 +176,45 @@ npm run e2e           # full browser flow: sign-in, approval, live un-gating
 `npm run e2e` writes screenshots to `shots/`, and on failure dumps what each page
 actually displayed — much faster than guessing.
 
-### Checking responsive layout
+### Every screen, every width
+
+One harness covers this — it seeds, signs in, walks all ten authenticated
+screens at five widths, **asserts**, and writes a screenshot of each:
 
 ```sh
-node scripts/device-shots.mjs      # real device profiles → shots/devices/
-node scripts/responsive-shots.mjs  # four plain widths     → shots/responsive/
+bash scripts/e2e.sh scripts/screens-e2e.mjs                   # the CI set
+SWEEP_FULL=1 bash scripts/e2e.sh scripts/screens-e2e.mjs      # + device profiles
+SWEEP_WIDTHS=320 bash scripts/e2e.sh scripts/screens-e2e.mjs  # one width, while iterating
 ```
 
-`device-shots.mjs` uses Playwright's maintained device descriptors (iPhone SE
-through 14 Pro Max, Galaxy S9+/S24, iPad Mini/Pro, Galaxy Tab S4 — tablets in
-both orientations) plus 1366/1920/2560 desktops. For each it asserts the
-**expected layout actually rendered** (columns vs swipe, checked against the
-breakpoint read from the source) and that there is **no horizontal overflow** —
-the classic responsive failure a top-of-page screenshot would never reveal.
+→ `shots/screens/<width>-<screen>.png`, one per screen per viewport.
 
-### Looking at EVERY screen (not just the board)
+What it asserts, and the bug each one is there for:
 
-`device-shots.mjs` captures the boards list and the board. For a change that
-touches every screen — a theme, a shared component, colours — that is not
-enough: the bug is usually on a screen it never opens (an empty state, a form, a
-card detail). Use the authenticated tour:
+| Check | Caught in the wild |
+|---|---|
+| the page never scrolls sideways | the classic responsive failure a top-of-page screenshot never reveals |
+| no two same-layer controls overlap | search chips crowding the board dropdown — at one width and not another |
+| every screen has a Back or a tab bar | Stats shipped with neither and was a **dead end on a phone browser** |
+| the right board layout rendered | columns vs swipe, against the breakpoint read from `theme/layout.ts` |
+| targets under 44px | reported, not failed — informational |
 
-```sh
-scripts/dev.sh web            # emulators + web + seed
-node scripts/screen-tour.mjs  # signs in, walks Alerts / People / My work /
-                              # board / Settings / a card, desktop + phone widths
-                              # → shots/colors/
-```
+The widths straddle the breakpoint rather than looking thorough: one below, one
+at, one above, one wide. A layout bug on one side of it is invisible from the
+other, which is how `Screen`'s phone-only spacing gap survived.
 
-This exists because a colour change once shipped **blind** and had to be redone:
-content text had drifted to `text.muted` (~2.7:1) and only the *rendered* screen
-showed it — the token values were all correct. An unauthenticated screenshot
-(the sign-in screen) proves nothing about the app.
+Two rules this encodes, both learned expensively:
+
+- **A tour that cannot fail is a screenshot generator.** The tour it replaced sat
+  entirely inside a try/catch that logged and continued, so it reported success
+  either way — and it had rotted to clicking "People" as a top-level button long
+  after that moved into the More sheet.
+- **An unauthenticated screenshot proves nothing about the app.** A colour change
+  once shipped blind and had to be redone: content text had drifted to
+  `text.muted` (~2.7:1), every token value was correct, and only the *rendered*
+  authenticated screen showed it.
+
+`app/src/ciCoverage.test.ts` fails if CI ever stops running this.
 
 **Native is a separate check** — web is not evidence about native rendering. To
 look at the real Android app against seeded data:
