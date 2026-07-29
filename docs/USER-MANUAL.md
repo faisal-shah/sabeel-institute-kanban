@@ -239,12 +239,17 @@ what you can do to the whole selection: **move**, **assign**, **archive**, or
 (managers) **delete**.
 
 You can also **copy or move the selection to another board** — pick one of your
-boards, then a column in it. A **move** takes the cards over as they are (comments
-and history included); a **copy** leaves the originals in place and starts fresh
-cards with no comments. **Labels come too** — they are shared by every board, so
-they mean the same thing wherever a card lands. Anyone **not a member of the
-destination board is unassigned**, though; the sheet tells you before you
-confirm.
+boards, then a column in it.
+
+- A **move** takes each card over exactly as it is: comments, history and
+  attached files all travel with it, because it stays the same card.
+- A **copy** leaves the originals alone and starts **fresh** cards — same title,
+  description, priority, due date and labels, but **no comments, no history and
+  no files**. A copy is new work, not a second pointer at the same work.
+
+**Labels come with both**, since they are shared by every board and mean the same
+thing wherever a card lands. Anyone **not a member of the destination board is
+unassigned**, though; the sheet tells you before you confirm.
 
 ## 1.7 My Work
 
@@ -486,10 +491,11 @@ it:
 - **Manager** — can see and join every board, create boards, edit columns/labels/
   membership, and delete cards.
 - **Admin** — everything a manager can, plus approve accounts and change roles.
-- **Active** — turn off to **disable** an account: they're signed out immediately
-  and locked out, but **their card assignments are kept** so nothing is left
-  ownerless — a manager can reassign at leisure. Turn back on to restore. Nothing
-  is ever deleted.
+- **Active** — turn off to **disable** an account. Whatever they have open
+  switches to an "Account disabled" screen straight away, wherever they are, and
+  they cannot sign back in. **Their card assignments are kept** so nothing is
+  left ownerless — a manager can reassign at leisure. Turn back on to restore.
+  Nothing is ever deleted.
 
 Every change asks you to **confirm**, spelling out what it will actually let that
 person do, so a stray tap can't promote or lock out anyone. You **cannot change

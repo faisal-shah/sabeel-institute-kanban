@@ -12,9 +12,11 @@ sabeel-institute-kanban/
 │                              # prepare/pretypecheck/pretest all build @sabeel/shared first
 ├── tsconfig.base.json         # strict
 ├── eslint.config.mjs          # flat config
-├── firebase.json              # functions + firestore + hosting(app/dist-web) + emulators
-│                              # NO storage / remoteconfig / extensions
-├── .firebaserc                # placeholder project id until Faisal creates the real one
+├── firebase.json              # functions + firestore + storage + hosting(app/dist-web)
+│                              # + emulators. NO remoteconfig / extensions.
+│                              # (storage was added 2026-07-26 for card attachments;
+│                              #  the time tracker still has none)
+├── .firebaserc                # the real project id: sabeel-institute-kanban
 ├── firestore.rules / firestore.indexes.json
 ├── CLAUDE.md, README.md, TODO.md, docs/
 ├── scripts/                   # emulator.sh, test-emulator.sh, web-e2e.mjs, grant-admin.mjs
@@ -26,7 +28,7 @@ sabeel-institute-kanban/
 ```
 
 Emulator ports (from `firebase.json`): auth 9099, functions 5001, firestore 8080,
-UI on, `singleProjectMode: true`.
+**storage 9199**, UI on, `singleProjectMode: true`.
 
 Hosting headers worth copying verbatim: `no-cache, must-revalidate` on `**`, and
 `max-age=31536000, immutable` on `/_expo/static/**`.

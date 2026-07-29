@@ -53,7 +53,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Card deletion | Members **archive** only. Permanent **delete is managers/admins**. |
 | Offboarding | A disabled user **keeps their assignments**, rendered as inactive; managers get a review list to reassign. |
 | Theming | **Single light theme, no dark mode** (decided 2026-07-21). Semantic tokens throughout, so a re-theme stays a one-file change. |
-| Subtasks | A card may be a **subtask of one other card on the same board** (`parentId` on the child). The parent's detail view lists them and links straight through; the child shows "Subtask of". Deliberately NOT a checklist: a subtask is an ordinary card, with its own column, assignees and comments. Added 2026-07-25 — the ClickUp import had been faking it in description text. |
+| Subtasks | A card may be a **subtask of one other card on the same board** (`parentId` on the child). The parent's detail view lists them and links straight through; the child shows "Subtask of". Deliberately NOT a checklist: a subtask is an ordinary card, with its own column, assignees and comments. Added 2026-07-25 — the ClickUp import had been faking it in description text. **`parentId` is an opaque string to the rules**: same-board is enforced by the picker, not by `firestore.rules`, which check only that it is a string under 200 chars. A child's read access comes from its OWN `boardId`, so a stale or cross-board link leaks nothing — it renders as nothing. Do not add a rules lookup to "fix" this; it would cost a read on every card write to enforce something the UI already does and no one can exploit. |
 | Explicitly NOT in v1 | Checklists (as a separate item type — see Subtasks), custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
 | Layout | **Chosen by available WIDTH, not platform** (breakpoint **700px**, `WIDE_BREAKPOINT` in `app/src/theme/layout.ts` — the one definition; never restate it). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
 | Drag and drop | A web **capability** layered on the wide layout. Native has no HTML5 drag API, so a wide native surface (a tablet) offers the same explicit "Move to…" the narrow layout uses. |
@@ -393,6 +393,22 @@ separate actions** with different consequences:
 The two stay consistent: a disabled user is still a board member, so the
 "assignees must be board members" invariant holds. They simply cannot read
 anything, since every rule requires `status == 'active'`.
+
+**How "immediately" is actually achieved, and its one residual.** Rules read
+`status` off the **token**, and a claims change does not evict a live session, so
+`setUserAccess` calls `revokeRefreshTokens` whenever a status moves to `disabled`
+or `rejected` — without it a disabled user keeps working until their token
+expires. Two things then happen: they can never mint a new token, and the client
+flips to the "Account disabled" screen at once, because the app subscribes to the
+mirrored user document rather than waiting on the token.
+
+The residual: the ID token **already in memory** stays cryptographically valid
+until it expires, up to an hour, and Firestore rules do not check revocation. The
+app is closed to them instantly; a determined ex-user holding a raw token could
+still reach the API for that hour. Same shape and same reasoning as the signed-URL
+residual under Attachments — acceptable for a dozen colleagues, not for untrusted
+users. If that ever changes, the fix is a `claimsUpdatedAt`/`auth_time`
+comparison in rules, not a shorter token life.
 
 ## Board list and navigation
 
