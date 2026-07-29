@@ -341,6 +341,47 @@ the team.
 
 ## Deploy log
 
+### 2026-07-29 — Two dead ends found by a new harness — v0.6.1
+
+Client only. No functions, rules, indexes, shared package or backfill —
+checked with `git diff`, not assumed, so the functions bundle is untouched.
+
+**Fixed**
+
+1. **Stats was a dead end on a phone browser.** It is a pushed screen, so the
+   bottom bar does not render, and it shipped without a Back button — the only
+   pushed screen in the app missing one. Android's hardware Back covered it;
+   a phone browser has none, leaving only the browser's own gesture.
+2. **Search opened the on-screen keyboard on phone browsers.** Autofocus was
+   keyed off `Platform.OS === 'web'`, and a phone browser is web — so the
+   keyboard opened over the results on exactly the surface the setting had been
+   added to protect. It is a width question: now `&& isWide`.
+3. **`Screen` gapped its children only on wide layouts.** The gap rode on the
+   same style object as `maxWidth`, undefined on a phone. Measured: 390px
+   reported `row-gap: normal` and gaps of [0, 0] where 1024px reported 8. The
+   board opts out — `width="full"` never had the style at any width.
+
+**The tooling that found them.** `scripts/screens-e2e.mjs` replaces four
+hand-run screenshot scripts (`device-shots`, `responsive-shots`, `screen-tour`,
+`manual-shots`, all deleted). Ten authenticated screens x five widths
+straddling the breakpoint, screenshotted AND asserted: no sideways scroll, no
+same-layer control overlap, a way out of every screen, the right board layout,
+search focus by width. 115 checks, wired into CI, guarded by `ciCoverage`.
+
+The four it replaced could not fail — the closest wrapped its whole body in a
+try/catch that logged and continued, and had rotted to clicking "People" as a
+top-level button long after that moved into the More sheet.
+
+**Why these survived.** The card tile's test hook was a raw `data-testid` in
+`WideBoard.web.tsx` — the web-only half of a platform seam. Nothing could
+address a card on any other layout, so every existing e2e suite ran wide and
+the phone board had no coverage at all. The handle is now on all three board
+layouts and My Work.
+
+Verified: 494 e2e checks green across all four suites (attachments 17, web 91,
+stats 271, screens 115), 371 unit tests, lint and typecheck clean. Both new
+assertions mutation-proven — each was made to fail by reverting its fix.
+
 ### 2026-07-29 — Shipped v0.6.0
 
 Client only — no functions, rules, indexes or backfill. The only shared change is
