@@ -45,7 +45,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Description format | **Plain text.** Superseded markdown on 2026-07-20 — see "Why plain text". |
 | Search | **Global across the boards you belong to**, client-side matching. See "Search". |
 | Notifications | Push **plus an in-app inbox** with an unread badge. |
-| Watchers | **None.** Assignment and @mention are the only ways to get notified about a card. |
+| Watchers | **No general watchers.** Narrowed rather than overturned on 2026-07-28: you may subscribe to a card's COMMENTS (row above), and beyond that only assignment and @mention notify. Notifying on every change was considered and dropped. |
 | WIP limits | **None.** Dropped from the model. |
 | Column deletion | **Blocked until the column is empty**, made painless by multi-select bulk actions. |
 | Bulk actions | **Multi-select cards** → move, archive, delete, assign. |
@@ -55,7 +55,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Theming | **Single light theme, no dark mode** (decided 2026-07-21). Semantic tokens throughout, so a re-theme stays a one-file change. |
 | Subtasks | A card may be a **subtask of one other card on the same board** (`parentId` on the child). The parent's detail view lists them and links straight through; the child shows "Subtask of". Deliberately NOT a checklist: a subtask is an ordinary card, with its own column, assignees and comments. Added 2026-07-25 — the ClickUp import had been faking it in description text. |
 | Explicitly NOT in v1 | Checklists (as a separate item type — see Subtasks), custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
-| Layout | **Chosen by available WIDTH, not platform** (breakpoint 768px). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
+| Layout | **Chosen by available WIDTH, not platform** (breakpoint **700px**, `WIDE_BREAKPOINT` in `app/src/theme/layout.ts` — the one definition; never restate it). Wide → columns side by side. Narrow → one column at a time, swipe between them. So a tablet gets columns and a phone browser gets the swipe board. |
 | Drag and drop | A web **capability** layered on the wide layout. Native has no HTML5 drag API, so a wide native surface (a tablet) offers the same explicit "Move to…" the narrow layout uses. |
 | Card ordering | **Fractional string ranks** (LexoRank-style, base-62) in `@sabeel/shared`. A move is a single-document write. |
 | Notifications | Push (FCM), with **per-user, per-event-type control**. See "Notifications". |
@@ -706,9 +706,6 @@ card counts and these numbers have to agree.
   not the sibling time-tracker's, which deliberately has no org timezone at all).
 - **Board privacy from managers** — currently impossible by design. Flagged in
   case the team has a board that needs it.
-- **Muted captions that carry meaning** — whether `Caption` sites conveying real
-  information should move to `Hint`. Measured and written up in `docs/BRAND.md`;
-  deliberately **not acted on** without Faisal's say-so.
 - **Duplicating a board / board templates** — worth it if the nonprofit runs
   repeating programs with the same column structure. Not currently planned.
 
