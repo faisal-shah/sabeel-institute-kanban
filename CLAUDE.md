@@ -240,11 +240,23 @@ Playwright for web) — never claim a screen works because the code looks right.
 
 ## Secrets (zero tolerance)
 
+- **THIS REPO IS PUBLIC** (confirmed 2026-07-29). Everything committed here —
+  including every doc, comment and commit message — is world-readable, and so is
+  the entire history: removing something later does not unpublish it. Audited on
+  that date and clean, and it stays that way only if the bar below is held.
+- **Nothing about the nonprofit's real data or people goes in.** No real names or
+  email addresses (the fixtures are `faisal`/`sara`/`omar`, none of which is a
+  real account), no board or card contents, and **no production figures** — how
+  many admins there are, how many cards were created in a week. Recording that a
+  count was *verified* is fine; recording the count is not. Screenshots must come
+  from the emulator seed, never a real session.
 - NEVER ask for, accept, or echo real API keys/DSNs/tokens in chat; never hardcode
   them. Server secrets: output the exact `firebase functions:secrets:set NAME`
   command for Faisal to run.
-- Client-side non-secrets (Firebase web config, `WEB_CLIENT_ID`) are committed;
-  client DSNs go in gitignored `.env.local` (key names only in docs).
+- Client-side non-secrets (Firebase web config, `WEB_CLIENT_ID`,
+  `google-services.json`, `firestore.rules`) are committed **by design** — rules
+  are enforced server-side, so this is security by design, not obscurity.
+- Client DSNs go in gitignored `.env.local` (key names only in docs).
 
 ## Division of labor
 
