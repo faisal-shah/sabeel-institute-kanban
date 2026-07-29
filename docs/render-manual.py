@@ -9,6 +9,8 @@ where the two layouts differ, and single images where they don't. Sized so the
 pair sits side by side within the A4 text column.
 """
 import base64
+import datetime
+import json
 import pathlib
 import re
 import subprocess
@@ -16,7 +18,26 @@ import subprocess
 HERE = pathlib.Path(__file__).parent
 import markdown  # python3-markdown
 
+# The version comes from app/app.json — the ONE source of truth, per
+# docs/VERSIONING-RULE.md. It used to be a literal in the cover markup, which is
+# exactly the drift that rule exists to prevent: the cover still read "App
+# version 0.1.15" at v0.6.1, so the PDF the team downloads was claiming a build
+# from twenty releases earlier while the markdown above it was correct.
+APP_VERSION = json.loads((HERE.parent / 'app' / 'app.json').read_text())['expo']['version']
+COVER_DATE = datetime.date.today().strftime('%B %Y')
+
 md_text = (HERE / 'USER-MANUAL.md').read_text()
+
+# The markdown's own version line must AGREE with app.json. A mismatch means one
+# of them was edited alone, and the manual would ship contradicting itself.
+stated = re.search(r'\*For app version ([0-9]+\.[0-9]+\.[0-9]+)', md_text)
+if not stated:
+    raise SystemExit('USER-MANUAL.md has no "*For app version X.Y.Z" line to check.')
+if stated.group(1) != APP_VERSION:
+    raise SystemExit(
+        f'USER-MANUAL.md says version {stated.group(1)} but app/app.json says '
+        f'{APP_VERSION}. Update the manual, then re-render.'
+    )
 body = markdown.markdown(md_text, extensions=['tables', 'smarty', 'md_in_html'])
 # The cover carries the title; drop the markdown's own H1 and the version line.
 body = re.sub(r'<h1>.*?</h1>', '', body, count=1)
@@ -40,7 +61,7 @@ cover = f"""
   <img class="cover-logo" src="data:image/png;base64,{logo_b64}" alt="Sabeel Institute">
   <div class="cover-title">Kanban</div>
   <div class="cover-sub">User Manual</div>
-  <div class="cover-meta">App version 0.1.15 &nbsp;&middot;&nbsp; July 2026</div>
+  <div class="cover-meta">App version {APP_VERSION} &nbsp;&middot;&nbsp; {COVER_DATE}</div>
 </div>
 """
 
