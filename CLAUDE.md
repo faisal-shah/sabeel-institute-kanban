@@ -124,6 +124,27 @@ Key product invariants (do not silently change):
   keys use `ORG_TIMEZONE`. Drift is acceptable only because
   `scripts/backfill-stats.mjs` rebuilds any range from the source documents;
   `bytesRemoved` is the one series that cannot be reconstructed.
+- **A live query has THREE states, not two.** `LiveState` reports
+  `data: undefined` for loading AND error, so `?? []` claims "there is none of
+  this" when the truth may be "we could not find out". Every failure also
+  publishes to a global banner `Screen` renders — keep that banner OUTSIDE the
+  scroll container, or it is invisible to anyone scrolled down. Where the value
+  is a figure someone might act on, branch on `status` explicitly.
+- **Every active filter must be visible and removable, even a broken one.** An id
+  can outlive what it points at (a deleted label, an archived board), and
+  building chips by filtering a live list down to chosen ids makes a dead id
+  vanish from the UI while it keeps narrowing the results — empty screen, no
+  cause, nothing to tap.
+- **Deliberate view state belongs in `app/src/viewState.ts`, not `useState`.**
+  `App.tsx` renders one screen per route, so opening a card unmounts the screen
+  behind it. Drafts and busy flags are fine locally; a search, a filter or a
+  chosen tab must outlive the unmount or Back returns you to a blank screen.
+  Derived updates use the FUNCTIONAL form — two taps in one batch otherwise both
+  read the same snapshot and one is lost.
+- **A suite nothing invokes is not coverage.** `functions/test/unit/suite-coverage`
+  guards the emulator lists and `app/src/ciCoverage.test.ts` guards the e2e ones;
+  add to both when adding a suite. `app/` runs plain `.ts` unit tests only —
+  anything needing a renderer belongs in an e2e suite.
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one
   document write. Never reintroduce an array-of-ids ordering.
 
