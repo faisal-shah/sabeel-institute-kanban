@@ -341,6 +341,48 @@ the team.
 
 ## Deploy log
 
+### 2026-07-29 — Search remembers, filters by board, and stops grabbing the keyboard
+
+Four things, three of them friction people hit and one a missing filter.
+
+- **The keyboard no longer opens with Search.** `autoFocus` made sense while
+  Search showed nothing until you typed; once it started BROWSING by default the
+  keyboard covered the list the screen exists to show. Now web-only — there is no
+  keyboard to pop on a desktop, and Search is a screen you open in order to type.
+  Same `Platform.OS === 'web'` check `theme/layout.ts` already uses.
+- **Back from a card restores the search.** `App.tsx` renders one screen per
+  route, so opening a card UNMOUNTED `SearchScreen` and every `useState` in it
+  died. Nothing about the nav stack was wrong — the state had to outlive the
+  component, so it moved to `app/src/searchFilters.ts`, the same module-plus-
+  listeners shape `nav.ts` uses. Session-only; kept across tabs too, since one
+  rule is easier to predict than two.
+- **A clear-all**, which the point above makes necessary. An `IconAction`
+  (`filter-alt-off`) that exists ONLY while something is narrowing the results,
+  so it is never a dead control. `hasActiveFilters` in `@sabeel/shared` already
+  answered "is anything on" and now counts the board too, so the button cannot
+  drift out of step with the filters themselves.
+- **Filter by board**, without the screen becoming a pile of controls. The two
+  UNBOUNDED lists — board and label — share one `Filters` sheet; the four binary
+  toggles stay one tap, Archived especially, since Search is the route to the
+  archive. Whatever the sheet selects returns as a removable chip, so "what am I
+  filtering by?" is one row rather than scattered across five controls.
+- **The assignee picker gained a text filter**, matching `Subtasks.tsx` rather
+  than inventing a second idiom for the same job.
+
+Two things found along the way. Search results carried no `testID` while board
+tiles did, so a test could not open a card from Search — they now share the
+handle. And the new clear-all rendered at `text.muted` (2.34:1), which is exactly
+the contrast the caption audit had just moved away from; `IconAction`'s default
+is now `text.secondary` for all 54 call sites. Icons are the ONLY label many
+actions have — edit, delete, move, archive — so they are the last thing that
+should be faint.
+
+Verified: 335 + 27 unit (the board filter mutation-checked), 193 + 96 emulator,
+90/90 web e2e including "open a card, press Back, everything is still there",
+271/271 chart checks. The keyboard is the point of the first change and a green
+suite says nothing about it, so it was confirmed by Android screenshot — no
+keyboard, and the two chip rows laid out as designed.
+
 ### 2026-07-28 — A blocked popup no longer strands people — v0.5.1
 
 Three colleagues could not sign in on the web. The white page they saw is

@@ -1024,10 +1024,21 @@ try {
   };
 
   const allCount = await resultCount();
-  const labelSelect = admin.getByLabel('Filter by label');
-  await labelSelect.waitFor({ timeout: 15000 });
+  /**
+   * Labels are picked from the Filters sheet now, not a dropdown.
+   *
+   * Board and label were the two UNBOUNDED lists; left as their own dropdowns
+   * they would have been five stacked controls above the results. Whatever they
+   * select still comes back as a removable chip, which is what the rest of this
+   * section drives.
+   */
+  const pickInFilters = async (name) => {
+    await admin.getByRole('button', { name: 'Filters filter, off' }).click();
+    await admin.getByRole('button', { name, exact: true }).click();
+    await admin.waitForTimeout(700);
+  };
   // `cross-board` is the one actually applied to a card, further up.
-  await labelSelect.selectOption({ label: 'cross-board' });
+  await pickInFilters('cross-board');
   await admin.waitForTimeout(800);
   const oneLabel = await resultCount();
   check(
@@ -1039,8 +1050,8 @@ try {
   // `urgent-fix` is on NO card, which is what makes this discriminating: under
   // "any" the result is unchanged, under "all" it would collapse to zero. This
   // is the check that fails if the semantics are ever flipped.
-  await labelSelect.selectOption({ label: 'urgent-fix' });
-  await admin.waitForTimeout(800);
+  await pickInFilters('urgent-fix');
+  await admin.waitForTimeout(300);
   const twoLabels = await resultCount();
   check(
     'a second label matches ANY of them rather than all',
@@ -1058,6 +1069,74 @@ try {
   check(
     'and clearing every chip returns to the full list',
     (await resultCount()) === allCount,
+  );
+
+  // ---- Search survives opening a card, and can be cleared -----------------
+  // The reported bug: opening a card from Search and pressing Back came back to
+  // an empty screen. App.tsx swaps screens by route, so SearchScreen UNMOUNTS
+  // and every useState in it died — the filters now live outside the component.
+  // Filter to ONE board first, so there is certainly something to open. The
+  // earlier attempt combined text + Urgent + board and matched nothing, so the
+  // click had no card to find — a test that fails for a reason unrelated to the
+  // thing it is testing.
+  await admin.getByRole('button', { name: 'Filters filter, off' }).click();
+  await admin.getByRole('button', { name: 'Fundraising 2026', exact: true }).click();
+  await admin.waitForTimeout(800);
+  check(
+    'search can be filtered to a single board',
+    await admin.getByRole('button', { name: 'Fundraising 2026' }).first().isVisible(),
+  );
+
+  const onBoard = await resultCount();
+  check('the board filter leaves something to look at', onBoard > 0, `${onBoard} cards`);
+
+  // Type a term taken from a card that IS showing, so the search is guaranteed
+  // to match rather than depending on fixture wording.
+  const firstTile = admin.locator('[data-testid^="card-"]').first();
+  await firstTile.waitFor({ timeout: 20000 });
+  const tileTitle = ((await firstTile.getAttribute('data-testid')) ?? '').replace(/^card-/, '');
+  const term = tileTitle.split(' ')[0];
+  await searchBox.fill(term);
+  await admin.waitForTimeout(700);
+  const beforeOpen = await resultCount();
+
+  // Open it, then come straight back — the reported bug.
+  await admin.locator('[data-testid^="card-"]').first().click();
+  await admin.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  await admin.waitForTimeout(1200);
+
+  const textKept = await searchBox.inputValue();
+  const boardKept = await admin
+    .getByRole('button', { name: 'Fundraising 2026' })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check(
+    'going back from a card restores the search text AND the chips',
+    textKept === term && boardKept,
+    `text "${textKept}" (wanted "${term}"), board chip ${boardKept}`,
+  );
+  check('and the results with it', (await resultCount()) === beforeOpen);
+
+  // Which is exactly why there has to be a way out.
+  await admin.getByRole('button', { name: 'Clear all filters' }).click();
+  await admin.waitForTimeout(800);
+  check(
+    'clear-all empties the text and every chip',
+    (await searchBox.inputValue()) === '' &&
+      !(await admin
+        .getByRole('button', { name: 'Fundraising 2026' })
+        .first()
+        .isVisible()
+        .catch(() => false)),
+  );
+  check(
+    'and the control disappears once there is nothing to clear',
+    !(await admin
+      .getByRole('button', { name: 'Clear all filters' })
+      .isVisible()
+      .catch(() => false)),
   );
 
   // ---- The label set is not scoped to a board -----------------------------

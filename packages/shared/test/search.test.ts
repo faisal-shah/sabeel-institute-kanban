@@ -49,6 +49,44 @@ describe('filterCards', () => {
     card({ id: 'e', title: 'Epsilon', dueDate: '2026-08-01' }),
   ];
 
+  it('narrows to one board, and absent means every board', () => {
+    const mixed = [
+      card({ id: 'x', boardId: 'b1' }),
+      card({ id: 'y', boardId: 'b2' }),
+      card({ id: 'z', boardId: 'b2' }),
+    ];
+    expect(filterCards(mixed, { boardId: 'b2' }, TODAY).map((c) => c.id)).toEqual(['y', 'z']);
+    // Absent is not "no results" — it is every board you can see.
+    expect(filterCards(mixed, {}, TODAY)).toHaveLength(3);
+  });
+
+  it('composes with the other filters rather than replacing them', () => {
+    // The board is one more narrowing, not a mode. If it replaced the rest,
+    // this would return both cards on b2.
+    const mixed = [
+      card({ id: 'x', boardId: 'b2', title: 'Budget', priority: 'high' }),
+      card({ id: 'y', boardId: 'b2', title: 'Newsletter', priority: 'none' }),
+      card({ id: 'z', boardId: 'b1', title: 'Budget', priority: 'high' }),
+    ];
+    expect(
+      filterCards(mixed, { boardId: 'b2', text: 'budget', priority: 'high' }, TODAY).map(
+        (c) => c.id,
+      ),
+    ).toEqual(['x']);
+  });
+
+  it('still hides the archive when a board is chosen', () => {
+    // Board narrows WITHIN the live set; it must not drag archived cards in.
+    const mixed = [
+      card({ id: 'live', boardId: 'b2' }),
+      card({ id: 'old', boardId: 'b2', archived: true }),
+    ];
+    expect(filterCards(mixed, { boardId: 'b2' }, TODAY).map((c) => c.id)).toEqual(['live']);
+    expect(
+      filterCards(mixed, { boardId: 'b2', archivedOnly: true }, TODAY).map((c) => c.id),
+    ).toEqual(['old']);
+  });
+
   it('hides archived cards by default', () => {
     // The archive is a separate place, not something that pollutes results.
     expect(filterCards(cards, {}, TODAY).map((c) => c.id)).not.toContain('d');
@@ -144,6 +182,13 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters({ due: 'overdue' })).toBe(true);
     expect(hasActiveFilters({ archivedOnly: true })).toBe(true);
     expect(hasActiveFilters({ labelIds: ['l1'] })).toBe(true);
+  });
+});
+
+describe('hasActiveFilters', () => {
+  it('counts a board filter — it is what shows the clear button', () => {
+    expect(hasActiveFilters({})).toBe(false);
+    expect(hasActiveFilters({ boardId: 'b2' })).toBe(true);
   });
 });
 

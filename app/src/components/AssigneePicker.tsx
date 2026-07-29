@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Hint, IconAction, Row } from './ui';
+import { Body, Button, Hint, IconAction, Row, TextField } from './ui';
 import { radius, space, useTheme } from '../theme';
 
 /**
@@ -79,6 +79,21 @@ export function AssigneePicker({
   // An assignee who is no longer a board member (removed while assigned) would
   // otherwise vanish from the UI while remaining on the card. Surface them so
   // they can be removed.
+  /**
+   * Narrow the list by typing, the same way the subtask picker does
+   * (`components/Subtasks.tsx`) rather than a second idiom for the same job.
+   * With the whole organisation on a board this is a type instead of a scroll.
+   */
+  const [filter, setFilter] = useState('');
+  const matches = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return available;
+    return available.filter(
+      (m) =>
+        m.displayName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q),
+    );
+  }, [available, filter]);
+
   const orphaned = assignedUids.filter((uid) => !members.some((m) => m.uid === uid));
 
   return (
@@ -130,9 +145,16 @@ export function AssigneePicker({
           ]}
         >
           <Hint>Assign someone</Hint>
+          <TextField
+            value={filter}
+            onChangeText={setFilter}
+            placeholder="Filter people"
+            label="Filter people"
+          />
+          {matches.length === 0 ? <Hint>No one matches.</Hint> : null}
           {/* Capped and scrollable: the section must not grow with the board. */}
           <ScrollView style={styles.pickerList} nestedScrollEnabled>
-            {available.map((m) => (
+            {matches.map((m) => (
               <Pressable
                 key={m.uid}
                 accessibilityRole="button"
@@ -158,7 +180,10 @@ export function AssigneePicker({
           <Button
             label="Done"
             variant="secondary"
-            onPress={() => onPickingChange(false)}
+            onPress={() => {
+              setFilter('');
+              onPickingChange(false);
+            }}
           />
         </View>
       ) : null}

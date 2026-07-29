@@ -515,7 +515,13 @@ export function IconAction({
       <MaterialIcons
         name={icon}
         size={size}
-        color={danger ? t.text.danger : accent ? t.accent.base : t.text.muted}
+        // text.secondary, NOT text.muted. An icon is non-text content and needs
+        // 3:1; muted measures 2.07–2.92:1 depending on the surface and fails
+        // that on most of them. These icons are the ONLY label many actions
+        // have — edit, delete, move, archive — so they are the last thing that
+        // should be faint. Same rule the caption audit applied to text, and
+        // `SegmentedIcons` below already states it.
+        color={danger ? t.text.danger : accent ? t.accent.base : t.text.secondary}
       />
     </Pressable>
   );

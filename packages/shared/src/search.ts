@@ -62,6 +62,15 @@ export interface CardFilters {
    * cards still at the top).
    */
   archivedOnly?: boolean;
+  /**
+   * Narrow to ONE board. Absent means every board you can see.
+   *
+   * Single rather than a list, unlike `labelIds`, because the question people
+   * actually ask is "just this board" — and the two are not symmetric anyway: a
+   * card carries several labels but exactly one board, so "any of these boards"
+   * would be a union of disjoint sets rather than a narrowing.
+   */
+  boardId?: string;
 }
 
 /** Normalise once per search rather than per card. */
@@ -88,6 +97,8 @@ export function filterCards(
     // The archive is a separate place. You are either looking at live cards or
     // at archived ones, never both at once.
     if (filters.archivedOnly ? !c.archived : c.archived) return false;
+
+    if (filters.boardId && c.boardId !== filters.boardId) return false;
 
     if (q && !matchesText(c, q)) return false;
     if (filters.assigneeUid && !c.assigneeUids.includes(filters.assigneeUid)) {
@@ -132,7 +143,8 @@ export function hasActiveFilters(filters: CardFilters): boolean {
       (filters.labelIds && filters.labelIds.length > 0) ||
       filters.priority ||
       (filters.due && filters.due !== 'any') ||
-      filters.archivedOnly,
+      filters.archivedOnly ||
+      filters.boardId,
   );
 }
 
