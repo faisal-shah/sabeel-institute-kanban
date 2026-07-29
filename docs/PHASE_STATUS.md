@@ -341,6 +341,17 @@ the team.
 
 ## Deploy log
 
+### 2026-07-29 — Shipped v0.6.0
+
+Client only — no functions, rules, indexes or backfill. The only shared change is
+`filterCards`' board filter, which nothing server-side imports (checked, not
+assumed), so the functions bundle is untouched.
+
+Web and APK deployed together. Search now keeps its filters across a card,
+filters by board, and no longer opens the keyboard; the assignee picker filters
+by text; and the sweep's fixes ride along — a pinned error banner, 44pt chips,
+and `stats-e2e` running in CI for the first time.
+
 ### 2026-07-29 — Lateral sweep: four fixes, and a lot of looking that found nothing
 
 Took the Search findings as classes rather than instances and swept the app for
