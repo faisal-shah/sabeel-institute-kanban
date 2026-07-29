@@ -104,18 +104,29 @@ export function Screen({
   // throughout. Verified on a device 2026-07-19.
   const body = (
     <View style={[!scroll && styles.fill, maxWidth ? [styles.capped, { maxWidth }] : null]}>
-      {/* Live-data errors are shown, never left to a console nobody reads. */}
-      {error ? (
-        <View style={[styles.banner, { backgroundColor: t.bg.dangerSoft }]}>
-          <Text style={[type.caption, { color: t.text.danger }]}>{error}</Text>
-        </View>
-      ) : null}
       {children}
     </View>
   );
 
+  /**
+   * Live-data errors are shown, never left to a console nobody reads — and
+   * shown where they can actually be seen.
+   *
+   * This banner used to be the first child INSIDE the scroll container, so on a
+   * long card or board it sat above the fold and a scrolled reader never saw it.
+   * The whole point is that a rejected listener is not silent, and it was silent
+   * for exactly the people most likely to hit one: those deep in a screen with a
+   * lot of content. Pinned outside the scroller it stays put.
+   */
+  const banner = error ? (
+    <View style={[styles.banner, { backgroundColor: t.bg.dangerSoft }]}>
+      <Text style={[type.caption, { color: t.text.danger }]}>{error}</Text>
+    </View>
+  ) : null;
+
   return (
     <SafeAreaView edges={edges} style={[styles.fill, { backgroundColor: t.bg.canvas }]}>
+      {banner}
       {scroll ? (
         <KeyboardScroll
           contentContainerStyle={styles.scrollContent}
@@ -695,6 +706,9 @@ export function FilterChip({
       accessibilityLabel={
         accessibilityLabel ?? (active ? `${label} filter, on` : `${label} filter, off`)
       }
+      // 36pt of ink, 44pt of target — the four points top and bottom close the
+      // gap without moving a single pixel on screen.
+      hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.filterChip,
@@ -808,6 +822,9 @@ const styles = StyleSheet.create({
   // A real 44x44 target, the platform accessibility minimum. NOT hitSlop — see
   // IconAction: slop overlaps between neighbours, laid-out boxes cannot.
   filterChip: {
+    // The INK is 36 so a row of chips stays compact; the TARGET is 44 via the
+    // hitSlop where these are rendered — the app's standard since v0.1.22, and
+    // the pattern CLAUDE.md prescribes: finger-sized target, small ink.
     minHeight: 36,
     justifyContent: 'center',
     paddingHorizontal: space.md,

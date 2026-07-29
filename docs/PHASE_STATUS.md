@@ -341,6 +341,66 @@ the team.
 
 ## Deploy log
 
+### 2026-07-29 — Lateral sweep: four fixes, and a lot of looking that found nothing
+
+Took the Search findings as classes rather than instances and swept the app for
+each. Most classes came back clean, which is the honest headline — the app was in
+better shape than the plan assumed, and several things I listed as suspects were
+already handled deliberately.
+
+**Fixed**
+
+1. **The live-data error banner could scroll out of view.** Every
+   `useLiveQuery`/`useLiveDoc` failure publishes to a global slot that `Screen`
+   renders — a genuinely good safety net — but the banner sat INSIDE the scroll
+   container, so on a long card or board it lived above the fold and a scrolled
+   reader never saw it. Silent for exactly the people most likely to hit a
+   rejected listener. Now pinned outside the scroller.
+2. **`scripts/stats-e2e.mjs` never ran in CI** — 271 checks across nine viewport
+   widths, green on a laptop, invisible to CI for a whole release. Now wired in.
+3. **Nothing guarded that.** `app/src/ciCoverage.test.ts` now fails if any
+   `scripts/*-e2e.mjs` is missing from the workflow, the sibling of
+   `suite-coverage.test.ts` for the emulator lists. Mutation-proven: it names the
+   missing suite.
+4. **`FilterChip` had a 36pt touch target** against the 44 the app adopted in
+   v0.1.22 — the lone outlier, since `IconAction`, `SheetOption` and the
+   segmented control are all 44. Fixed with `hitSlop` in the component: 44pt of
+   target, 36pt of ink, not a pixel moved on screen. That is the pattern
+   CLAUDE.md already prescribes.
+
+**Looked, found nothing** — recorded so nobody re-investigates:
+
+- *Writes driven by possibly-failed reads.* `CardScreen`'s move and subtask
+  creation both compute ranks from `boardCards.data ?? []`, but both controls are
+  disabled behind `cardsReady` (`status === 'ready'`), so the fallback is
+  unreachable. Already right.
+- *Dangling favourites / recents / mutes.* Never pruned when a board is archived,
+  but `sortBoardsForList` filters the LIVE board list by the id set, so a dead id
+  simply never matches. No blank rows, no error. Restoring a board re-favouriting
+  it is arguably correct.
+- *A notification outliving its card.* Renders "Card not found — it may have been
+  deleted" with a Back button. Tolerated visibly, which is the rule.
+- *Stale-closure updates.* Six candidates, all false positives — they set from a
+  different source (`card.data.title`), matched only because the variable name
+  appears in the argument.
+- *Async work outliving a screen.* Only TWO async effects exist in the app and
+  both are guarded. An earlier count of "CardScreen: 11 awaits, 0 guards" was a
+  bad measurement — it counted handler awaits, where the component is mounted by
+  definition.
+- *Client caps vs server limits.* All fourteen `maxLength` uses take the shared
+  constant; no literals.
+- *`unreadNotifCount` with two owners.* The risky path is a TRANSACTION that
+  re-reads `read` before decrementing, `markAllRead` zeroes rather than
+  decrements, and the nightly sweep RECOMPUTES from a `count()` query. Sound.
+
+Two of my own measurements were wrong and the discipline caught both: the
+async-effect count above, and a new test that failed with ENOENT because it
+assumed vitest's cwd — it is the app workspace under `npm test` and the repo root
+under `vitest --root app`. It is anchored to its own file now and verified under
+both invocations.
+
+Verified: 335 + 27 + 9 unit, 91/91 web e2e, 271/271 chart.
+
 ### 2026-07-29 — Review of the search work: five findings
 
 Five passes over the new code and the components sharing its patterns.

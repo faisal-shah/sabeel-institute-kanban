@@ -73,3 +73,10 @@ jobs:
 
       - name: Access and board flow end-to-end (web)
         run: bash scripts/e2e.sh scripts/web-e2e.mjs
+
+      # Added after it was found NOT to be running: 271 checks across nine
+      # viewport widths, green locally and invisible to CI, which is the same
+      # failure the comment above describes. `scripts/suite-coverage` now fails
+      # if a new e2e script is ever left out of this list.
+      - name: Stats chart end-to-end (web)
+        run: bash scripts/e2e.sh scripts/stats-e2e.mjs
