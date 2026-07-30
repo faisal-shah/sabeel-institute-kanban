@@ -38,6 +38,7 @@ import {
   assignableCandidates,
 } from '../components/AssigneePicker';
 import { Subtasks } from '../components/Subtasks';
+import { RichText } from '../components/RichText';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
 import { Sheet } from '../components/Sheet';
@@ -440,7 +441,7 @@ export function CardScreen({
         ) : (
           <>
             {c.description ? (
-              <Body>{c.description}</Body>
+              <RichText markdown={c.description} />
             ) : (
               <Hint>No description yet.</Hint>
             )}

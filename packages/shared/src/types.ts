@@ -121,7 +121,11 @@ export interface CardDoc {
    */
   boardId: string;
   title: string;
-  /** Plain text. Never markdown/HTML — see PRODUCT_BRIEF § "Why plain text". */
+  /**
+   * MARKDOWN, restricted to `RICH_VOCABULARY` (bold, italic, bullet list,
+   * ordered list, link). Never HTML. Legacy rows are plain text, which is
+   * valid markdown — see `packages/shared/src/richtext.ts`.
+   */
   description: string;
   columnId: string;
   /** Fractional base-62 rank. Only `rankBetween` in this package produces these. */

@@ -15,11 +15,19 @@ import type { Priority } from './types';
  * point the answer is a real search service, not a cleverer client.
  */
 
+import { toPlainText } from './richtext';
+
 export interface SearchableCard {
   id: string;
   boardId: string;
   title: string;
   description: string;
+  /**
+   * `description` with its markdown removed, computed ONCE per fetch by the
+   * caller. Optional: `matchesText` falls back to deriving it, so a caller
+   * that does not care about per-keystroke cost stays correct.
+   */
+  descriptionPlain?: string;
   columnId: string;
   assigneeUids: string[];
   labelIds: string[];
@@ -81,9 +89,15 @@ function normalise(s: string): string {
 export function matchesText(card: SearchableCard, needle: string): boolean {
   const q = normalise(needle);
   if (q.length === 0) return true;
-  return (
-    normalise(card.title).includes(q) || normalise(card.description).includes(q)
-  );
+  // Match the words a READER sees, not the stored markdown. Searching the raw
+  // string makes "bold text" fail against "**bold** text", because the marks
+  // split words that are adjacent on screen.
+  //
+  // Honest limit, unchanged in spirit but worth restating: link TEXT is
+  // searchable, link TARGETS are not. A URL used to be matchable as description
+  // text and no longer is.
+  const body = card.descriptionPlain ?? toPlainText(card.description);
+  return normalise(card.title).includes(q) || normalise(body).includes(q);
 }
 
 export function filterCards(

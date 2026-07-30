@@ -13,6 +13,7 @@ import {
   Row,
   Spinner,
 } from './ui';
+import { RichText } from './RichText';
 import { MentionField } from './MentionField';
 import { space } from '../theme';
 import { useAction } from '../useAction';
@@ -148,7 +149,7 @@ export function Comments({
               </>
             ) : (
               <>
-                <Body>{c.body}</Body>
+                <RichText markdown={c.body} />
                 {c.mentionUids.length > 0 ? (
                   <Hint>
                     mentioned{' '}
