@@ -365,6 +365,65 @@ the team.
 
 ## Deploy log
 
+### 2026-07-30 — Rich text for descriptions and comments — v0.7.0
+
+Reverses the 2026-07-20 plain-text decision, which said to revisit "on an
+explicit request from the team". Both of its reasons were retired on their own
+terms rather than overruled: nobody has to learn syntax, because both editors
+are WYSIWYG and **markdown is a storage format the user never sees**; and
+"a rich editor means a WebView on Android" stopped being true when Software
+Mansion shipped a native Fabric editor.
+
+**The vocabulary is five elements** — bold, italic, bullet list, ordered list,
+link. No headings, code, quotes, tables or images (attachments cover images).
+That is not a compromise: measured against production, the team's real content
+contains **zero** hand-typed markup, and its only structure is paragraphs, a few
+lists and bare URLs. A small vocabulary is also what makes the round trip
+provable.
+
+**A platform seam, deliberately.** Lexical on web, `react-native-enriched-html`
+on Android, each used only where it is strongest — the *experimental* part of
+the native library is its web support, which we never load. The renderer, the
+toolbar, the mention policy and the markdown↔HTML converter are all SHARED; only
+"where is the caret" and "run this command" differ.
+
+**Escaping is the correctness core**, not a detail. Typing `2 * 3 * 4` stores
+`2 \* 3 \* 4` and renders as literal asterisks. The escape set is exactly the
+parse set — `\`, `*`, `[` and a line-leading `-`/`+`/`N.` — and deliberately NOT
+`_`, backtick or `~`, which are outside the vocabulary and would otherwise store
+`snake\_case\_name`.
+
+**What it fixed on the way.** Mid-text mentions now work: `activeMentionQuery` is
+`$`-anchored, so in the plain-text box a mention had to be the last thing typed.
+
+**Accepted residuals.** Underline can be set by a hardware Ctrl+U on Android,
+markdown cannot express it, and the converter drops it — so the text visibly
+un-underlines; the library exposes no opt-out. Link TEXT is searchable, link
+TARGETS are not.
+
+**Legacy content re-renders, by decision.** Ten list blocks now draw as lists and
+six bare URLs became tappable. Verified against production first: all 103 real
+descriptions and comments through parse-and-normalize with **zero words lost or
+altered**, and through three converter cycles with **zero drift**.
+
+Verified: 419 unit (including a seeded 400-document round-trip fuzz), 193
+emulator, and five e2e suites — attachments 17, web 91, stats 271, screens 115,
+rich text 17. The rich-text suite proves byte identity across reload-and-resave,
+that a rich paste is reduced before it reaches Firestore, and that the cap blocks
+the WRITE rather than only the button.
+
+**Android device checklist** (no native e2e harness exists, so this is done by
+hand each time the native editor changes): each element applied from the
+toolbar; a paste from Chrome; rotation; the largest system font size; the
+keyboard up with the toolbar and Save both visible; a mid-text mention; kill and
+reopen the app. **And that the text being edited is the same size and typeface
+as the text on the card underneath** — both editors inherit a font from their
+platform rather than from the app, and on web that shipped as Times at 16px
+against the app's sans at 15 until a manual screenshot caught it. Native's
+default is a different size again, so it is pinned in `RichEditor.tsx`; the web
+half is now asserted by `richtext-e2e.mjs`, the native half only by eye.
+
+
 ### 2026-07-29 — Two dead ends found by a new harness — v0.6.1
 
 Client only. No functions, rules, indexes, shared package or backfill —

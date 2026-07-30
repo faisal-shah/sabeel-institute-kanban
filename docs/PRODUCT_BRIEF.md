@@ -42,7 +42,7 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Due dates | **All-day dates only** (`YYYY-MM-DD`), no time-of-day, no start dates. |
 | Card subscriptions | **Comments only.** Anyone who can see a card may subscribe to its comment thread (2026-07-28). Assignees are unaffected and may also subscribe, which keeps the interest after they are unassigned. Not "watchers": no other change notifies. |
 | Labels | **Org-wide.** One set every board shares (changed 2026-07-27; they were per board). Any active member may add one; managers rename and delete. |
-| Description format | **Plain text.** Superseded markdown on 2026-07-20 — see "Why plain text". |
+| Description format | **Markdown, restricted to five elements** — bold, italic, bullet list, ordered list, link (changed 2026-07-30). Both editors are WYSIWYG, so markdown is storage the user never sees. See "Rich text". |
 | Search | **Global across the boards you belong to**, client-side matching. See "Search". |
 | Notifications | Push **plus an in-app inbox** with an unread badge. |
 | Watchers | **No general watchers.** Narrowed rather than overturned on 2026-07-28: you may subscribe to a card's COMMENTS (row above), and beyond that only assignment and @mention notify. Notifying on every change was considered and dropped. |
@@ -273,7 +273,46 @@ indexes on `assigneeUids` and `subscriberUids`.
 The emulator does not enforce composite indexes — verify in production (see
 `docs/INHERITED-STACK.md`, lesson 6, and `scripts/probe-indexes.mjs`).
 
-## Why plain text (2026-07-20)
+## Rich text (2026-07-30)
+
+**Five elements: bold, italic, bullet list, ordered list, link.** Nothing else —
+no headings, code, quotes, underline, strikethrough, tables or checklists, and no
+images because attachments already cover those.
+
+The vocabulary is small on evidence, not taste. Measured across every production
+description and comment: **zero hand-typed markup**, and the only structure
+people actually produce is paragraphs, a handful of lists and bare URLs. A small
+vocabulary is also what makes the round trip provable, which is the thing this
+decision turns on.
+
+**Markdown is the storage format and nobody sees it.** Both editors are WYSIWYG
+with a toolbar, which answers the 2026-07-20 objection directly rather than
+overruling it: the team never learns syntax.
+
+**A platform seam, and only for the editor.** Lexical on web,
+`react-native-enriched-html` on Android — each used only where it is strongest,
+and note the *experimental* part of the native library is its web support, which
+is never loaded. The renderer, toolbar, mention policy and the markdown↔HTML
+converter are shared. `RichText` must never gain a `.web` sibling: two surfaces
+disagreeing about what a card says is the one thing a shared board cannot
+tolerate.
+
+**Escaping decides correctness.** Typing `2 * 3 * 4` stores `2 \* 3 \* 4` and
+renders as literal asterisks. The escape set is exactly the parse set, and the
+criterion is not the list but the property `parseRich(serializeRich(doc)) ===
+doc`, enforced by seeded fuzz over documents full of awkward literals.
+
+**Autolinking is render-time only**, so storage keeps what was typed and a phone
+and a browser cannot diverge.
+
+**Accepted residuals.** A hardware Ctrl+U on Android can set underline, markdown
+cannot express it, and the converter drops it — the text visibly un-underlines,
+and the library exposes no opt-out. Link TEXT is searchable; link TARGETS are
+not. Legacy content re-renders by decision: `  - ` lines from the ClickUp import
+became real bullets and bare URLs became tappable, verified first against all
+103 production strings with zero words lost.
+
+## Superseded: why plain text was chosen (2026-07-20)
 
 **Descriptions and comments are plain text.** No markdown rendering, no syntax
 hints, no rich-text editor. What someone types is what everyone sees.

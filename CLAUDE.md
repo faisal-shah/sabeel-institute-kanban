@@ -53,13 +53,35 @@ Key product invariants (do not silently change):
   And there is **no cap on how many files a card may hold**: the 10 MB limit is
   per file, so cost is bounded only by the budget alert. Both are fine for
   fewer than fifty colleagues; neither survives contact with untrusted users.
-- **Descriptions and comments are PLAIN TEXT.** Decided 2026-07-20 and locked:
-  no markdown rendering, no markdown syntax hints, no rich-text editor, no
-  WebView. What someone types is what everyone sees. The markdown renderer and
-  parser were **deleted**, not disabled — a dormant renderer invites someone to
-  switch it back on. Revisit only on an explicit request from the team or during
-  a deliberate refactor; `docs/RESEARCH-RICH-TEXT.md` holds the analysis so it
-  does not have to be redone.
+- **Descriptions and comments are MARKDOWN, restricted to FIVE elements**
+  (changed 2026-07-30, reversing the 2026-07-20 plain-text decision on the
+  explicit request that decision named). Bold, italic, bullet list, ordered
+  list, link. **Nothing else** — no headings, code, quotes, underline,
+  strikethrough, tables or checklists, and no images because attachments cover
+  those. The vocabulary is small because the team's real content needed nothing
+  more (measured, not assumed) and because a small vocabulary is what makes the
+  round trip provable. `packages/shared/src/richtext.ts` is the one definition;
+  `RICH_VOCABULARY` is the list.
+- **Markdown is storage the user never sees.** Both editors are WYSIWYG with a
+  toolbar. Nobody types syntax — that was the whole objection to markdown in
+  2026-07-20 and it still stands.
+- **ESCAPING IS THE CORRECTNESS CORE, not a detail.** The escape set is exactly
+  the parse set: `\`, `*`, `[` and a line-leading `-`/`+`/`N.`. Deliberately NOT
+  `_`, backtick or `~` — outside the vocabulary, so escaping them would store
+  `snake\_case\_name`, noise in a field a backfill script will one day read.
+  The hand-written list is **not** the correctness criterion; the criterion is
+  `parseRich(serializeRich(doc))` equalling `doc`, enforced by seeded fuzz. Add
+  a character to one list and you must add it to the other.
+- **Autolinking of bare URLs is RENDER-TIME ONLY.** Storage keeps exactly what
+  was typed. If either editor rewrote a bare URL, the same keystrokes would
+  store different bytes on a phone than in a browser — which is why
+  `linkRegex={null}` on native and no AutoLink plugin on web.
+- **The editor is the ONLY thing split by platform.** Lexical on web,
+  `react-native-enriched-html` on Android, both behind one markdown-in/
+  markdown-out contract and one `richtextHtml` seam. The renderer, toolbar,
+  mention policy and converter are shared — `RichText` in particular must never
+  gain a `.web` sibling, or the two surfaces could disagree about what a card
+  says. `docs/RESEARCH-RICH-TEXT.md` records why, and what the spike measured.
 - **Labels are ORG-WIDE, not per board** (changed 2026-07-27). One `labels/{id}`
   collection every board shares; a card's `labelIds` mean the same thing
   wherever the card is, so a cross-board move and copy **carry them** — the old
@@ -222,7 +244,9 @@ carries over and, more importantly, what was learned the hard way there.
 - Web screenshots: `node scripts/web-shot.mjs` after a web export — captures
   the (light-only) UI and fails on any page error.
 - **Every screen at every width: `bash scripts/e2e.sh scripts/screens-e2e.mjs`.**
-  Ten authenticated screens x five widths straddling the breakpoint, each
+  Twelve authenticated screens x five widths straddling the breakpoint —
+  including a card with the description editor open and one with the comment
+  composer in use, because an editor is its own layout — each
   screenshotted to `shots/screens/` AND asserted — sideways scroll, same-layer
   control overlap, a way out of every screen, the right board layout.
   `SWEEP_WIDTHS=320` while iterating. Reach for this on any change to a shared

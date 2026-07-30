@@ -1,10 +1,19 @@
 # Rich-text editing for card descriptions — research, 2026-07-20
 
-> **SHELVED 2026-07-20.** Descriptions and comments are plain text; the markdown
-> renderer and parser were deleted. Nothing below is scheduled. It is kept so
-> that reopening this is a decision rather than a fresh investigation — the
-> conclusion, if it is reopened, is Lexical with `@lexical/markdown`, web first,
-> and a toolbar constrained to what the renderer supports.
+> **BUILT 2026-07-30, v0.7.0.** No longer shelved. What follows is the original
+> survey, kept because its reasoning is still the reasoning — with one claim now
+> WRONG and one outcome section appended at the end.
+>
+> **Out of date:** *"There is no third category. Feature-complete native rich
+> text input does not exist."* Software Mansion shipped
+> `react-native-enriched-html` — native Fabric, no WebView — after this was
+> written. That is what changed the decision, because "a rich editor means a
+> WebView on Android" was the cost that made it not worth doing.
+>
+> **Still correct:** Lexical with first-party markdown for web; a toolbar
+> constrained to what the renderer supports; and the warning that the round trip,
+> not the first conversion, is the risk. See "What the build actually measured"
+> at the foot of this file.
 
 **No code changed.** This revisits the `CLAUDE.md` invariant *"descriptions are
 markdown in a native TextInput — never a WebView rich-text editor"*, at Faisal's
@@ -134,3 +143,45 @@ enthusiasm, and the fallback at every point is the editor we already ship.
 - If descriptions are consistently short and plain, this is effort spent on a
   problem the team does not have — worth checking against the ClickUp export
   before building anything.
+
+---
+
+## What the build actually measured (2026-07-30)
+
+The spike answered the four questions this document could not, and each is a
+number rather than an impression:
+
+| | Result |
+|---|---|
+| Lexical under Metro | Bundles with no `metro.config.js`. Web bundle **740 → 963 KB gzipped (+223 KB)** |
+| A contenteditable inside `KeyboardScroll` | Works at 390px; Playwright drives it |
+| `enriched-html` vs the committed `android/` | Autolinks, no config plugin, no SDK/Kotlin/AGP bump. APK **36.1 → 37.2 MB** |
+| keyboard-controller + a Fabric non-`TextInput` | **Scrolls it clear.** Editor, toolbar row and Save row all visible with the IME up, inside the existing 96px budget |
+
+Two corrections to this document's own recommendation, both found by building:
+
+1. **`@lexical/markdown` is NOT the save path.** It escapes a different set from
+   ours (`_`, backtick, `~`), and running two serializers would mean proving they
+   agree. HTML is the single seam on both platforms instead, so one converter has
+   to be proved to work and the same keystrokes store identical bytes on a phone
+   and in a browser.
+2. **Lexical DOES escape on export** — this document implied the risk lay there.
+   It escapes `*_`~\` and a leading ordered marker. The real reason to own the
+   serializer is cross-surface byte identity, not Lexical's escaping.
+
+What the fidelity worry turned out to be, concretely: `[draft](note)` losing its
+parens, `[x](javascript:…)` leaving a stray `)`, `***x***` parsing as bold plus a
+loose asterisk, and an href escaped on `)` but not `(` silently ceasing to be a
+link on its SECOND round trip. All four were found by a seeded 400-document fuzz
+before any of it shipped, which is the argument for stating the contract as a
+property rather than as a list of cases.
+
+**The one thing no test found was typographic.** Lexical's editable is a real DOM
+element, and react-native-web writes its font stack onto each `Text` it renders
+rather than onto `body` — so the editor inherited nothing and came up in **Times
+at 16px** inside an app that is sans at 15. Every assertion passed; the colour
+lint rule cannot see into a CSS string; the layout was not broken. What caught it
+was regenerating the user manual's screenshots and looking at one. The editor now
+takes its font from the same tokens the app does, `richtext-e2e.mjs` compares the
+two *computed* fonts rather than restating the stack, and the native editor's
+size is pinned for the same reason (RN's `TextInput` default is 14, not 15).
