@@ -27,8 +27,18 @@ const OUT = resolve(ROOT, 'shots', 'sweep-report.html');
 /** Tour order, then anything new alphabetically after it. */
 const ORDER = [
   'boards', 'mywork', 'search', 'alerts', 'stats', 'people',
-  'board', 'card', 'card-editing', 'card-comment', 'settings', 'archive',
+  'board', 'board-longname', 'card', 'card-editing', 'card-comment',
+  'settings', 'archive',
 ];
+
+/**
+ * Screens that only EXIST on one side of the breakpoint.
+ *
+ * Without this the report calls the wide cells of a narrow-only screen
+ * "not captured", which reads as a gap in the sweep rather than as the layout
+ * genuinely not having that state. The pager is the narrow board's alone.
+ */
+const NARROW_ONLY = new Set(['board-longname']);
 
 /** What each screen is, so the report explains itself to someone else. */
 const BLURB = {
@@ -42,6 +52,7 @@ const BLURB = {
   card: 'A card at rest: the description RENDERED, with its formatting applied.',
   'card-editing': 'The description EDITOR open — toolbar row plus Save/Cancel.',
   'card-comment': 'The comment composer in use, with Bold active.',
+  'board-longname': 'A column name too long to centre — the name and its pencil slide left rather than truncating early. Narrow layouts only; the pager does not exist on wide.',
   settings: 'Board settings — manager only.',
   archive: 'Archived cards, most recently archived first.',
 };
@@ -86,7 +97,10 @@ const rows = screens
       .map((w) => {
         const src = data.get(`${w}-${screen}`);
         const side = w >= BP ? 'wide' : 'narrow';
-        if (!src) return `<div class="cell missing"><span>${w}px<br>not captured</span></div>`;
+        if (!src) {
+          const why = NARROW_ONLY.has(screen) && w >= BP ? 'no pager<br>on wide' : 'not captured';
+          return `<div class="cell missing"><span>${w}px<br>${why}</span></div>`;
+        }
         const shown = Math.round(Math.min(430, Math.max(190, w / 3.2)));
         return `<figure class="cell" style="width:${shown}px">
         <figcaption>${w}px <span class="tag ${side}">${side}</span></figcaption>
@@ -210,5 +224,9 @@ ${rows}
 await writeFile(OUT, html);
 console.log(`${OUT}`);
 console.log(`${shots.length} shots, ${screens.length} screens x ${widths.length} widths, ${(html.length / 1024 / 1024).toFixed(1)} MB`);
-const missing = screens.flatMap((s) => widths.filter((w) => !data.has(`${w}-${s}`)).map((w) => `${w}px-${s}`));
+const missing = screens.flatMap((s) =>
+  widths
+    .filter((w) => !data.has(`${w}-${s}`) && !(NARROW_ONLY.has(s) && w >= BP))
+    .map((w) => `${w}px-${s}`),
+);
 if (missing.length) console.log(`MISSING: ${missing.join(', ')}`);
