@@ -406,6 +406,15 @@ six bare URLs became tappable. Verified against production first: all 103 real
 descriptions and comments through parse-and-normalize with **zero words lost or
 altered**, and through three converter cycles with **zero drift**.
 
+**Surfaces: client AND functions.** No `functions/src`, `firestore.rules`,
+`firestore.indexes.json`, `storage.rules` or backfill changed — checked with
+`git diff`, not assumed. But `@sabeel/shared` did, and esbuild does **not**
+tree-shake the new modules out of the functions bundle: grepping the built
+`functions/lib/index.js` finds `parseRich`, `serializeRich` and `storedLength`
+in it. So functions deploy too, even though **no function's behaviour changes** —
+nothing server-side calls any of it. Worth knowing rather than assuming, because
+"client only" was true of the last release and is not true of this one.
+
 Verified: 419 unit (including a seeded 400-document round-trip fuzz), 291
 emulator, and five e2e suites — attachments 17, web 91, stats 271, screens 135,
 rich text 19. The rich-text suite proves byte identity across reload-and-resave,
