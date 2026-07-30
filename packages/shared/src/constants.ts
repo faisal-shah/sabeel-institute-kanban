@@ -48,6 +48,23 @@ export const CARD_TITLE_MAX = 200;
 export const COMMENT_BODY_MAX = 5000;
 /** Generous, but bounded — a card is re-downloaded on every board-list snapshot. */
 export const CARD_DESCRIPTION_MAX = 20000;
+
+/**
+ * The length the RULES will measure, which is not the length someone typed.
+ *
+ * `firestore.rules` caps the STORED string; the old client `maxLength` capped
+ * typed characters. With markdown those diverge — `**bold**` is four characters
+ * more than "bold" — so every counter, gate and pre-check goes through this one
+ * function rather than each guessing.
+ *
+ * There is a documented past failure here: a programmatically-built value
+ * exceeded the cap and the only symptom was a bare `permission-denied`. The
+ * rule is that the UI refuses BEFORE the write, and the writers assert as a
+ * last resort.
+ */
+export function storedLength(markdown: string): number {
+  return markdown.length;
+}
 /** Also mirrored in `storage.rules`; a drift-guard test asserts the two agree. */
 export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 /** The name ends up in a Content-Disposition header, so it is bounded twice. */

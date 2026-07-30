@@ -96,6 +96,14 @@ describe('degradation — what happens to everything we do not speak', () => {
 });
 
 describe('both editor dialects', () => {
+  it('collapses a doubled mark rather than nesting it', () => {
+    // Lexical emits <b><strong>x</strong></b> for ONE bold run; nested that
+    // serializes as ****x****, which is not even valid emphasis.
+    expect(htmlToMarkdown('<b><strong>x</strong></b>')).toBe('**x**');
+    expect(htmlToMarkdown('<i><em>y</em></i>')).toBe('*y*');
+    expect(htmlToMarkdown('<b><i><b>z</b></i></b>')).toBe('***z***');
+  });
+
   it('reads Lexical output', () => {
     // Lexical emits <strong>/<em>, wrapping spans, dir attributes and li value.
     const html =

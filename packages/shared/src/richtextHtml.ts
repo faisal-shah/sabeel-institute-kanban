@@ -164,6 +164,10 @@ export function htmlToMarkdown(html: string): string {
   // one (the native editor does not nest either), so the inner </ul> must
   // not end the list and strand every item after it.
   let listDepth = 0;
+  // Depth per inline mark. Lexical emits <b><strong>x</strong></b> for ONE bold
+  // run: the inner open must be collapsed AND its close ignored, or the close
+  // ends the outer mark early and strands everything after it.
+  const markDepth = { bold: 0, italic: 0 };
 
   const target = (): RichInline[] => (marks.length ? marks[marks.length - 1].content : run);
 
@@ -241,8 +245,12 @@ export function htmlToMarkdown(html: string): string {
         dropDepth += 1;
         continue;
       }
-      if (n === 'b' || n === 'strong') marks.push({ kind: 'bold', content: [] });
-      else if (n === 'i' || n === 'em') marks.push({ kind: 'italic', content: [] });
+      const openMark = (kind: 'bold' | 'italic') => {
+        markDepth[kind] += 1;
+        if (markDepth[kind] === 1) marks.push({ kind, content: [] });
+      };
+      if (n === 'b' || n === 'strong') openMark('bold');
+      else if (n === 'i' || n === 'em') openMark('italic');
       else if (n === 'a') marks.push({ kind: 'link', href: attr(tk.attrs, 'href'), content: [] });
       else if (n === 'br') pushText('\n');
       else if (n === 'ul' || n === 'ol') {
@@ -266,8 +274,12 @@ export function htmlToMarkdown(html: string): string {
 
     // close
     const n = tk.name;
-    if (n === 'b' || n === 'strong') closeMark('bold');
-    else if (n === 'i' || n === 'em') closeMark('italic');
+    const shutMark = (kind: 'bold' | 'italic') => {
+      if (markDepth[kind] === 1) closeMark(kind);
+      markDepth[kind] = Math.max(0, markDepth[kind] - 1);
+    };
+    if (n === 'b' || n === 'strong') shutMark('bold');
+    else if (n === 'i' || n === 'em') shutMark('italic');
     else if (n === 'a') closeMark('link');
     else if (n === 'li') {
       const c = flushRun();
