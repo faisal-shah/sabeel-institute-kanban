@@ -432,15 +432,29 @@ in the bundle log.
 | Editor type size vs the card | Measured off the screenshots: 1.007x — antialiasing, not a size difference |
 | Mention popover | Opens above the input and lands fully on screen with the IME up |
 | Largest system font (1.3x) | Toolbar stays one row, Save/Cancel do not clip, nothing overlaps |
+| **A large paste** | Four pastes of a 5,878-char formatted description. Bold, italic and links all survived, and the app reported **exactly** "3512 characters over the 20000 limit" — 4 x 5,878 = 23,512, which is 3,512 over, so every character of every paste landed |
+| The cap, on device | Save disabled with that reason on screen; tapping it wrote nothing (stored length still 5,878) |
+| A mark over a selection | Select-all, tap Bold: the text goes bold, the button shows its active state, and the comment stored as `**ray**` |
 | JS errors | None; the only warn-level line is an existing session log |
 
 **Rotation is NOT a test on this app** — it is portrait-locked in both
 `app.json` and `AndroidManifest.xml`, so the old checklist item asked for
-something that cannot happen. Two items remain genuinely unverified: a paste
-from Chrome, and applying a mark by selecting existing text (`adb shell input
-text` drops characters into a Fabric editor faster than it can consume them, so
-driving the toolbar over a real selection is not reachable this way — it needs a
-person or a native harness).
+something that cannot happen.
+
+**One narrow gap remains: a paste from a BROWSER.** The paste above went through
+the real Android clipboard and carried its formatting, so the paste path itself
+is proven — but out-of-vocabulary HTML (a heading, a table, an image) arriving
+from Chrome is still covered only by the shared converter's unit tests and the
+web e2e, not on a device.
+
+**`adb shell input text` is the wrong tool for this editor**, and that is a
+harness limitation rather than a bug: it synthesises keystrokes faster than a
+Fabric editor consumes them, so characters drop. It produced `Cir tepsit****fe
+ria` once, which looks exactly like a converter fault and is not one — a slower
+retry dropped characters but produced no asterisks. Drive the editor by
+CLIPBOARD instead (`input keycombination 113 29 / 31 / 50` for
+select-all / copy / paste): one event rather than a stream, and it behaves
+perfectly.
 
 **Both editors inherit a font from their platform rather than from the app.** On
 web that shipped as Times at 16px against the app's sans at 15 until a manual
