@@ -131,6 +131,7 @@ export function Comments({
                   prioritiseUids={prioritiseUids}
                   placeholder="Edit your comment — @ to mention someone"
                   testID="comment-edit-editor"
+                  minHeight={72}
                 />
                 <Row>
                   <Button
@@ -180,6 +181,7 @@ export function Comments({
           prioritiseUids={prioritiseUids}
           placeholder="Add a comment — @ to mention someone"
           testID="comment-editor"
+          minHeight={72}
         />
 
         {/* Submit sits DIRECTLY under the field. The mention hint used to be

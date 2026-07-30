@@ -88,3 +88,10 @@ jobs:
       # tab bar — a dead end on a phone browser.
       - name: Every screen, every width (web)
         run: bash scripts/e2e.sh scripts/screens-e2e.mjs
+
+      # Rich text end to end: the editor, and what actually reaches Firestore.
+      # The load-bearing check is three cycles of byte equality — a converter
+      # that loses something loses it on cycle two, here rather than in
+      # somebody's notes.
+      - name: Rich text end-to-end (web)
+        run: bash scripts/e2e.sh scripts/richtext-e2e.mjs

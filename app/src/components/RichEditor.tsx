@@ -69,6 +69,7 @@ export function RichEditor({
   autoFocus,
   candidates,
   prioritiseUids,
+  minHeight = 120,
 }: {
   initialMarkdown: string;
   onChangeMarkdown: (md: string) => void;
@@ -78,6 +79,8 @@ export function RichEditor({
   prioritiseUids?: readonly string[];
   /** Web only — a contenteditable has no placeholder to select on. */
   testID?: string;
+  /** Matches the web sibling; the native input sizes itself the same way. */
+  minHeight?: number;
 }) {
   const t = useTheme();
   const ref = useRef<EnrichedTextInputInstance>(null);
@@ -169,7 +172,7 @@ export function RichEditor({
           onFocus={policy.onFocus}
           onBlur={policy.onBlur}
           style={{
-            minHeight: 120,
+            minHeight,
             backgroundColor: t.bg.surface,
             borderColor: t.border.subtle,
             borderWidth: StyleSheet.hairlineWidth,

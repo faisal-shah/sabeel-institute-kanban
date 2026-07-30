@@ -361,6 +361,7 @@ export function RichEditor({
   candidates,
   prioritiseUids,
   testID,
+  minHeight = 120,
 }: {
   initialMarkdown: string;
   onChangeMarkdown: (md: string) => void;
@@ -371,6 +372,9 @@ export function RichEditor({
   prioritiseUids?: readonly string[];
   /** Stable handle for e2e: a contenteditable exposes no placeholder to select on. */
   testID?: string;
+  /** Comments are short; a description-sized box wastes the scarcest thing on
+   *  the card screen. */
+  minHeight?: number;
 }) {
   const t = useTheme();
   const [marks, setMarks] = useState<RichMarks>(EMPTY_MARKS);
@@ -456,6 +460,15 @@ export function RichEditor({
       </div>
 
       <LexicalComposer initialConfig={initialConfig}>
+        {/*
+          A POSITIONED container around the editable and its placeholder.
+
+          The placeholder is absolutely positioned, and without an explicit
+          relative parent it anchored to an ancestor further up — landing on top
+          of the toolbar, so the icons and the words "Add a comment" drew over
+          each other. Only a screenshot showed it; every assertion still passed.
+        */}
+        <div style={{ position: 'relative' }}>
         <RichTextPlugin
           contentEditable={
             <ContentEditable
@@ -464,7 +477,7 @@ export function RichEditor({
               aria-label={placeholder ?? 'Rich text'}
               autoFocus={autoFocus}
               style={{
-                minHeight: 120,
+                minHeight,
                 backgroundColor: t.bg.surface,
                 color: t.text.primary,
                 borderColor: t.border.subtle,
@@ -480,11 +493,18 @@ export function RichEditor({
           placeholder={
             <div
               style={{
+                // top/left are NOT optional. `position: absolute` without them
+                // falls at the element's STATIC position — which, since the
+                // placeholder is rendered after the editable, put it below the
+                // box and over the Comment button.
                 position: 'absolute',
+                top: 0,
+                left: 0,
                 pointerEvents: 'none',
                 padding: space.md,
                 color: t.text.muted,
                 fontSize: 16,
+                lineHeight: 1.5,
               }}
             >
               {placeholder}
@@ -492,6 +512,7 @@ export function RichEditor({
           }
           ErrorBoundary={LexicalErrorBoundary}
         />
+        </div>
         <HistoryPlugin />
         <ListPlugin />
         <LinkPlugin validateUrl={isSafeHref} />
