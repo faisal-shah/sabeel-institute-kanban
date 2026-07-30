@@ -123,6 +123,23 @@ async function newApp(browser, scheme = 'light') {
  * instead of opening it (deliberate — see useSelection). So: clear any
  * selection, then retry the click until the card screen actually appears.
  */
+/**
+ * The comment composer is a CONTENTEDITABLE, not a textarea.
+ *
+ * Selecting it by placeholder stopped working the moment it became a rich
+ * editor — a contenteditable has no placeholder attribute — and reading it with
+ * `inputValue()` never will. Both live here so the next editor change is one
+ * edit rather than ten, and neither is weakened into an `if (isVisible)` guard:
+ * a selector that silently matches nothing is how a broken check passes.
+ */
+const commentEditor = (page) => page.locator('[data-testid="comment-editor"]');
+const editorText = (loc) => loc.innerText();
+/** Focus lands INSIDE the editable, which is a div rather than a TEXTAREA. */
+const focusIsInEditor = (page) =>
+  page.evaluate(
+    () => document.activeElement?.closest('[contenteditable="true"]') !== null,
+  );
+
 async function openCard(page, title) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const clear = page.getByRole('button', { name: 'Clear selection' });
@@ -700,7 +717,7 @@ try {
 
   // ---- Comments, mentions and activity (Phases 8-9) ----------------------
   // Still on the card detail screen from the assignment above.
-  const commentBox = admin.getByPlaceholder('Add a comment — @ to mention someone');
+  const commentBox = commentEditor(admin);
   await commentBox.waitFor({ timeout: 20000 });
   await commentBox.click();
   await commentBox.pressSequentially('Kicking this off, cc @', { delay: 10 });
@@ -726,7 +743,7 @@ try {
   await admin.keyboard.press('ArrowDown');
   await admin.keyboard.press('Enter');
   await admin.waitForTimeout(500);
-  const afterArrow = await commentBox.inputValue();
+  const afterArrow = await editorText(commentBox);
   check(
     'arrow keys move the highlight and Enter accepts it',
     afterArrow.includes(`@${wanted}`),
@@ -737,11 +754,11 @@ try {
   await commentBox.click();
   await commentBox.pressSequentially(' @', { delay: 10 });
   await rows.first().waitFor({ timeout: 15000 });
-  const beforeEsc = await commentBox.inputValue();
+  const beforeEsc = await editorText(commentBox);
   await admin.keyboard.press('Escape');
   await admin.waitForTimeout(400);
   check('Escape dismisses the list', (await rows.count()) === 0);
-  check('and leaves what was typed alone', (await commentBox.inputValue()) === beforeEsc);
+  check('and leaves what was typed alone', (await editorText(commentBox)) === beforeEsc);
 
   // Typing again brings it back — Escape must not disable it for good.
   await commentBox.pressSequentially('s', { delay: 10 });
@@ -762,17 +779,14 @@ try {
   // Tab accepts as well as Enter. Verified rather than assumed because the user
   // manual promises it, and because preventDefault has to stop Tab doing its
   // normal job of moving focus out of the box.
-  const beforeTab = await commentBox.inputValue();
+  const beforeTab = await editorText(commentBox);
   await admin.keyboard.press('Tab');
   await admin.waitForTimeout(500);
-  const afterTab = await commentBox.inputValue();
+  const afterTab = await editorText(commentBox);
   check('Tab accepts the highlighted person', afterTab !== beforeTab, afterTab);
   check(
     'and Tab does not move focus out of the box',
-    await admin.evaluate(() => {
-      const el = document.activeElement;
-      return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
-    }),
+    await focusIsInEditor(admin),
   );
 
   // Clicking AWAY closes the list — a draft left ending in "@sa" used to leave
@@ -796,10 +810,7 @@ try {
   await rows.first().waitFor({ timeout: 15000 });
   await rows.first().click();
   await admin.waitForTimeout(400);
-  const focused = await admin.evaluate(() => {
-    const el = document.activeElement;
-    return el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
-  });
+  const focused = await focusIsInEditor(admin);
   check('picking a mention keeps focus in the comment box', focused);
   // And typing actually continues into the same box.
   await admin.keyboard.type('please take a look');
@@ -915,7 +926,7 @@ try {
   await backToBoards(admin);
   await admin.getByText('Fundraising 2026').first().click();
   await openCard(admin, 'Book venue');
-  const venueBox = admin.getByPlaceholder('Add a comment — @ to mention someone');
+  const venueBox = commentEditor(admin);
   await venueBox.waitFor({ timeout: 20000 });
   await venueBox.click();
   await venueBox.pressSequentially('caterer confirmed', { delay: 10 });

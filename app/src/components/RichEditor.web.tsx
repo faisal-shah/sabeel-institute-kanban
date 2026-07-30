@@ -49,18 +49,33 @@ import {
   ORDERED_LIST,
   UNORDERED_LIST,
 } from '@lexical/markdown';
-import { $findMatchingParent } from '@lexical/utils';
+import { $findMatchingParent, mergeRegister } from '@lexical/utils';
 import {
   $getRoot,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
+  COMMAND_PRIORITY_HIGH,
   FORMAT_TEXT_COMMAND,
+  KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_UP_COMMAND,
+  KEY_ENTER_COMMAND,
+  KEY_ESCAPE_COMMAND,
+  KEY_TAB_COMMAND,
   TextNode,
 } from 'lexical';
-import { htmlToMarkdown, markdownToHtml, isSafeHref } from '@sabeel/shared';
+import {
+  activeMentionQuery,
+  handleFor,
+  htmlToMarkdown,
+  markdownToHtml,
+  isSafeHref,
+  type MentionCandidate,
+} from '@sabeel/shared';
 import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
+import { MentionList, ROW_PITCH } from './MentionList';
+import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, useTheme } from '../theme';
 
 /** Exactly the five. Nothing else can be typed into existence as a shortcut. */
@@ -212,16 +227,150 @@ function Bridge({
   return null;
 }
 
+
+/**
+ * @mention autocomplete, using a REAL caret.
+ *
+ * This is the half the plain-text box cannot have. `MentionField` passes the
+ * whole value to `activeMentionQuery`, which is `$`-anchored, so a mention must
+ * be the last thing in the box — put the caret in the middle, type `@`, and
+ * nothing opens. Here the query comes from the text BEFORE the caret in the
+ * anchor node, so mid-text mentions work, which is a bug fix rather than a new
+ * feature.
+ *
+ * The list, its ranking, the highlight and the popover are the SHARED ones. Only
+ * "where is the caret" and "insert here" live in this file — the same division
+ * `mentionKeys.ts` documents, with Lexical commands standing in for onKeyPress.
+ */
+function MentionPlugin({
+  candidates,
+  prioritiseUids,
+}: {
+  candidates: readonly MentionCandidate[];
+  prioritiseUids?: readonly string[];
+}) {
+  const [editor] = useLexicalComposerContext();
+  const [query, setQuery] = useState<string | null>(null);
+  const pitch = useRef(ROW_PITCH);
+
+  useEffect(
+    () =>
+      editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(() => {
+          const sel = $getSelection();
+          if (!$isRangeSelection(sel) || !sel.isCollapsed()) {
+            setQuery(null);
+            return;
+          }
+          const node = sel.anchor.getNode();
+          if (!$isTextNode(node)) {
+            setQuery(null);
+            return;
+          }
+          // Text up to the CARET, not the whole value.
+          setQuery(activeMentionQuery(node.getTextContent().slice(0, sel.anchor.offset)));
+        });
+      }),
+    [editor],
+  );
+
+  const policy = useMentionPolicy({
+    query,
+    candidates,
+    prioritiseUids,
+    rowPitch: pitch.current,
+    onInsert: (candidate) => {
+      const handle = handleFor(candidate.email);
+      editor.update(() => {
+        const sel = $getSelection();
+        if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
+        const node = sel.anchor.getNode();
+        if (!$isTextNode(node)) return;
+        const offset = sel.anchor.offset;
+        const before = node.getTextContent().slice(0, offset);
+        const m = before.match(/(?:^|\s)@([A-Za-z0-9._%+-]*)$/);
+        if (!m) return;
+        // Select back over the "@partial" only — never the space before it.
+        const typed = m[0].startsWith('@') ? m[0].length : m[0].length - 1;
+        sel.setTextNodeRange(node, offset - typed, node, offset);
+        sel.insertText(`@${handle} `);
+      });
+    },
+    onRefocus: () => editor.focus(),
+  });
+
+  // Focus drives whether the popover may open at all.
+  useEffect(() => {
+    const el = editor.getRootElement();
+    if (!el) return;
+    const on = () => policy.onFocus();
+    const off = () => policy.onBlur();
+    el.addEventListener('focus', on);
+    el.addEventListener('blur', off);
+    return () => {
+      el.removeEventListener('focus', on);
+      el.removeEventListener('blur', off);
+    };
+  }, [editor, policy]);
+
+  /**
+   * Keys, intercepted ONLY while the list is open.
+   *
+   * Returning true swallows the event, so Enter must still insert a paragraph
+   * and Tab must still move focus whenever the popover is closed — the same
+   * gating `mentionKeys.web.ts` applies with `preventDefault`.
+   */
+  useEffect(() => {
+    const stop = (fn: () => void) => () => {
+      if (!policy.open) return false;
+      fn();
+      return true;
+    };
+    const accept = () => {
+      const s = policy.suggestions[policy.index];
+      if (s) policy.accept(s);
+    };
+    return mergeRegister(
+      editor.registerCommand(KEY_ARROW_DOWN_COMMAND, stop(() => policy.move(1)), COMMAND_PRIORITY_HIGH),
+      editor.registerCommand(KEY_ARROW_UP_COMMAND, stop(() => policy.move(-1)), COMMAND_PRIORITY_HIGH),
+      editor.registerCommand(KEY_ENTER_COMMAND, stop(accept), COMMAND_PRIORITY_HIGH),
+      editor.registerCommand(KEY_TAB_COMMAND, stop(accept), COMMAND_PRIORITY_HIGH),
+      editor.registerCommand(KEY_ESCAPE_COMMAND, stop(() => policy.dismiss()), COMMAND_PRIORITY_HIGH),
+    );
+  }, [editor, policy]);
+
+  if (!policy.open) return null;
+  return (
+    <MentionList
+      suggestions={policy.suggestions}
+      index={policy.index}
+      listRef={policy.listRef}
+      onPick={policy.accept}
+      onMeasureRow={(p) => {
+        pitch.current = p;
+      }}
+    />
+  );
+}
+
 export function RichEditor({
   initialMarkdown,
   onChangeMarkdown,
   placeholder,
   autoFocus,
+  candidates,
+  prioritiseUids,
+  testID,
 }: {
   initialMarkdown: string;
   onChangeMarkdown: (md: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Board members, when this box supports @mentions (comments do; descriptions do not). */
+  candidates?: readonly MentionCandidate[];
+  prioritiseUids?: readonly string[];
+  /** Stable handle for e2e: a contenteditable exposes no placeholder to select on. */
+  testID?: string;
 }) {
   const t = useTheme();
   const [marks, setMarks] = useState<RichMarks>(EMPTY_MARKS);
@@ -280,9 +429,22 @@ export function RichEditor({
     [],
   );
 
+  // Into <head>, not into the tree: a <style> element inside a View is invalid
+  // nesting and React says so on every render. One node, shared by every editor
+  // instance, replaced when the theme changes.
+  useEffect(() => {
+    const id = 'sk-richtext-style';
+    let el = document.getElementById(id) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement('style');
+      el.id = id;
+      document.head.appendChild(el);
+    }
+    el.textContent = css;
+  }, [css]);
+
   return (
     <View style={styles.wrap}>
-      <style>{css}</style>
       {/*
         Pressing a toolbar button steals focus and collapses the selection
         before the command runs, so the format applies to nothing. Preventing
@@ -298,6 +460,7 @@ export function RichEditor({
           contentEditable={
             <ContentEditable
               className="sk-rt"
+              data-testid={testID}
               aria-label={placeholder ?? 'Rich text'}
               autoFocus={autoFocus}
               style={{
@@ -333,6 +496,9 @@ export function RichEditor({
         <ListPlugin />
         <LinkPlugin validateUrl={isSafeHref} />
         <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
+        {candidates ? (
+          <MentionPlugin candidates={candidates} prioritiseUids={prioritiseUids} />
+        ) : null}
         <Bridge
           initialMarkdown={initialMarkdown}
           onChangeMarkdown={onChangeMarkdown}

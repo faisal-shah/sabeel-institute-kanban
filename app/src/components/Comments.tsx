@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { StyleSheet, type TextInput } from 'react-native';
+import { useMemo, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { type MentionCandidate } from '@sabeel/shared';
 import { addComment, deleteComment, editComment, useComments } from '../comments';
 import { sessionCan, type SessionUser } from '../session';
@@ -14,7 +14,7 @@ import {
   Spinner,
 } from './ui';
 import { RichText } from './RichText';
-import { MentionField } from './MentionField';
+import { RichEditor } from './RichEditor';
 import { space } from '../theme';
 import { useAction } from '../useAction';
 
@@ -43,7 +43,15 @@ export function Comments({
 }) {
   const comments = useComments(cardId);
   const [draft, setDraft] = useState('');
-  const draftRef = useRef<TextInput>(null);
+  /**
+   * Bumped to remount the composer after a successful post.
+   *
+   * The rich editor is UNCONTROLLED — it seeds from `initialMarkdown` once, so
+   * setting `draft` back to '' does not empty the box. A remount is safe at
+   * exactly this moment and no other: the text has already been handed to
+   * `addComment`, so there is nothing to lose.
+   */
+  const [composerKey, setComposerKey] = useState(0);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const { run, busy, error } = useAction('comments');
@@ -116,12 +124,13 @@ export function Comments({
 
             {editing === c.id ? (
               <>
-                <MentionField
-                  value={editDraft}
-                  onChangeText={setEditDraft}
+                <RichEditor
+                  initialMarkdown={editDraft}
+                  onChangeMarkdown={setEditDraft}
                   candidates={candidates}
                   prioritiseUids={prioritiseUids}
                   placeholder="Edit your comment — @ to mention someone"
+                  testID="comment-edit-editor"
                 />
                 <Row>
                   <Button
@@ -163,13 +172,14 @@ export function Comments({
       })}
 
       <Panel>
-        <MentionField
-          ref={draftRef}
-          value={draft}
-          onChangeText={setDraft}
+        <RichEditor
+          key={composerKey}
+          initialMarkdown={draft}
+          onChangeMarkdown={setDraft}
           candidates={candidates}
           prioritiseUids={prioritiseUids}
           placeholder="Add a comment — @ to mention someone"
+          testID="comment-editor"
         />
 
         {/* Submit sits DIRECTLY under the field. The mention hint used to be
@@ -193,11 +203,15 @@ export function Comments({
             // what someone typed is far worse than a second of uncertainty.
             const body = draft;
             setDraft('');
+            setComposerKey((k) => k + 1);
             void run(async () => {
               try {
                 await addComment({ cardId, body, candidates, user });
               } catch (e) {
+                // Restore what they typed, and remount so the box shows it
+                // again — losing it is far worse than a second of uncertainty.
                 setDraft(body);
+                setComposerKey((k) => k + 1);
                 throw e;
               }
             }, 'addComment');
