@@ -3,12 +3,12 @@ import { StyleSheet, View } from 'react-native';
 import { deleteCard, restoreCard, useArchivedBoardCards } from '../cards';
 import { useBoard } from '../boards';
 import { useLabels } from '../labels';
+import { confirmAction } from '../confirm';
 import { sessionCan, type SessionUser } from '../session';
 import { useNav } from '../nav';
 import { CardFace } from '../components/CardFace';
 import {
   Body,
-  Button,
   Card as Panel,
   Hint,
   IconAction,
@@ -68,8 +68,12 @@ export function BoardArchiveScreen({
   if (!b) {
     return (
       <Screen width="read">
-        <Title>Board not found</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
+        <Row style={styles.between}>
+          <Title numberOfLines={1} style={styles.grow}>
+            Board not found
+          </Title>
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        </Row>
       </Screen>
     );
   }
@@ -108,19 +112,31 @@ export function BoardArchiveScreen({
         </Panel>
       ) : null}
 
+      {/*
+        Icons ON the card's own row, not labelled buttons under it. A list of
+        archived cards repeats these controls once per row, and "Restore to the
+        board" written out N times reads as noise and costs a button-height band
+        every time. The words survive in the accessibility labels.
+      */}
       {archived.map((card) => (
         <Panel key={card.id}>
-          {/* The same face the board draws, so an archived card is recognisable
-              rather than reduced to a line of text. */}
-          <CardFace
-            card={card}
-            labels={allLabels.data ?? NO_LABELS}
-            boardMembers={b.members}
-          />
-          <Row>
-            <Button
-              busy={busy}
-              label="Restore to the board"
+          {/* Top-aligned, not centred: a card face carrying labels, a due date
+              and assignees is several lines tall, and Row's default would float
+              these icons in the middle of it instead of beside the title. */}
+          <Row style={styles.rowTop}>
+            {/* The same face the board draws, so an archived card is
+                recognisable rather than reduced to a line of text. */}
+            <View style={styles.grow}>
+              <CardFace
+                card={card}
+                labels={allLabels.data ?? NO_LABELS}
+                boardMembers={b.members}
+              />
+            </View>
+            <IconAction
+              icon="unarchive"
+              label={`Restore ${card.title} to the board`}
+              disabled={busy}
               onPress={() =>
                 run(async () => {
                   const { movedTo } = await restoreCard(card, user, b.columns);
@@ -134,13 +150,24 @@ export function BoardArchiveScreen({
               }
             />
             {/* Permanent deletion stays managers/admins only, exactly as on the
-                card itself — the archive is not a back door around that. */}
+                card itself — the archive is not a back door around that.
+                It ASKS FIRST: this shipped as a bare button that deleted on the
+                first tap, one row away from Restore, with no undo behind it. */}
             {sessionCan.manageBoards(user) ? (
-              <Button
-                busy={busy}
-                label="Delete"
-                variant="danger"
-                onPress={() => run(() => deleteCard(card.id))}
+              <IconAction
+                icon="delete-outline"
+                danger
+                label={`Delete ${card.title} permanently`}
+                disabled={busy}
+                onPress={() => {
+                  void (async () => {
+                    const ok = await confirmAction(
+                      'Delete permanently?',
+                      `“${card.title}” will be gone for everyone, along with its comments and files. This cannot be undone — leaving it archived keeps it recoverable.`,
+                    );
+                    if (ok) run(() => deleteCard(card.id));
+                  })();
+                }}
               />
             ) : null}
           </Row>
@@ -154,6 +181,7 @@ export function BoardArchiveScreen({
 
 const styles = StyleSheet.create({
   between: { justifyContent: 'space-between', alignItems: 'center' },
+  rowTop: { alignItems: 'flex-start' },
   grow: { flex: 1 },
   tail: { height: space.xl },
 });
