@@ -406,22 +406,47 @@ six bare URLs became tappable. Verified against production first: all 103 real
 descriptions and comments through parse-and-normalize with **zero words lost or
 altered**, and through three converter cycles with **zero drift**.
 
-Verified: 419 unit (including a seeded 400-document round-trip fuzz), 193
-emulator, and five e2e suites — attachments 17, web 91, stats 271, screens 115,
-rich text 17. The rich-text suite proves byte identity across reload-and-resave,
+Verified: 419 unit (including a seeded 400-document round-trip fuzz), 289
+emulator, and five e2e suites — attachments 17, web 91, stats 271, screens 135,
+rich text 19. The rich-text suite proves byte identity across reload-and-resave,
 that a rich paste is reduced before it reaches Firestore, and that the cap blocks
-the WRITE rather than only the button.
+the WRITE rather than only the button. The screen sweep now tours a card in
+three states — at rest, description editor open, comment composer in use —
+because an editor adds a toolbar row and a Save/Cancel row that exist in no
+other state, and 320px is where they run out of room.
 
-**Android device checklist** (no native e2e harness exists, so this is done by
-hand each time the native editor changes): each element applied from the
-toolbar; a paste from Chrome; rotation; the largest system font size; the
-keyboard up with the toolbar and Save both visible; a mid-text mention; kill and
-reopen the app. **And that the text being edited is the same size and typeface
-as the text on the card underneath** — both editors inherit a font from their
-platform rather than from the app, and on web that shipped as Times at 16px
-against the app's sans at 15 until a manual screenshot caught it. Native's
-default is a different size again, so it is pinned in `RichEditor.tsx`; the web
-half is now asserted by `richtext-e2e.mjs`, the native half only by eye.
+**Android: RUN BY HAND on the `tb_emu` emulator, 2026-07-30.** There is no
+Playwright equivalent for the native surface, so this is a checklist rather than
+a suite — but it is a checklist that was executed, not one that was written
+down. Debug build against the seeded emulator backend
+(`EXPO_PUBLIC_USE_EMULATORS=1`, so it cannot reach production), Fabric confirmed
+in the bundle log.
+
+| Checked | Result |
+|---|---|
+| The editor mounts, both surfaces | Toolbar of five icons on description AND comment composer |
+| Keyboard up | Editor, toolbar row and Save/Cancel all stay visible — the risk the spike flagged |
+| Markdown into the editor | Bold, italic, both lists and a link all load correctly |
+| **Markdown back out, three cycles** | **Byte-identical each time**, read back with the Admin SDK |
+| Escaping, rendered | `2 \* 3 \* 4` shows literal asterisks; `snake_case_name` stays bare |
+| Editor type size vs the card | Measured off the screenshots: 1.007x — antialiasing, not a size difference |
+| Mention popover | Opens above the input and lands fully on screen with the IME up |
+| Largest system font (1.3x) | Toolbar stays one row, Save/Cancel do not clip, nothing overlaps |
+| JS errors | None; the only warn-level line is an existing session log |
+
+**Rotation is NOT a test on this app** — it is portrait-locked in both
+`app.json` and `AndroidManifest.xml`, so the old checklist item asked for
+something that cannot happen. Two items remain genuinely unverified: a paste
+from Chrome, and applying a mark by selecting existing text (`adb shell input
+text` drops characters into a Fabric editor faster than it can consume them, so
+driving the toolbar over a real selection is not reachable this way — it needs a
+person or a native harness).
+
+**Both editors inherit a font from their platform rather than from the app.** On
+web that shipped as Times at 16px against the app's sans at 15 until a manual
+screenshot caught it; native's default is different again (14), so it is pinned
+in `RichEditor.tsx`. The web half is asserted by `richtext-e2e.mjs`; the native
+half is measured off a screenshot, above.
 
 
 ### 2026-07-29 — Two dead ends found by a new harness — v0.6.1
