@@ -128,6 +128,41 @@ check(
   (await page.getByRole('button', { name: 'Bold', exact: true }).first().getAttribute('aria-pressed')) ===
     'true',
 );
+/*
+ * The editor must LOOK like the app.
+ *
+ * Lexical's ContentEditable is a real DOM element, and react-native-web puts
+ * its font stack on each `Text` it renders rather than on `body` — so the
+ * editable inherits nothing and falls back to the UA serif. Comparing computed
+ * styles against a genuinely rendered control is the check; hardcoding the
+ * expected stack here would just restate the bug's assumption.
+ */
+const fonts = await page.evaluate(() => {
+  const norm = (v) => v.replace(/\s+/g, '').replace(/"/g, '').toLowerCase();
+  const ed = document.querySelector('[contenteditable="true"]');
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let probe = null;
+  while (walk.nextNode()) {
+    if (walk.currentNode.textContent.trim() === 'Save') {
+      probe = walk.currentNode.parentElement;
+      break;
+    }
+  }
+  const es = getComputedStyle(ed);
+  return {
+    editor: norm(es.fontFamily),
+    app: probe ? norm(getComputedStyle(probe).fontFamily) : null,
+    size: es.fontSize,
+    serif: /(^|,)(times|serif)/.test(norm(es.fontFamily)),
+  };
+});
+check(
+  'the editor uses the app font, not the browser default',
+  fonts.app !== null && fonts.editor === fonts.app && !fonts.serif,
+  JSON.stringify(fonts),
+);
+check('and the app body size', fonts.size === '15px', fonts.size);
+
 await page.keyboard.press('End');
 await page.keyboard.press('Enter');
 await page.getByRole('button', { name: 'Bullet list', exact: true }).first().click();

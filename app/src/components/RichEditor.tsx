@@ -46,7 +46,7 @@ import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
 import { MentionList, ROW_PITCH } from './MentionList';
 import { useMentionPolicy } from './useMentionPolicy';
-import { radius, space, useTheme } from '../theme';
+import { radius, space, type as type_, useTheme } from '../theme';
 
 /** Exactly the two list triggers, pinned rather than defaulted. */
 const TEXT_SHORTCUTS = [
@@ -179,6 +179,9 @@ export function RichEditor({
             borderRadius: radius.sm,
             padding: space.md,
             color: t.text.primary,
+            // RN's TextInput default is 14, the app's body text is 15. Left
+            // alone, typing and reading the same words differ in size.
+            fontSize: type_.body.fontSize,
           }}
           htmlStyle={{ a: { color: t.accent.base } }}
         />

@@ -76,10 +76,28 @@ import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
 import { MentionList, ROW_PITCH } from './MentionList';
 import { useMentionPolicy } from './useMentionPolicy';
-import { radius, space, useTheme } from '../theme';
+import { radius, space, type as type_, useTheme } from '../theme';
 
 /** Exactly the five. Nothing else can be typed into existence as a shortcut. */
 const TRANSFORMERS = [UNORDERED_LIST, ORDERED_LIST, BOLD_STAR, ITALIC_STAR];
+
+/**
+ * The app's own font stack, restated because it CANNOT be imported.
+ *
+ * react-native-web sets this per-`Text` element (its `fontFamily: 'System'`
+ * default, resolved in
+ * `react-native-web/dist/exports/StyleSheet/compiler/createReactDOMStyle.js`),
+ * never on `body` — so a raw `contenteditable` inherits nothing and falls back
+ * to the UA default, which is **Times**. The editor rendered in serif while
+ * the card beneath it rendered in sans, at 16px against the app's 15.
+ *
+ * No lint rule covers this and every assertion passed; the manual's own
+ * screenshot is what showed it. `richtext-e2e.mjs` now compares the editor's
+ * COMPUTED font against a real rendered control, so drift here fails a test
+ * rather than waiting for the next screenshot.
+ */
+const SYSTEM_FONT_STACK =
+  '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
 
 const EMPTY_MARKS: RichMarks = {
   bold: false,
@@ -394,7 +412,12 @@ export function RichEditor({
    */
   const css = useMemo(
     () => `
-      .sk-rt { outline: none; }
+      .sk-rt {
+        outline: none;
+        /* NOT inherited from anywhere — see SYSTEM_FONT_STACK above. */
+        font-family: ${SYSTEM_FONT_STACK};
+        font-size: ${type_.body.fontSize}px;
+      }
       .sk-rt-p { margin: 0 0 ${space.sm}px; }
       .sk-rt-b { font-weight: 700; }
       .sk-rt-i { font-style: italic; }
@@ -485,7 +508,8 @@ export function RichEditor({
                 borderStyle: 'solid',
                 borderRadius: radius.sm,
                 padding: space.md,
-                fontSize: 16,
+                // Font family and size live in `.sk-rt` — an inline value here
+                // would win over the class and silently undo it.
                 lineHeight: 1.5,
               }}
             />
@@ -503,7 +527,10 @@ export function RichEditor({
                 pointerEvents: 'none',
                 padding: space.md,
                 color: t.text.muted,
-                fontSize: 16,
+                // Matches the editable exactly, or the text jumps size and
+                // typeface on the first keystroke.
+                fontFamily: SYSTEM_FONT_STACK,
+                fontSize: type_.body.fontSize,
                 lineHeight: 1.5,
               }}
             >
