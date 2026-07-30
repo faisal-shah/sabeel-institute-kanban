@@ -1,12 +1,11 @@
 /**
  * Everything about @mention autocomplete EXCEPT where the caret is.
  *
- * Lifted out of `MentionField` unchanged so that the plain-text box and both
- * rich editors share one implementation. `mentionKeys.ts` states the rule this
- * follows: *"Only the key PLUMBING is split by platform. The list, its ordering
- * and which row is highlighted all stay in one place… two boxes doing the same
- * thing is how one of them quietly stops doing it."* Everything here is the
- * "one place"; the caller supplies only `onInsert` and `onRefocus`.
+ * Both rich editors share this one implementation. The rule it follows: only
+ * the CARET PLUMBING is split by platform — the list, its ordering and which
+ * row is highlighted all stay in one place, because two boxes doing the same
+ * thing is how one of them quietly stops doing it. Everything here is the "one
+ * place"; the caller supplies only `onInsert` and `onRefocus`.
  *
  * The behaviours below were each paid for once and must not be re-derived:
  *  - a ref beside the highlight state, because held arrow keys repeat faster

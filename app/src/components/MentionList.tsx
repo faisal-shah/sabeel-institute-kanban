@@ -1,8 +1,7 @@
 /**
  * The @mention popover, shared by the plain-text box and both rich editors.
  *
- * Lifted out of `MentionField` unchanged. Every property here was learned on a
- * device and must survive the move:
+ * Every property here was learned on a device and must survive any move:
  *  - `position: absolute` above the field. Inline-below hid behind the
  *    keyboard; inline-above pushed the field down without re-triggering a
  *    scroll. Absolute takes no layout, so the 96px keyboard budget is unspent.

@@ -4,7 +4,7 @@
  * Which five buttons exist, in what order, with what icons and labels, and how
  * an active one looks, all live here. Only the COMMANDS differ per platform
  * (Lexical `dispatchCommand` vs the native editor's ref methods), and they
- * arrive injected — the same division `mentionKeys.ts` documents.
+ * arrive injected — the same division `useMentionPolicy` draws.
  *
  * Icons rather than labelled buttons, per the standing rule: five labelled
  * buttons would cost a row of vertical space above every description and

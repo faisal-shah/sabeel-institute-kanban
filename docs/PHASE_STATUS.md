@@ -406,11 +406,18 @@ six bare URLs became tappable. Verified against production first: all 103 real
 descriptions and comments through parse-and-normalize with **zero words lost or
 altered**, and through three converter cycles with **zero drift**.
 
-Verified: 419 unit (including a seeded 400-document round-trip fuzz), 289
+Verified: 419 unit (including a seeded 400-document round-trip fuzz), 291
 emulator, and five e2e suites — attachments 17, web 91, stats 271, screens 135,
 rich text 19. The rich-text suite proves byte identity across reload-and-resave,
 that a rich paste is reduced before it reaches Firestore, and that the cap blocks
-the WRITE rather than only the button. The screen sweep now tours a card in
+the WRITE rather than only the button.
+
+**The cap counts CHARACTERS, not UTF-8 bytes** — measured, because the existing
+test used ASCII and could not tell the two apart. Had `size()` been byte-based,
+an accented or Arabic description would have passed `storedLength`
+(`String.length`), been offered a live Save, and returned a bare
+`permission-denied`. Two rules tests now pin it: 20,000 x `U+00E9` is 40,000
+bytes and is accepted; 20,001 is rejected. The screen sweep now tours a card in
 three states — at rest, description editor open, comment composer in use —
 because an editor adds a toolbar row and a Save/Cancel row that exist in no
 other state, and 320px is where they run out of room.

@@ -347,6 +347,38 @@ describe('creating cards', () => {
     );
   });
 
+  /**
+   * WHAT UNIT DOES `size()` COUNT? Characters — not UTF-8 bytes.
+   *
+   * This matters and was open until it was measured. The client gate is
+   * `storedLength`, which is `String.length` (UTF-16 units). If the rule
+   * counted BYTES instead, a description of accented or Arabic text would pass
+   * the counter, be offered a live Save button, and come back as a bare
+   * `permission-denied` — the exact failure `constants.ts` documents, in a new
+   * coat, and one this org would hit rather than a theoretical one.
+   *
+   * 20,000 x 'e-acute' is 20,000 characters but 40,000 UTF-8 bytes. It is
+   * accepted, so the rule is not byte-based; one more character is rejected, so
+   * the two ends agree on the unit.
+   */
+  it('counts the description cap in CHARACTERS, not UTF-8 bytes', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/new12b'),
+        card({ description: '\u00e9'.repeat(20000) }),
+      ),
+    );
+  });
+
+  it('and rejects the same multi-byte text one character over', async () => {
+    await assertFails(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/new12c'),
+        card({ description: '\u00e9'.repeat(20001) }),
+      ),
+    );
+  });
+
   it('allows a card carrying a sourceId (ClickUp import shape)', async () => {
     await assertSucceeds(
       setDoc(

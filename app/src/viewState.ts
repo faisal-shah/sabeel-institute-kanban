@@ -27,8 +27,8 @@ export interface ViewStore<T> {
    * anything deriving its new value from the old one must use that form: a
    * handler closes over the value from ITS render, so two taps landing before
    * React re-renders both compute from the same snapshot and one is lost.
-   * `MentionField` keeps a ref beside its state for the same reason — "key
-   * repeat is faster than a render", measured, not imagined.
+   * The @mention popover keeps a ref beside its state for the same reason —
+   * "key repeat is faster than a render", measured, not imagined.
    */
   set: (patch: Partial<T> | ((prev: T) => Partial<T>)) => void;
   /** Back to the initial value. */

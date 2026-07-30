@@ -249,16 +249,15 @@ function Bridge({
 /**
  * @mention autocomplete, using a REAL caret.
  *
- * This is the half the plain-text box cannot have. `MentionField` passes the
- * whole value to `activeMentionQuery`, which is `$`-anchored, so a mention must
- * be the last thing in the box — put the caret in the middle, type `@`, and
+ * This is the half a plain `TextInput` cannot have. The old box passed its
+ * whole value to `activeMentionQuery`, which is `$`-anchored, so a mention had
+ * to be the last thing in the field — put the caret in the middle, type `@`, and
  * nothing opens. Here the query comes from the text BEFORE the caret in the
  * anchor node, so mid-text mentions work, which is a bug fix rather than a new
  * feature.
  *
- * The list, its ranking, the highlight and the popover are the SHARED ones. Only
- * "where is the caret" and "insert here" live in this file — the same division
- * `mentionKeys.ts` documents, with Lexical commands standing in for onKeyPress.
+ * The list, its ranking, the highlight and the popover are the SHARED ones.
+ * Only "where is the caret" and "insert here" live in this file.
  */
 function MentionPlugin({
   candidates,
@@ -335,8 +334,7 @@ function MentionPlugin({
    * Keys, intercepted ONLY while the list is open.
    *
    * Returning true swallows the event, so Enter must still insert a paragraph
-   * and Tab must still move focus whenever the popover is closed — the same
-   * gating `mentionKeys.web.ts` applies with `preventDefault`.
+   * and Tab must still move focus whenever the popover is closed.
    */
   useEffect(() => {
     const stop = (fn: () => void) => () => {

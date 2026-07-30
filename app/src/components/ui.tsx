@@ -660,9 +660,10 @@ export const TextField = forwardRef<TextInput, {
   /** Cap input length so a write never exceeds what firestore.rules allows. */
   maxLength?: number;
   /**
-   * Raw key events, for a field that has to interpret them — today only the
-   * @mention list, which needs arrows and Escape on web. Supplied by the
-   * `mentionKeys` platform pair, which is empty on native.
+   * Raw key events, for a field that has to interpret them. The rich editors
+   * intercept their own keys (Lexical commands on web, the native editor's own
+   * handlers), so nothing in the app supplies this today — it stays because a
+   * plain `TextInput` still needs the escape hatch.
    */
   onKeyPress?: TextInputProps['onKeyPress'];
   /** Focus tracking, for a field whose UI depends on it — today only the
