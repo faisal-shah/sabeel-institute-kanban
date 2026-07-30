@@ -131,7 +131,11 @@ await db.doc(`boards/${BOARD}`).set({
   columns: [
     { id: 'c1', name: 'To Do' },
     { id: 'c2', name: 'In Progress' },
-    { id: 'c3', name: 'Done' },
+    // Deliberately long: the phone pager centres the column NAME and lets the
+    // pencil hang to its right, sliding the pair left rather than truncating
+    // early. A board of short names never exercises that and the sweep would
+    // photograph a layout nobody had tested.
+    { id: 'c3', name: 'Waiting on the finance committee' },
   ],
   columnIds: ['c1', 'c2', 'c3'],
   memberUids: [uid],
@@ -387,10 +391,51 @@ async function tour(page, tag, width) {
   // Which board layout actually rendered? The pager exists only in the narrow
   // one, and the expectation comes from the source breakpoint rather than a
   // number copied into this file.
+  //
+  // Probed by ROLE + accessible name, not by visible text: the pager is a pair
+  // of arrow icons, so `getByText('Prev')` matches nothing and would report
+  // "columns" at every width — a green-looking check that had stopped looking at
+  // anything.
   const expected = width >= WIDE_BREAKPOINT ? 'columns' : 'swipe';
-  const hasPager = await page.getByText('Prev', { exact: false }).first().isVisible().catch(() => false);
+  const hasPager = await page
+    .getByRole('button', { name: 'Previous column' })
+    .first()
+    .isVisible()
+    .catch(() => false);
   const actual = hasPager ? 'swipe' : 'columns';
   check(`${tag} / board renders the ${expected} layout`, actual === expected, `got ${actual}`);
+
+  /**
+   * THE LONG COLUMN NAME, which is its own layout problem.
+   *
+   * The pager centres the column NAME and lets the pencil hang to its right; a
+   * name too long for that has to slide the pair LEFT rather than truncate
+   * early. Column 3 of the seed is deliberately long, and no other step in this
+   * tour ever navigates off column 1, so without this the behaviour ships
+   * unphotographed and unchecked.
+   */
+  if (width < WIDE_BREAKPOINT) {
+    const next = page.getByRole('button', { name: 'Next column' });
+    await next.click();
+    await page.waitForTimeout(400);
+    await next.click();
+    await page.waitForTimeout(700);
+    const longFaults = await layoutFaults(page, width);
+    check(
+      `${tag} / board with a long column name`,
+      longFaults.length === 0,
+      longFaults.join('; ').slice(0, 160),
+    );
+    await page.screenshot({ path: join(SHOTS, `${tag}-board-longname.png`), fullPage: true });
+
+    // Back to column 1 — the card steps below open `.first()` card and would
+    // otherwise be looking at a different column's contents.
+    const prev = page.getByRole('button', { name: 'Previous column' });
+    await prev.click();
+    await page.waitForTimeout(400);
+    await prev.click();
+    await page.waitForTimeout(700);
+  }
 
   await visit('card', async () => {
     await page.locator('[data-testid^="card-"]').first().click();

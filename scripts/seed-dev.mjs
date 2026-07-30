@@ -15,7 +15,7 @@ const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:8086/';
 // looked fine locally and wrong on a real board:
 //
 //   - a column name too long for the phone pager, which used to paint over the
-//     "‹ Prev" button;
+//     "Previous column" arrow;
 //   - a column with more cards than fit on one screen, which is what exposed a
 //     content-sized list on web (last card clipped, "+ Add card" unreachable,
 //     nothing scrolling).

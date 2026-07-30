@@ -365,6 +365,54 @@ the team.
 
 ## Deploy log
 
+### 2026-07-30 — Board and navigation icon pass — v0.7.1
+
+Client only. No functions, rules, indexes, shared package or backfill — checked
+with `git diff`, not assumed.
+
+Found by testing v0.7.0 on a phone: the board spent too much of a 320px row on
+words, and the same labelled-button habit had crept back in four places.
+
+**Changed**
+
+1. **The pager is arrows.** `‹ Prev` / `Next ›` were full buttons with 16px
+   side padding that stretched to the row height — together ~150px of a 288px
+   usable width, taken from the column name. Now `chevron-left` /
+   `chevron-right`, labelled *Previous column* / *Next column*. Deliberately not
+   `arrow-back`: that glyph means "leave this screen" everywhere else.
+2. **The column name is actually centred now.** The row is `text + gap + 44px
+   pencil` and the parent centred that whole unit, so the name sat ~24px left of
+   centre. A **balance spacer** mirrors the pencil on the left with a shrink
+   weight of 999, so the name lands on the centre line, and a long name
+   collapses the spacer and slides the pair LEFT rather than truncating early.
+3. **The phone header is the board name and Back.** Archived cards and Board
+   settings moved to the row along the bottom, beside `+ Add card` and the
+   column delete — which is now a bin icon. `+ Add card` keeps its label: it is
+   the primary action of the screen. Wide layouts are untouched.
+4. **The archive list stopped shouting.** "Restore to the board" written out
+   once per row, plus a Delete button per row, was two labelled buttons and a
+   button-height band on every card. Both are icons on the card's own row now.
+   **Delete also asks first** — it shipped firing on the first tap, one row from
+   Restore, with nothing behind it.
+5. **Back is one thing everywhere.** It was 7 icon sites against 7 that spelled
+   the word; the word ones are now the arrow. `Back to boards` → `All boards`
+   and `Back to inbox` → `Inbox`, because those reset to a root rather than
+   popping, and because Playwright matches accessible names by substring — 15
+   call sites looked up `Back` and could resolve to either.
+
+**Two bugs the sweep caught rather than a human**
+
+- Putting board actions in a per-column footer rendered **three** "Board
+  settings" buttons — every column page is mounted so the pager can swipe. A
+  strict-mode violation in Playwright; a screen reader would have announced
+  three identical buttons. Gated to the visible page.
+- The tour never left column 1, so the long-name behaviour would have shipped
+  unphotographed. The seed now carries a deliberately long column name and the
+  sweep asserts and screenshots that state — 28 checks at 320px, 13 screens.
+
+Verified: lint, typecheck, unit, emulator, and all five e2e suites; screenshots
+read at every width; Android checked by hand on `tb_emu`.
+
 ### 2026-07-30 — Rich text for descriptions and comments — v0.7.0
 
 Reverses the 2026-07-20 plain-text decision, which said to revisit "on an
