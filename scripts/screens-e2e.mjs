@@ -32,8 +32,15 @@
  * intentional `numberOfLines` clamp in the app and would drown the real signal.
  * Scope that check to the surface that needs it, as stats-e2e does for its axis.
  *
+ * A CARD IS THREE SCREENS, not one: at rest, with the description editor open,
+ * and with the comment composer in use. The editors add a toolbar row and a
+ * Save/Cancel row that exist in no other state, and 320px is where they run out
+ * of room — so they are toured like any other screen rather than trusted because
+ * the card underneath them measured fine.
+ *
  * Seeding goes through the Admin SDK: deterministic, seconds not minutes, and
- * clients cannot write most of it anyway.
+ * clients cannot write most of it anyway. The seeded description deliberately
+ * uses every element of the vocabulary, so these shots show real formatting.
  */
 import { chromium, devices } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -146,14 +153,20 @@ const CARDS = [
 for (const [id, columnId, title, priority] of CARDS) {
   await db.doc(`cards/${id}`).set({
     boardId: BOARD, title, columnId, priority,
-    description: 'Enough description text to give the card body something to lay out.',
+    description:
+      'Confirm the **deposit** and the *date* before Friday.\n\n- call the hall\n- send the [contract](https://example.org/contract)\n\n1. deposit\n2. signature\n\nVenue notes: https://example.org/venue',
     rank: `V${id.slice(-1)}`,
     assigneeUids: [uid], subscriberUids: [uid], labelIds: ['sw_l1', 'sw_l2'],
-    dueDate: '2026-08-15', archived: false, commentCount: 1,
+    dueDate: '2026-08-15', archived: false,
+    // 0, NOT 1: `onCommentWritten` increments this when the comment doc
+    // below is created, so seeding both made every card read "Comments (2)"
+    // with one comment under it.
+    commentCount: 0,
     createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid,
   });
   await db.doc(`cards/${id}/comments/cm1`).set({
-    authorUid: uid, body: 'A comment, so the thread is not empty when measured.',
+    authorUid: uid,
+    body: 'A **formatted** comment, so the rendered thread is measured too:\n\n- with a bullet\n- and [a link](https://example.org)',
     mentionUids: [], createdAt: now,
   });
 }
@@ -289,7 +302,7 @@ const smallTargets = (page) =>
   ]);
 
 // ---- The tour --------------------------------------------------------------
-const SCREENS = 10;
+const SCREENS = 12;
 
 async function tour(page, tag, width) {
   /**
@@ -383,6 +396,34 @@ async function tour(page, tag, width) {
     await page.locator('[data-testid^="card-"]').first().click();
     await page.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 20000 });
   });
+  /**
+   * THE EDITING STATES, which are their own layouts.
+   *
+   * A card at rest and a card with an editor open are different screens: the
+   * editor adds a five-icon toolbar row and a Save/Cancel row, and both have to
+   * survive 320px without pushing anything sideways. The rendered card cannot
+   * tell you that — every rich-text layout bug so far has been in this state.
+   */
+  await visit('card-editing', async () => {
+    await page.getByRole('button', { name: 'Edit description' }).click();
+    await page.locator('[contenteditable="true"]').first().waitFor({ timeout: 20000 });
+    // Wait for the TOOLBAR, not just the box — it is the part that can overflow.
+    await page.getByRole('button', { name: 'Bold', exact: true }).first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(400);
+  });
+
+  await visit('card-comment', async () => {
+    await page.getByRole('button', { name: 'Cancel' }).first().click();
+    await page.waitForTimeout(600);
+    const box = page.locator('[data-testid="comment-editor"]');
+    await box.click();
+    await page.keyboard.type('Looks good — ');
+    // Leaves Bold ACTIVE, so the shot shows the toolbar's selected state.
+    await page.getByRole('button', { name: 'Bold', exact: true }).last().click();
+    await page.keyboard.type('ready to send');
+    await page.waitForTimeout(400);
+  });
+
   await visit('settings', async () => {
     await page.getByRole('button', { name: 'Back' }).first().click();
     await page.waitForTimeout(800);

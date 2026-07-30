@@ -1,0 +1,271 @@
+/**
+ * Rich text, proved end to end against the REAL editor and REAL storage.
+ *
+ *   bash scripts/e2e.sh scripts/richtext-e2e.mjs
+ *
+ * The load-bearing check is THREE CYCLES OF BYTE EQUALITY: type, save, read the
+ * stored string, reload so the editor rehydrates from markdown rather than from
+ * memory, save again untouched, and assert the bytes have not moved. A converter
+ * that loses something loses it on cycle two — here, in one comparison, rather
+ * than in somebody's real notes weeks later.
+ *
+ * Everything else in here exists because it cannot be proved in a unit test:
+ * that the editor actually mounts, that a paste is reduced by the time it
+ * reaches Firestore, that the cap gate blocks the WRITE and not just the button,
+ * and that a mid-text mention resolves to a uid.
+ *
+ * WEB ONLY. There is no native e2e harness in this repo, so the Android editor
+ * is covered by the device checklist in docs/PHASE_STATUS.md instead — the same
+ * split `attachments-e2e.mjs` documents for signed URLs.
+ */
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+import { initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+
+const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:8086/';
+const ROOT = resolve(import.meta.dirname, '..');
+const PROJECT = 'demo-sabeel-kanban';
+process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
+process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
+process.env.GCLOUD_PROJECT = PROJECT;
+
+const results = [];
+function check(name, ok, detail = '') {
+  results.push({ name, ok });
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name}${!ok && detail ? ` — ${detail}` : ''}`);
+}
+
+const browser = await chromium.launch();
+const grant = (email) =>
+  new Promise((res, rej) => {
+    const c = spawn('node', [resolve(ROOT, 'scripts/grant-admin.mjs'), email], {
+      env: { ...process.env },
+      stdio: 'pipe',
+    });
+    c.on('exit', (code) => (code === 0 ? res() : rej(new Error(`grant-admin ${code}`))));
+  });
+
+async function provision(who, email) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.goto(BASE, { waitUntil: 'networkidle' });
+  await p.getByText('Dev sign-in (emulator only)').waitFor({ timeout: 20000 });
+  await p.getByRole('button', { name: who, exact: true }).click();
+  await p.getByText('Waiting for approval').waitFor({ timeout: 25000 });
+  await grant(email);
+  await ctx.close();
+}
+await provision('faisal', 'faisal@oursabeel.com');
+await provision('sara', 'sara@oursabeel.com');
+
+initializeApp({ projectId: PROJECT });
+const db = getFirestore();
+const users = await db.collection('users').get();
+const uid = users.docs.find((d) => d.data().email === 'faisal@oursabeel.com').id;
+const sara = users.docs.find((d) => d.data().email === 'sara@oursabeel.com').id;
+const now = Date.now();
+
+await db.doc('boards/rt_b').set({
+  name: 'Rich text',
+  description: '',
+  archived: false,
+  columns: [{ id: 'c1', name: 'To Do' }],
+  columnIds: ['c1'],
+  memberUids: [uid, sara],
+  memberProfiles: {
+    [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' },
+    [sara]: { displayName: 'Sara', email: 'sara@oursabeel.com' },
+  },
+  activeCardCount: 1,
+  createdAt: now,
+  createdBy: uid,
+});
+await db.doc('cards/rt_c').set({
+  boardId: 'rt_b', title: 'Formatting', description: '', columnId: 'c1', rank: 'V0',
+  priority: 'none', assigneeUids: [], subscriberUids: [], labelIds: [], archived: false,
+  commentCount: 0, createdAt: now, createdBy: uid, updatedAt: now, updatedBy: uid,
+});
+
+const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e).slice(0, 120)));
+
+async function openTheCard() {
+  await page.getByRole('button', { name: 'More' }).waitFor({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Boards', exact: true }).first().click();
+  await page.getByText('Rich text').first().click();
+  await page.waitForTimeout(800);
+  await page.getByText('Formatting').first().click();
+  await page.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 25000 });
+}
+
+await page.goto(BASE, { waitUntil: 'networkidle' });
+await page.getByRole('button', { name: 'faisal', exact: true }).click();
+await openTheCard();
+
+// ---- the editor, and what it stores ---------------------------------------
+await page.getByRole('button', { name: 'Edit description' }).click();
+await page.waitForTimeout(700);
+// The DESCRIPTION editor. The comment composer is another contenteditable
+// on the same screen, which is why every editor-scoped locator here is .first().
+const editor = page.locator('[contenteditable="true"]').first();
+check('the editor mounts', await editor.isVisible().catch(() => false));
+
+await editor.click();
+await page.keyboard.type('hello world and 2 * 3 * 4');
+await page.keyboard.press('Home');
+for (let i = 0; i < 6; i += 1) await page.keyboard.press('ArrowRight');
+await page.keyboard.down('Shift');
+for (let i = 0; i < 5; i += 1) await page.keyboard.press('ArrowRight');
+await page.keyboard.up('Shift');
+await page.getByRole('button', { name: 'Bold', exact: true }).first().click();
+await page.waitForTimeout(250);
+check(
+  'an active mark reports its state to a screen reader',
+  (await page.getByRole('button', { name: 'Bold', exact: true }).first().getAttribute('aria-pressed')) ===
+    'true',
+);
+/*
+ * The editor must LOOK like the app.
+ *
+ * Lexical's ContentEditable is a real DOM element, and react-native-web puts
+ * its font stack on each `Text` it renders rather than on `body` — so the
+ * editable inherits nothing and falls back to the UA serif. Comparing computed
+ * styles against a genuinely rendered control is the check; hardcoding the
+ * expected stack here would just restate the bug's assumption.
+ */
+const fonts = await page.evaluate(() => {
+  const norm = (v) => v.replace(/\s+/g, '').replace(/"/g, '').toLowerCase();
+  const ed = document.querySelector('[contenteditable="true"]');
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let probe = null;
+  while (walk.nextNode()) {
+    if (walk.currentNode.textContent.trim() === 'Save') {
+      probe = walk.currentNode.parentElement;
+      break;
+    }
+  }
+  const es = getComputedStyle(ed);
+  return {
+    editor: norm(es.fontFamily),
+    app: probe ? norm(getComputedStyle(probe).fontFamily) : null,
+    size: es.fontSize,
+    serif: /(^|,)(times|serif)/.test(norm(es.fontFamily)),
+  };
+});
+check(
+  'the editor uses the app font, not the browser default',
+  fonts.app !== null && fonts.editor === fonts.app && !fonts.serif,
+  JSON.stringify(fonts),
+);
+check('and the app body size', fonts.size === '15px', fonts.size);
+
+await page.keyboard.press('End');
+await page.keyboard.press('Enter');
+await page.getByRole('button', { name: 'Bullet list', exact: true }).first().click();
+await page.keyboard.type('first');
+await page.getByRole('button', { name: 'Save' }).first().click();
+await page.waitForTimeout(1500);
+
+const first = (await db.doc('cards/rt_c').get()).data().description;
+check('bold is stored as markdown', first.includes('**world**'), first);
+check('a literal asterisk is escaped', first.includes('\\*'), first);
+check('a bullet is stored', first.includes('- first'), first);
+check('no HTML reaches storage', !/[<>]/.test(first), first);
+
+// ---- three cycles, byte for byte ------------------------------------------
+let previous = first;
+let stable = true;
+for (let cycle = 1; cycle <= 2; cycle += 1) {
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForTimeout(2500);
+  await openTheCard();
+  await page.getByRole('button', { name: 'Edit description' }).click();
+  await page.waitForTimeout(900);
+  await page.getByRole('button', { name: 'Save' }).first().click();
+  await page.waitForTimeout(1500);
+  const again = (await db.doc('cards/rt_c').get()).data().description;
+  if (again !== previous) stable = false;
+  previous = again;
+}
+check('byte-identical after two reload-and-resave cycles', stable, JSON.stringify(previous));
+
+// ---- paste is reduced BEFORE it is stored ---------------------------------
+await page.getByRole('button', { name: 'Edit description' }).click();
+await page.waitForTimeout(700);
+await editor.click();
+await page.keyboard.press('Control+a');
+await page.evaluate(() => {
+  const el = document.querySelector('[contenteditable="true"]');
+  const dt = new DataTransfer();
+  dt.setData(
+    'text/html',
+    '<h1>Heading</h1><p><u>under</u> and <s>struck</s> and <a href="https://ok.test">a link</a></p>' +
+      '<ul><li>kept</li></ul><img src="x.png"><scr' + 'ipt>alert(1)</scr' + 'ipt>',
+  );
+  el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+});
+await page.waitForTimeout(800);
+await page.getByRole('button', { name: 'Save' }).first().click();
+await page.waitForTimeout(1500);
+const pasted = (await db.doc('cards/rt_c').get()).data().description;
+check('a rich paste is reduced to the vocabulary', !/[<>]/.test(pasted), pasted);
+check('the paste kept its link', pasted.includes('https://ok.test'), pasted);
+check('the paste kept its list item', pasted.includes('kept'), pasted);
+check('the paste dropped the script', !pasted.includes('alert(1)'), pasted);
+
+// ---- the cap blocks the WRITE, not just the button ------------------------
+const before = (await db.doc('cards/rt_c').get()).data().description;
+await page.getByRole('button', { name: 'Edit description' }).click();
+await page.waitForTimeout(600);
+await editor.click();
+await page.keyboard.press('Control+a');
+await page.evaluate(() => {
+  const el = document.querySelector('[contenteditable="true"]');
+  const dt = new DataTransfer();
+  dt.setData('text/plain', 'x'.repeat(25000));
+  el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+});
+await page.waitForTimeout(1200);
+const saveBtn = page.getByRole('button', { name: 'Save' }).first();
+check('Save is refused past the cap', (await saveBtn.getAttribute('aria-disabled')) === 'true');
+await saveBtn.click({ force: true }).catch(() => {});
+await page.waitForTimeout(1200);
+check(
+  'and NO write happened — the regression test for a bare permission-denied',
+  (await db.doc('cards/rt_c').get()).data().description === before,
+);
+await page.getByRole('button', { name: 'Cancel' }).first().click().catch(() => {});
+
+// ---- a mid-text mention resolves to a uid ---------------------------------
+await page.waitForTimeout(500);
+const box = page.locator('[data-testid="comment-editor"]');
+await box.click();
+await page.keyboard.type('please review this before Friday');
+await page.keyboard.press('Home');
+for (let i = 0; i < 14; i += 1) await page.keyboard.press('ArrowRight');
+await page.keyboard.type(' @sa');
+await page.waitForTimeout(900);
+const rows = page.getByRole('button', { name: /^Mention / });
+check('the mention list opens MID-TEXT, which the plain box cannot do', (await rows.count()) > 0);
+if (await rows.count()) await rows.first().click();
+await page.waitForTimeout(500);
+await page.getByRole('button', { name: 'Comment', exact: true }).click();
+await page.waitForTimeout(2000);
+const comment = (await db.collection('cards/rt_c/comments').get()).docs[0]?.data();
+check('the mention resolved to a uid', !!comment && comment.mentionUids.includes(sara));
+check('the handle is literal text in the stored markdown', !!comment && comment.body.includes('@'));
+
+check('no page errors', errors.length === 0, errors.join(' | '));
+await page.screenshot({ path: 'shots/richtext-e2e.png', fullPage: true });
+await browser.close();
+
+const failed = results.filter((r) => !r.ok);
+console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
+if (failed.length) {
+  console.error(`FAILED: ${failed.map((f) => f.name).join('; ')}`);
+  process.exit(1);
+}

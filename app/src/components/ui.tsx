@@ -517,6 +517,7 @@ export function IconAction({
   danger,
   accent,
   disabled,
+  selected,
   size = 18,
 }: {
   icon: MaterialIconName;
@@ -527,6 +528,13 @@ export function IconAction({
   accent?: boolean;
   /** Disable while a write it triggers is in flight, so it cannot re-fire. */
   disabled?: boolean;
+  /**
+   * For a TOGGLE rather than an action — a formatting button that is currently
+   * on. Without it an active Bold announces identically to an inactive one, and
+   * looks identical too. Same `accessibilityState.selected` the mention list
+   * already uses.
+   */
+  selected?: boolean;
   /** Ink size. Larger for a high-stakes pair like save/cancel. */
   size?: number;
 }) {
@@ -535,11 +543,23 @@ export function IconAction({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
+      accessibilityState={{ disabled: !!disabled, selected }}
+      /**
+       * `aria-pressed` as well, and deliberately.
+       *
+       * react-native-web does not map `accessibilityState.selected` to any ARIA
+       * attribute for `role="button"` — measured, not assumed: the rendered
+       * element carried the active BACKGROUND and no state at all, so a screen
+       * reader could not tell an active Bold from an inactive one. `aria-pressed`
+       * is the correct ARIA for a toggle, and it is inert on native, where
+       * `accessibilityState` above is what Android reads.
+       */
+      aria-pressed={selected}
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
         styles.action,
+        selected && { backgroundColor: t.bg.accentSoft, borderRadius: radius.sm },
         disabled && { opacity: 0.4 },
         pressed && { opacity: 0.6 },
       ]}
@@ -640,9 +660,10 @@ export const TextField = forwardRef<TextInput, {
   /** Cap input length so a write never exceeds what firestore.rules allows. */
   maxLength?: number;
   /**
-   * Raw key events, for a field that has to interpret them — today only the
-   * @mention list, which needs arrows and Escape on web. Supplied by the
-   * `mentionKeys` platform pair, which is empty on native.
+   * Raw key events, for a field that has to interpret them. The rich editors
+   * intercept their own keys (Lexical commands on web, the native editor's own
+   * handlers), so nothing in the app supplies this today — it stays because a
+   * plain `TextInput` still needs the escape hatch.
    */
   onKeyPress?: TextInputProps['onKeyPress'];
   /** Focus tracking, for a field whose UI depends on it — today only the

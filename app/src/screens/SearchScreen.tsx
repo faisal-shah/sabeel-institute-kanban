@@ -6,6 +6,7 @@ import {
   hasActiveFilters,
   rankMatches,
   todayInOrgTz,
+  toPlainText,
   sortLabels,
   type Label,
   type SearchableCard,
@@ -121,6 +122,9 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             boardId: (d.data().boardId as string) ?? '',
             title: (d.data().title as string) ?? '',
             description: (d.data().description as string) ?? '',
+            // Stripped ONCE here. `matchesText` would otherwise re-parse every
+            // description on every keystroke.
+            descriptionPlain: toPlainText((d.data().description as string) ?? ''),
             columnId: (d.data().columnId as string) ?? '',
             assigneeUids: (d.data().assigneeUids as string[]) ?? [],
             labelIds: (d.data().labelIds as string[]) ?? [],

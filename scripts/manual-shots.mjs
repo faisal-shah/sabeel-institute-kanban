@@ -114,7 +114,9 @@ async function enrich() {
     ['Confirm the caterer', 0, 'high', [0, 1],
       'Final head count is 120. Check the vegetarian option and whether they bring their own serving staff.'],
     ['Draft the donor letter', 3, 'medium', [1],
-      'One page, warm but specific: what last year funded, what this year needs, and the giving levels we agreed.'],
+      // Formatted on purpose: the manual's card screenshot is the only place a
+      // reader sees what the five elements actually look like.
+      'One page, **warm but specific**. Cover:\n\n- what last year funded\n- what this year needs\n- the giving levels we agreed\n\nTone reference: https://example.org/handbook'],
     ['Design the programme', 21, 'low', [2], ''],
     ['Chase outstanding pledges', 5, 'high', [0, 2],
       'Eleven pledges from the spring appeal are still open. Start with the four over $500.'],
@@ -214,6 +216,19 @@ const SHOTS = {
     await openBoard(p);
     await p.getByText(CARD).first().click();
     await p.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 30000 });
+  },
+  // The formatting row only exists while the description is being EDITED, so
+  // the rendered `card` shot cannot show it. This is the only image in the
+  // manual that photographs an editor rather than a screen.
+  format: async (p) => {
+    await openBoard(p);
+    await p.getByText(CARD).first().click();
+    await p.getByRole('button', { name: 'Edit description' }).click();
+    // Wait for the editor itself, not a timeout — it mounts asynchronously and
+    // a screenshot taken early catches the read-only text it replaces.
+    await p.locator('[contenteditable="true"]').first().waitFor({ timeout: 30000 });
+    await p.getByRole('button', { name: 'Bold', exact: true }).first().waitFor({ timeout: 15000 });
+    await p.waitForTimeout(700);
   },
   bulk: async (p, tag) => {
     await openBoard(p);

@@ -10,6 +10,8 @@ export * from './mentions';
 export * from './migration';
 export * from './notify';
 export * from './rank';
+export * from './richtext';
+export * from './richtextHtml';
 export * from './search';
 export * from './stats';
 export * from './subtasks';

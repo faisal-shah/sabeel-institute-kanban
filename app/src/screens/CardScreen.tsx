@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   CARD_DESCRIPTION_MAX,
   CARD_TITLE_MAX,
+  storedLength,
   LABEL_COLORS,
   LABEL_NAME_MAX,
   readableInkOn,
@@ -38,6 +39,8 @@ import {
   assignableCandidates,
 } from '../components/AssigneePicker';
 import { Subtasks } from '../components/Subtasks';
+import { RichText } from '../components/RichText';
+import { RichEditor } from '../components/RichEditor';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
 import { Sheet } from '../components/Sheet';
@@ -156,6 +159,11 @@ export function CardScreen({
     );
   }
 
+
+  // Measured on the STORED form, not on what was typed: markup counts toward
+  // the cap the rules enforce. One helper, so the counter and the write agree.
+  const descLength = storedLength(description);
+  const descOver = descLength > CARD_DESCRIPTION_MAX;
 
   const today = todayInOrgTz();
   const overdue = c.dueDate !== undefined && c.dueDate < today;
@@ -404,20 +412,30 @@ export function CardScreen({
       <Panel>
         {editingDesc ? (
           <>
-            <TextField
-              value={description}
-              onChangeText={(v) => {
+            <RichEditor
+              initialMarkdown={description}
+              onChangeMarkdown={(v) => {
                 setDescription(v);
                 setDescDirty(true);
               }}
               placeholder="Write a description"
-              multiline
-              maxLength={CARD_DESCRIPTION_MAX}
             />
+            {/* Only when it matters. A permanent character counter on every
+                description box is the kind of chrome this app exists without;
+                silence under 90% and a plain sentence past the limit. */}
+            {descOver ? (
+              <Hint>
+                {descLength - CARD_DESCRIPTION_MAX} characters over the{' '}
+                {CARD_DESCRIPTION_MAX} limit — shorten it to save.
+              </Hint>
+            ) : descLength > CARD_DESCRIPTION_MAX * 0.9 ? (
+              <Hint>{CARD_DESCRIPTION_MAX - descLength} characters left.</Hint>
+            ) : null}
             <Row>
               <Button
           busy={busy}
                 label="Save"
+                disabled={descOver}
                 onPress={() =>
                   run(async () => {
                     await updateCard(cardId, { description }, user);
@@ -440,7 +458,7 @@ export function CardScreen({
         ) : (
           <>
             {c.description ? (
-              <Body>{c.description}</Body>
+              <RichText markdown={c.description} />
             ) : (
               <Hint>No description yet.</Hint>
             )}

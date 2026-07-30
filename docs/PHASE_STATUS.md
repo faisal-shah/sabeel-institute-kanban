@@ -365,6 +365,120 @@ the team.
 
 ## Deploy log
 
+### 2026-07-30 — Rich text for descriptions and comments — v0.7.0
+
+Reverses the 2026-07-20 plain-text decision, which said to revisit "on an
+explicit request from the team". Both of its reasons were retired on their own
+terms rather than overruled: nobody has to learn syntax, because both editors
+are WYSIWYG and **markdown is a storage format the user never sees**; and
+"a rich editor means a WebView on Android" stopped being true when Software
+Mansion shipped a native Fabric editor.
+
+**The vocabulary is five elements** — bold, italic, bullet list, ordered list,
+link. No headings, code, quotes, tables or images (attachments cover images).
+That is not a compromise: measured against production, the team's real content
+contains **zero** hand-typed markup, and its only structure is paragraphs, a few
+lists and bare URLs. A small vocabulary is also what makes the round trip
+provable.
+
+**A platform seam, deliberately.** Lexical on web, `react-native-enriched-html`
+on Android, each used only where it is strongest — the *experimental* part of
+the native library is its web support, which we never load. The renderer, the
+toolbar, the mention policy and the markdown↔HTML converter are all SHARED; only
+"where is the caret" and "run this command" differ.
+
+**Escaping is the correctness core**, not a detail. Typing `2 * 3 * 4` stores
+`2 \* 3 \* 4` and renders as literal asterisks. The escape set is exactly the
+parse set — `\`, `*`, `[` and a line-leading `-`/`+`/`N.` — and deliberately NOT
+`_`, backtick or `~`, which are outside the vocabulary and would otherwise store
+`snake\_case\_name`.
+
+**What it fixed on the way.** Mid-text mentions now work: `activeMentionQuery` is
+`$`-anchored, so in the plain-text box a mention had to be the last thing typed.
+
+**Accepted residuals.** Underline can be set by a hardware Ctrl+U on Android,
+markdown cannot express it, and the converter drops it — so the text visibly
+un-underlines; the library exposes no opt-out. Link TEXT is searchable, link
+TARGETS are not.
+
+**Legacy content re-renders, by decision.** Ten list blocks now draw as lists and
+six bare URLs became tappable. Verified against production first: all 103 real
+descriptions and comments through parse-and-normalize with **zero words lost or
+altered**, and through three converter cycles with **zero drift**.
+
+**Surfaces: client AND functions.** No `functions/src`, `firestore.rules`,
+`firestore.indexes.json`, `storage.rules` or backfill changed — checked with
+`git diff`, not assumed. But `@sabeel/shared` did, and esbuild does **not**
+tree-shake the new modules out of the functions bundle: grepping the built
+`functions/lib/index.js` finds `parseRich`, `serializeRich` and `storedLength`
+in it. So functions deploy too, even though **no function's behaviour changes** —
+nothing server-side calls any of it. Worth knowing rather than assuming, because
+"client only" was true of the last release and is not true of this one.
+
+Verified: 419 unit (including a seeded 400-document round-trip fuzz), 291
+emulator, and five e2e suites — attachments 17, web 91, stats 271, screens 135,
+rich text 19. The rich-text suite proves byte identity across reload-and-resave,
+that a rich paste is reduced before it reaches Firestore, and that the cap blocks
+the WRITE rather than only the button.
+
+**The cap counts CHARACTERS, not UTF-8 bytes** — measured, because the existing
+test used ASCII and could not tell the two apart. Had `size()` been byte-based,
+an accented or Arabic description would have passed `storedLength`
+(`String.length`), been offered a live Save, and returned a bare
+`permission-denied`. Two rules tests now pin it: 20,000 x `U+00E9` is 40,000
+bytes and is accepted; 20,001 is rejected. The screen sweep now tours a card in
+three states — at rest, description editor open, comment composer in use —
+because an editor adds a toolbar row and a Save/Cancel row that exist in no
+other state, and 320px is where they run out of room.
+
+**Android: RUN BY HAND on the `tb_emu` emulator, 2026-07-30.** There is no
+Playwright equivalent for the native surface, so this is a checklist rather than
+a suite — but it is a checklist that was executed, not one that was written
+down. Debug build against the seeded emulator backend
+(`EXPO_PUBLIC_USE_EMULATORS=1`, so it cannot reach production), Fabric confirmed
+in the bundle log.
+
+| Checked | Result |
+|---|---|
+| The editor mounts, both surfaces | Toolbar of five icons on description AND comment composer |
+| Keyboard up | Editor, toolbar row and Save/Cancel all stay visible — the risk the spike flagged |
+| Markdown into the editor | Bold, italic, both lists and a link all load correctly |
+| **Markdown back out, three cycles** | **Byte-identical each time**, read back with the Admin SDK |
+| Escaping, rendered | `2 \* 3 \* 4` shows literal asterisks; `snake_case_name` stays bare |
+| Editor type size vs the card | Measured off the screenshots: 1.007x — antialiasing, not a size difference |
+| Mention popover | Opens above the input and lands fully on screen with the IME up |
+| Largest system font (1.3x) | Toolbar stays one row, Save/Cancel do not clip, nothing overlaps |
+| **A large paste** | Four pastes of a 5,878-char formatted description. Bold, italic and links all survived, and the app reported **exactly** "3512 characters over the 20000 limit" — 4 x 5,878 = 23,512, which is 3,512 over, so every character of every paste landed |
+| The cap, on device | Save disabled with that reason on screen; tapping it wrote nothing (stored length still 5,878) |
+| A mark over a selection | Select-all, tap Bold: the text goes bold, the button shows its active state, and the comment stored as `**ray**` |
+| JS errors | None; the only warn-level line is an existing session log |
+
+**Rotation is NOT a test on this app** — it is portrait-locked in both
+`app.json` and `AndroidManifest.xml`, so the old checklist item asked for
+something that cannot happen.
+
+**One narrow gap remains: a paste from a BROWSER.** The paste above went through
+the real Android clipboard and carried its formatting, so the paste path itself
+is proven — but out-of-vocabulary HTML (a heading, a table, an image) arriving
+from Chrome is still covered only by the shared converter's unit tests and the
+web e2e, not on a device.
+
+**`adb shell input text` is the wrong tool for this editor**, and that is a
+harness limitation rather than a bug: it synthesises keystrokes faster than a
+Fabric editor consumes them, so characters drop. It produced `Cir tepsit****fe
+ria` once, which looks exactly like a converter fault and is not one — a slower
+retry dropped characters but produced no asterisks. Drive the editor by
+CLIPBOARD instead (`input keycombination 113 29 / 31 / 50` for
+select-all / copy / paste): one event rather than a stream, and it behaves
+perfectly.
+
+**Both editors inherit a font from their platform rather than from the app.** On
+web that shipped as Times at 16px against the app's sans at 15 until a manual
+screenshot caught it; native's default is different again (14), so it is pinned
+in `RichEditor.tsx`. The web half is asserted by `richtext-e2e.mjs`; the native
+half is measured off a screenshot, above.
+
+
 ### 2026-07-29 — Two dead ends found by a new harness — v0.6.1
 
 Client only. No functions, rules, indexes, shared package or backfill —

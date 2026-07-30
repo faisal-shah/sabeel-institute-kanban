@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.6.1 · July 2026*
+*For app version 0.7.0 · July 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -113,8 +113,27 @@ Tap any card to open the full view.
   **pencil** to edit it, then **Save**.
 - **Column** — a dropdown showing where the card sits. Change it to move the card
   without leaving it.
-- **Description** — plain text. Type whatever you like; it appears to everyone
-  exactly as you typed it. **Save** to keep it, **Cancel** to discard.
+- **Description** — formatted text. A small row of buttons above the box gives
+  you **bold**, *italic*, a **bulleted list**, a **numbered list** and a
+  **link**. Select some words and tap a button, or tap it first and start
+  typing. **Save** to keep it, **Cancel** to discard.
+
+  Those five are the whole set, on purpose — no headings, colours, tables or
+  fonts. A card is a note about a piece of work, not a document, and the app is
+  deliberately not ClickUp.
+
+  Two shortcuts, if you like typing: start a line with `- ` for a bullet or
+  `1. ` for a number, and it becomes a list as you go.
+
+  **Web addresses become links by themselves.** Paste or type one and it turns
+  into something people can tap — you don't need the link button for that. Use
+  the link button when you want a word to carry the address instead, like
+  [the handbook](https://example.org).
+
+  **Pasting from elsewhere is safe and simplified.** Copy from a document or a
+  web page and anything the card cannot show — headings, colours, tables,
+  images — arrives as ordinary text with the bold, italics, lists and links
+  kept. Nothing is silently mangled; it is just reduced to what a card holds.
 - **Attachments** — files on the card. See below. A card with files shows a
   small **paperclip and count** on the board, so you can see which cards carry
   something without opening them.
@@ -130,10 +149,11 @@ Tap any card to open the full view.
 - **Labels** — a short vocabulary shared by **every** board, shown as coloured
   **badges** on the card face. Press **+** to add one to the shared set and this
   card at once.
-- **Comments** — discuss the work. Type **@** to pull someone in; they're
-  notified. A list of everyone on the board appears above the box — **anyone
-  assigned to the card comes first**, and it scrolls if the board is large. Keep
-  typing to narrow it, or tap a name. On a computer you can stay on the keyboard:
+- **Comments** — discuss the work, with the same five formatting buttons the
+  description has. Type **@** to pull someone in and they're notified; that
+  works anywhere in a sentence, not only at the end. A list of everyone on the
+  board appears above the box — **anyone assigned to the card comes first**, and
+  it scrolls if the board is large. Keep typing to narrow it, or tap a name. On a computer you can stay on the keyboard:
   **↑/↓** to move, **Enter** or **Tab** to pick, **Esc** to dismiss.
 
   The list closes when you click away, and picking a name never loses your place
@@ -153,6 +173,22 @@ Tap any card to open the full view.
 
 Ordinary actions — move, archive, assign, delete — are **icons**, not big
 buttons, so a card stays compact. Each icon has a label for screen readers.
+
+### The formatting buttons
+
+<div class="pair">
+  <figure><img class="wide" src="manual/img/format-wide.png" alt="Editing a card description in a browser, with the formatting row above the box"><figcaption>In a browser</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/format-phone.png" alt="Editing a card description on a phone, with the formatting row above the box"><figcaption>On a phone</figcaption></figure>
+</div>
+
+The same five buttons sit above the description and above the comment box, on a
+phone and on a computer alike. A button takes on a **soft coloured background**
+while the cursor sits in text it already applies to, so you can tell bold from
+not-bold without selecting anything first. They are icons, like the rest of the
+app; each one is labelled for screen readers.
+
+You are editing the finished text, not writing codes: what you see in the box is
+what everyone else sees on the card.
 
 ### Attachments — putting files on a card
 
@@ -301,6 +337,10 @@ the chips and the board and label picks are all as you left them — you don't h
 to rebuild a search to look at a second card. Filters reset when the app is
 reloaded, because a filter you set last week isn't one you meant to still be
 looking through today.
+
+Search looks at the WORDS you see, not at the formatting, so searching for
+`bold text` finds a card that shows **bold** text. One honest limit: it searches
+the words of a link, not the address behind it.
 
 If there are more results than fit on screen the app says so, rather than quietly
 cutting the list short. Tap a result to open the card.
@@ -602,6 +642,8 @@ stay.
 | Removing a board member warns about cards | They're assigned to cards on that board | Those cards are unassigned automatically; the warning just says how many |
 | No push notifications arriving | Permission not granted on this device, or that kind is muted | Allow notifications when the app asks, and check **Alerts → Settings** |
 | A red "Live data error" bar | The app couldn't reach the server or was refused | It clears when the connection recovers; if it persists, tell Faisal what the bar says |
+| Text you underlined loses its underline | Cards hold bold, italic, lists and links — underline is not one of them, and a keyboard shortcut can set it even though no button offers it | Use **bold** or *italic* instead |
+| Pasted text lost its headings or colours | Only the five formatting options survive a paste — but every word does | Nothing to do; reformat the parts you want bold or bulleted |
 
 *Manual source: `docs/USER-MANUAL.md`. Its images live in `docs/manual/img/` and
 are regenerated from the seeded dev stack by `node scripts/manual-shots.mjs`
