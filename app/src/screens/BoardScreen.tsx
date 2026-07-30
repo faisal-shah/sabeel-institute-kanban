@@ -12,8 +12,11 @@ import { WideBoard } from '../components/board/WideBoard';
  * the desktop drag board on 380px. Neither is about the platform — both are
  * about how much room there is.
  *
- *   wide   (>= 900px)  → columns side by side
- *   narrow (<  900px)  → one column at a time, swipe between them
+ *   wide   (>= WIDE_BREAKPOINT)  → columns side by side
+ *   narrow (<  WIDE_BREAKPOINT)  → one column at a time, swipe between them
+ *
+ * The number itself lives in `app/src/theme/layout.ts` and is read from there by
+ * the screen sweep too, so it is never restated here.
  *
  * Platform still decides ONE thing, inside WideBoard: whether HTML5
  * drag-and-drop exists. `WideBoard.web.tsx` drags; `WideBoard.tsx` (native,

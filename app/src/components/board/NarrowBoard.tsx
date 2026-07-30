@@ -14,7 +14,7 @@
  * means both "drag this card" and "next column". Reordering WITHIN a column has
  * no such conflict, so that stays a long-press drag.
  *
- * The web board is a different component entirely (BoardScreen.web.tsx).
+ * The web board is a different component entirely (WideBoard.web.tsx).
  */
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -61,7 +61,7 @@ import {
   Title,
 } from '../ui';
 import { useLabels } from '../../labels';
-import { radius, space, type, useTheme } from '../../theme';
+import { radius, space, useTheme } from '../../theme';
 import { KeyboardSticky } from '../KeyboardSticky';
 import { useAction } from '../../useAction';
 
@@ -288,7 +288,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       <Screen>
         <Title>Board not found</Title>
         <Hint>It may have been archived, or you may not be a member.</Hint>
-        <Button label="Back to boards" onPress={() => nav.reset({ name: 'boards' })} />
+        <Button label="All boards" onPress={() => nav.reset({ name: 'boards' })} />
       </Screen>
     );
   }
@@ -297,38 +297,34 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 
   return (
     <Screen scroll={false}>
+      {/*
+        ONLY Back lives up here. Archived cards and Board settings moved to the
+        column footer: three icons beside the title left a 320px phone with too
+        little room for the board's name, and Back is the one control that has to
+        be reachable from the top of every screen.
+      */}
       <Row style={styles.between}>
-        {/* The title shrinks and truncates so the icons keep their place —
-            a long board name used to shove them off the row. */}
+        {/* The title shrinks and truncates so the icon keeps its place —
+            a long board name used to shove it off the row. */}
         <Title numberOfLines={1} style={styles.headerTitle}>
           {b.name}
         </Title>
-        <Row style={styles.headerActions}>
-          {/* Everyone gets this, not just managers: members can archive, so
-              members must be able to un-archive. */}
-          <IconAction
-            icon="inventory-2"
-            label="Archived cards"
-            onPress={() => nav.push({ name: 'boardArchive', boardId })}
-          />
-          {sessionCan.manageBoards(user) ? (
-            <IconAction
-              icon="settings"
-              label="Board settings"
-              onPress={() => nav.push({ name: 'boardSettings', boardId })}
-            />
-          ) : null}
-          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
-        </Row>
+        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
 
       {/* Column pager header: which column, and where it sits in the board.
-          While the name is being edited the Prev/Next buttons step aside — on a
-          phone they leave barely 130px between them, which is not a text field
-          you can type a column name into. */}
+          Arrows rather than "‹ Prev"/"Next ›": two labelled buttons cost ~150px
+          of a 320px row, which is width the column name needs. They are NOT
+          `arrow-back` — that glyph means "leave this screen" everywhere else in
+          the app. While the name is being edited they step aside entirely. */}
       <Row style={styles.pager}>
         {!renaming ? (
-          <Button label="‹ Prev" variant="secondary" onPress={() => goTo(page - 1)} />
+          <IconAction
+            icon="chevron-left"
+            label="Previous column"
+            size={24}
+            onPress={() => goTo(page - 1)}
+          />
         ) : null}
         <View style={styles.pagerLabel}>
           {current ? (
@@ -356,7 +352,12 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           ) : null}
         </View>
         {!renaming ? (
-          <Button label="Next ›" variant="secondary" onPress={() => goTo(page + 1)} />
+          <IconAction
+            icon="chevron-right"
+            label="Next column"
+            size={24}
+            onPress={() => goTo(page + 1)}
+          />
         ) : null}
       </Row>
 
@@ -468,7 +469,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         onScrollEndDrag={syncPage}
         scrollEventThrottle={32}
       >
-        {columns.map((col) => {
+        {columns.map((col, colIndex) => {
           const colCards = byColumn.get(col.id) ?? [];
           return (
             <View key={col.id} style={[styles.page, { width }]}>
@@ -536,16 +537,51 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                   </Panel>
                 </KeyboardSticky>
               ) : (
+                /*
+                  The board's action row. "+ Add card" keeps its label because
+                  it is the primary action of this screen; everything else is an
+                  icon, which is what frees the header above for the board name.
+                  Archived cards and Board settings are BOARD-level and live in a
+                  per-column footer, which is a small stretch — accepted because
+                  only one column is on screen at a time, so the user sees one
+                  row, and it costs no extra vertical space.
+                */
                 <Row style={[styles.footer, styles.wrap]}>
                   <View style={styles.grow}>
                     <Button label="+ Add card" onPress={() => setAdding(true)} />
                   </View>
                   {sessionCan.manageBoards(user) ? (
-                    <Button
-                      label="Delete column"
-                      variant="secondary"
+                    <IconAction
+                      icon="delete-outline"
+                      label={`Delete column ${col.name}`}
                       onPress={() => askRemoveColumn(col)}
                     />
+                  ) : null}
+                  {/*
+                    THE VISIBLE PAGE ONLY. Every column is rendered — that is how
+                    the pager swipes — so putting these board-level actions in a
+                    per-column footer unguarded put THREE "Board settings"
+                    buttons in the tree at once. Playwright caught it as a strict
+                    -mode violation; a screen reader would have read it out as
+                    three identical buttons, which is the real bug.
+                  */}
+                  {colIndex === page ? (
+                    <>
+                      {/* Everyone gets this, not just managers: members can
+                          archive, so members must be able to un-archive. */}
+                      <IconAction
+                        icon="inventory-2"
+                        label="Archived cards"
+                        onPress={() => nav.push({ name: 'boardArchive', boardId })}
+                      />
+                      {sessionCan.manageBoards(user) ? (
+                        <IconAction
+                          icon="settings"
+                          label="Board settings"
+                          onPress={() => nav.push({ name: 'boardSettings', boardId })}
+                        />
+                      ) : null}
+                    </>
                   ) : null}
                 </Row>
               )}
@@ -565,8 +601,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
   headerTitle: { flexShrink: 1 },
-  // Small: IconAction's 44px box already separates these.
-  headerActions: { gap: space.xs },
   grow: { flex: 1 },
   pager: { justifyContent: 'space-between', paddingVertical: space.sm },
   pagerLabel: { alignItems: 'center', flex: 1 },
@@ -594,15 +628,4 @@ const styles = StyleSheet.create({
   },
   footer: { gap: space.sm },
   wrap: { flexWrap: 'wrap' },
-  sheet: {
-    position: 'absolute',
-    left: space.lg,
-    right: space.lg,
-    bottom: space.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: space.lg,
-    gap: space.sm,
-    ...type.body,
-  },
 });
