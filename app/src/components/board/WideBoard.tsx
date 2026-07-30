@@ -170,7 +170,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     return (
       <Screen>
         <Title>Board not found</Title>
-        <Button label="Back to boards" onPress={() => nav.reset({ name: 'boards' })} />
+        <Button label="All boards" onPress={() => nav.reset({ name: 'boards' })} />
       </Screen>
     );
   }

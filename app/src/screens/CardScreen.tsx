@@ -152,9 +152,11 @@ export function CardScreen({
   if (!c || !b) {
     return (
       <Screen width="read">
-        <Title>Card not found</Title>
+        <Row style={styles.between}>
+          <Title>Card not found</Title>
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        </Row>
         <Hint>It may have been deleted.</Hint>
-        <Button label="Back" onPress={nav.pop} />
       </Screen>
     );
   }

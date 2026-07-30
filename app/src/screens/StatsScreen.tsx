@@ -20,11 +20,11 @@ import { Sheet, SheetOption } from '../components/Sheet';
 import { useNav } from '../nav';
 import {
   Body,
-  Button,
   Card as Panel,
   FilterChip,
   Heading,
   Hint,
+  IconAction,
   LoadError,
   Row,
   Screen,
@@ -107,7 +107,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
       <Screen>
         <Row style={styles.between}>
           <Title>Stats</Title>
-          <Button label="Back" variant="secondary" onPress={nav.pop} />
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
         <LoadError what="stats" code={months.error} />
       </Screen>
@@ -123,7 +123,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
     <Screen>
       <Row style={styles.between}>
         <Title>Stats</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
+        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
 
       <Row style={styles.pickerRow}>
