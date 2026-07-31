@@ -284,7 +284,8 @@ swipes between columns, where a drag would be ambiguous.
 Select several cards — **tick the boxes** in a browser (hold **Shift** for a
 range), or **long-press** one on a phone and then tap the rest. A bar appears with
 what you can do to the whole selection: **move**, **assign**, **archive**, or
-(managers) **delete**.
+(managers) **delete**. It shows how many are selected, and the **✕** beside that
+count leaves selection mode without doing anything.
 
 You can also **copy or move the selection to another board** — pick one of your
 boards, then a column in it.
