@@ -365,6 +365,43 @@ the team.
 
 ## Deploy log
 
+### 2026-07-31 — Icon sizing, and three phone-testing findings — v0.7.2
+
+Client only. No functions, rules, indexes, shared package or backfill —
+checked with `git diff`, not assumed.
+
+Faisal tested v0.7.1 on a phone. Everything below came from that, or from the
+review passes it triggered.
+
+1. **The column name flipped back and forth** while an arrow-driven move
+   animated — 1 -> 2 -> 1 -> 2 on one tap, and never when swiping. The arrows
+   set the page at once so the header answers the tap, then animate; every frame
+   of that animation fired `onScroll`, which rounded the offset back to the
+   column being left. Pages an animation passes through are ignored now, and a
+   finger on the pager cancels the filter. Guarded by sampling the header DURING
+   the transition — a screenshot of the settled state looks perfect.
+2. **One icon ink size, 24, everywhere.** Four were in use (13/18/22/24) with no
+   rule and three on the card screen alone. The 44x44 box is unchanged, so
+   nothing reflows — but the two rows that were genuinely tight (4px) went to
+   8px, because bigger glyphs are only free if the row can breathe.
+3. **Delete column asks in a modal**, where the thumb is. The confirmation
+   rendered as a Panel near the TOP of the screen and the "still has N cards"
+   refusal went to the banner up there too — a screen away from the bin, and
+   reading as one more card rather than an answer.
+4. **The card's section icons were ~8px above their headings.** `Heading` put
+   the 16px section gap on the TEXT, and flexbox aligns margin boxes, so the
+   text sat lower than the icon. The gap moved to the row; measured 0px apart on
+   device afterwards.
+5. **The bulk bar could not fit one row and was bleeding off-screen.** Six 44px
+   actions need 304px; a 320px phone gives 264. Dismiss moved beside the count,
+   leaving five that fit. Two traps on the way: Yoga defaults `flexShrink` to 0
+   (unlike CSS) so the row overflowed instead of wrapping, and the first wrap
+   orphaned the close icon alone on a second line.
+
+**Coverage added**: manager and member tours at both narrow widths — the sweep
+had only ever run as an admin, which is the one place a bug is invisible to the
+person who owns the app. 157 checks, and the whole sweep runs in 197s.
+
 ### 2026-07-30 — Board and navigation icon pass — v0.7.1
 
 Client only. No functions, rules, indexes, shared package or backfill — checked
@@ -410,37 +447,6 @@ words, and the same labelled-button habit had crept back in four places.
   unphotographed. The seed now carries a deliberately long column name and the
   sweep asserts and screenshots that state. With the states added by the review
   below, the sweep now runs **151 checks** across five widths, up from 135.
-
-**A second round, from testing v0.7.1 on a phone**
-
-1. **The column name flipped back and forth** while an arrow-driven move
-   animated — 1 -> 2 -> 1 -> 2 on one tap, and never when swiping. The arrows
-   set the page at once so the header answers the tap, then animate; every frame
-   of that animation fired `onScroll`, which rounded the offset back to the
-   column being left. Pages an animation passes through are ignored now, and a
-   finger on the pager cancels the filter. Guarded by sampling the header DURING
-   the transition — a screenshot of the settled state looks perfect.
-2. **One icon ink size, 24, everywhere.** Four were in use (13/18/22/24) with no
-   rule and three on the card screen alone. The 44x44 box is unchanged, so
-   nothing reflows — but the two rows that were genuinely tight (4px) went to
-   8px, because bigger glyphs are only free if the row can breathe.
-3. **Delete column asks in a modal**, where the thumb is. The confirmation
-   rendered as a Panel near the TOP of the screen and the "still has N cards"
-   refusal went to the banner up there too — a screen away from the bin, and
-   reading as one more card rather than an answer.
-4. **The card's section icons were ~8px above their headings.** `Heading` put
-   the 16px section gap on the TEXT, and flexbox aligns margin boxes, so the
-   text sat lower than the icon. The gap moved to the row; measured 0px apart on
-   device afterwards.
-5. **The bulk bar could not fit one row and was bleeding off-screen.** Six 44px
-   actions need 304px; a 320px phone gives 264. Dismiss moved beside the count,
-   leaving five that fit. Two traps on the way: Yoga defaults `flexShrink` to 0
-   (unlike CSS) so the row overflowed instead of wrapping, and the first wrap
-   orphaned the close icon alone on a second line.
-
-**Coverage added**: manager and member tours at both narrow widths — the sweep
-had only ever run as an admin, which is the one place a bug is invisible to the
-person who owns the app. 157 checks, and the whole sweep runs in 197s.
 
 **Five more found by a multi-pass review afterwards**, three of which predate
 this release entirely — they were invisible because the sweep toured SCREENS at
