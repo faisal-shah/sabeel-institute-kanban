@@ -68,6 +68,18 @@ function check(name, ok, detail = '') {
   console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name}${!ok && detail ? ` — ${detail}` : ''}`);
 }
 
+/**
+ * Approve + set a role, the way an admin does. `grant-admin.mjs` only makes
+ * admins, and an account left `pending` cannot see a board at all.
+ */
+const setUserRole = async (email, role) => {
+  const snap = await db.collection('users').where('email', '==', email).get();
+  const ref = snap.docs[0].ref;
+  await ref.update({ role, status: 'active' });
+  const { getAuth } = await import('firebase-admin/auth');
+  await getAuth().setCustomUserClaims(ref.id, { role, status: 'active' });
+};
+
 const grantAdmin = (email) =>
   new Promise((res, rej) => {
     const c = spawn('node', [resolve(ROOT, 'scripts/grant-admin.mjs'), email], {
@@ -116,6 +128,32 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
+/**
+ * A MANAGER and a MEMBER as well as the admin.
+ *
+ * Every screen in this sweep was toured as an admin, so manager-gated and
+ * member-only layouts had no coverage at any width — the one place a bug is
+ * invisible to the person who owns the app, because they never render it.
+ * Provisioned through the real sign-in flow; the ROLE is then set directly,
+ * which is what an admin promoting someone does.
+ */
+async function provision(who, email) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.getByText('Dev sign-in (emulator only)').waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: who, exact: true }).click();
+  await page.getByText('Waiting for approval').waitFor({ timeout: 25000 });
+  await ctx.close();
+  const snap = await db.collection('users').where('email', '==', email).get();
+  if (snap.empty) throw new Error(`${who} was never provisioned`);
+  return snap.docs[0].id;
+}
+const managerUid = await provision('sara', 'sara@oursabeel.com');
+const memberUid = await provision('omar', 'omar@oursabeel.com');
+await setUserRole('sara@oursabeel.com', 'manager');
+await setUserRole('omar@oursabeel.com', 'member');
+
 const users = await db.collection('users').where('email', '==', 'faisal@oursabeel.com').get();
 if (users.empty) throw new Error('the dev account was never provisioned');
 const uid = users.docs[0].id;
@@ -138,8 +176,12 @@ await db.doc(`boards/${BOARD}`).set({
     { id: 'c3', name: 'Waiting on the finance committee' },
   ],
   columnIds: ['c1', 'c2', 'c3'],
-  memberUids: [uid],
-  memberProfiles: { [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' } },
+  memberUids: [uid, managerUid, memberUid],
+  memberProfiles: {
+    [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' },
+    [managerUid]: { displayName: 'Sara', email: 'sara@oursabeel.com' },
+    [memberUid]: { displayName: 'Omar', email: 'omar@oursabeel.com' },
+  },
   activeCardCount: 0,
   createdAt: now,
   createdBy: uid,
@@ -577,6 +619,91 @@ async function tour(page, tag, width) {
       JSON.stringify(reachable),
     );
     await page.screenshot({ path: join(SHOTS, `${tag}-board-empty.png`), fullPage: true });
+  }
+
+  /**
+   * THE HEADER MUST NOT FLIP DURING AN ARROW-DRIVEN MOVE.
+   *
+   * The arrows set the page at once so the header answers the tap, then animate
+   * the scroll; every frame of that animation fires onScroll, and for the first
+   * half the offset still rounds to the column being left. The header went
+   * 1 -> 2 -> 1 -> 2 on a single tap. Swiping never did it. Sampled rather than
+   * screenshotted, because a screenshot of the settled state looks perfect.
+   */
+  if (width < WIDE_BREAKPOINT) {
+    const seenRuns = await page.evaluate(
+      () =>
+        new Promise((res) => {
+          const out = [];
+          const t = setInterval(() => {
+            const m = document.body.innerText.match(/(\d+) of (\d+)/);
+            if (m && out[out.length - 1] !== m[1]) out.push(m[1]);
+          }, 16);
+          const btn = [...document.querySelectorAll('[role="button"]')].find(
+            (e) => e.getAttribute('aria-label') === 'Next column',
+          );
+          btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          setTimeout(() => {
+            clearInterval(t);
+            res(out);
+          }, 1600);
+        }),
+    );
+    check(
+      `${tag} / the column name does not flip while the arrows animate`,
+      seenRuns.length <= 2,
+      seenRuns.join(' -> '),
+    );
+    await page.getByRole('button', { name: 'Previous column' }).first().click();
+    await page.waitForTimeout(800);
+  }
+
+  /**
+   * EVERY ROLE, not just the admin who owns the app.
+   *
+   * Manager-gated and member-only layouts had no coverage at any width. Each
+   * role gets its own context because the session is per-browser-context, and
+   * narrow only because that is where the gated controls share one cramped row.
+   */
+  if (width < WIDE_BREAKPOINT) {
+    for (const [who, role, wants] of [
+      ['sara', 'manager', { deleteColumn: true, settings: true }],
+      ['omar', 'member', { deleteColumn: false, settings: false }],
+    ]) {
+      const roleCtx = await browser.newContext({ viewport: { width, height: 900 } });
+      const rp = await roleCtx.newPage();
+      const roleErrors = [];
+      rp.on('pageerror', (e) => roleErrors.push(String(e).slice(0, 90)));
+      await rp.goto(BASE, { waitUntil: 'networkidle' });
+      await rp.getByRole('button', { name: who, exact: true }).click();
+      await rp.getByRole('button', { name: 'More' }).waitFor({ timeout: 40000 });
+      await rp.getByText('Fundraising 2026').first().waitFor({ timeout: 30000 });
+      await rp.getByText('Fundraising 2026').first().click();
+      await rp.waitForTimeout(2000);
+      const got = await rp.evaluate(() => {
+        const nm = (e) => (e.getAttribute('aria-label') || e.textContent || '').trim();
+        const vis = [...document.querySelectorAll('[role="button"]')].filter(
+          (e) => e.getBoundingClientRect().width > 2,
+        );
+        return {
+          addCard: vis.some((e) => nm(e) === '+ Add card'),
+          deleteColumn: vis.some((e) => nm(e).startsWith('Delete column')),
+          archived: vis.some((e) => nm(e) === 'Archived cards'),
+          settings: vis.some((e) => nm(e) === 'Board settings'),
+          bleed: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+      const ok =
+        got.addCard &&
+        got.archived &&
+        got.bleed <= 1 &&
+        got.deleteColumn === wants.deleteColumn &&
+        got.settings === wants.settings &&
+        roleErrors.length === 0;
+      check(`${tag} / the board as a ${role}`, ok, `${JSON.stringify(got)} ${roleErrors.join('|')}`);
+      await rp.screenshot({ path: join(SHOTS, `${tag}-board-${role}.png`), fullPage: true });
+      await roleCtx.close();
+    }
   }
 
   check(`${tag} reached every screen`, seen === SCREENS, `${seen}/${SCREENS}`);
