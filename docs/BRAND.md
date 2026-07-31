@@ -144,6 +144,41 @@ would need is not bundled; it was removed with dark mode.)
 If a vector version (SVG/PDF) exists, add it alongside — the PNG will soften on
 large displays and at print sizes.
 
+## The app icons — one mark, one badge per app
+
+Three Sabeel apps share one identity, so they share one generator:
+`scripts/make-app-icons.py` (kanban, time tracker, class recordings). Run it
+from this repo; `--repo` points it at a sibling.
+
+**The mark is the brand, the badge says which app.** Warm Ivory canvas, the
+calligraphy low, a Dark Raspberry disc above-right carrying an ivory glyph — a
+board, a stopwatch, a microphone. Raspberry is spent on the badge alone, which
+keeps the icon inside its ~20% share.
+
+**The wordmark is dropped**, unlike the sign-in lockup. At the 48dp a launcher
+draws, "SABEEL INSTITUTE" is a smudge, and it costs the calligraphy the size it
+needs to be recognisable. Source is `docs/brand/sabeel-mark.png` — the lockup
+with the text removed.
+
+**The geometry is measured, and the script re-proves it on every run** (it exits
+non-zero if either invariant breaks, so these numbers cannot rot):
+
+- Nothing outside **radius 341** of the 1024 canvas. An adaptive icon's
+  foreground fills the whole 108dp layer and only the central 72dp survives the
+  mask — 66.67%, *not* the ~68% that "roughly two thirds" suggests. Getting this
+  wrong costs 9px of real badge edge to a circular mask.
+- **Zero calligraphy hidden** by the badge, counted by rendering with and
+  without it.
+
+Badge 410px (40% of the icon), mark centred at y=637, badge bearing 38°. Each is
+at its limit: 418px cuts the sweep, cy=643 puts the descender outside the
+circle, 36° hides 12px. Mark and badge both land 338 from centre — the
+composition is pressed against the same circle from two directions.
+
+**Do not regenerate these with `expo prebuild`.** All three repos commit
+`android/`, so the script writes the native mipmaps directly; prebuild would
+also rewrite `build.gradle` and drop this repo's hardcoded `minSdkVersion 33`.
+
 ## How this is enforced in code
 
 - `app/src/theme/palette.ts` is the **only** file allowed to contain color
