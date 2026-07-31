@@ -80,14 +80,20 @@ export function BulkBar({
         { backgroundColor: t.bg.raised, borderColor: t.border.strong },
       ]}
     >
-      {/* ONE row. This bar floats over the board, so every row it takes is a row
-          of board you cannot see. Labelled buttons wrapped onto two or three
-          rows on a phone; move, assign, archive, delete and close are ordinary
-          operations with settled icons, and each keeps its word as an
-          accessibility label. */}
-      <Row style={styles.between}>
+      {/* ONE row WHERE IT FITS. This bar floats over the board, so every row it
+          takes is a row of board you cannot see — which is why these are icons
+          and not labelled buttons, each keeping its word as an accessibility
+          label.
+
+          But it must never be MORE than the screen. A manager sees six 44px
+          actions, and 6 x 44 is 264px — exactly the inner width at 320px,
+          before the gaps or the count. Unwrapped it pushed the page sideways by
+          46px and took the close button off-screen with it, so the only way out
+          of selection mode was to scroll to reach it. Wrapping costs a second
+          row on the narrowest phones and nothing at all above them. */}
+      <Row style={[styles.between, styles.wrap]}>
         <Caption>{selection.count} selected</Caption>
-        <Row style={styles.actions}>
+        <Row style={[styles.actions, styles.wrap]}>
           {mode === 'idle' ? (
             <>
               <IconAction
