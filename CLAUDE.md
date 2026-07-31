@@ -144,8 +144,22 @@ Key product invariants (do not silently change):
   written down. A control that RESETS to a root instead of popping one screen is
   a different action and gets a different name (`All boards`, `Inbox`), which
   also keeps `getByRole('button', { name: 'Back' })` unambiguous.
-- **A control that floats over content must fit on one row.** The bulk bar sits
-  on top of the board: every row it takes is a row of board the user cannot see.
+- **ONE icon ink size — 24 — for every `IconAction`, and the 44x44 box is what
+  spaces them.** Four sizes were in use (13/18/22/24) with no rule, three of
+  them on the card screen alone. Ink and crowding are independent here: the box
+  is fixed, so a bigger glyph fills a target already reserved and cannot push a
+  neighbour closer. Crowding is the GAP, held at `space.sm` or more — raising it
+  is what makes bigger icons safe. Raw `<MaterialIcons>` used as inline metadata
+  (a paperclip on a card face) keeps its own small size; it is ornament beside
+  text, not a target.
+- **A control that floats over content must fit on one row WHERE IT CAN, and
+  wrap rather than bleed where it cannot.** The bulk bar sits on top of the
+  board: every row it takes is a row of board the user cannot see. But six 44px
+  actions need 304px and a 320px screen gives 264, so "one row" was not
+  achievable — it pushed the page sideways and took its own close button
+  off-screen. Dismiss moved up beside the count, which left five actions that do
+  fit. Note Yoga defaults `flexShrink` to **0**, unlike CSS: a row that should
+  wrap will instead overflow until something is allowed to give.
 - **All color goes through semantic theme tokens.** The app is a **single light
   theme — no dark mode** (decided 2026-07-21; the derived dark palette was
   removed, not disabled). Never hardcode a color; the ESLint rule will reject it.

@@ -303,7 +303,6 @@ export function BoardSettingsScreen({
             icon="add"
             label="Add column"
             accent
-            size={24}
             onPress={addColumn}
             disabled={busy || !newColumn.trim()}
           />
@@ -434,7 +433,6 @@ export function BoardSettingsScreen({
             icon="add"
             label="Add label"
             accent
-            size={24}
             disabled={busy || !newLabelName.trim() || knownLabels === null}
             onPress={addLabel}
           />
@@ -487,7 +485,6 @@ export function BoardSettingsScreen({
               icon="person-add"
               label={`Add someone (${nonMembers.length} available)`}
               accent
-              size={22}
               disabled={busy}
               onPress={() => setAdding(true)}
             />

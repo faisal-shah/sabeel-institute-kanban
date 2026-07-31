@@ -45,6 +45,7 @@ import { CardFace } from '../CardFace';
 import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
+import { confirmAction } from '../../confirm';
 import { sessionCan, type SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import {
@@ -149,11 +150,16 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   const { run, busy, error, setError } = useAction('narrowBoard');
   // Editing the column name takes over the pager row (see the header below).
   const [renaming, setRenaming] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<BoardColumn | null>(null);
   // Has the pager been scrolled to the remembered column yet? Starts true when
   // there is nothing to restore, so the common case paints immediately.
   const [restored, setRestored] = useState(() => (lastPageByBoard.get(boardId) ?? 0) === 0);
   const scroller = useRef<ScrollView>(null);
+  /**
+   * The page an arrow tap is animating towards, or null when nothing is in
+   * flight. A ref, not state: it gates a scroll handler that fires every frame
+   * and must not re-render anything itself.
+   */
+  const animatingTo = useRef<number | null>(null);
   // Measured, not Dimensions.get('window'): this pager sits inside the Screen's
   // horizontal padding, so sizing pages to the WINDOW made every page wider than
   // the space available and pushed cards (and the column footer) off the right
@@ -228,11 +234,27 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 
   function syncPage(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const next = Math.round(e.nativeEvent.contentOffset.x / width);
+    /*
+     * IGNORE THE PAGES AN ANIMATED SCROLL PASSES THROUGH.
+     *
+     * The arrows set the page immediately, so the header responds to the tap,
+     * and then animate the scroll. Every frame of that animation fires
+     * onScroll, and for the first half the offset still rounds to the column
+     * being LEFT — so the header flipped to the new name, back to the old, and
+     * forward again. Filmed going 1 -> 2 -> 1 -> 2 on one tap. Swiping never
+     * did it, because a finger moves the offset itself and nothing sets the
+     * page ahead of it.
+     */
+    if (animatingTo.current !== null) {
+      if (next === animatingTo.current) animatingTo.current = null;
+      return;
+    }
     if (next !== page && next >= 0 && next < columns.length) rememberPage(next);
   }
 
   function goTo(index: number) {
     const clamped = Math.max(0, Math.min(index, columns.length - 1));
+    animatingTo.current = clamped;
     rememberPage(clamped);
     scroller.current?.scrollTo({ x: clamped * width, animated: true });
   }
@@ -260,20 +282,32 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
    * Emptiness is not consent — an empty column can still be one someone just
    * cleared and is about to refill.
    */
+  /**
+   * BOTH ANSWERS ARRIVE AS A MODAL, next to the thumb that asked.
+   *
+   * The bin sits bottom-right; the confirmation used to render as a Panel near
+   * the TOP of the screen, and the "still has cards" refusal went to the error
+   * banner up there too. On a tall phone that is a screen away from where you
+   * are looking, and a Panel reads as one more card rather than as an answer.
+   * Reported as exactly that. `confirmAction` is centred and modal, and it is
+   * already what the archive's permanent delete uses.
+   */
   function askRemoveColumn(col: BoardColumn) {
-    const blocked = columnDeleteBlocked(col.name, (byColumn.get(col.id) ?? []).length);
-    if (blocked) {
-      setError(blocked);
-      return;
-    }
-    setPendingDelete(col);
-  }
-
-  async function confirmRemoveColumn(col: BoardColumn) {
-    setPendingDelete(null);
-    await run(() =>
-      updateBoard(boardId, columnsPatch(columns.filter((c) => c.id !== col.id))),
-    );
+    void (async () => {
+      const blocked = columnDeleteBlocked(col.name, (byColumn.get(col.id) ?? []).length);
+      if (blocked) {
+        await confirmAction('Cannot delete this column', blocked);
+        return;
+      }
+      const ok = await confirmAction(
+        `Delete “${col.name}”?`,
+        'The column is empty, but deleting it cannot be undone.',
+      );
+      if (!ok) return;
+      await run(() =>
+        updateBoard(boardId, columnsPatch(columns.filter((c) => c.id !== col.id))),
+      );
+    })();
   }
 
   if (board.status === 'loading' || cards.status === 'loading') {
@@ -367,7 +401,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           <IconAction
             icon="chevron-left"
             label="Previous column"
-            size={24}
             onPress={() => goTo(visiblePage - 1)}
           />
         ) : null}
@@ -400,7 +433,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           <IconAction
             icon="chevron-right"
             label="Next column"
-            size={24}
             onPress={() => goTo(visiblePage + 1)}
           />
         ) : null}
@@ -422,30 +454,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
               : 'Cards live in columns. A manager can add the first one.'}
           </Hint>
           <Row>{boardActions}</Row>
-        </Panel>
-      ) : null}
-
-      {/* Destructive and irreversible, so it gets a labelled button and a
-          sentence — not an icon you can brush past. */}
-      {pendingDelete ? (
-        <Panel>
-          <Body>
-            Delete the column “{pendingDelete.name}”? It is empty, but this cannot
-            be undone.
-          </Body>
-          <Row>
-            <Button
-              busy={busy}
-              label="Delete column"
-              variant="danger"
-              onPress={() => confirmRemoveColumn(pendingDelete)}
-            />
-            <Button
-              label="Cancel"
-              variant="secondary"
-              onPress={() => setPendingDelete(null)}
-            />
-          </Row>
         </Panel>
       ) : null}
 
@@ -523,6 +531,11 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         showsHorizontalScrollIndicator={false}
         onScroll={syncPage}
         onMomentumScrollEnd={syncPage}
+        // A finger beats an animation: if you grab the pager mid-flight the
+        // target is abandoned, so stop filtering or the header would stick.
+        onScrollBeginDrag={() => {
+          animatingTo.current = null;
+        }}
         onScrollEndDrag={syncPage}
         scrollEventThrottle={32}
       >

@@ -567,7 +567,6 @@ export function CardScreen({
               icon="person-add"
               label={`Assign someone (${assignableNow.length} available)`}
               accent
-              size={22}
               disabled={busy}
               onPress={() => setPicking(true)}
             />

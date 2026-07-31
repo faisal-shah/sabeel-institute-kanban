@@ -208,14 +208,20 @@ export function Heading({
   action?: ReactNode;
 }) {
   const t = useTheme();
-  const text = (
-    <Text style={[type.heading, { color: t.text.primary, marginTop: space.lg }]}>
-      {children}
-    </Text>
-  );
-  if (!action) return text;
+  const text = <Text style={[type.heading, { color: t.text.primary }]}>{children}</Text>;
+  /*
+   * THE SECTION GAP GOES ON THE ROW, NOT ON THE TEXT.
+   *
+   * Flexbox aligns MARGIN boxes, so a marginTop on the text made its box 16px
+   * taller at the top while the 44px icon box had none — centring them then put
+   * the glyph about 8px above the text's optical centre, on every section of
+   * the card screen at once. Reported as "the icons don't line up with the text
+   * on the left", and it is the same 16px in both branches, so nothing moves
+   * except the alignment.
+   */
+  if (!action) return <View style={styles.headingGap}>{text}</View>;
   return (
-    <View style={styles.headingRow}>
+    <View style={[styles.headingRow, styles.headingGap]}>
       {text}
       {action}
     </View>
@@ -510,6 +516,24 @@ export function Toggle({
  * Because the box supplies its own spacing, rows of these want a SMALL gap
  * (space.xs), not a large one — the separation is already inside the target.
  */
+/**
+ * ONE ink size for every icon ACTION in the app.
+ *
+ * There were four in use (13/18/22/24) with no rule, and three on the card
+ * screen alone. 24 inside the fixed 44x44 box is 55% ink; the box does not
+ * change, so nothing reflows and no control moves — only how much of a target
+ * that was already reserved gets drawn. Crowding is set by the GAP between
+ * boxes, a separate number held at `space.sm` or more.
+ *
+ * Raw `<MaterialIcons>` used as INLINE METADATA (a paperclip on a card face, a
+ * chevron in a reorder handle) keeps its own smaller size — that is text-scale
+ * ornament, not a target.
+ */
+// Not exported: nothing outside needs to name it, because the default reaches
+// every call site. An exported constant no caller uses is an invitation to
+// start passing sizes again, which is the state this replaced.
+const ICON_INK = 24;
+
 export function IconAction({
   icon,
   label,
@@ -518,7 +542,7 @@ export function IconAction({
   accent,
   disabled,
   selected,
-  size = 18,
+  size = ICON_INK,
 }: {
   icon: MaterialIconName;
   label: string;
@@ -890,6 +914,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.sm,
   },
+  /** The space ABOVE a section, carried by the row so it cannot skew alignment. */
+  headingGap: { marginTop: space.lg },
   fill: { flex: 1 },
   scrollContent: { padding: space.lg, gap: space.sm },
   flexContent: { flex: 1, padding: space.lg, gap: space.sm },
