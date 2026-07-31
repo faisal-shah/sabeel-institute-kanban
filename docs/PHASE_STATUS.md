@@ -365,6 +365,34 @@ the team.
 
 ## Deploy log
 
+### 2026-07-31 — A long name stopped evicting its own buttons — v0.7.3
+
+Client only. No functions, rules, indexes, shared package or backfill —
+checked with `git diff`, not assumed.
+
+Reported as "why does that label have two coloured dots". The second dot was an
+emoji typed into the label's NAME — not a bug, and not something the colour
+picker can change. But the screenshot showed a real one: that row was the widest
+on the screen and its **delete button was sliced in half by the right edge**,
+with two neighbouring rows heading the same way.
+
+The name was not allowed to give way, so it evicted the controls. Two causes:
+
+- **Labels** — the name row now shrinks and wraps to two lines while the actions
+  hold their width. Two lines rather than one, because a single line clipped it
+  to "Waitin…" and a settings list you cannot read the names in is not much use.
+- **Columns** — the same shape, found only because of the new check below.
+  `ColumnNameEditor`'s row inherited react-native-web's `flex-shrink: 0`, and
+  `ReorderList`'s row had `min-width: auto`; a flex item refuses to shrink below
+  its content until both are answered.
+
+**The sideways-scroll check was blind to it.** The overflow happened inside a
+clipping ancestor, so the page width never changed and that assertion stayed
+green through both bugs. The sweep now also asserts that **no control extends
+past the right edge**, seeded with a label shaped like the one that broke —
+emoji prefix and all. Verified by reverting each fix and watching the check
+fail, then on a device: 9 row controls, 0 clipped.
+
 ### 2026-07-31 — Icon sizing, and three phone-testing findings — v0.7.2
 
 Client only. No functions, rules, indexes, shared package or backfill —
