@@ -145,6 +145,26 @@ await db.doc(`boards/${BOARD}`).set({
   createdBy: uid,
 });
 
+/**
+ * A board with NO columns, which is a reachable state: `columnDeleteBlocked`
+ * only refuses a column that still holds cards, so the last empty one can go.
+ * It exists here because the phone board hangs its board-level actions off the
+ * column footer, and with no columns there is no footer — which was a dead end
+ * with no way back into Board settings to add one.
+ */
+await db.doc('boards/sw_empty').set({
+  name: 'Empty board',
+  description: '',
+  archived: false,
+  columns: [],
+  columnIds: [],
+  memberUids: [uid],
+  memberProfiles: { [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' } },
+  activeCardCount: 0,
+  createdAt: now,
+  createdBy: uid,
+});
+
 // Content chosen to STRESS layout: a long title, every priority, labels and an
 // assignee on each, so card faces are at their widest.
 const CARDS = [
@@ -306,7 +326,7 @@ const smallTargets = (page) =>
   ]);
 
 // ---- The tour --------------------------------------------------------------
-const SCREENS = 12;
+const SCREENS = 13;
 
 async function tour(page, tag, width) {
   /**
@@ -406,6 +426,31 @@ async function tour(page, tag, width) {
   check(`${tag} / board renders the ${expected} layout`, actual === expected, `got ${actual}`);
 
   /**
+   * ONE column's worth of controls in the accessibility tree, not nine.
+   *
+   * Every column page is laid out so the pager can swipe, so without
+   * `aria-hidden` on the off-screen ones a screen reader walks every card of
+   * every column and hears "+ Add card" once per column. The DOM count stays
+   * high — that is the point of the comparison — while the tree count is one.
+   * Playwright's role engine skips aria-hidden subtrees, which is the same rule
+   * a screen reader follows, so a role count IS the tree count.
+   */
+  if (width < WIDE_BREAKPOINT) {
+    const inTree = await page.getByRole('button', { name: '+ Add card', exact: true }).count();
+    const inDom = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[role="button"]')].filter(
+          (e) => (e.getAttribute('aria-label') || e.textContent || '').trim() === '+ Add card',
+        ).length,
+    );
+    check(
+      `${tag} / only the visible column is in the accessibility tree`,
+      inTree === 1 && inDom > 1,
+      `tree=${inTree} dom=${inDom}`,
+    );
+  }
+
+  /**
    * THE LONG COLUMN NAME, which is its own layout problem.
    *
    * The pager centres the column NAME and lets the pencil hang to its right; a
@@ -436,6 +481,29 @@ async function tour(page, tag, width) {
     await prev.click();
     await page.waitForTimeout(700);
   }
+
+  /**
+   * BULK SELECTION, which floats a bar over the board.
+   *
+   * It had no coverage at all, and it did not fit: six 44px actions are 264px,
+   * exactly the inner width at 320px before gaps or the count, so the bar
+   * pushed the page sideways and took its own close button off-screen.
+   * Selecting differs by layout — wide has a real checkbox per row, narrow has
+   * long-press — which is the same split `manual-shots.mjs` documents.
+   */
+  await visit('bulk', async () => {
+    if (width >= WIDE_BREAKPOINT) {
+      await page.getByRole('checkbox').first().click();
+    } else {
+      await page.locator('[data-testid^="card-"]').first().click({ delay: 900 });
+    }
+    await page.getByText(/\d+ selected/).first().waitFor({ timeout: 15000 });
+  });
+
+  // Leave selection mode: while it is active a tap SELECTS a card rather than
+  // opening it, so the card steps below would never reach a card screen.
+  await page.getByRole('button', { name: 'Clear selection' }).first().click();
+  await page.waitForTimeout(700);
 
   await visit('card', async () => {
     await page.locator('[data-testid^="card-"]').first().click();
@@ -480,6 +548,36 @@ async function tour(page, tag, width) {
     await page.getByRole('button', { name: 'Archived cards' }).click();
   });
 
+
+  /**
+   * A BOARD WITH NO COLUMNS still has to be manageable.
+   *
+   * Narrow only, because that layout keeps Archived cards and Board settings in
+   * the column footer — and a board with no columns renders no footer. Board
+   * settings is the only way to add a column back, so losing it strands the
+   * board. Checked last: it navigates away from the toured board.
+   */
+  if (width < WIDE_BREAKPOINT) {
+    await nav('Boards');
+    await page.getByText('Empty board').first().click();
+    await page.waitForTimeout(1200);
+    const reachable = await page.evaluate(() => {
+      const name = (e) => (e.getAttribute('aria-label') || e.textContent || '').trim();
+      const shown = [...document.querySelectorAll('[role="button"]')].filter(
+        (e) => e.getBoundingClientRect().width > 0,
+      );
+      return {
+        settings: shown.some((e) => name(e) === 'Board settings'),
+        archived: shown.some((e) => name(e) === 'Archived cards'),
+      };
+    });
+    check(
+      `${tag} / a board with no columns keeps its board actions`,
+      reachable.settings && reachable.archived,
+      JSON.stringify(reachable),
+    );
+    await page.screenshot({ path: join(SHOTS, `${tag}-board-empty.png`), fullPage: true });
+  }
 
   check(`${tag} reached every screen`, seen === SCREENS, `${seen}/${SCREENS}`);
 }

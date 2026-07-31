@@ -27,7 +27,7 @@ const OUT = resolve(ROOT, 'shots', 'sweep-report.html');
 /** Tour order, then anything new alphabetically after it. */
 const ORDER = [
   'boards', 'mywork', 'search', 'alerts', 'stats', 'people',
-  'board', 'board-longname', 'card', 'card-editing', 'card-comment',
+  'board', 'board-longname', 'board-empty', 'bulk', 'card', 'card-editing', 'card-comment',
   'settings', 'archive',
 ];
 
@@ -38,7 +38,7 @@ const ORDER = [
  * "not captured", which reads as a gap in the sweep rather than as the layout
  * genuinely not having that state. The pager is the narrow board's alone.
  */
-const NARROW_ONLY = new Set(['board-longname']);
+const NARROW_ONLY = new Set(['board-longname', 'board-empty']);
 
 /** What each screen is, so the report explains itself to someone else. */
 const BLURB = {
@@ -52,6 +52,8 @@ const BLURB = {
   card: 'A card at rest: the description RENDERED, with its formatting applied.',
   'card-editing': 'The description EDITOR open — toolbar row plus Save/Cancel.',
   'card-comment': 'The comment composer in use, with Bold active.',
+  bulk: 'Selection mode, with the action bar floating over the board. Six 44px actions do not fit one row at 320px, so it wraps rather than pushing the page sideways.',
+  'board-empty': 'A board with no columns — reachable, since the last empty column can be deleted. Its board actions must survive having no column footer to live in.',
   'board-longname': 'A column name too long to centre — the name and its pencil slide left rather than truncating early. Narrow layouts only; the pager does not exist on wide.',
   settings: 'Board settings — manager only.',
   archive: 'Archived cards, most recently archived first.',
