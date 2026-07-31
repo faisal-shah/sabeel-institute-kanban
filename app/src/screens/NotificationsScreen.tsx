@@ -94,7 +94,7 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
         <Title>Notifications</Title>
         <IconAction
           icon={showSettings ? 'inbox' : 'settings'}
-          label={showSettings ? 'Back to inbox' : 'Notification settings'}
+          label={showSettings ? 'Inbox' : 'Notification settings'}
           size={24}
           onPress={() => setShowSettings((s) => !s)}
         />

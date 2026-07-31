@@ -130,8 +130,10 @@ export function BoardSettingsScreen({
   if (!b) {
     return (
       <Screen width="read">
-        <Title>Board not found</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
+        <Row style={styles.between}>
+          <Title>Board not found</Title>
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        </Row>
       </Screen>
     );
   }
@@ -248,7 +250,7 @@ export function BoardSettingsScreen({
     <Screen width="read">
       <Row style={styles.between}>
         <Title>Board settings</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
+        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
 
       {error ? (

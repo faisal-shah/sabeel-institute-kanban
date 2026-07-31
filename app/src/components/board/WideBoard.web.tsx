@@ -315,7 +315,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     return (
       <div style={{ padding: space.xl, background: t.bg.canvas, minHeight: '100%' }}>
         <button onClick={() => nav.reset({ name: 'boards' })} style={btn(t)}>
-          ← Back to boards
+          All boards
         </button>
         <div style={{ marginTop: space.md }}>
           <LoadError what="this board" code={cards.error} />
@@ -329,7 +329,11 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     return (
       <div style={{ padding: space.xl, background: t.bg.canvas, color: t.text.primary }}>
         <h2>Board not found</h2>
-        <button onClick={() => nav.reset({ name: 'boards' })}>Back to boards</button>
+        {/* btn(t) like its sibling above — this one shipped with no style
+            prop at all, so it rendered as a raw browser button. */}
+        <button onClick={() => nav.reset({ name: 'boards' })} style={btn(t)}>
+          All boards
+        </button>
       </div>
     );
   }

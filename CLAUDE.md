@@ -125,11 +125,25 @@ Key product invariants (do not silently change):
   archive, assign, close — these have settled conventions, and a full-width
   labelled button for each costs a row of vertical space every time. This was
   got wrong three separate times (comment actions, the description editor, the
-  bulk-selection bar) before it was written down. Give every icon an
-  `accessibilityLabel` carrying the word it replaces, and a generous `hitSlop`
-  so the target stays finger-sized while the ink stays small. Use `IconAction`
-  in `components/ui.tsx`. Reserve labelled buttons for the primary action of a
-  screen and for anything destructive-and-unusual.
+  bulk-selection bar) before it was written down, and a fourth on the board
+  itself (`‹ Prev`/`Next ›` and a per-row "Restore to the board"). Give every
+  icon an `accessibilityLabel` carrying the word it replaces. Use `IconAction`
+  in `components/ui.tsx`, which lays out a real **44x44 box** — deliberately NOT
+  `hitSlop`, because neighbouring slops overlap and the touch goes to whichever
+  one the platform feels like. **Reserve labelled buttons for the primary action
+  of a screen** — `+ Add card` is the board's, so it keeps its label while
+  everything beside it is an icon.
+- **A destructive action needs a CONFIRMATION, not a label** (narrowed
+  2026-07-30). An icon plus "are you sure" is safer than a labelled button with
+  nothing behind it: permanent delete in the archive shipped as a bare labelled
+  button that fired on first tap, one row away from Restore. Confirm, then the
+  icon is free to match every other row action.
+- **Back is ALWAYS the `arrow-back` icon, labelled `Back`, in the header row.**
+  Never the word. `Screen` is layout-only and every screen hand-rolls its header,
+  so nothing enforces this — it was split 7 icons to 7 words before it was
+  written down. A control that RESETS to a root instead of popping one screen is
+  a different action and gets a different name (`All boards`, `Inbox`), which
+  also keeps `getByRole('button', { name: 'Back' })` unambiguous.
 - **A control that floats over content must fit on one row.** The bulk bar sits
   on top of the board: every row it takes is a row of board the user cannot see.
 - **All color goes through semantic theme tokens.** The app is a **single light

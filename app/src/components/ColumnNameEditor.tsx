@@ -54,7 +54,7 @@ export function ColumnNameEditor({
   onError: (message: string) => void;
   /**
    * Lets a cramped surface make room while editing — the phone pager hides its
-   * Prev/Next buttons so the field gets the whole row instead of the ~130px left
+   * Prev/Next arrows so the field gets the whole row instead of the ~190px left
    * between them.
    */
   onEditingChange?: (editing: boolean) => void;
@@ -120,11 +120,25 @@ export function ColumnNameEditor({
 
   return (
     <Row style={[styles.nameRow, center && styles.center]}>
+      {/*
+        THE BALANCE SPACER — what actually centres the NAME.
+        Without it the row is `text + gap + 44px icon` and the parent centres
+        that whole unit, so the text lands ~24px LEFT of true centre. Mirroring
+        the icon on the left makes the two sides symmetric, so the name itself
+        sits on the centre line.
+
+        It collapses rather than truncating the name: its shrink weight
+        (999 x 44) dwarfs the text's, so Yoga takes the space out of the spacer
+        first. A long name therefore slides the name+pencil pair LEFT into the
+        room that exists there, and only starts truncating once the spacer is
+        gone.
+      */}
+      {center && canEdit ? <View style={styles.balance} /> : null}
       {/* `shrink` is not optional. Without it Yoga measures the name against the
           whole label cell and then lays it out NEXT TO the edit icon, so the row
           is wider than its parent. A View clips on web but not on Android, where
-          a long name was filmed painting straight over the pager's ‹ Prev
-          button. It shrinks, then truncates at `lines`. */}
+          a long name was filmed painting straight over the pager's Prev
+          arrow. It shrinks, then truncates at `lines`. */}
       <Text
         numberOfLines={lines}
         style={[
@@ -152,7 +166,16 @@ export function ColumnNameEditor({
 
 const styles = StyleSheet.create({
   nameRow: { alignItems: 'center', gap: space.xs },
-  center: { justifyContent: 'center' },
+  /**
+   * `alignSelf`, NOT `flex: 1`. The phone pager's label cell is a COLUMN flex
+   * container, so `flex: 1` here would stretch this row vertically and leave it
+   * still sized to its content horizontally — the centring would not change.
+   * Stretching on the cross axis is what gives the row the full width, which is
+   * what `justifyContent` and the balance spacer then work against.
+   */
+  center: { justifyContent: 'center', alignSelf: 'stretch' },
+  /** Mirrors IconAction's 44x44 box; see the spacer comment above. */
+  balance: { width: 44, flexShrink: 999 },
   // Centred so a name that wraps reads as one centred block, not a centred
   // first line with a ragged second.
   centerText: { textAlign: 'center' },

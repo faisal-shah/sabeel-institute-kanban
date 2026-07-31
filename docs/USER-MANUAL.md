@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.7.0 · July 2026*
+*For app version 0.7.1 · July 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -92,13 +92,19 @@ on a phone. Managers create boards with **New board** (see Part 2).
 
 A board is columns of cards. **In a browser** you see every column at once. **On a
 phone** one column fills the screen — swipe left and right to move between them,
-and the header tells you where you are ("In Progress, 2 of 4").
+or tap the **arrows** either side of the column name. Under the name it tells you
+where you are ("2 of 4").
 
 Each card shows, at a glance: its **title**, a **priority badge**, its **labels**,
 its **due date** (red if overdue), and the **people assigned** (as name chips) —
 so you can read a card without opening it. A card with no priority set shows no
 badge. Tap **+ Add card** at the bottom of a column, type a title, press Enter —
 that's a new card.
+
+**On a phone the row along the bottom holds everything else**: beside **+ Add
+card** are icons to delete the column (managers only), open the board's
+**archived cards**, and open **board settings** (managers only). They sit there
+rather than in the header so the board's name has the top row to itself.
 
 ## 1.5 Working with a card
 
@@ -174,6 +180,9 @@ Tap any card to open the full view.
 Ordinary actions — move, archive, assign, delete — are **icons**, not big
 buttons, so a card stays compact. Each icon has a label for screen readers.
 
+**The back arrow is the same everywhere.** Any screen you opened from another one
+has a **←** in its top right; it never appears as the word "Back".
+
 ### The formatting buttons
 
 <div class="pair">
@@ -216,10 +225,13 @@ archiving a card keeps them. Deleting a card permanently deletes its files.
 
 ### Finding an archived card
 
-Archiving takes a card off the board but **keeps it**. The board header has an
-**archive icon** — open it to see everything archived on that board, **most
-recently archived first**, and **Restore to the board** puts a card back. Anyone
-who can archive can restore; permanent deletion stays with managers and admins.
+Archiving takes a card off the board but **keeps it**. Tap the **archive icon**
+— in the row along the bottom on a phone, in the header in a browser — to see
+everything archived on that board, **most recently archived first**. Each card
+carries two icons: **restore** puts it back on the board, and the red **bin**
+deletes it permanently. Anyone who can archive can restore; permanent deletion
+stays with managers and admins, and it **asks first** because nothing brings a
+deleted card back.
 
 If the column a card came from has since been deleted, it comes back in the
 **first column** and says so — rather than refusing to come back at all.
@@ -405,7 +417,8 @@ replace in Settings.
   <figure><img class="narrow" src="manual/img/settings-phone.png" alt="Board settings on a phone"><figcaption>On a phone</figcaption></figure>
 </div>
 
-Open a board and tap its **settings** (the gear). From here:
+Open a board and tap its **settings** (the gear — along the bottom on a phone,
+in the header in a browser). From here:
 
 - **Columns** — add, rename, and reorder. Tap the **pencil** beside a column's
   name to rename it; drag the handle to reorder. A column can only be deleted

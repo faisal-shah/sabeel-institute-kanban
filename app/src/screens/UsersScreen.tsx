@@ -9,6 +9,7 @@ import {
   Body,
   Button,
   Hint,
+  IconAction,
   Card,
   Row,
   Screen,
@@ -75,7 +76,7 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
     <Screen width="read">
       <Row style={styles.between}>
         <Title>People</Title>
-        <Button label="Back" variant="secondary" onPress={nav.pop} />
+        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
       <Hint>
         Only admins approve accounts and change roles. Managers create boards and

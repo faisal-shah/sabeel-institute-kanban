@@ -170,7 +170,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     return (
       <Screen>
         <Title>Board not found</Title>
-        <Button label="Back to boards" onPress={() => nav.reset({ name: 'boards' })} />
+        <Button label="All boards" onPress={() => nav.reset({ name: 'boards' })} />
       </Screen>
     );
   }
@@ -265,7 +265,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 />
                 {sessionCan.manageBoards(user) && renamingCol !== col.id ? (
                   <IconAction
-                    icon="close"
+                    icon="delete-outline"
                     label={`Delete column ${col.name}`}
                     danger
                     onPress={() => askRemoveColumn(col)}
