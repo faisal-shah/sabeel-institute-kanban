@@ -162,6 +162,17 @@ const now = Date.now();
 const BOARD = 'sw_board';
 await db.doc('labels/sw_l1').set({ name: 'Finance', color: '#83114F', createdAt: now, createdBy: uid });
 await db.doc('labels/sw_l2').set({ name: 'Outreach', color: '#A8B89A', createdAt: now, createdBy: uid });
+/*
+ * A label shaped like the one that broke Board settings: an emoji prefix and a
+ * name too long for the row. The name was not allowed to give way, so it pushed
+ * its own delete button off the right edge of the screen.
+ */
+await db.doc('labels/sw_l3').set({
+  name: '\u{1F535} Waiting on a much longer answer',
+  color: '#3E6B8A',
+  createdAt: now,
+  createdBy: uid,
+});
 await db.doc(`boards/${BOARD}`).set({
   name: 'Fundraising 2026',
   description: 'A board with enough on it to lay out properly.',
@@ -328,6 +339,23 @@ const layoutFaults = (page, width) =>
         }
       }
     }
+    /*
+     * NOTHING MAY BE CLIPPED BY THE RIGHT EDGE.
+     *
+     * Distinct from "the page scrolls sideways": a row can overflow inside a
+     * clipping ancestor, so the page width never changes and the sideways check
+     * stays green while a control is sliced in half at the boundary. That is
+     * how a label with a long name carried its own delete button off screen.
+     * Only elements with visible area are considered, so the pager's
+     * off-screen pages — laid out to the right by design — are not flagged.
+     */
+    for (const e of els) {
+      const raw = e.getBoundingClientRect();
+      if (raw.right > w + 1 && area(visibleRect(e)) > 4) {
+        faults.push(`"${name(e)}" is clipped by the right edge (${Math.round(raw.right - w)}px past)`);
+      }
+    }
+
     return [...new Set(faults)];
   }, width);
 

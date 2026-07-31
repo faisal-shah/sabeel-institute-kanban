@@ -351,11 +351,20 @@ export function BoardSettingsScreen({
             </Row>
           ) : (
             <Row key={l.id} style={styles.between}>
-              <Row>
+              {/* The NAME gives way; the actions never do. A label whose name
+                  is long — or that starts with an emoji, which people do —
+                  pushed the row wider than the screen and carried its own
+                  delete button off the right edge.
+
+                  Two lines rather than one: at 320px a single line clips
+                  "Waiting on Response" to "Waitin…", and a settings list you
+                  cannot read the names in is not much use. Wrapping costs a few
+                  pixels of height on the long ones only. */}
+              <Row style={styles.grow}>
                 <View style={[styles.swatch, { backgroundColor: l.color }]} />
-                <Body>{l.name}</Body>
+                <Body numberOfLines={2}>{l.name}</Body>
               </Row>
-              <Row>
+              <Row style={styles.noShrink}>
                 {/* Recolouring in place: the swatch row below belongs to the
                     NEW label being composed, so an existing one needs its own
                     way to change, and cycling the palette is one tap rather
@@ -692,6 +701,8 @@ function BoardNameEditor({
 }
 
 const styles = StyleSheet.create({
+  /** Actions hold their width so a long name truncates instead of evicting them. */
+  noShrink: { flexShrink: 0 },
   between: { justifyContent: 'space-between' },
   grow: { flex: 1, gap: space.xs },
   wrap: { flexWrap: 'wrap' },

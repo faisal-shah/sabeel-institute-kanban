@@ -163,7 +163,15 @@ export function ColumnNameEditor({
 }
 
 const styles = StyleSheet.create({
-  nameRow: { alignItems: 'center', gap: space.xs },
+  /*
+   * `flexShrink: 1` is not optional either. react-native-web's View base style
+   * sets flex-shrink to 0, so this row sizes to its content and OVERFLOWS its
+   * parent rather than letting the name truncate — which pushed the rename
+   * pencil 15px past the right edge of a 320px screen in Board settings, for a
+   * column whose name was merely long. The Text's own `shrink` cannot help
+   * while the row around it refuses to give.
+   */
+  nameRow: { alignItems: 'center', gap: space.xs, flexShrink: 1, minWidth: 0 },
   /**
    * `alignSelf`, NOT `flex: 1`. The phone pager's label cell is a COLUMN flex
    * container, so `flex: 1` here would stretch this row vertically and leave it

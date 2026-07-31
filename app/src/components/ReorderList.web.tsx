@@ -87,7 +87,12 @@ export function ReorderList<T>({
               // The whole row is draggable; the handle just signals where to grab.
               accessibilityLabel="Drag to reorder"
             />
-            <div style={{ flex: 1 }}>{renderItem(item)}</div>
+            {/* `minWidth: 0` is the load-bearing half. A flex item defaults to
+                min-width:auto, which refuses to shrink below its content, so a
+                long column name overflowed this row and carried its rename
+                pencil past the right edge of the screen instead of
+                truncating. */}
+            <div style={{ flex: 1, minWidth: 0 }}>{renderItem(item)}</div>
           </div>
         );
       })}
