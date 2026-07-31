@@ -365,6 +365,50 @@ the team.
 
 ## Deploy log
 
+### 2026-07-31 — A real app icon — v0.7.4
+
+Icon assets and config only. No functions, rules, indexes, shared package or
+app source — checked with `git diff`, not assumed.
+
+The app shipped with Expo's scaffold icon and a stray `#1F6FEB` adaptive
+background left over from it. It now carries the Sabeel calligraphic mark with a
+raspberry badge, matching the sibling apps: **one mark, one badge per app**, so
+three Sabeel icons read as one family. `scripts/make-app-icons.py` builds all
+three from `docs/brand/sabeel-mark.png` — the lockup with its wordmark removed,
+since "SABEEL INSTITUTE" is a smudge at 48dp and costs the calligraphy its size.
+
+**The geometry is measured, not chosen.** An adaptive icon's foreground fills the
+whole 108dp layer and only the central 72dp survives the launcher's mask — 66.67%,
+so the safe radius on a 1024 canvas is **341, not the 350** a "roughly two thirds"
+reading gives. That 9px difference is real badge edge a circular mask would shave.
+Within that circle the badge size, how low the mark sits, and the badge's bearing
+all trade against each other; each bound came from rendering candidates and
+counting the calligraphy pixels lost:
+
+- **Badge 410px** (40% of the icon) hides zero strokes; 418px starts cutting the
+  sweep.
+- **Mark at cy=637** is the deepest that fits; at 643 its own descender reaches
+  343 and leaves the circle. Dropping the mark is what frees the arc the badge
+  needs — it grew from 296px to 410px, +92% in area.
+- **Bearing 38°** is the flattest that costs nothing; 36° already hides 12px.
+
+Mark and badge both land 338 from centre, three pixels inside the wall. The
+script re-proves both invariants on every run and exits non-zero if either
+breaks, so the numbers above cannot rot silently.
+
+**Written as native resources, not left to prebuild.** All three repos commit
+`android/`, so `app.json` alone changes nothing Gradle sees — and `expo prebuild`
+would regenerate `build.gradle` and silently drop this repo's hardcoded
+`minSdkVersion 33`. The script writes exactly what prebuild would (foreground at
+108dp per density, legacy square and round at 48dp, both `mipmap-anydpi-v26`
+XMLs, an `iconBackground` colour), so a later prebuild is a no-op rather than a
+conflict.
+
+Verified by compositing the shipped foreground over the declared background and
+masking it as a launcher does: zero badge ink outside the circle mask, the ivory
+ring renders as true ivory (no halo), and the launcher icon was read off the
+emulator rather than inferred from the build.
+
 ### 2026-07-31 — A long name stopped evicting its own buttons — v0.7.3
 
 Client only. No functions, rules, indexes, shared package or backfill —
