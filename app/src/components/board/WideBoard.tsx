@@ -265,7 +265,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 />
                 {sessionCan.manageBoards(user) && renamingCol !== col.id ? (
                   <IconAction
-                    icon="close"
+                    icon="delete-outline"
                     label={`Delete column ${col.name}`}
                     danger
                     onPress={() => askRemoveColumn(col)}

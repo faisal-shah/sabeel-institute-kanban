@@ -191,10 +191,25 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     return map;
   }, [columns, cards.data]);
 
+  /**
+   * The page actually being shown, which is NOT always the remembered one.
+   *
+   * `page` is restored from module state that outlives the component, so it can
+   * point past the end of a board whose columns were deleted while you were on
+   * a card. Every read of the position clamps through here, so the indicator
+   * cannot say "5 of 3", the pager cannot show an empty name, and — the reason
+   * this became load-bearing — the board-level actions in the column footer,
+   * which render for the visible page only, cannot vanish from the phone
+   * entirely and strand someone with no way into Board settings.
+   *
+   * Landing on the LAST column beats the old behaviour of showing column 1
+   * while the header described a column that no longer exists.
+   */
+  const visiblePage = columns.length > 0 ? Math.min(page, columns.length - 1) : 0;
+
   // Is there actually a column to scroll back to? False when the pager is
-  // already on the first page, and — the corner case — when the remembered page
-  // no longer exists because columns were deleted since. Both mean "show it now".
-  const needsRestore = page > 0 && page < columns.length;
+  // already on the first page.
+  const needsRestore = visiblePage > 0;
 
   /**
    * Keep the position indicator in step with the visible column.
@@ -293,7 +308,37 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
     );
   }
 
-  const current = columns[page];
+  const current = columns[visiblePage];
+
+  /**
+   * Archived cards and Board settings — BOARD-level, not column-level.
+   *
+   * A variable rather than inline JSX because they render in two mutually
+   * exclusive places: the visible column's footer, and the no-columns empty
+   * state. That second one is not hypothetical — `columnDeleteBlocked` only
+   * refuses a column that still holds cards, so an empty board CAN be emptied of
+   * columns entirely, and the footer lives inside the column list. Without the
+   * empty state a manager who deleted the last column had no way back into Board
+   * settings to add one: verified as a dead end before this existed.
+   */
+  const boardActions = (
+    <>
+      {/* Everyone gets this, not just managers: members can archive, so
+          members must be able to un-archive. */}
+      <IconAction
+        icon="inventory-2"
+        label="Archived cards"
+        onPress={() => nav.push({ name: 'boardArchive', boardId })}
+      />
+      {sessionCan.manageBoards(user) ? (
+        <IconAction
+          icon="settings"
+          label="Board settings"
+          onPress={() => nav.push({ name: 'boardSettings', boardId })}
+        />
+      ) : null}
+    </>
+  );
 
   return (
     <Screen scroll={false}>
@@ -323,7 +368,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
             icon="chevron-left"
             label="Previous column"
             size={24}
-            onPress={() => goTo(page - 1)}
+            onPress={() => goTo(visiblePage - 1)}
           />
         ) : null}
         <View style={styles.pagerLabel}>
@@ -347,7 +392,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           )}
           {!renaming ? (
             <Hint>
-              {columns.length > 0 ? `${page + 1} of ${columns.length}` : 'No columns'}
+              {columns.length > 0 ? `${visiblePage + 1} of ${columns.length}` : 'No columns'}
             </Hint>
           ) : null}
         </View>
@@ -356,7 +401,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
             icon="chevron-right"
             label="Next column"
             size={24}
-            onPress={() => goTo(page + 1)}
+            onPress={() => goTo(visiblePage + 1)}
           />
         ) : null}
       </Row>
@@ -365,6 +410,18 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         <Panel>
           <Body>{error}</Body>
           <Button label="Dismiss" variant="secondary" onPress={() => setError(null)} />
+        </Panel>
+      ) : null}
+
+      {columns.length === 0 ? (
+        <Panel>
+          <Body>This board has no columns yet.</Body>
+          <Hint>
+            {sessionCan.manageBoards(user)
+              ? 'Cards live in columns — add the first one in Board settings.'
+              : 'Cards live in columns. A manager can add the first one.'}
+          </Hint>
+          <Row>{boardActions}</Row>
         </Panel>
       ) : null}
 
@@ -429,9 +486,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         if (w > 0 && Math.abs(w - width) > 1) {
           const hadWidth = width > 0;
           setWidth(w);
-          if (hadWidth && page > 0) {
+          if (hadWidth && visiblePage > 0) {
             requestAnimationFrame(() =>
-              scroller.current?.scrollTo({ x: page * w, animated: false }),
+              scroller.current?.scrollTo({ x: visiblePage * w, animated: false }),
             );
           }
         }
@@ -446,7 +503,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         // is the first moment a scroll can actually take effect.
         onContentSizeChange={() => {
           if (!needsRestore || restored) return;
-          scroller.current?.scrollTo({ x: page * width, animated: false });
+          scroller.current?.scrollTo({ x: visiblePage * width, animated: false });
           setRestored(true);
         }}
         // Held invisible until it is sitting on the right column. Showing the
@@ -471,8 +528,28 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       >
         {columns.map((col, colIndex) => {
           const colCards = byColumn.get(col.id) ?? [];
+          const onScreen = colIndex === visiblePage;
           return (
-            <View key={col.id} style={[styles.page, { width }]}>
+            /*
+              OFF-SCREEN PAGES ARE HIDDEN FROM ASSISTIVE TECH.
+              Every column is laid out — that is how the pager swipes — so
+              without this the whole board sits in the accessibility tree at
+              once: a screen reader walked the cards of nine columns with no way
+              to tell which one it was in, and heard "+ Add card" nine times.
+              Sighted users see one column; this makes the tree agree.
+
+              All three props, because they are three platforms' spellings of
+              the same idea: aria-hidden for react-native-web,
+              accessibilityElementsHidden for iOS, importantForAccessibility for
+              Android.
+            */
+            <View
+              key={col.id}
+              style={[styles.page, { width }]}
+              aria-hidden={!onScreen}
+              accessibilityElementsHidden={!onScreen}
+              importantForAccessibility={onScreen ? 'auto' : 'no-hide-descendants'}
+            >
               <FlatList
                 // Bounded, so it SCROLLS rather than growing past the page and
                 // being clipped. See styles.page.
@@ -553,6 +630,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                   {sessionCan.manageBoards(user) ? (
                     <IconAction
                       icon="delete-outline"
+                      danger
                       label={`Delete column ${col.name}`}
                       onPress={() => askRemoveColumn(col)}
                     />
@@ -565,24 +643,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                     -mode violation; a screen reader would have read it out as
                     three identical buttons, which is the real bug.
                   */}
-                  {colIndex === page ? (
-                    <>
-                      {/* Everyone gets this, not just managers: members can
-                          archive, so members must be able to un-archive. */}
-                      <IconAction
-                        icon="inventory-2"
-                        label="Archived cards"
-                        onPress={() => nav.push({ name: 'boardArchive', boardId })}
-                      />
-                      {sessionCan.manageBoards(user) ? (
-                        <IconAction
-                          icon="settings"
-                          label="Board settings"
-                          onPress={() => nav.push({ name: 'boardSettings', boardId })}
-                        />
-                      ) : null}
-                    </>
-                  ) : null}
+                  {onScreen ? boardActions : null}
                 </Row>
               )}
             </View>
