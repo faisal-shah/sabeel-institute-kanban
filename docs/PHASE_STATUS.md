@@ -408,10 +408,51 @@ words, and the same labelled-button habit had crept back in four places.
   three identical buttons. Gated to the visible page.
 - The tour never left column 1, so the long-name behaviour would have shipped
   unphotographed. The seed now carries a deliberately long column name and the
-  sweep asserts and screenshots that state — 28 checks at 320px, 13 screens.
+  sweep asserts and screenshots that state. With the states added by the review
+  below, the sweep now runs **151 checks** across five widths, up from 135.
+
+**Five more found by a multi-pass review afterwards**, three of which predate
+this release entirely — they were invisible because the sweep toured SCREENS at
+rest and none of these are screens.
+
+- **A board with NO columns was a dead end on the phone.**
+  `columnDeleteBlocked` only refuses a column that still holds cards, so the
+  last empty one can be deleted — and the board actions had just moved into the
+  column footer, which a board with no columns does not render. Board settings
+  is the only way to add a column back. There is now an empty state carrying
+  those actions, and a seeded zero-column board asserts it.
+- **Every column page sat in the accessibility tree at once.** All pages are
+  laid out so the pager can swipe, so a screen reader walked nine columns of
+  cards and heard "+ Add card" nine times. Off-screen pages are hidden with
+  `aria-hidden` / `accessibilityElementsHidden` /
+  `importantForAccessibility`. This one predated the release; it is the same
+  defect the three duplicate "Board settings" buttons were.
+- **Three glyphs for one action** — `✕` on web, `close` on native wide, a bin on
+  narrow, and only the bin not danger-tinted. Both RN surfaces now use a danger
+  bin. The web board's `✕` is left as it is, and is the remaining inconsistency.
+- **The bulk-selection bar pushed the page sideways, and its own close button
+  off-screen.** A manager sees six 44px actions; 6 x 44 is 264px, which is
+  exactly the inner width at 320px before the gaps or the "N selected" count.
+  Measured with the fix removed: **46px of bleed at 320, 6px at 360, none at
+  390 and above** — so it never bit a modern phone, which is why nobody
+  reported it. It wraps now instead. Pre-existing, and the bulk state had NO
+  coverage at all; it is now toured at every width.
+- **A member on a board with no columns** was the one combination neither fix
+  had been tested against. Correct: the archive stays reachable, Board settings
+  stays hidden, and the empty state's hint changes to say a manager must add
+  the first column.
+
+**A note on how two of those were nearly missed.** The first check written for
+the page-clamp passed with the fix REMOVED — the ScrollView clamps its own
+offset and `syncPage` repairs the index before it is visible — and chasing why
+is what turned up the zero-column dead end. The first accessibility audit used
+`querySelectorAll`, which ignores `aria-hidden`, so it reported the same numbers
+before and after the fix. Both are the house failure: an instrument that cannot
+see the thing it is pointed at.
 
 Verified: lint, typecheck, unit, emulator, and all five e2e suites; screenshots
-read at every width; Android checked by hand on `tb_emu`.
+read at every width; Android checked by hand on `tb_emu`, including the archive
+icons and the native delete confirmation.
 
 ### 2026-07-30 — Rich text for descriptions and comments — v0.7.0
 
