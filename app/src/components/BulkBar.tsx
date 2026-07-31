@@ -91,11 +91,23 @@ export function BulkBar({
           46px and took the close button off-screen with it, so the only way out
           of selection mode was to scroll to reach it. Wrapping costs a second
           row on the narrowest phones and nothing at all above them. */}
-      <Row style={[styles.between, styles.wrap]}>
+      {/* Dismiss sits with the COUNT, not with the actions. Closing selection
+          mode is not one of the things you can do to the selection, and moving
+          it up here is what lets the actions share one row: five 44px boxes and
+          four 8px gaps is 252px, inside the 264px a 320px screen gives. With
+          six down there they could not fit at any gap, and the wrap orphaned a
+          lone tick on a second line. */}
+      <Row style={styles.between}>
         <Caption>{selection.count} selected</Caption>
+        <IconAction
+          icon="close"
+          label={mode === 'idle' ? 'Clear selection' : 'Cancel'}
+          onPress={() => (mode === 'idle' ? selection.clear() : setMode('idle'))}
+        />
+      </Row>
+      {mode === 'idle' ? (
         <Row style={[styles.actions, styles.wrap]}>
-          {mode === 'idle' ? (
-            <>
+          <>
               <IconAction
                 icon="swap-horiz"
                 label="Move selected cards"
@@ -130,15 +142,9 @@ export function BulkBar({
                   onPress={() => setMode('confirmDelete')}
                 />
               ) : null}
-            </>
-          ) : null}
-          <IconAction
-            icon="close"
-            label={mode === 'idle' ? 'Clear selection' : 'Cancel'}
-            onPress={() => (mode === 'idle' ? selection.clear() : setMode('idle'))}
-          />
+          </>
         </Row>
-      </Row>
+      ) : null}
 
       {mode === 'move' ? (
         <>
@@ -318,9 +324,17 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
   },
   between: { justifyContent: 'space-between', alignItems: 'center' },
-  // IconAction is a 44px box that carries its own separation, so the gap here
-  // is small on purpose — a large one would push this bar past one row on a phone.
-  actions: { gap: space.xs, alignItems: 'center' },
+  /*
+   * space.sm, because six 24px glyphs 4px apart read as a solid strip.
+   *
+   * `flexShrink: 1` is what makes the wrap actually work. Yoga defaults
+   * flexShrink to 0 — unlike CSS, where it is 1 — so this row kept its full
+   * content width and pushed the page sideways by 13px at 320px instead of
+   * wrapping. Caught by the sweep the moment the gap went up, which is the
+   * trade-off in miniature: more air between icons is only free if the row can
+   * give way.
+   */
+  actions: { gap: space.sm, alignItems: 'center', flexShrink: 1 },
   wrap: { flexWrap: 'wrap' },
   // Board · column · [Copy Move] on one left-aligned row that wraps as needed.
   controls: { flexWrap: 'wrap' },
