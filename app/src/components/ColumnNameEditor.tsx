@@ -104,14 +104,12 @@ export function ColumnNameEditor({
           label="Save column name"
           onPress={commit}
           accent
-          size={24}
           disabled={busy}
         />
         <IconAction
           icon="close"
           label="Cancel rename"
           onPress={close}
-          size={24}
           disabled={busy}
         />
       </Row>

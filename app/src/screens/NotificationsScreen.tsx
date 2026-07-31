@@ -95,7 +95,6 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
         <IconAction
           icon={showSettings ? 'inbox' : 'settings'}
           label={showSettings ? 'Inbox' : 'Notification settings'}
-          size={24}
           onPress={() => setShowSettings((s) => !s)}
         />
       </Row>
@@ -156,7 +155,6 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                     icon={isMuted ? 'notifications-off' : 'notifications'}
                     label={isMuted ? `Unmute ${b.name}` : `Mute ${b.name}`}
                     danger={isMuted}
-                    size={22}
                     disabled={busy}
                     onPress={() => run(() => setBoardMuted(user, b.id, !isMuted, muted))}
                   />
@@ -180,7 +178,6 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                 <IconAction
                   icon="done-all"
                   label="Mark all read"
-                  size={22}
                   disabled={busy}
                   onPress={() => run(() => markAllRead(user, items))}
                 />
@@ -190,7 +187,6 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                   icon="delete-sweep"
                   label="Dismiss all"
                   danger
-                  size={22}
                   disabled={busy}
                   onPress={() => setConfirmingDismissAll(true)}
                 />

@@ -115,14 +115,12 @@ export function Subtasks({
           icon="add"
           label="Add subtask"
           accent
-          size={24}
           onPress={create}
           disabled={busy || !newTitle.trim()}
         />
         <IconAction
           icon="add-link"
           label="Link an existing card"
-          size={24}
           onPress={() => setPicking(true)}
           disabled={busy || linkable.length === 0}
         />
@@ -192,7 +190,9 @@ const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   between: { justifyContent: 'space-between', alignItems: 'center' },
   grow: { flex: 1, gap: space.xs },
-  addRow: { alignItems: 'center', gap: space.xs },
+  // space.sm, not xs: at 24px ink two adjacent glyphs 4px apart read as one
+  // control. The 44px boxes never overlapped; this is about legibility.
+  addRow: { alignItems: 'center', gap: space.sm },
   picker: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
