@@ -279,22 +279,47 @@ real reason to plan it rather than slip it into a release.
       installed from Play, while your sideloaded build keeps working — so it
       looks like a device problem rather than a config one. Add **both**.
 
-### Decisions to make before uploading to Play
+### Do these in order, next time you are at the computer
 
-- **Play wants an AAB, not an APK.** `npm run build:apk` runs `assembleRelease`;
-  Play needs `./gradlew bundleRelease` →
-  `app/android/app/build/outputs/bundle/release/app-release.aab`. The per-ABI
-  splits and `scripts/publish-apk.sh` exist for the GitHub-release channel and do
-  not apply to Play.
-- **Two channels for one package is a conflict, not a convenience.** With Play
-  App Signing, Google signs installs with its own key; a sideloaded APK from the
-  GitHub release is signed with the upload key. Android will not let one update
-  the other, so a person cannot move between channels without uninstalling.
-  Decide whether Play **replaces** the GitHub download or the two are kept
-  deliberately separate.
-- **Changing the signing key forces everyone to reinstall**, whichever channel
-  wins. Android refuses an update signed by a different key. Nothing is lost —
-  all state is in Firestore — but it needs telling people, not discovering.
+1. **Firebase** → Project settings → Android app → add SHA-1
+   `33:93:4A:A4:5F:51:60:23:E3:86:6F:68:84:8A:20:2C:44:28:2E:97`, then
+   **re-download `google-services.json`** and hand it over to be committed. The
+   re-download is what creates the OAuth client; without it sign-in fails with
+   `DEVELOPER_ERROR`.
+2. **Play Console** → upload `~/keys/upload_certificate.pem` as the upload key,
+   and let Google create and manage the app signing key.
+3. **Build and upload:** `npm run build:aab`, then Play Console → Testing →
+   Internal testing → Create new release.
+4. **Firebase again, AFTER that first upload** → add the SHA-1 from Play Console
+   → App integrity → *App signing key certificate*, and re-download
+   `google-services.json` once more. This is the fingerprint Play-installed
+   copies actually run under. Easy to skip, and the failure looks like a device
+   problem: sign-in breaks only for people who installed from Play.
+5. **Tell the team to uninstall and reinstall** from the Play invite. Android
+   refuses an update signed by a different key, so there is no in-place upgrade
+   from the old sideloaded build. Nothing is lost — all state is in Firestore.
+6. **Later, once everyone has moved:** remove the download section from the
+   kanban page in the pages repo, and delete the `kanban-latest` release there.
+
+> Decided 2026-08-02: Play is the Android channel from here on.
+> `scripts/publish-apk.sh` is retired and refuses to run without
+> `SK_LEGACY_APK_CHANNEL=1`; the frozen v0.7.4 download stays up until step 6.
+
+### Notes on the Play move
+
+- **`npm run build:aab` is the build.** It runs `bundleRelease` and repeats every
+  gate publish-apk.sh used to hold — store-legal version, a deploy-log entry
+  written *before* the build, and a signature that is not the debug key. The
+  per-ABI splits switch themselves off for bundle tasks; leaving both on fails
+  with *"Multiple shrunk-resources files found"*.
+- **One channel, decided.** Play replaces the GitHub download. Keeping both was
+  never really an option: Play signs installs with Google's app signing key and a
+  sideloaded APK carries the upload key, so Android will not let either update
+  the other. `scripts/publish-apk.sh` is retired accordingly.
+- **Changing the signing key forces everyone to reinstall.** Android refuses an
+  update signed by a different key, so there is no in-place upgrade from the old
+  debug-signed build. Nothing is lost — all state is in Firestore — but it needs
+  telling people, not discovering.
 - **Target API level.** Play enforces a minimum `targetSdkVersion` for new apps
   and raises it annually; ours comes from `rootProject.ext.targetSdkVersion`
   (Expo's default for SDK 57). Check the current floor in the console before

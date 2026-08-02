@@ -360,11 +360,35 @@ Playwright for web) — never claim a screen works because the code looks right.
   before the web deploy, the APK build and the release. Once he does, ship
   **every** surface in one batch; never ask platform by platform. The gate exists
   because a release is only reversible *forwards*, through another release.
-- **Publishing the APK: Release asset, NEVER committed.** The public download is a
-  GitHub **Release asset** on the pages repo (`faisal-shah.github.io`), on the
-  fixed rolling tag `kanban-latest` — the download URL never changes. Publish with
-  `scripts/publish-apk.sh`; it uploads the asset, bumps only the version *label*
-  on the page, and asserts the pages repo holds **zero** `.apk` blobs. **Never
-  `git add` a binary** to any repo — committing per-release APKs bloated the pages
-  history (~31 MB each) and had to be rewritten out. `*.apk` is gitignored in the
-  pages repo as the backstop. Same rule holds in the sibling time-tracker.
+- **Android ships through Google Play** (decided 2026-08-02), release-signed.
+  Build with **`npm run build:aab`** and upload the bundle at Play Console →
+  Internal testing. Play wants an **AAB**, not APKs: one artifact carrying every
+  ABI, from which Play generates per-device splits. The `splits` block in
+  `app/android/app/build.gradle` therefore switches itself **off** for bundle
+  tasks — both on at once fails with *"Multiple shrunk-resources files found"*.
+  `build-aab.sh` repeats every gate the old publish script held: store-legal
+  version, a deploy-log entry that exists *before* the build, and a signature
+  that is not the debug key.
+- **Signing: the upload key lives outside the repo.** `signingConfigs.release`
+  reads a gitignored `app/android/keystore.properties`. Absent it, a release
+  build still works but is debug-signed and logs a loud warning — every build up
+  to and including v0.7.4 went out that way, signed with the debug keystore
+  committed to this **public** repo. **Play App Signing re-signs with Google's
+  own key**, so the SHA-1 that matters for Google Sign-In on a Play install is
+  under Play Console → App integrity → *App signing key certificate*, NOT the
+  upload key's. Both belong in Firebase; miss the former and sign-in fails with
+  `DEVELOPER_ERROR` for Play users only, while local builds work.
+- **The GitHub-release APK channel is RETIRED and FROZEN at v0.7.4.**
+  `scripts/publish-apk.sh` refuses to run without `SK_LEGACY_APK_CHANNEL=1`.
+  The frozen asset is the last debug-signed build, which is what existing
+  installs match; a newer, properly-signed APK **cannot install over it**, so
+  publishing one breaks the download for everyone who already has the app. It
+  ran by accident once for 59 seconds. Existing users move across by
+  uninstalling and reinstalling from Play — nothing is lost, all state is in
+  Firestore. **Never `git add` a binary** to any repo: committing per-release
+  APKs bloated the pages history (~31 MB each) and had to be rewritten out.
+  `*.apk` is gitignored in the pages repo as the backstop, and that rule still
+  holds in the sibling time-tracker.
+- **Any script whose first act after its checks is a public upload needs a dry
+  run.** `publish-apk.sh --check` exists because running it to *test* a new gate
+  published a build. If a check is worth writing, exercising it must be free.

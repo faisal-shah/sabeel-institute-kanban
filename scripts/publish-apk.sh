@@ -24,6 +24,35 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# THIS CHANNEL IS RETIRED (2026-08-02). Android ships through Google Play now;
+# use `npm run build:aab`.
+#
+# The rolling download is FROZEN at v0.7.4, the last debug-signed build, because
+# that is what the team already has installed. Publishing anything newer here
+# would be actively harmful rather than merely obsolete: every build from now on
+# is signed with the real upload key, and Android refuses to update an install
+# whose signature does not match. Anyone tapping the download would get "App not
+# installed" and have no idea why. That is not hypothetical — it happened once,
+# for 59 seconds, and is the reason this block exists.
+#
+# The script is kept, working, for one job: replacing the frozen asset if it is
+# ever lost. Hence an override rather than deletion.
+if [ "${SK_LEGACY_APK_CHANNEL:-}" != "1" ]; then
+  cat >&2 <<'EOF'
+publish-apk.sh is RETIRED — Android releases go to Google Play.
+
+  npm run build:aab     then upload at Play Console -> Internal testing
+
+The GitHub-release download is frozen at v0.7.4 (debug-signed) because that is
+what existing installs match. A newer, properly-signed APK cannot install over
+it, so publishing one here breaks the download for everyone who already has the
+app.
+
+If you really are restoring the frozen asset:  SK_LEGACY_APK_CHANNEL=1 $0
+EOF
+  exit 1
+fi
+
 REPO="faisal-shah/faisal-shah.github.io"
 APP_REPO="faisal-shah/sabeel-institute-kanban"
 TAG="kanban-latest"

@@ -2,7 +2,7 @@
   "name": "sabeel-institute-kanban",
   "version": "0.0.0",
   "private": true,
-  "description": "Sabeel Institute Kanban \u2014 access-controlled kanban boards for a small nonprofit (Android + web from one Expo codebase, Firebase backend)",
+  "description": "Sabeel Institute Kanban — access-controlled kanban boards for a small nonprofit (Android + web from one Expo codebase, Firebase backend)",
   "workspaces": [
     "packages/*",
     "functions",
@@ -25,6 +25,7 @@
     "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 8086",
     "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android",
     "build:apk": "node scripts/gen-build-info.mjs && cd app/android && ./gradlew assembleRelease --no-daemon",
+    "build:aab": "bash scripts/build-aab.sh",
     "check:ios": "node scripts/check-ios-config.mjs",
     "grant-admin": "bash scripts/grant-admin.sh",
     "seed": "node scripts/seed-dev.mjs",
