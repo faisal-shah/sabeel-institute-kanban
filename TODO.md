@@ -152,18 +152,27 @@ creation**.
       exactly like `google-services.json`: client identifiers, not secrets.
       Verified a genuinely new registration (new `CLIENT_ID`,
       `REVERSED_CLIENT_ID` and `GOOGLE_APP_ID`), and `npm run check:ios` passes.
-- [ ] **Delete the `com.sabeelinstitute.timetracker` iOS app** from this project
-      once a build has signed in successfully, so nobody downloads the wrong
-      plist later. Leave it until then — deleting it now would only remove a
-      registration nothing uses, but a rollback would need it back.
-- [ ] **Register the bundle id in the Apple Developer portal** and create the app
-      in App Store Connect, same identifier.
-- [ ] **APNs authentication key.** Apple Developer → Keys → new key with Apple
-      Push Notifications service enabled. Upload the `.p8` to Firebase → Project
-      settings → Cloud Messaging → iOS app configuration. **Without this, push
-      does not work on iOS at all** — the app already uses push (§ I).
-      The `.p8` downloads exactly once and is a real secret: keep it out of the
-      repo.
+- [x] **Deleted the `com.sabeelinstitute.timetracker` iOS app** (2026-08-01).
+- [x] **Registered the bundle id in the Apple Developer portal** and created the
+      app in App Store Connect as `com.sabeelinstitute.kanban` (2026-08-01).
+- [ ] **App ID capabilities: tick Push Notifications, and nothing else.** Not
+      Background Modes (our pushes are alerts, not silent), not Associated
+      Domains (no universal links), not Sign in with Apple (the enterprise-account
+      exemption to guideline 4.8 applies). Reasoning in `docs/IOS-BUILD.md`.
+- [ ] **APNs authentication key.** Apple Developer → Certificates, Identifiers &
+      Profiles → **Keys** → new key with *Apple Push Notifications service (APNs)*
+      enabled. Upload the `.p8` to Firebase → Project settings → Cloud Messaging →
+      iOS app, along with its **Key ID** and your **Team ID**. **Without this,
+      push does not work on iOS at all** — the app already uses push (§ I).
+      **This is NOT the App Store Connect API key.** That one is a different `.p8`,
+      made in App Store Connect → Users and Access → Integrations, and it uploads
+      builds rather than delivering pushes. Both download exactly once and both
+      are real secrets — keep either out of the repo.
+- [ ] **Decide the distribution route** before submitting. Internal TestFlight
+      needs no Beta App Review and fits a dozen colleagues; anything reviewed
+      needs **working demo credentials** in the review notes, because sign-in is
+      `@oursabeel.com`-only *and* admin-gated, so a reviewer cannot get in. See
+      `docs/IOS-BUILD.md`.
 
 Then, on the Mac: `npm run check:ios` must pass before building. It verifies the
 bundle id, the Firebase project, the Google Sign-In URL scheme and the icon.

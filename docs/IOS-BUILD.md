@@ -129,6 +129,70 @@ re-adds the capability and the `aps-environment` entitlement after a prebuild. I
 it does not, express it in `app/app.json` under `ios.entitlements` rather than
 re-clicking it in Xcode — see rule 2. Record the answer here once it is known.
 
+## App ID capabilities — enable exactly ONE
+
+The Apple Developer portal shows a long list when you register the identifier.
+For this app the answer is **Push Notifications, and nothing else.** Leave
+whatever Apple ticks by default alone; do not add anything from the list.
+
+Every other capability is a claim about what the app does, and claiming one you
+do not use is not free — several trigger extra review questions or require
+matching entitlements that then have to be justified.
+
+Two that look like they might apply and do not:
+
+- **Background Modes → Remote notifications.** That is for *silent* pushes that
+  wake the app to do work. Ours are alert pushes: `functions/src/notifications.ts`
+  sends `notification: { title, body }` with a `data` block for routing, never
+  `contentAvailable`, and the client registers no background message handler. The
+  system displays the alert and the app routes on tap. No background mode needed.
+- **Associated Domains.** That is for universal links (`https://` URLs opening
+  the app). Routing here goes through the custom `sabeelkanban` scheme, and the
+  repo has no `applinks` configuration.
+
+**Sign in with Apple is deliberately NOT enabled.** Guideline 4.8 requires an
+equivalent private login option when an app uses a third-party login for the
+user's primary account — but it exempts apps where the user signs in with an
+existing **education or enterprise** account, which is exactly this: sign-in is
+restricted to `@oursabeel.com` and additionally gated on admin approval. Be ready
+to say that in review notes rather than to add Apple sign-in reflexively.
+
+## The two `.p8` keys are DIFFERENT keys
+
+They are both `.p8` files, both download exactly once, and both are real secrets
+— which is why they get confused. They are not interchangeable.
+
+| | APNs authentication key | App Store Connect API key |
+|---|---|---|
+| Made in | Apple Developer portal → Certificates, Identifiers & Profiles → **Keys**, with *Apple Push Notifications service (APNs)* enabled | App Store Connect → **Users and Access → Integrations → App Store Connect API** |
+| Used by | **Firebase**, to deliver push to iOS devices | build tooling, to **upload** builds (fastlane, `xcrun`, CI) |
+| Installed at | Firebase console → Project settings → Cloud Messaging → iOS app (needs the key, its Key ID, and the Team ID) | wherever the upload runs |
+| Without it | push silently never arrives on iOS | you cannot upload a build |
+
+Neither belongs in this repo. If a CI upload is ever set up, the App Store
+Connect key goes in GitHub Actions secrets — note that **this repo's convention
+is no deploys from CI** (`CLAUDE.md`), so that would be a deliberate change to
+make, not a default.
+
+## Getting it to testers, and the login gate
+
+Decide the distribution route before submitting, because it changes what review
+demands:
+
+- **TestFlight, internal testers** — no Beta App Review. Testers must be users on
+  the App Store Connect team (up to 100). For a dozen colleagues this is the
+  least friction by a wide margin.
+- **TestFlight, external testers** — needs Beta App Review.
+- **Public App Store** — full review.
+
+For either reviewed route there is a hard problem to solve up front: **a reviewer
+cannot sign in.** Sign-in is Google-only, restricted to `@oursabeel.com`
+server-side, *and* every new account lands `pending` until an admin approves it.
+An app that cannot be opened is rejected, every time. So supply working demo
+credentials in App Store Connect's review notes — an `@oursabeel.com` account
+that is already approved — and expect to explain that the app is an internal tool
+for one organisation.
+
 ## Releasing
 
 The version story is unchanged and shared with the other two surfaces:
