@@ -109,15 +109,38 @@ is always a new iOS app registration and a fresh plist.
 
 ## First build on the Mac
 
+### Two files a fresh clone does NOT have
+
+Both are gitignored, and neither failing announces itself:
+
+- **`app/.env.local`** — carries `EXPO_PUBLIC_SENTRY_DSN_NATIVE`,
+  `EXPO_PUBLIC_SENTRY_DSN_WEB` and `EXPO_PUBLIC_FCM_VAPID_KEY`. Copy it across
+  out of band (it is deliberately not in git so a fork does not inherit this
+  project's Sentry quota). Without it the build **succeeds** and `initErrorReporting()`
+  returns early on a missing DSN — so the app ships with crash reporting silently
+  switched off, and nothing anywhere says so. `EXPO_PUBLIC_*` is inlined at bundle
+  time, so it must be present *before* the build, not added later.
+- **`app/src/build-info.ts`** — generated, and `npm ci` creates it via the root
+  `prepare` script. It is what puts the version and commit on the sign-in screen.
+  It records the commit at the moment it runs, so **re-run
+  `node scripts/gen-build-info.mjs` right before archiving**, or a TestFlight
+  build will name whatever commit was checked out when you last installed.
+
+### Then
+
 ```bash
 git pull
-npm ci
+npm ci                                  # also generates build-info.ts
+# copy app/.env.local into place before building
 npm run check:ios                       # must pass before anything else
 cd app
 npx expo prebuild --platform ios        # NOT bare prebuild
 cd ios && pod install && cd ..
 open ios/*.xcworkspace                  # .xcworkspace, never .xcodeproj
 ```
+
+Expo 57 / React Native 0.86, so a current Xcode and CocoaPods are assumed; if the
+toolchain is too old `pod install` is where it surfaces.
 
 In Xcode: select the scheme, set the team under Signing & Capabilities, and build
 to a simulator first. Only then archive.
@@ -128,6 +151,19 @@ regenerated, confirm on the first build whether Xcode's automatic signing
 re-adds the capability and the `aps-environment` entitlement after a prebuild. If
 it does not, express it in `app/app.json` under `ios.entitlements` rather than
 re-clicking it in Xcode — see rule 2. Record the answer here once it is known.
+
+### What the simulator cannot tell you
+
+Sign-in **can** be exercised on the simulator: Google Sign-In opens a web session
+and comes back through the URL scheme, which is precisely the thing most likely
+to be misconfigured.
+
+**Push cannot.** A simulator gets no real APNs token, so FCM has nothing to send
+to — `xcrun simctl push` fakes a payload locally and proves only that the app
+renders a notification, not that the APNs key, the Firebase upload or the token
+registration work. End-to-end push is verifiable only on a physical iPhone, which
+means through TestFlight. Treat "push works on iOS" as unverified until it has
+been seen on a real device, and do not let a green simulator run stand in for it.
 
 ## App ID capabilities — enable exactly ONE
 
