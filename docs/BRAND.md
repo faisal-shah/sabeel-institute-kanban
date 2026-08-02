@@ -175,9 +175,12 @@ at its limit: 418px cuts the sweep, cy=643 puts the descender outside the
 circle, 36° hides 12px. Mark and badge both land 338 from centre — the
 composition is pressed against the same circle from two directions.
 
-**Do not regenerate these with `expo prebuild`.** All three repos commit
-`android/`, so the script writes the native mipmaps directly; prebuild would
-also rewrite `build.gradle` and drop this repo's hardcoded `minSdkVersion 33`.
+**Do not regenerate these with a bare `expo prebuild`.** All three repos commit
+`android/`, so the script writes the native mipmaps directly. Prebuild defaults
+to *clean* — it deletes and recreates the native folder — so an unscoped run
+takes `build.gradle` with it, including this repo's hardcoded `minSdkVersion 33`.
+It only clears the platforms named by `--platform`, which is why
+`--platform ios` is safe. See `docs/IOS-BUILD.md`.
 
 ## How this is enforced in code
 

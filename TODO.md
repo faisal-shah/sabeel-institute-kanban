@@ -138,6 +138,41 @@ lives in a personal Google account — a continuity risk independent of OAuth.
 
 ---
 
+## D2. iOS registration — **blocked on one console fix** (2026-08-01)
+
+An iOS app was registered in the **right Firebase project**
+(`sabeel-institute-kanban`) but with the **wrong bundle id**:
+`com.sabeelinstitute.timetracker`, copied from a setup guide written for the time
+tracker. Renaming the app in Firebase does not help — the nickname is cosmetic
+and never appears in the plist, and **Firebase cannot change a bundle id after
+creation**.
+
+- [x] **Register a second iOS app** with bundle id `com.sabeelinstitute.kanban`
+      (2026-08-01). `app/GoogleService-Info.plist` is committed — by design,
+      exactly like `google-services.json`: client identifiers, not secrets.
+      Verified a genuinely new registration (new `CLIENT_ID`,
+      `REVERSED_CLIENT_ID` and `GOOGLE_APP_ID`), and `npm run check:ios` passes.
+- [ ] **Delete the `com.sabeelinstitute.timetracker` iOS app** from this project
+      once a build has signed in successfully, so nobody downloads the wrong
+      plist later. Leave it until then — deleting it now would only remove a
+      registration nothing uses, but a rollback would need it back.
+- [ ] **Register the bundle id in the Apple Developer portal** and create the app
+      in App Store Connect, same identifier.
+- [ ] **APNs authentication key.** Apple Developer → Keys → new key with Apple
+      Push Notifications service enabled. Upload the `.p8` to Firebase → Project
+      settings → Cloud Messaging → iOS app configuration. **Without this, push
+      does not work on iOS at all** — the app already uses push (§ I).
+      The `.p8` downloads exactly once and is a real secret: keep it out of the
+      repo.
+
+Then, on the Mac: `npm run check:ios` must pass before building. It verifies the
+bundle id, the Firebase project, the Google Sign-In URL scheme and the icon.
+`docs/IOS-BUILD.md` is the runbook.
+
+> Nothing here needs a code change from Claude — `app/app.json` is already wired.
+
+---
+
 ## E. Sentry
 
 - [x] **Three projects created** (2026-07-19), platform set to match the SDK:

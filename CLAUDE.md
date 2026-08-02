@@ -232,9 +232,25 @@ carries over and, more importantly, what was learned the hard way there.
   Android 12 and older are unsupported (decided 2026-07-27). That is what lets
   the photo picker be permission-free and both external-storage permissions be
   removed outright — on 13+ the system photo picker needs neither.
-- One Expo codebase (`app/`): Android (local Gradle builds, committed `android/`,
-  NO iOS, NO EAS) + web via react-native-web (`expo export --platform web` →
-  Firebase Hosting). Platform seams as `.web.ts(x)` siblings.
+- One Expo codebase (`app/`) on **three** surfaces: Android (local Gradle builds,
+  committed `android/`), **iOS** (added 2026-08-01, local Xcode builds on a cloud
+  Mac, `app/ios/` gitignored) and web via react-native-web (`expo export
+  --platform web` → Firebase Hosting). **NO EAS** on any of them. Platform seams
+  as `.web.ts(x)` siblings.
+- **`app/android/` is committed and hand-edited; `app/ios/` is a build product.**
+  So `npx expo prebuild` must ALWAYS be scoped: `--platform ios`. Prebuild
+  defaults to **clean** — it deletes and regenerates the native folder, and
+  `--no-clean` is the opt-out — but it only clears the platforms you name. A bare
+  prebuild therefore wipes `android/` and silently drops `minSdkVersion 33`.
+  Because `ios/` is regenerated, **nothing changed in Xcode's UI survives**;
+  anything that must persist belongs in `app/app.json`. `docs/IOS-BUILD.md` is
+  the runbook, and `npm run check:ios` guards the config that fails late (bundle
+  id vs the plist, the Google Sign-In URL scheme, icon alpha, export compliance).
+- **One version string for all three surfaces.** `expo.version` only — never
+  `ios.version`, which would override it and show Apple a different number.
+  `scripts/check-version.mjs` already holds the version to Apple's `X.Y.Z` shape,
+  which is why no iOS-specific override is needed. `ios.buildNumber` is separate
+  and must increase on every upload.
 - Firebase **JS SDK on all surfaces** (not react-native-firebase — no web support).
 - Backend: Cloud Functions (TS, nodejs22, us-central1) + Firestore + **Cloud
   Storage** (card attachments). The bucket must be a modern
