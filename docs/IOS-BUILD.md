@@ -139,7 +139,17 @@ Every other capability is a claim about what the app does, and claiming one you
 do not use is not free — several trigger extra review questions or require
 matching entitlements that then have to be justified.
 
-Two that look like they might apply and do not:
+Three that look like they might apply and do not:
+
+- **Push Notifications → Broadcast.** A sub-option of the one capability we do
+  want, so it is easy to tick by reflex. It is for updating **Live Activities**
+  at scale through APNs *channels*: one request updates every device subscribed
+  to a shared event, like a score or a flight. This app has no Live Activities,
+  sends one message per device token (`sendEach`), and — the part that rules it
+  out structurally — gives every message that recipient's own inbox id
+  (`notifIdByUid.get(r.uid)`). A broadcast payload is identical for all
+  subscribers, so it could not carry per-person routing even in principle. Leave
+  it off.
 
 - **Background Modes → Remote notifications.** That is for *silent* pushes that
   wake the app to do work. Ours are alert pushes: `functions/src/notifications.ts`
