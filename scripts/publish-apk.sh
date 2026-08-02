@@ -12,6 +12,10 @@
 # on the page does.
 #
 #   scripts/publish-apk.sh [path/to/arm64-release.apk]
+#   scripts/publish-apk.sh --check      # run every gate, publish nothing
+#
+# ALWAYS use --check to test the script itself. Without it the first thing that
+# happens after the gates pass is an upload to the PUBLIC rolling download.
 #
 # It ALSO cuts the versioned GitHub Release on the app's OWN repo (all four ABI
 # splits + notes from the deploy log) — the changelog/archive convention that
@@ -24,6 +28,15 @@ REPO="faisal-shah/faisal-shah.github.io"
 APP_REPO="faisal-shah/sabeel-institute-kanban"
 TAG="kanban-latest"
 ASSET="sabeel-kanban-arm64-v8a.apk"
+# Pull --check out of the arguments FIRST, so it is never mistaken for the APK
+# path. Order matters: the APK default is assigned from $1 below.
+CHECK_ONLY="${SK_CHECK:-0}"
+args=()
+for a in "$@"; do
+  if [ "$a" = "--check" ]; then CHECK_ONLY=1; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
+
 APK="${1:-app/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk}"
 PAGES_DIR="${SK_PAGES_DIR:-../faisal-shah.github.io}"
 
@@ -62,6 +75,18 @@ case "$signer_dn" in
     exit 1 ;;
 esac
 echo "signature ok (${signer_dn})"
+
+# --check runs every gate above and stops before anything leaves this machine.
+#
+# It exists because there was no way to ask "would this publish?" without
+# publishing: running the script to watch the signature gate work uploaded a
+# newly-signed APK over the rolling asset, which existing installs cannot
+# update. The gates are exactly the part worth exercising, so make exercising
+# them free.
+if [ "$CHECK_ONLY" = "1" ]; then
+  echo "--check: all gates passed; nothing published."
+  exit 0
+fi
 
 # 1) Replace the rolling asset (constant URL across builds).
 tmp="$(mktemp -d)/$ASSET"; cp "$APK" "$tmp"
