@@ -150,12 +150,44 @@ android {
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
+    /**
+     * Release signing. The keystore and its passwords live OUTSIDE the repo, in
+     * a gitignored `app/android/keystore.properties`:
+     *
+     *     storeFile=/absolute/path/to/sabeel-kanban-upload.jks
+     *     storePassword=...
+     *     keyAlias=upload
+     *     keyPassword=...
+     *
+     * Never in this file, and never in git — this repo is public. See TODO.md
+     * section F for the keytool command that creates it.
+     *
+     * When the file is absent the release build falls back to the DEBUG key so
+     * local builds still work, but it says so loudly, and scripts/publish-apk.sh
+     * refuses to publish the result. A debug-signed release is exactly the kind
+     * of failure that imitates success: the APK installs and runs perfectly, and
+     * the only symptom is that anyone holding this public repo can sign an
+     * update Android will accept as this app.
+     */
+    def keystorePropsFile = rootProject.file('keystore.properties')
+    def keystoreProps = new Properties()
+    if (keystorePropsFile.exists()) {
+        keystorePropsFile.withInputStream { keystoreProps.load(it) }
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
+        }
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
         }
     }
     /**
@@ -188,9 +220,13 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn('*** RELEASE BUILD IS DEBUG-SIGNED: app/android/keystore.properties ' +
+                    'is missing. Fine locally; NOT publishable. See TODO.md section F. ***')
+                signingConfig signingConfigs.debug
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

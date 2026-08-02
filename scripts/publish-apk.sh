@@ -33,6 +33,36 @@ PAGES_DIR="${SK_PAGES_DIR:-../faisal-shah.github.io}"
 node scripts/check-version.mjs
 VERSION="$(node -p "require('./app/app.json').expo.version")"
 
+# Refuse to publish a DEBUG-SIGNED build.
+#
+# `release { signingConfig signingConfigs.debug }` was the scaffold default and
+# it survived into production: every build up to v0.7.4 went out signed with the
+# debug keystore that is committed to this PUBLIC repo, so anyone holding a
+# clone could sign an update Android would accept as this app. Nothing caught it
+# because a debug-signed APK installs and runs exactly like a real one — the
+# signature is the only difference, and nobody looks at it.
+#
+# Checked here rather than in Gradle because this is the last point before a
+# public download exists.
+apksigner=""
+for cand in "${ANDROID_HOME:-$HOME/opt/Android/Sdk}"/build-tools/*/apksigner; do
+  [ -x "$cand" ] && apksigner="$cand"
+done
+if [ -z "$apksigner" ]; then
+  echo "apksigner not found — cannot verify the signature of what is about to be published." >&2
+  echo "Set ANDROID_HOME, or install build-tools." >&2
+  exit 1
+fi
+signer_dn="$("$apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate DN: //p')"
+case "$signer_dn" in
+  *"CN=Android Debug"*)
+    echo "REFUSING TO PUBLISH: $APK is signed with the DEBUG key ($signer_dn)." >&2
+    echo "Create a real upload keystore and app/android/keystore.properties," >&2
+    echo "then rebuild. See TODO.md section F." >&2
+    exit 1 ;;
+esac
+echo "signature ok (${signer_dn})"
+
 # 1) Replace the rolling asset (constant URL across builds).
 tmp="$(mktemp -d)/$ASSET"; cp "$APK" "$tmp"
 gh release upload "$TAG" "$tmp" --clobber --repo "$REPO"

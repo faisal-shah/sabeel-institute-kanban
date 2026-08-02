@@ -230,19 +230,75 @@ rather than a pre-launch task. Swapping keystores also forces a **reinstall for
 everyone** (Android refuses an update signed by a different key), which is the
 real reason to plan it rather than slip it into a release.
 
-- [ ] **Generate a real release keystore** and store it where you will not lose
-      it — losing it means never being able to update the app. Claude will give
-      you the exact `keytool` command.
-- [ ] **Register the release SHA-1** on the Firebase Android app, then
-      **re-download `google-services.json`** (the re-download is what adds the
-      OAuth client — see § D).
-- [ ] Point `signingConfigs.release` at it in `app/android/app/build.gradle`,
-      with the passwords in a **gitignored** `keystore.properties`, never in the
-      gradle file.
-- [ ] Re-cut the release. The debug-signed assets should come down once a
-      properly signed build replaces them.
+- [x] **`build.gradle` is wired** (2026-08-02). `signingConfigs.release` reads a
+      **gitignored** `app/android/keystore.properties`. With no such file the
+      release build still works but is debug-signed and says so loudly, and
+      `scripts/publish-apk.sh` now **refuses to publish a debug-signed APK** —
+      verified by pointing it at the current one.
+- [ ] **Generate the upload keystore.** Store it somewhere backed up and OUTSIDE
+      the repo. Pick your own passwords; never paste them into chat or a file in
+      this repo.
 
-> Until this is done, treat v0.1.0 as internal-testing-only.
+      ```sh
+      keytool -genkeypair -v \
+        -keystore ~/keys/sabeel-kanban-upload.jks \
+        -alias upload -keyalg RSA -keysize 4096 \
+        -validity 10000 -storetype PKCS12
+      ```
+
+- [ ] **Write `app/android/keystore.properties`** (gitignored):
+
+      ```properties
+      storeFile=/home/faisal/keys/sabeel-kanban-upload.jks
+      storePassword=...
+      keyAlias=upload
+      keyPassword=...
+      ```
+
+- [ ] **Export the public certificate** — this is what Play Console asks for. It
+      is a certificate, not a key; nothing secret leaves your machine.
+
+      ```sh
+      keytool -export -rfc -keystore ~/keys/sabeel-kanban-upload.jks \
+        -alias upload -file upload_certificate.pem
+      ```
+
+- [ ] **Register the new SHA-1 in Firebase**, then **re-download
+      `google-services.json`** — the re-download is what adds the OAuth client
+      (§ D). Read it with:
+
+      ```sh
+      keytool -list -v -keystore ~/keys/sabeel-kanban-upload.jks -alias upload
+      ```
+
+- [ ] **If using Play App Signing, add Play's certificate SHA-1 too.** Google
+      re-signs the app with an app signing key that is NOT your upload key, so
+      the fingerprint that matters for Google Sign-In on a Play install is the
+      one under Play Console → App integrity → *App signing key certificate*.
+      Miss it and sign-in fails with `DEVELOPER_ERROR` for exactly the users who
+      installed from Play, while your sideloaded build keeps working — so it
+      looks like a device problem rather than a config one. Add **both**.
+
+### Decisions to make before uploading to Play
+
+- **Play wants an AAB, not an APK.** `npm run build:apk` runs `assembleRelease`;
+  Play needs `./gradlew bundleRelease` →
+  `app/android/app/build/outputs/bundle/release/app-release.aab`. The per-ABI
+  splits and `scripts/publish-apk.sh` exist for the GitHub-release channel and do
+  not apply to Play.
+- **Two channels for one package is a conflict, not a convenience.** With Play
+  App Signing, Google signs installs with its own key; a sideloaded APK from the
+  GitHub release is signed with the upload key. Android will not let one update
+  the other, so a person cannot move between channels without uninstalling.
+  Decide whether Play **replaces** the GitHub download or the two are kept
+  deliberately separate.
+- **Changing the signing key forces everyone to reinstall**, whichever channel
+  wins. Android refuses an update signed by a different key. Nothing is lost —
+  all state is in Firestore — but it needs telling people, not discovering.
+- **Target API level.** Play enforces a minimum `targetSdkVersion` for new apps
+  and raises it annually; ours comes from `rootProject.ext.targetSdkVersion`
+  (Expo's default for SDK 57). Check the current floor in the console before
+  assuming it passes.
 
 ---
 
