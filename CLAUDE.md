@@ -340,8 +340,9 @@ Playwright for web) — never claim a screen works because the code looks right.
 - **The phases are finished and the app is in production.** Work ships as
   numbered releases; commit at the end of a coherent change and work
   autonomously within one. Every release gets an entry in the **deploy log** at
-  the top of `docs/PHASE_STATUS.md` — `scripts/publish-apk.sh` pulls the GitHub
-  release notes straight from it, so a missing entry fails the publish.
+  the top of `docs/PHASE_STATUS.md` — `scripts/build-aab.sh` refuses to build
+  without one, so a missing entry fails the release rather than being noticed
+  afterwards. It is the release notes and the only record of why.
 - **The user manual is part of the app.** A change to any screen means
   `docs/USER-MANUAL.md`, then `node scripts/manual-shots.mjs` for its images,
   then `python3 docs/render-manual.py` for the PDF — all three, same batch.

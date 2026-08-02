@@ -33,7 +33,8 @@ Everything below is what is true *here* and nowhere else.
 |---|---|---|
 | `scripts/check-version.mjs` | `web:export`, so CI runs it | a web-only release that never touches Gradle |
 | `app/android/app/build.gradle` | every native build | a build where nobody ran the script |
-| `scripts/publish-apk.sh` | every publish | the last gate before a tag and a public download exist |
+| `scripts/build-aab.sh` | every Play build | the last gate before an upload that cannot be unpublished |
+| `scripts/check-ios-config.mjs` | `npm run check:ios` | an `ios.version` override, which would show Apple a different number |
 
 `check-version.mjs` **self-tests on every invocation** against seven bad shapes,
 including `2026.07.01`. That case exists because the obvious

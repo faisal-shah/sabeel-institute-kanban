@@ -243,8 +243,9 @@ for one organisation.
 
 The version story is unchanged and shared with the other two surfaces:
 `expo.version` in `app/app.json` is the one number. Bump it as usual and write
-the `docs/PHASE_STATUS.md` deploy-log entry — `scripts/publish-apk.sh` reads its
-release notes from there and fails without it.
+the `docs/PHASE_STATUS.md` deploy-log entry. On Android `scripts/build-aab.sh`
+refuses to build without one; nothing enforces it for iOS, so write it anyway —
+the entry covers the release, not one platform's build.
 
 `ios.buildNumber` is separate and iOS-only: Apple wants it to **increase on every
 upload**, even for the same version. Bump it when re-uploading the same version

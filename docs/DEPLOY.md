@@ -67,31 +67,72 @@ lying around is a thing someone later has to reason about.
 
 From then on, promote everyone else in-app under **People**.
 
-## Public download page
+## Public download page — RETIRED, frozen at v0.7.4
 
-The team downloads from a GitHub Pages site rather than from the repo's own
-releases — a plain page with one button, free bandwidth, no GitHub account and
-no navigating a release list:
+The team used to download an APK from a GitHub Pages site:
 
 <https://faisal-shah.github.io/sabeel-kanban/>
 
-**Never `git add` an APK — to that repo or any other.** The download is a GitHub
-**Release asset** on the fixed rolling tag `kanban-latest`, so the URL on the
-page never changes and only the version *label* is edited. Committing a binary
-per release is what bloated the pages history (~31 MB each) and had to be
-rewritten out; `*.apk` is gitignored there as the backstop, and
-`scripts/publish-apk.sh` fails if a binary ever lands in that history again.
+**Android ships through Google Play from v0.7.5 (2026-08-02).** That page is
+frozen at v0.7.4 — the last debug-signed build — and comes down once everyone has
+moved across. It is frozen rather than updated because every build from now on
+carries the real upload key, and **Android refuses to update an install whose
+signature does not match**: a newer APK there would give "App not installed" to
+exactly the people who already have the app. `scripts/publish-apk.sh` now refuses
+to run without `SK_LEGACY_APK_CHANNEL=1`, kept working only so the frozen asset
+can be restored if lost.
 
-`scripts/publish-apk.sh` is the only supported way to publish. See
-**Android release APK** below for the whole sequence.
+**Never `git add` an APK — to that repo or any other.** Committing a binary per
+release is what bloated the pages history (~31 MB each) and had to be rewritten
+out; `*.apk` is gitignored there as the backstop. That rule outlives the channel.
 
-## Android release APKs
-
-`app/android/` is committed (no EAS). Build locally:
+## Android releases — Google Play
 
 ```sh
-cd app/android
-./gradlew assembleRelease --no-daemon
+npm run build:aab
+# outputs app/android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Then Play Console → Testing → Internal testing → Create new release.
+
+`build-aab.sh` holds the gates the old publish script did: a store-legal version,
+a deploy-log entry that exists **before** the build, and a refusal to proceed on
+a debug signature. Play wants one bundle carrying every ABI and does its own
+per-device splitting, so the `splits` block turns itself off for bundle tasks —
+leaving both on fails with *"Multiple shrunk-resources files found"*.
+
+### Three SHA-1s, because there are three signing identities
+
+All three belong in Firebase; each covers a different way the app gets onto a
+device, and a missing one fails only for that route:
+
+| Build | Signed with | Needed for |
+|---|---|---|
+| `npm run dev:android`, `expo run:android` | committed debug keystore | day-to-day development |
+| `npm run build:apk` (sideload) | upload key, `~/keys/…jks` | quick testing of a real release build |
+| installed from Play | **Google's app signing key** | everyone actually using the app |
+
+The third is the one that gets forgotten, because Play App Signing re-signs the
+bundle: the fingerprint under Play Console → App integrity → *App signing key
+certificate* is what Play-installed copies run under, not the upload key's. Miss
+it and sign-in fails with `DEVELOPER_ERROR` for Play users only, while every
+build on your own machine works — so it reads as a device problem.
+
+### One device holds ONE of them
+
+`applicationId` is `com.sabeelinstitute.kanban` for all three, and Android keys an
+install on package name. Different signatures, same package, so installing any
+one of them replaces nothing and simply fails: **uninstall first** to move between
+a Play install and a locally built APK. If side-by-side ever becomes worth it,
+give debug builds an `applicationIdSuffix` and register that package as its own
+Firebase Android app — a real change, not a flag.
+
+### Building a sideloadable APK
+
+Still supported and unchanged; it is just no longer published anywhere:
+
+```sh
+npm run build:apk
 # outputs app/android/app/build/outputs/apk/release/app-<abi>-release.apk
 ```
 
@@ -116,10 +157,20 @@ adb shell monkey -p com.sabeelinstitute.kanban -c android.intent.category.LAUNCH
 adb exec-out screencap -p > shots/check.png     # then LOOK at it
 ```
 
-Releases are signed with the **debug keystore** (template default), which is why
-the debug SHA-1 is the one registered in Firebase. Before distributing beyond
-internal testing, generate a real release keystore and register its SHA-1 — the
-debug key is committed to this repo, so anyone could sign an update with it.
+**Signing.** `signingConfigs.release` reads a gitignored
+`app/android/keystore.properties`; without it the build still works but is
+debug-signed and says so loudly. Everything up to and including v0.7.4 shipped
+that way, signed with the debug keystore committed to this **public** repo, so
+anyone with a clone could sign an update Android would accept as this app. That
+is closed for release builds.
+
+The debug keystore is still committed and its SHA-1 still registered, on purpose:
+it is what makes `npm run dev:android` sign in without per-machine setup. The
+residual is unchanged and accepted — a malicious build carrying that key and this
+package name is indistinguishable to Google Sign-In. What bounds it is that
+sign-in is `@oursabeel.com`-only and admin-gated, and that a dozen colleagues
+install deliberately. If that ever stops being true, replace the committed debug
+keystore with a per-machine one and register those fingerprints instead.
 
 ## Verify after deploy — do not skip
 
@@ -177,46 +228,46 @@ then redeploy just the failed functions.
 otherwise serve a bundle built with different `EXPO_PUBLIC_*` values, and an
 emulator-mode bundle must never reach Hosting.
 
-## Android release APK
+## Shipping a release
 
-`android/` is committed; there is no EAS.
+`android/` is committed; there is no EAS. A ship touches three surfaces and they
+go out in one batch, after Faisal's go-ahead.
 
 ```sh
-cd app && npx expo run:android                       # debug build
-cd app/android && ./gradlew assembleRelease          # release APK
+# 0. version bump in app/app.json + the deploy-log entry in docs/PHASE_STATUS.md
+git push origin main                                  # FIRST — a release tags a pushed commit
+npx firebase deploy --only hosting --project sabeel-institute-kanban
+npm run build:aab                                     # then upload at Play Console
+cd app && npx expo prebuild --platform ios && ...     # docs/IOS-BUILD.md
 ```
 
-Before sharing a build:
+Before sharing any build:
 
-1. Generate a real keystore (the debug key is only for your own device) and
-   register its SHA-1 on the Firebase Android app, then re-download
-   `google-services.json`.
-2. Install the release APK and **screenshot the sign-in screen**: the dev
-   sign-in row must be absent. The e2e suite asserts this for the web bundle on
-   every run; the APK deserves the same one-off check.
-3. Publish with `scripts/publish-apk.sh` — never ad-hoc file sharing. It does
-   **both**: replaces the rolling `kanban-latest` asset on the pages repo (the
-   constant public download URL) **and** cuts the versioned GitHub Release on
-   THIS repo (all four ABI splits + notes pulled from the deploy log via
-   `scripts/deploy-notes.mjs`). Release assets are not git blobs, so this does
-   not bloat history; the script still guards the pages repo against apk blobs.
+1. **Install it and screenshot the sign-in screen** — the dev sign-in row must be
+   absent, and the version/commit stamp must be the build you just cut. The e2e
+   suite asserts this for the web bundle on every run; a store build deserves the
+   same one-off check, read off the running app rather than inferred.
+2. **Read the version back from the artifact, not from your notes.** Web: load the
+   live site and read the stamp. Android: install and look. This has caught a
+   stale bundle more than once.
 
-   Caveat: tagging a release at a commit whose `.github/workflows` differs from
-   the default branch needs the `workflow` token scope. A normal ship tags HEAD
-   (its workflow always matches), so it never hits this — but **backfilling old
-   versions does**, and needs a one-time `gh auth refresh -h github.com -s
-   workflow` first.
+The **deploy-log entry in `docs/PHASE_STATUS.md` is mandatory and comes first** —
+`build-aab.sh` refuses to build without one, the same guarantee `publish-apk.sh`
+used to enforce by reading its release notes from it. It is the only record of
+why a release exists.
 
-4. **Confirm the download page says the right version AND the right time.** The
-   script writes both — `Current build: vX.Y.Z, published <date> at <time> EDT`
-   — and refuses to continue if either label did not actually change.
+### Play specifics
 
-   The timestamp is not decoration. The public download URL is a **rolling
-   asset**: the page and the link look byte-identical before and after a
-   publish, so without a time there is no way for anyone (including us) to tell
-   whether the file behind that button is the build just cut or last month's.
-   "Did it actually publish?" is otherwise unanswerable from the page itself.
-   Load the page after publishing and read the time back.
+- Uploading is manual, in the console. There is deliberately **no deploy from
+  CI** (see `CLAUDE.md`).
+- `versionCode` is derived from the semver (`major*1000000 + minor*1000 + patch`),
+  so it increases on its own. Play rejects a duplicate outright, which is the
+  backstop.
+- Processing takes a few minutes before a build appears on the testing track.
+- Historic note: tagging a GitHub release at a commit whose `.github/workflows`
+  differs from the default branch needs the `workflow` token scope
+  (`gh auth refresh -h github.com -s workflow`). Only relevant if versioned
+  GitHub releases are ever cut again — a normal ship tags HEAD and never hits it.
 
 ## Rollback
 
