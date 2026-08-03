@@ -356,6 +356,31 @@ const layoutFaults = (page, width) =>
       }
     }
 
+    /*
+     * NO INTERACTIVE CONTENT NESTED INSIDE A <button>.
+     *
+     * `accessibilityRole="button"` does not add an ARIA attribute on web —
+     * react-native-web maps it to a real <button> ELEMENT. Put that on a
+     * Pressable that wraps other things and the result is invalid HTML, and the
+     * browser resolves it by treating keys pressed in the nested control as
+     * activating the button. That is how a space typed into the new-label field
+     * dismissed the whole sheet: the Sheet backdrop was a <button> wrapping the
+     * dialog and its TextInput.
+     *
+     * Checked structurally rather than per-component, because the shape is what
+     * is wrong and it can be reintroduced anywhere a Pressable gains a role and
+     * a child. Cheap: one querySelectorAll over the rendered page.
+     */
+    for (const b of document.querySelectorAll('button')) {
+      const nested = b.querySelector('input, textarea, select, button, a[href], [contenteditable="true"]');
+      if (nested) {
+        faults.push(
+          `<button> "${name(b)}" contains a nested <${nested.tagName.toLowerCase()}> — ` +
+            'invalid HTML; keys pressed inside it can activate the button',
+        );
+      }
+    }
+
     return [...new Set(faults)];
   }, width);
 
@@ -396,7 +421,7 @@ const smallTargets = (page) =>
   ]);
 
 // ---- The tour --------------------------------------------------------------
-const SCREENS = 13;
+const SCREENS = 14;
 
 async function tour(page, tag, width) {
   /**
@@ -607,7 +632,31 @@ async function tour(page, tag, width) {
     await page.waitForTimeout(400);
   });
 
+  /**
+   * A SHEET IS ITS OWN SCREEN, and was the one state never toured.
+   *
+   * Every overlay in the app goes through `Sheet` — the new-label dialog, the
+   * link dialog, Filters, Attach a file, the More menu. None of them were ever
+   * on screen during the sweep, so none of their layouts were checked at 320px
+   * and none of their DOM was checked at all. That is how the backdrop shipped
+   * as a <button> wrapping a TextInput: the structural check cannot see a
+   * dialog that is never open.
+   *
+   * The new-label sheet stands in for all of them: it is the one with a text
+   * field, which is the combination that broke.
+   */
+  await visit('card-sheet', async () => {
+    await page.getByRole('button', { name: 'New label' }).first().click();
+    await page.getByPlaceholder(/label name/i).first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(400);
+  });
+
   await visit('settings', async () => {
+    // Close the sheet left open by `card-sheet` first — a modal swallows the
+    // taps this navigation needs. Same shape as `card-comment` closing the
+    // description editor above.
+    await page.getByRole('button', { name: 'Cancel' }).first().click();
+    await page.waitForTimeout(500);
     await page.getByRole('button', { name: 'Back' }).first().click();
     await page.waitForTimeout(800);
     await page.getByRole('button', { name: 'Board settings' }).click();

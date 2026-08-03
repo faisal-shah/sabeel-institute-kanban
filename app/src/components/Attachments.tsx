@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentProps } from 'react';
+import { memo, useRef, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ATTACHMENT_MAX_BYTES, formatBytes } from '@sabeel/shared';
@@ -70,7 +70,23 @@ const SOURCE_LABELS: Record<PickSource, { label: string; detail: string }> = {
  * state, not an error: a reload, or an upload that genuinely failed. It says so
  * and offers removal, rather than looking like a file that ought to open.
  */
-export function Attachments({ cardId, user }: { cardId: string; user: SessionUser }) {
+/**
+ * Memoised for the same reason as `Comments` and `ActivityLog`: the card screen
+ * re-renders on every keystroke of the description editor, and nothing here
+ * depends on the description.
+ *
+ * Included even though the typing measurement did not show it — that card had no
+ * attachments, so this list was never on screen for the numbers. A real card has
+ * all four lists at once, and the measured cost of ONE of them was 45ms vs 17ms
+ * per keystroke. Both props are already stable strings/objects.
+ */
+export const Attachments = memo(function Attachments({
+  cardId,
+  user,
+}: {
+  cardId: string;
+  user: SessionUser;
+}) {
   const t = useTheme();
   const list = useAttachments(cardId);
   const { run, busy, error, setError } = useAction('attachments');
@@ -307,7 +323,7 @@ export function Attachments({ cardId, user }: { cardId: string; user: SessionUse
       </Sheet>
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: { justifyContent: 'space-between', gap: space.xs },

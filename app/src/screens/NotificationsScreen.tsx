@@ -221,37 +221,49 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
             </Panel>
           ) : null}
 
+          {/*
+            The ROW IS NOT A BUTTON — only the text is.
+
+            Wrapping the whole row made a Pressable with `accessibilityRole`
+            contain the Dismiss IconAction, and on web that is a <button> inside
+            a <button>: invalid HTML, and a press on Dismiss can bubble to the
+            outer control, so tapping ✕ risks dismissing AND opening the
+            notification. Native's touch system does not double-fire, which is
+            why it went unnoticed.
+
+            The whole-row target is not worth that. The text column is `flex: 1`,
+            so what you actually aim at is nearly unchanged, and Dismiss now sits
+            outside it rather than inside the thing it overlaps.
+            `scripts/screens-e2e.mjs` fails on any button nested in a button.
+          */}
           {items.map((item) => (
-            <Pressable
+            <Panel
               key={item.id}
-              onPress={() => open(item)}
-              accessibilityRole="button"
-              accessibilityLabel={item.text}
+              style={
+                item.read ? undefined : { borderColor: t.accent.base, borderWidth: 2 }
+              }
             >
-              <Panel
-                style={
-                  item.read
-                    ? undefined
-                    : { borderColor: t.accent.base, borderWidth: 2 }
-                }
-              >
-                <Row style={styles.between}>
-                  <View style={styles.grow}>
-                    <Body>{item.text}</Body>
-                    <Caption>
-                      {when(item.at)}
-                      {item.read ? '' : ' · unread'}
-                    </Caption>
-                  </View>
-                  <IconAction
-                    icon="close"
-                    label={`Dismiss: ${item.text}`}
-                    disabled={busy}
-                    onPress={() => run(() => dismiss(user, item))}
-                  />
-                </Row>
-              </Panel>
-            </Pressable>
+              <Row style={styles.between}>
+                <Pressable
+                  onPress={() => open(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.text}
+                  style={styles.grow}
+                >
+                  <Body>{item.text}</Body>
+                  <Caption>
+                    {when(item.at)}
+                    {item.read ? '' : ' · unread'}
+                  </Caption>
+                </Pressable>
+                <IconAction
+                  icon="close"
+                  label={`Dismiss: ${item.text}`}
+                  disabled={busy}
+                  onPress={() => run(() => dismiss(user, item))}
+                />
+              </Row>
+            </Panel>
           ))}
         </>
       )}
