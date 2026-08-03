@@ -140,6 +140,30 @@ Two consequences worth knowing:
 `com.sabeelinstitute.kanban` with different signatures, so neither can replace
 the other. Uninstall to move between those two.
 
+### Android developer verification, and why it does not threaten dev builds
+
+Google's developer-verification programme links a package name to its signing
+keys, and unverified apps eventually cannot be installed. Two facts bound what
+it means here, both from Google's FAQ rather than inference:
+
+- **ADB installs are exempt, permanently and by design** — *"As a developer, you
+  are free to install apps without verification with ADB."* That covers debug
+  builds and locally sideloaded APKs, so `npm run dev:android` is unaffected
+  whatever happens to the timeline.
+- **`com.sabeelinstitute.kanban.debug` needs no registration.** Registration
+  applies to apps distributed to end users through a store, not to a package that
+  only ever reaches a device over adb.
+
+The **30 September 2026** date is narrower than it first reads: it covers only
+specific participating stores in Brazil, Indonesia, Singapore and Thailand.
+Global rollout is **2027**. Creating the app in Play Console registered
+`com.sabeelinstitute.kanban` automatically, so the Play route is already covered.
+
+The one thing with a real horizon is the **website APK download**: by the 2027
+global rollout, an app sideloaded from a page rather than a store needs its
+signing key registered under Play Console -> Android developer verification.
+Retiring that channel resolves it; so would registering the upload key there.
+
 ### Building a sideloadable APK
 
 Still supported and unchanged; it is just no longer published anywhere:
