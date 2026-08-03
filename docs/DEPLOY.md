@@ -118,6 +118,33 @@ certificate* is what Play-installed copies run under, not the upload key's. Miss
 it and sign-in fails with `DEVELOPER_ERROR` for Play users only, while every
 build on your own machine works — so it reads as a device problem.
 
+### DEVELOPER_ERROR on a Play install — diagnose in this order
+
+Sign-in fails only for Play-installed copies while every local build works. The
+cause is almost always the app signing fingerprint, but "registered" and
+"in effect" are different things, so check in this order rather than rebuilding:
+
+1. **Is the fingerprint registered?** Google Cloud Console -> APIs & Services ->
+   **Credentials** -> OAuth 2.0 Client IDs. There should be one **Android** client
+   per registered SHA-1 — debug, upload key, and Play's app signing key — each
+   marked "Auto created by Google service", which is Firebase creating them when a
+   fingerprint is added. Three entries for one package is correct, not a
+   duplicate.
+2. **If it is there, it is propagation.** OAuth client changes take minutes and
+   sometimes hours. Force-stop the app and retry; then clear the device's Google
+   Play services cache (Settings -> Apps -> Google Play services -> Storage ->
+   Clear cache), because the config is cached device-side and that cache outlives
+   the server-side change.
+3. **Only then consider a rebuild** — and note the cost: a re-upload needs a NEW
+   versionCode, which is derived from the version, so it means bumping the
+   version and writing a deploy-log entry, not just rebuilding.
+
+The bundled `google-services.json` is *believed* not to matter at runtime here —
+`WEB_CLIENT_ID` is a hardcoded constant in `app/src/firebase-config.ts` and the
+package/signature check is server-side — so a bundle built before the fingerprint
+was added should still work. If step 3 ever turns out to be the actual fix, that
+belief is wrong and this paragraph should say so.
+
 ### Debug installs alongside; the two release builds do not
 
 Debug builds carry `applicationIdSuffix '.debug'`, so
