@@ -2,9 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
-  CARD_DESCRIPTION_MAX,
   CARD_TITLE_MAX,
-  storedLength,
   LABEL_COLORS,
   LABEL_NAME_MAX,
   readableInkOn,
@@ -39,8 +37,7 @@ import {
   assignableCandidates,
 } from '../components/AssigneePicker';
 import { Subtasks } from '../components/Subtasks';
-import { RichText } from '../components/RichText';
-import { RichEditor } from '../components/RichEditor';
+import { CardDescription } from '../components/CardDescription';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
 import { Sheet } from '../components/Sheet';
@@ -95,7 +92,6 @@ export function CardScreen({
   const t = useTheme();
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   // Owned here, not in AssigneePicker: the control that opens it lives on the
@@ -109,7 +105,6 @@ export function CardScreen({
   // description, then fixing the title, then watching the description vanish is
   // a data-loss bug with no error and nothing to undo.
   const [titleDirty, setTitleDirty] = useState(false);
-  const [descDirty, setDescDirty] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   /**
    * The "new label" sheet. This is the ONE label affordance a plain member gets:
@@ -126,8 +121,7 @@ export function CardScreen({
   useEffect(() => {
     if (!card.data) return;
     if (!titleDirty) setTitle(card.data.title);
-    if (!descDirty) setDescription(card.data.description);
-  }, [card.data, titleDirty, descDirty]);
+  }, [card.data, titleDirty]);
 
   /**
    * Stable identity, or the `ActivityLog` memo below is inert — a new arrow
@@ -171,12 +165,6 @@ export function CardScreen({
       </Screen>
     );
   }
-
-
-  // Measured on the STORED form, not on what was typed: markup counts toward
-  // the cap the rules enforce. One helper, so the counter and the write agree.
-  const descLength = storedLength(description);
-  const descOver = descLength > CARD_DESCRIPTION_MAX;
 
   const today = todayInOrgTz();
   const overdue = c.dueDate !== undefined && c.dueDate < today;
@@ -422,62 +410,15 @@ export function CardScreen({
       >
         Description
       </Heading>
-      <Panel>
-        {editingDesc ? (
-          <>
-            <RichEditor
-              initialMarkdown={description}
-              onChangeMarkdown={(v) => {
-                setDescription(v);
-                setDescDirty(true);
-              }}
-              placeholder="Write a description"
-            />
-            {/* Only when it matters. A permanent character counter on every
-                description box is the kind of chrome this app exists without;
-                silence under 90% and a plain sentence past the limit. */}
-            {descOver ? (
-              <Hint>
-                {descLength - CARD_DESCRIPTION_MAX} characters over the{' '}
-                {CARD_DESCRIPTION_MAX} limit — shorten it to save.
-              </Hint>
-            ) : descLength > CARD_DESCRIPTION_MAX * 0.9 ? (
-              <Hint>{CARD_DESCRIPTION_MAX - descLength} characters left.</Hint>
-            ) : null}
-            <Row>
-              <Button
-          busy={busy}
-                label="Save"
-                disabled={descOver}
-                onPress={() =>
-                  run(async () => {
-                    await updateCard(cardId, { description }, user);
-                    setEditingDesc(false);
-                    setDescDirty(false);
-                  })
-                }
-              />
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onPress={() => {
-                  setDescription(c.description);
-                  setEditingDesc(false);
-                  setDescDirty(false);
-                }}
-              />
-            </Row>
-          </>
-        ) : (
-          <>
-            {c.description ? (
-              <RichText markdown={c.description} />
-            ) : (
-              <Hint>No description yet.</Hint>
-            )}
-          </>
-        )}
-      </Panel>
+      <CardDescription
+        cardId={cardId}
+        description={c.description}
+        user={user}
+        editing={editingDesc}
+        onDone={() => setEditingDesc(false)}
+        run={run}
+        busy={busy}
+      />
 
       <Attachments cardId={cardId} user={user} />
 
