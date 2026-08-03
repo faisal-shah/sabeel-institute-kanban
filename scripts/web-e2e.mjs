@@ -746,6 +746,25 @@ try {
     await editorText(descBox).catch(() => '(editor gone)'),
   );
 
+  // The check above proves the description SURVIVED. It says nothing about
+  // whether the title save actually landed — an editor that silently dropped
+  // the write would pass it. Assert the commit too, or "leaves the description
+  // untouched" is satisfied by a title editor that does nothing at all.
+  // EXACT, because the activity log on this same screen now reads
+  // `… renamed it to “Fix signup flow renamed” · just now`. That is one Hint
+  // element whose whole text is longer, so only the title node matches exactly.
+  // `Title` is a plain Text with no header role, so getByRole('heading') would
+  // match nothing here and the check would fail for the wrong reason.
+  check(
+    'saving the title actually renames the card',
+    await admin
+      .getByText('Fix signup flow renamed', { exact: true })
+      .first()
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
   // Put it back so later steps see the title they expect.
   await admin.getByRole('button', { name: 'Edit title' }).click();
   await admin.getByLabel('Card title').fill('Fix signup flow');
@@ -753,6 +772,35 @@ try {
   await admin.waitForTimeout(1200);
   await admin.getByRole('button', { name: 'Cancel' }).first().click();
   await admin.waitForTimeout(800);
+
+  // ---- A renamed title reaches the BOARD TILE ------------------------------
+  //
+  // The card screen and the board tile read the card through different live
+  // queries. Renaming updates the heading from the card's own document, so the
+  // check above passes even if the board never hears about it. Done here, with
+  // the description editor closed, so the round trip cannot disturb the draft
+  // the test above depends on.
+  await admin.getByRole('button', { name: 'Edit title' }).click();
+  await admin.getByLabel('Card title').fill('Fix signup flow renamed');
+  await admin.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await admin.waitForTimeout(1200);
+
+  await admin.getByRole('button', { name: 'Back' }).first().click();
+  check(
+    'a renamed card shows its new title on the board',
+    await admin
+      .locator('[data-testid="card-Fix signup flow renamed"]')
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  // Back into the card and restore the name every later section expects.
+  await openCard(admin, 'Fix signup flow renamed');
+  await admin.getByRole('button', { name: 'Edit title' }).click();
+  await admin.getByLabel('Card title').fill('Fix signup flow');
+  await admin.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await admin.waitForTimeout(1200);
 
   // ---- Comments, mentions and activity (Phases 8-9) ----------------------
   // Still on the card detail screen from the assignment above.
@@ -873,6 +921,123 @@ try {
   await admin.getByText('assigned', { exact: false }).first().waitFor({ timeout: 25000 });
   check('activity records assignment', true);
   await admin.screenshot({ path: join(SHOTS, 'p8-card-comments-light.png'), fullPage: true });
+
+  // ---- Editing a comment --------------------------------------------------
+  //
+  // Untested until now, on either surface. The edit box is a SECOND RichEditor
+  // with its own seed, and the list allows exactly one row in edit mode — both
+  // properties held only by the arrangement of state in Comments.tsx, so both
+  // are asserted here before that arrangement changes.
+  await admin.getByRole('button', { name: 'Edit comment' }).first().click();
+  const editBox = admin.locator('[data-testid="comment-edit-editor"]');
+  await editBox.waitFor({ timeout: 20000 });
+  await editBox.click();
+  await admin.keyboard.press('End');
+  await admin.keyboard.type(' — revised');
+  await admin.getByRole('button', { name: 'Save', exact: true }).first().click();
+
+  const edited = await admin
+    .getByText('revised', { exact: false })
+    .first()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  check('a comment can be edited', edited);
+  check(
+    'an edited comment is marked as edited',
+    await admin
+      .getByText('edited', { exact: false })
+      .first()
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  // ONE row at a time. `editing` is a single comment id, so opening a second
+  // edit box must close the first. Nothing else states that invariant.
+  //
+  // A second comment is posted first, deliberately: guarding this with
+  // `if (count >= 2)` would skip silently on a card with one comment, and a
+  // check that can quietly not run is the failure mode this file exists to
+  // avoid.
+  await commentBox.click();
+  await admin.keyboard.type('second comment');
+  await admin.getByRole('button', { name: 'Comment', exact: true }).click();
+  await admin.getByText('second comment').waitFor({ timeout: 20000 });
+
+  const editButtons = admin.getByRole('button', { name: 'Edit comment' });
+  check('two comments are present to test one-at-a-time', (await editButtons.count()) === 2);
+  await editButtons.nth(0).click();
+  await admin.waitForTimeout(600);
+  await admin.getByRole('button', { name: 'Edit comment' }).first().click();
+  await admin.waitForTimeout(600);
+  check(
+    'only one comment can be in edit mode at a time',
+    (await admin.locator('[data-testid="comment-edit-editor"]').count()) === 1,
+  );
+  await admin.getByRole('button', { name: 'Cancel' }).first().click();
+  await admin.waitForTimeout(500);
+
+  // ---- Subtasks: create and unlink -----------------------------------------
+  //
+  // No suite has ever touched these; `web-e2e` only clicked the section
+  // heading. A subtask is a real card carrying `parentId`, so this asserts the
+  // write as well as the row.
+  //
+  // KEYED ON THE ROW'S OWN CONTROL, never on the title text. Adding a subtask
+  // writes `added <title> as a subtask` into the activity log on this same
+  // screen (packages/shared/src/activity.ts:174), and that entry correctly
+  // survives the unlink — so `getByText(title)` matches after the row is gone,
+  // and matched something before the row existed. The unlink button's label
+  // exists only while the row does.
+  const subtaskRow = admin.getByRole('button', {
+    name: 'Unlink subtask Draft the agenda',
+  });
+
+  await admin.getByLabel('New subtask title').fill('Draft the agenda');
+  await admin.getByRole('button', { name: 'Add subtask' }).click();
+  check(
+    'a subtask can be created from the card',
+    await subtaskRow
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  await subtaskRow.click();
+  check(
+    'a subtask row goes away when unlinked',
+    await subtaskRow
+      .waitFor({ state: 'detached', timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  // UNLINK IS NOT DELETE. It clears `parentId`; the card lives on. Proved
+  // without leaving the screen: an unparented card on this board becomes
+  // linkable again, so it must be offered by the picker.
+  await admin.getByRole('button', { name: 'Link an existing card' }).click();
+  check(
+    'an unlinked subtask still exists as a card',
+    await admin
+      .getByRole('button', { name: 'Link Draft the agenda as a subtask' })
+      .waitFor({ timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+  // The picker's own Cancel is the last one on screen. That is positional, so
+  // it is verified rather than assumed: if the click lands elsewhere the picker
+  // stays open and this fails, instead of leaving the suite in a state later
+  // checks would trip over for unrelated-looking reasons.
+  await admin.getByRole('button', { name: 'Cancel' }).last().click();
+  check(
+    'the link picker closes again',
+    await admin
+      .getByRole('button', { name: 'Link Draft the agenda as a subtask' })
+      .waitFor({ state: 'detached', timeout: 20000 })
+      .then(() => true)
+      .catch(() => false),
+  );
 
   // Sara sees the comment on her side, live.
   await sara.getByRole('button', { name: 'Back' }).first().click();
