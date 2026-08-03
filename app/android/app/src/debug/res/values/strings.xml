@@ -7,6 +7,13 @@
     A build-type source set overrides src/main; declaring the same name with
     `resValue` in the debug buildType instead would be a duplicate-resource
     error, because src/main/res already defines app_name.
+
+    THE DIFFERENCE MUST COME EARLY IN THE STRING. "Sabeel Kanban (dev)" was the
+    obvious choice and was useless: the launcher truncates to about eleven
+    characters, so both apps read "Sabeel Kanb..." under identical icons and
+    nothing distinguished them. Leading with "Kanban dev" puts the difference
+    where it survives truncation. Verified on the emulator, not assumed — the
+    first version looked correct in the resource file and wrong on the screen.
   -->
-  <string name="app_name">Sabeel Kanban (dev)</string>
+  <string name="app_name">Kanban dev</string>
 </resources>
