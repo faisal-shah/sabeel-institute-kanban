@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
-  CARD_TITLE_MAX,
   columnDeleteBlocked,
   columnsPatch,
   subtaskCounts,
-  compareRank,
   type BoardColumn,
   type Label,
 } from '@sabeel/shared';
@@ -34,9 +32,9 @@ import {
   Row,
   Screen,
   Spinner,
-  TextField,
   Title,
 } from '../ui';
+import { AddCardForm } from './AddCardForm';
 import { useLabels } from '../../labels';
 import { radius, space, useTheme } from '../../theme';
 import { useAction } from '../../useAction';
@@ -67,7 +65,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const t = useTheme();
 
   const [adding, setAdding] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState('');
   const [moving, setMoving] = useState<Card | null>(null);
   // Which column is mid-rename — its delete icon steps aside while editing, so
   // the cancel ✕ and the delete ✕ are never adjacent.
@@ -93,10 +90,9 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   }, [columns, cards.data]);
 
 
-  async function addCard(columnId: string) {
-    const title = newTitle.trim();
-    if (!title) return;
-    setNewTitle('');
+  // The title comes from `AddCardForm`, already trimmed and non-empty — the
+  // draft lives there so typing one does not re-render the board.
+  async function addCard(columnId: string, title: string) {
     setAdding(null);
     await run(() =>
       createCard({
@@ -274,7 +270,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               </Row>
 
               <ScrollView style={styles.fill}>
-                {colCards.sort(compareRank).map((card) => {
+                {colCards.map((card) => {
                   const selected = selection.isSelected(card.id);
                   return (
                     <Pressable
@@ -311,27 +307,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               </ScrollView>
 
               {adding === col.id ? (
-                <>
-                  <TextField
-                    value={newTitle}
-                    onChangeText={setNewTitle}
-                    placeholder="Card title"
-                    autoFocus
-                    maxLength={CARD_TITLE_MAX}
-                    onSubmit={() => addCard(col.id)}
-                  />
-                  <Row>
-                    <Button label="Add" onPress={() => addCard(col.id)} />
-                    <Button
-                      label="Cancel"
-                      variant="secondary"
-                      onPress={() => {
-                        setAdding(null);
-                        setNewTitle('');
-                      }}
-                    />
-                  </Row>
-                </>
+                <AddCardForm
+                  onAdd={(title) => addCard(col.id, title)}
+                  onCancel={() => setAdding(null)}
+                />
               ) : (
                 <Button
                   label="+ Add card"

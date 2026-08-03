@@ -27,7 +27,6 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import {
-  CARD_TITLE_MAX,
   columnDeleteBlocked,
   columnsPatch,
   subtaskCounts,
@@ -58,9 +57,9 @@ import {
   Row,
   Screen,
   Spinner,
-  TextField,
   Title,
 } from '../ui';
+import { AddCardForm } from './AddCardForm';
 import { useLabels } from '../../labels';
 import { radius, space, useTheme } from '../../theme';
 import { KeyboardSticky } from '../KeyboardSticky';
@@ -146,7 +145,6 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   // Keyed by board so two boards do not inherit each other's position.
   const [page, setPage] = useState(() => lastPageByBoard.get(boardId) ?? 0);
   const [adding, setAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
   const { run, busy, error, setError } = useAction('narrowBoard');
   // Editing the column name takes over the pager row (see the header below).
   const [renaming, setRenaming] = useState(false);
@@ -260,10 +258,9 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
   }
 
 
-  async function addCard(columnId: string) {
-    const title = newTitle.trim();
-    if (!title) return;
-    setNewTitle('');
+  // The title comes from `AddCardForm`, already trimmed and non-empty — the
+  // draft lives there so typing one does not re-render the board.
+  async function addCard(columnId: string, title: string) {
     setAdding(false);
     await run(() =>
       createCard({
@@ -605,25 +602,16 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                    into view and the keyboard simply covered the field. */
                 <KeyboardSticky>
                   <Panel>
-                    <TextField
-                      value={newTitle}
-                      onChangeText={setNewTitle}
-                      placeholder="Card title"
-                      autoFocus
-                      maxLength={CARD_TITLE_MAX}
-                      onSubmit={() => addCard(col.id)}
+                    {/* A title typed for THIS column does not follow you to the
+                        next one: the form is mounted per visible column, so
+                        swiping unmounts it and its draft. Accepted, and not to
+                        be "fixed" by closing the composer on swipe or by
+                        hoisting the draft back onto the board — hoisting it is
+                        what made every keystroke re-render every column. */}
+                    <AddCardForm
+                      onAdd={(title) => addCard(col.id, title)}
+                      onCancel={() => setAdding(false)}
                     />
-                    <Row>
-                      <Button label="Add" onPress={() => addCard(col.id)} />
-                      <Button
-                        label="Cancel"
-                        variant="secondary"
-                        onPress={() => {
-                          setAdding(false);
-                          setNewTitle('');
-                        }}
-                      />
-                    </Row>
                   </Panel>
                 </KeyboardSticky>
               ) : (
