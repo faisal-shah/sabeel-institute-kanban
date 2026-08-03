@@ -327,9 +327,12 @@ name"*. Everything up to that point is already committed and waiting.
    the **opt-in link**; testers must accept it before Play shows them the app.
    **A privacy policy URL is needed** for Data safety and does not exist yet;
    hosting one next to the manual on the pages site is the obvious home.
-4. **Firebase again, AFTER that first upload** → add the SHA-1 from Play Console
-   → App integrity → *App signing key certificate*, and re-download
-   `google-services.json` once more. This is the fingerprint Play-installed
+4. [x] **Done 2026-08-02.** Play's app signing certificate SHA-1
+   `A6:58:D9:33:B2:07:00:31:AF:58:5F:97:54:92:C2:6E:3D:25:77:B0` is registered on
+   `com.sabeelinstitute.kanban` and committed to both `google-services.json`
+   copies. Four fingerprints now cover the three signing identities: upload key,
+   debug key (twice — main package for existing sideloaded users, and the
+   `.debug` package), and Play's. This is the fingerprint Play-installed
    copies actually run under. Easy to skip, and the failure looks like a device
    problem: sign-in breaks only for people who installed from Play.
 
