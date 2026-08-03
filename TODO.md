@@ -303,8 +303,21 @@ name"*. Everything up to that point is already committed and waiting.
 
    Both are committed by design. Easiest over the GitHub web UI: open each file,
    "Edit", paste, commit — then tell me and I will pull and verify.
-2. **Play Console** → upload `~/keys/upload_certificate.pem` as the upload key,
-   and let Google create and manage the app signing key.
+2. **Play Console → All apps → Create app.** It asks for an app NAME, not a
+   package name — the package comes from the first AAB you upload. Take the
+   default on Play App Signing (*let Google create and manage the app signing
+   key*); your upload key is registered from that first bundle, so
+   `~/keys/upload_certificate.pem` is usually not needed at all. Keep it only in
+   case a screen explicitly asks for a certificate.
+
+   **Android developer verification is a DIFFERENT screen** and not the way in.
+   It links a package name to a signing key, and enforcement starts
+   **30 September 2026** — after which unverified apps cannot be installed on
+   certified devices, which is a hard expiry on the old sideloaded APK, not just
+   a plan to retire it. Creating the app registers the package automatically, so
+   leave any draft there alone rather than binding the package to the upload key
+   by hand: what users install is signed with Google's app signing key, not that
+   one.
 3. **Build and upload:** `npm run build:aab`, then Play Console → Testing →
    Internal testing → Create new release.
 4. **Firebase again, AFTER that first upload** → add the SHA-1 from Play Console
