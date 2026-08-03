@@ -330,7 +330,17 @@ name"*. Everything up to that point is already committed and waiting.
    nothing on its own — the opt-in link has to be sent to them by hand, and they
    must open it signed into the same Google account that is on the list, on the
    account their phone's Play Store uses. Waiting for an invite that never
-   arrives is the default way to lose an afternoon here. Also check the list is
+   arrives is the default way to lose an afternoon here.
+
+   **"Item not found" right after opting in is normal, not a fault.** The opt-in
+   page says so in passing and it is easy to miss: a first-time download can take
+   a while to propagate, and for a brand-new app's first release that is closer
+   to hours than minutes. Before debugging anything, confirm the phone's Play
+   Store is signed into the SAME account that opted in — a device with several
+   Google accounts gives this identical error forever. The `(unreviewed)`
+   temporary app name and "Not reviewed" in the console are unrelated and
+   expected; they just mean the store listing is not filled in, which internal
+   testing does not require. Also check the list is
    actually *attached to the track* and saved (creating it is a separate step),
    and that the release is rolled out rather than left a draft.
    **A privacy policy is probably NOT needed.** Apps active *exclusively* on the
