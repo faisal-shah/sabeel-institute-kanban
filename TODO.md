@@ -369,6 +369,17 @@ name"*. Everything up to that point is already committed and waiting.
    runtime, so the binary does not carry the fingerprint list. Commit the
    re-downloaded file to keep the repo honest, but the uploaded AAB stands. The
    proof is signing in on a Play-installed build.
+**Android is verified end to end (2026-08-03):** installed from the internal
+testing track, signed in, and push received on the device. Nothing about the
+Android path is unproven any more.
+
+**Most of the team is on iPhone**, so iOS is the critical path from here, not a
+follow-up. Two interim points for the rollout message: the **web app works on
+iPhone** and can be added to the Home Screen, and **web push may already work
+there** (Safari has supported it for Home-Screen sites since iOS 16.4, and the
+service worker and VAPID key are both in place) — worth testing before promising
+it to anyone.
+
 5. **Tell the team to uninstall and reinstall** from the Play invite. Android
    refuses an update signed by a different key, so there is no in-place upgrade
    from the old sideloaded build. Nothing is lost — all state is in Firestore.
