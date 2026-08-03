@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "826656438175-thcgf7kg1j9v5pstr52hmpd529bphkla.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban",
+            "certificate_hash": "a658d933b2070031af585f975492c26e3d2577b0"
+          }
+        },
+        {
           "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
           "client_type": 3
         }
