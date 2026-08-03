@@ -325,6 +325,14 @@ name"*. Everything up to that point is already committed and waiting.
    first (privacy policy, data safety, ads, content rating, target audience) —
    the dashboard lists which. Then Testers tab -> add the team's emails -> copy
    the **opt-in link**; testers must accept it before Play shows them the app.
+
+   **Play sends NO email for internal testing.** Adding someone to a list does
+   nothing on its own — the opt-in link has to be sent to them by hand, and they
+   must open it signed into the same Google account that is on the list, on the
+   account their phone's Play Store uses. Waiting for an invite that never
+   arrives is the default way to lose an afternoon here. Also check the list is
+   actually *attached to the track* and saved (creating it is a separate step),
+   and that the release is rolled out rather than left a draft.
    **A privacy policy is probably NOT needed.** Apps active *exclusively* on the
    internal testing track are exempt from the Data safety section, which is what
    drives the privacy-policy requirement — the exemption exists because only
