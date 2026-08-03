@@ -341,11 +341,20 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   async function saveColumns(next: BoardColumn[]) {
     // Same shape as removeColumn below: this surface reports failures through its
     // own `error` banner rather than useAction.
-    try {
-      await updateBoard(boardId, columnsPatch(next));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
+    await updateBoard(boardId, columnsPatch(next));
+  }
+
+  /**
+   * This board's stand-in for `useAction`'s `run`: report, and swallow.
+   *
+   * `ColumnNameEditor` needs a runner that catches, because it closes the field
+   * only once the write resolves — so the write it is handed must be free to
+   * reject. Every other caller passes `useAction`'s `run`; this surface has
+   * always reported through its own banner instead, so it supplies the same
+   * contract locally rather than growing a second error channel.
+   */
+  function runReporting(fn: () => Promise<unknown>) {
+    void fn().catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }
 
   /**
@@ -362,9 +371,14 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     setPendingDelete(col);
   }
 
-  async function confirmRemoveColumn(col: BoardColumn) {
+  function confirmRemoveColumn(col: BoardColumn) {
     setPendingDelete(null);
-    await saveColumns((board.data?.columns ?? []).filter((c) => c.id !== col.id));
+    // Through the runner, because `saveColumns` now lets failures out — the
+    // rename needs that to keep its field open. Deleting has no field to keep,
+    // so it just reports.
+    runReporting(() =>
+      saveColumns((board.data?.columns ?? []).filter((c) => c.id !== col.id)),
+    );
   }
 
   if (board.status === 'loading' || cards.status === 'loading') {
@@ -579,6 +593,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   bold
                   onError={setError}
                   onRename={saveColumns}
+                  run={runReporting}
                   onEditingChange={(on) => setRenamingCol(on ? col.id : null)}
                 />
                 {isManager && renamingCol !== col.id ? (

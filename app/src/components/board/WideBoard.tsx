@@ -254,9 +254,8 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   bold
                   busy={busy}
                   onError={setError}
-                  onRename={(next) =>
-                    run(() => updateBoard(boardId, columnsPatch(next)))
-                  }
+                  onRename={(next) => updateBoard(boardId, columnsPatch(next))}
+                  run={run}
                   onEditingChange={(on) => setRenamingCol(on ? col.id : null)}
                 />
                 {sessionCan.manageBoards(user) && renamingCol !== col.id ? (

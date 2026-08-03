@@ -193,6 +193,35 @@ Key product invariants (do not silently change):
   chosen tab must outlive the unmount or Back returns you to a blank screen.
   Derived updates use the FUNCTIONAL form — two taps in one batch otherwise both
   read the same snapshot and one is lost.
+- **A TEXT DRAFT BELONGS TO THE COMPONENT THAT OWNS THE FIELD — never to the
+  screen.** A draft changes on every keystroke, so a screen holding one
+  re-renders every live-query list, markdown render and `.map` it draws, per
+  character. Measured: 45ms/char on a card with 25 comments (a ~22 char/second
+  ceiling, reported from a phone as "unusable on Android, like a slide show on
+  web"), and 21.1 vs 4.8 ms/char for the comment box on a busy card against an
+  empty one. Own the draft locally and take `run`/`busy`/`onError` from the
+  parent. Three shapes, chosen by lifecycle: `ColumnNameEditor` (one
+  `string | null` owns editing AND the text, so they cannot disagree),
+  `BoardNameEditor`/`AddCardForm` (unmount-scoped — the component renders only
+  while editing, so the lifecycle IS the reset and a dirty flag would be wrong),
+  and `CardDescription` (draft + dirty + reseeding effect, ONLY where the parent
+  keeps it mounted and re-feeds the server's copy).
+  **This does not contradict the `viewState.ts` rule above; they are
+  complements, and the distinction is survival.** A search, a filter or a chosen
+  tab must OUTLIVE the unmount, so it goes in the store. A draft is discarded on
+  cancel and must NOT outlive it, so it stays local.
+  `scripts/typing-perf-e2e.mjs` guards this by asserting a RATIO between a busy
+  screen and an empty one — never absolute ms/char, which moves over 3x per run
+  on a shared runner. Do not "protect" a screen by memoising its lists instead:
+  that was tried, it works, and it leaves inert machinery plus a standing
+  requirement that every prop stay referentially stable forever. The three such
+  wrappers were removed once the drafts moved, and the ratios held.
+- **An editor closes only once its write LANDS.** Closing first and handing the
+  write up afterwards means a failed save takes your text with it and leaves an
+  error pointing at something you can no longer see. So `close()`/`setDraft(null)`
+  goes INSIDE the `run` callback, after the `await`. This is why editors take
+  `run` plus a raw write that may reject, rather than a pre-wrapped one: `run`
+  resolves even on failure, so anything sequenced after it runs regardless.
 - **A suite nothing invokes is not coverage.** `functions/test/unit/suite-coverage`
   guards the emulator lists and `app/src/ciCoverage.test.ts` guards the e2e ones;
   add to both when adding a suite. `app/` runs plain `.ts` unit tests only —

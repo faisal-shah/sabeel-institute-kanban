@@ -415,7 +415,8 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
               busy={busy}
               onError={setError}
               onEditingChange={setRenaming}
-              onRename={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
+              onRename={(next) => updateBoard(boardId, columnsPatch(next))}
+              run={run}
             />
           ) : (
             <Body>—</Body>

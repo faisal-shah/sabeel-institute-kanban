@@ -77,9 +77,6 @@ export function BoardSettingsScreen({
   const knownLabels = labels.status === 'ready' ? labels.data : null;
   const t = useTheme();
 
-  const [newColumn, setNewColumn] = useState('');
-  const [newLabelName, setNewLabelName] = useState('');
-  const [labelColor, setLabelColor] = useState<string>(LABEL_COLORS[0]);
   const { run, busy, error, setError } = useAction('boardSettings');
   // The pending remove/leave confirmation. `cards` is looked up in the
   // background for removing SOMEONE ELSE (null = still counting); self-leave
@@ -94,7 +91,6 @@ export function BoardSettingsScreen({
   const [pendingLabelCards, setPendingLabelCards] = useState<LabelUsage | null>(null);
   /** Which label is being renamed inline, and the text so far. */
   const [renamingLabel, setRenamingLabel] = useState<string | null>(null);
-  const [labelDraft, setLabelDraft] = useState('');
   const labelCountReq = useRef(0);
   /** Whether the "add someone" picker is open — its trigger is on the heading. */
   const [adding, setAdding] = useState(false);
@@ -139,50 +135,56 @@ export function BoardSettingsScreen({
   }
 
 
-  async function addColumn() {
-    const problem = validateColumnName(newColumn, b!.columns);
+  // Returns whether the name was ACCEPTED, so the row knows whether to clear
+  // itself. A rejected name stays in the field.
+  async function addColumn(name: string): Promise<boolean> {
+    const problem = validateColumnName(name, b!.columns);
     if (problem) {
       setError(problem);
-      return;
+      return false;
     }
-    const next: BoardColumn[] = [
-      ...b!.columns,
-      { id: localId('col'), name: newColumn.trim() },
-    ];
-    setNewColumn('');
+    const next: BoardColumn[] = [...b!.columns, { id: localId('col'), name: name.trim() }];
     // columnsPatch, never a bare `columns` write: rules validate card writes
     // against the flat `columnIds` mirror, so a desynced pair means cards cannot
     // be created in the new column at all — with a bare PERMISSION_DENIED as the
     // only clue.
     await run(() => updateBoard(boardId, columnsPatch(next)));
+    return true;
   }
 
-  async function addLabel() {
-    if (knownLabels === null) return;
-    const problem = validateLabelName(newLabelName, knownLabels);
+  async function addLabel(name: string, color: string): Promise<boolean> {
+    if (knownLabels === null) return false;
+    const problem = validateLabelName(name, knownLabels);
     if (problem) {
       setError(problem);
-      return;
+      return false;
     }
+    let created = false;
     await run(async () => {
-      await createLabel({ name: newLabelName, color: labelColor, user });
-      setNewLabelName('');
+      await createLabel({ name, color, user });
+      created = true;
     });
+    return created;
   }
 
-  async function saveLabelName(label: Label) {
+  async function saveLabelName(label: Label, name: string): Promise<boolean> {
     // Exclude the label being renamed, or "no change" fails its own uniqueness
     // check — the same self-exclusion renameColumn needs.
-    if (knownLabels === null) return;
-    const problem = validateLabelName(labelDraft, knownLabels, label.id);
+    if (knownLabels === null) return false;
+    const problem = validateLabelName(name, knownLabels, label.id);
     if (problem) {
       setError(problem);
-      return;
+      return false;
     }
+    // Closes only once the write lands, so a failed rename leaves the text on
+    // screen — the same commit timing ColumnNameEditor now has.
+    let saved = false;
     await run(async () => {
-      await updateLabel(label.id, { name: labelDraft });
+      await updateLabel(label.id, { name });
       setRenamingLabel(null);
+      saved = true;
     });
+    return saved;
   }
 
   /**
@@ -281,7 +283,8 @@ export function BoardSettingsScreen({
               canEdit
               busy={busy}
               onError={setError}
-              onRename={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
+              onRename={(next) => updateBoard(boardId, columnsPatch(next))}
+              run={run}
             />
           )}
           onReorder={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
@@ -290,23 +293,7 @@ export function BoardSettingsScreen({
           Columns are removed from the board screen, and only once they are
           empty — so no cards can vanish with them.
         </Hint>
-        <Row style={styles.addRow}>
-          <View style={styles.grow}>
-            <TextField
-              value={newColumn}
-              onChangeText={setNewColumn}
-              placeholder="New column name"
-              onSubmit={addColumn}
-            />
-          </View>
-          <IconAction
-            icon="add"
-            label="Add column"
-            accent
-            onPress={addColumn}
-            disabled={busy || !newColumn.trim()}
-          />
-        </Row>
+        <AddColumnRow busy={busy} onAdd={addColumn} />
       </Card>
 
       <Heading>Labels</Heading>
@@ -324,31 +311,14 @@ export function BoardSettingsScreen({
         ) : null}
         {(labels.data ?? []).map((l) =>
           renamingLabel === l.id ? (
-            <Row key={l.id} style={styles.between}>
-              <View style={[styles.swatch, { backgroundColor: l.color }]} />
-              <View style={styles.grow}>
-                <TextField
-                  value={labelDraft}
-                  onChangeText={setLabelDraft}
-                  label={`New name for ${l.name}`}
-                  maxLength={LABEL_NAME_MAX}
-                  autoFocus
-                />
-              </View>
-              <IconAction
-                icon="check"
-                label={`Save name for ${l.name}`}
-                accent
-                disabled={busy || !labelDraft.trim() || knownLabels === null}
-                onPress={() => saveLabelName(l)}
-              />
-              <IconAction
-                icon="close"
-                label="Cancel rename"
-                disabled={busy}
-                onPress={() => setRenamingLabel(null)}
-              />
-            </Row>
+            <LabelNameEditor
+              key={l.id}
+              label={l}
+              busy={busy}
+              ready={knownLabels !== null}
+              onSave={(name) => saveLabelName(l, name)}
+              onCancel={() => setRenamingLabel(null)}
+            />
           ) : (
             <Row key={l.id} style={styles.between}>
               {/* The NAME gives way; the actions never do. A label whose name
@@ -392,10 +362,9 @@ export function BoardSettingsScreen({
                   icon="edit"
                   label={`Rename ${l.name}`}
                   disabled={busy}
-                  onPress={() => {
-                    setRenamingLabel(l.id);
-                    setLabelDraft(l.name);
-                  }}
+                  // No draft to seed: the editor mounts with the label's
+                  // current name and unmounts with whatever was typed.
+                  onPress={() => setRenamingLabel(l.id)}
                 />
                 <IconAction
                   icon="delete-outline"
@@ -408,44 +377,7 @@ export function BoardSettingsScreen({
             </Row>
           ),
         )}
-        <TextField
-          value={newLabelName}
-          onChangeText={setNewLabelName}
-          placeholder="New label name"
-          maxLength={LABEL_NAME_MAX}
-        />
-        {/* The + sits at the END of the colour row, where the flow finishes:
-            name it, colour it, add it. */}
-        <Row style={styles.addRow}>
-          <Row style={[styles.wrap, styles.grow]}>
-          {LABEL_COLORS.map((c) => (
-            <Pressable
-              key={c}
-              onPress={() => setLabelColor(c)}
-              accessibilityRole="button"
-              accessibilityLabel={`Label colour ${c}`}
-            >
-              <View
-                style={[
-                  styles.swatch,
-                  styles.swatchPick,
-                  {
-                    backgroundColor: c,
-                    borderColor: labelColor === c ? t.text.primary : 'transparent',
-                  },
-                ]}
-              />
-            </Pressable>
-          ))}
-          </Row>
-          <IconAction
-            icon="add"
-            label="Add label"
-            accent
-            disabled={busy || !newLabelName.trim() || knownLabels === null}
-            onPress={addLabel}
-          />
-        </Row>
+        <AddLabelRow busy={busy} ready={knownLabels !== null} onAdd={addLabel} />
       </Card>
       {/* HERE, not with the other confirmations further down the screen. The
           bin that opens this sits in the Labels card directly above; rendered
@@ -672,6 +604,174 @@ export function BoardSettingsScreen({
         />
       </Card>
     </Screen>
+  );
+}
+
+/**
+ * The new-column row, owning its draft.
+ *
+ * Board settings renders every column, every label, every member, every
+ * non-member and a ReorderList. Typing a column name here re-rendered the lot
+ * on each character, for a field that nothing else on the screen reads.
+ *
+ * Unmount-scoped in spirit but long-lived in practice — this row is always on
+ * screen — so it clears itself on a successful add, which is what the screen
+ * did before.
+ */
+function AddColumnRow({
+  busy,
+  onAdd,
+}: {
+  busy: boolean;
+  /** Resolves once the column is written; rejects if it was refused. */
+  onAdd: (name: string) => Promise<boolean>;
+}) {
+  const [name, setName] = useState('');
+
+  async function submit() {
+    // Cleared only if it was accepted. A rejected name stays in the field —
+    // retyping it to be told again which word was the problem is worse than
+    // the duplicate.
+    if (await onAdd(name)) setName('');
+  }
+
+  return (
+    <Row style={styles.addRow}>
+      <View style={styles.grow}>
+        <TextField
+          value={name}
+          onChangeText={setName}
+          placeholder="New column name"
+          onSubmit={submit}
+        />
+      </View>
+      <IconAction
+        icon="add"
+        label="Add column"
+        accent
+        onPress={submit}
+        disabled={busy || !name.trim()}
+      />
+    </Row>
+  );
+}
+
+/** The new-label row — name and colour — owning both, for the same reason. */
+function AddLabelRow({
+  busy,
+  ready,
+  onAdd,
+}: {
+  busy: boolean;
+  /** False until the label list has loaded; uniqueness cannot be judged yet. */
+  ready: boolean;
+  onAdd: (name: string, color: string) => Promise<boolean>;
+}) {
+  const t = useTheme();
+  const [name, setName] = useState('');
+  const [color, setColor] = useState<string>(LABEL_COLORS[0]);
+
+  async function submit() {
+    if (await onAdd(name, color)) setName('');
+  }
+
+  return (
+    <>
+      <TextField
+        value={name}
+        onChangeText={setName}
+        placeholder="New label name"
+        maxLength={LABEL_NAME_MAX}
+      />
+      {/* The + sits at the END of the colour row, where the flow finishes:
+          name it, colour it, add it. */}
+      <Row style={styles.addRow}>
+        <Row style={[styles.wrap, styles.grow]}>
+          {LABEL_COLORS.map((c) => (
+            <Pressable
+              key={c}
+              onPress={() => setColor(c)}
+              accessibilityRole="button"
+              accessibilityLabel={`Label colour ${c}`}
+            >
+              <View
+                style={[
+                  styles.swatch,
+                  styles.swatchPick,
+                  {
+                    backgroundColor: c,
+                    borderColor: color === c ? t.text.primary : 'transparent',
+                  },
+                ]}
+              />
+            </Pressable>
+          ))}
+        </Row>
+        <IconAction
+          icon="add"
+          label="Add label"
+          accent
+          disabled={busy || !name.trim() || !ready}
+          onPress={submit}
+        />
+      </Row>
+    </>
+  );
+}
+
+/**
+ * Renaming one label in place.
+ *
+ * `ColumnNameEditor`'s state shape, but the draft used to sit OUTSIDE the
+ * `labels.map` — so renaming one row re-rendered every other label, plus the
+ * members list, the non-members list and the ReorderList of columns, on every
+ * keystroke.
+ *
+ * Mounted only while its row is being renamed, so the lifecycle is the reset.
+ */
+function LabelNameEditor({
+  label,
+  busy,
+  ready,
+  onSave,
+  onCancel,
+}: {
+  label: Label;
+  busy: boolean;
+  ready: boolean;
+  /** Resolves once the rename lands; rejects or returns false if refused, and
+   *  either way the field stays open holding what was typed. */
+  onSave: (name: string) => Promise<boolean>;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(label.name);
+
+  return (
+    <Row style={styles.between}>
+      <View style={[styles.swatch, { backgroundColor: label.color }]} />
+      <View style={styles.grow}>
+        <TextField
+          value={draft}
+          onChangeText={setDraft}
+          label={`New name for ${label.name}`}
+          maxLength={LABEL_NAME_MAX}
+          autoFocus
+        />
+      </View>
+      <IconAction
+        icon="check"
+        label={`Save name for ${label.name}`}
+        accent
+        disabled={busy || !draft.trim() || !ready}
+        onPress={() => void onSave(draft)}
+      />
+      <IconAction
+        icon="close"
+        label="Cancel rename"
+        disabled={busy}
+        onPress={onCancel}
+      />
+    </Row>
   );
 }
 

@@ -32,6 +32,7 @@ export function ColumnNameEditor({
   bold,
   busy,
   onRename,
+  run,
   onError,
   onEditingChange,
 }: {
@@ -50,7 +51,15 @@ export function ColumnNameEditor({
   lines?: number;
   bold?: boolean;
   busy?: boolean;
-  onRename: (columns: BoardColumn[]) => void;
+  /**
+   * The write itself, and it must REJECT if the write fails — that rejection is
+   * what keeps the field open. Do not wrap it in the caller's `run`; pass `run`
+   * separately, or a failure resolves quietly and the draft is discarded.
+   */
+  onRename: (columns: BoardColumn[]) => Promise<unknown>;
+  /** The caller's `useAction` runner, so a failed rename reports in the same
+   *  banner as every other failure on that screen. */
+  run: (fn: () => Promise<unknown>) => void;
   onError: (message: string) => void;
   /**
    * Lets a cramped surface make room while editing — the phone pager hides its
@@ -73,14 +82,25 @@ export function ColumnNameEditor({
     onEditingChange?.(false);
   }
 
+  // CLOSES ONLY ONCE THE WRITE LANDS.
+  //
+  // It used to close first and hand the write up afterwards, so a rename that
+  // failed on the network took your text with it and left an error banner
+  // pointing at a name you could no longer see. `run` reports the failure and
+  // the throw never reaches `close()`, so the field stays open with the draft
+  // intact — the same commit timing `saveLabelName` in board settings has
+  // always had. One rule for both, rather than a note explaining why two
+  // editors one screen apart behave differently.
   function commit() {
     const result = renameColumn(columns, column.id, draft ?? '');
     if (!result.ok) {
       onError(result.error);
       return;
     }
-    close();
-    onRename(result.columns);
+    run(async () => {
+      await onRename(result.columns);
+      close();
+    });
   }
 
   if (editing) {
