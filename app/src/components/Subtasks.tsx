@@ -22,6 +22,54 @@ import { radius, space, useTheme } from './../theme';
  * Archived subtasks simply drop out: the card list this reads excludes them, the
  * same way the board does.
  */
+/**
+ * The "new subtask" field, owning its draft.
+ *
+ * Small field, disproportionate cost: with the link picker open, `matches.map`
+ * renders every linkable card on the board uncapped, and while this draft lived
+ * in `Subtasks` each character re-rendered all of them along with every subtask
+ * row above.
+ */
+function AddSubtaskRow({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  /** Called with a trimmed, non-empty title. */
+  onCreate: (title: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+
+  function create() {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setTitle('');
+    onCreate(trimmed);
+  }
+
+  return (
+    <>
+      <View style={styles.grow}>
+        <TextField
+          value={title}
+          onChangeText={setTitle}
+          placeholder="New subtask"
+          onSubmit={create}
+          label="New subtask title"
+          maxLength={CARD_TITLE_MAX}
+        />
+      </View>
+      <IconAction
+        icon="add"
+        label="Add subtask"
+        accent
+        onPress={create}
+        disabled={busy || !title.trim()}
+      />
+    </>
+  );
+}
+
 export function Subtasks({
   parentId,
   boardCards,
@@ -43,8 +91,12 @@ export function Subtasks({
   onUnlink: (cardId: string) => void;
 }) {
   const t = useTheme();
-  const [newTitle, setNewTitle] = useState('');
   const [picking, setPicking] = useState(false);
+  /**
+   * The picker's filter, and it STAYS here — it drives `matches` below, so the
+   * list this component renders depends on it. Not every text field can move
+   * into a child; the ones that can are the ones nothing else reads.
+   */
   const [filter, setFilter] = useState('');
 
   const children = useMemo(() => childrenOf(boardCards, parentId), [boardCards, parentId]);
@@ -60,13 +112,6 @@ export function Subtasks({
 
   const columnName = (columnId: string) =>
     columns.find((col) => col.id === columnId)?.name ?? '';
-
-  function create() {
-    const trimmed = newTitle.trim();
-    if (!trimmed) return;
-    setNewTitle('');
-    onCreate(trimmed);
-  }
 
   return (
     <View style={styles.wrap}>
@@ -101,23 +146,7 @@ export function Subtasks({
           actions with settled icons, so neither gets a labelled button — a
           full-width one costs a row of the card every time you open it. */}
       <Row style={styles.addRow}>
-        <View style={styles.grow}>
-          <TextField
-            value={newTitle}
-            onChangeText={setNewTitle}
-            placeholder="New subtask"
-            onSubmit={create}
-            label="New subtask title"
-            maxLength={CARD_TITLE_MAX}
-          />
-        </View>
-        <IconAction
-          icon="add"
-          label="Add subtask"
-          accent
-          onPress={create}
-          disabled={busy || !newTitle.trim()}
-        />
+        <AddSubtaskRow busy={!!busy} onCreate={onCreate} />
         <IconAction
           icon="add-link"
           label="Link an existing card"

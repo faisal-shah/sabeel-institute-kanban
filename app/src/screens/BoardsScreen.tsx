@@ -72,6 +72,59 @@ function BoardRow({
   );
 }
 
+/**
+ * The new-board form, owning its draft.
+ *
+ * Mounted only while creating, so the lifecycle is the reset — which is why
+ * cancelling no longer has to clear anything by hand. The boards list behind it
+ * is a live query with a filter over it; typing a board name used to re-render
+ * the whole list per character.
+ */
+function NewBoardForm({
+  busy,
+  onCreate,
+  onCancel,
+}: {
+  busy: boolean;
+  onCreate: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const t = useTheme();
+  const [name, setName] = useState('');
+
+  return (
+    <Card style={styles.form}>
+      <Hint>New board</Hint>
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder="Board name"
+        placeholderTextColor={t.text.muted}
+        autoFocus
+        maxLength={BOARD_NAME_MAX}
+        onSubmitEditing={() => onCreate(name)}
+        style={[
+          styles.input,
+          {
+            backgroundColor: t.bg.inset,
+            color: t.text.primary,
+            borderColor: t.border.subtle,
+          },
+        ]}
+      />
+      <Row>
+        <Button
+          label="Create"
+          onPress={() => onCreate(name)}
+          busy={busy}
+          disabled={!name.trim() || busy}
+        />
+        <Button label="Cancel" variant="secondary" onPress={onCancel} />
+      </Row>
+    </Card>
+  );
+}
+
 export function BoardsScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
   const boards = useMyBoards(user);
@@ -79,7 +132,6 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
   const { filter } = boardsView.use();
   const setFilter = (v: string) => boardsView.set({ filter: v });
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = useTheme();
@@ -102,8 +154,8 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
     nav.push({ name: 'board', boardId: board.id });
   }
 
-  async function create() {
-    const name = newName.trim();
+  async function create(rawName: string) {
+    const name = rawName.trim();
     // The `busy` guard stops a second fast tap from creating a duplicate board
     // in the window before the await resolves and the form closes.
     if (!name || busy) return;
@@ -111,7 +163,6 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
     setError(null);
     try {
       const id = await createBoard(name, user);
-      setNewName('');
       setCreating(false);
       nav.push({ name: 'board', boardId: id });
     } catch (e) {
@@ -145,42 +196,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
 
       {sessionCan.manageBoards(user) ? (
         creating ? (
-          <Card style={styles.form}>
-            <Hint>New board</Hint>
-            <TextInput
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="Board name"
-              placeholderTextColor={t.text.muted}
-              autoFocus
-              maxLength={BOARD_NAME_MAX}
-              onSubmitEditing={create}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: t.bg.inset,
-                  color: t.text.primary,
-                  borderColor: t.border.subtle,
-                },
-              ]}
-            />
-            <Row>
-              <Button
-                label="Create"
-                onPress={create}
-                busy={busy}
-                disabled={!newName.trim() || busy}
-              />
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onPress={() => {
-                  setCreating(false);
-                  setNewName('');
-                }}
-              />
-            </Row>
-          </Card>
+          <NewBoardForm busy={busy} onCreate={create} onCancel={() => setCreating(false)} />
         ) : (
           <Button label="New board" onPress={() => setCreating(true)} />
         )
