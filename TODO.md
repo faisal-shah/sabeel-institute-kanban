@@ -325,8 +325,17 @@ name"*. Everything up to that point is already committed and waiting.
    first (privacy policy, data safety, ads, content rating, target audience) —
    the dashboard lists which. Then Testers tab -> add the team's emails -> copy
    the **opt-in link**; testers must accept it before Play shows them the app.
-   **A privacy policy URL is needed** for Data safety and does not exist yet;
-   hosting one next to the manual on the pages site is the obvious home.
+   **A privacy policy is probably NOT needed.** Apps active *exclusively* on the
+   internal testing track are exempt from the Data safety section, which is what
+   drives the privacy-policy requirement — the exemption exists because only
+   staff added by email can install. It becomes required the moment the app also
+   goes to a closed, open or production track, i.e. anywhere the public can
+   reach it. Internal testing caps at 100 testers and needs no review, so for a
+   dozen colleagues it is a permanent home, not a workaround.
+
+   If Play does ask: any publicly reachable URL is acceptable — a `github.io`
+   page is fine, it need not be on the org's domain — and the URL can be changed
+   in Play Console later without touching the app.
 4. [x] **Done 2026-08-02.** Play's app signing certificate SHA-1
    `A6:58:D9:33:B2:07:00:31:AF:58:5F:97:54:92:C2:6E:3D:25:77:B0` is registered on
    `com.sabeelinstitute.kanban` and committed to both `google-services.json`
