@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "826656438175-1u6sh5cji8a8toslssmfv0vibne72s82.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban",
+            "certificate_hash": "33934aa45f516023e3866f68848a202c44282e97"
+          }
+        },
+        {
           "client_id": "826656438175-qotk4v9h03rft5i88bljcrccjn42i9vo.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -37,6 +45,57 @@
             {
               "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "826656438175-7e2seo48o8hpg914j2kto93e5gm98h88.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sabeelinstitute.kanban"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:826656438175:android:33f4be759c6d384dc5efaa",
+        "android_client_info": {
+          "package_name": "com.sabeelinstitute.kanban.debug"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "826656438175-ronqhkl4g0m0el6mpken9mpq5pc37q3r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban.debug",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9GgVKXTT5hwVEGrZn6O3YvXMrNiwd6tQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "826656438175-7e2seo48o8hpg914j2kto93e5gm98h88.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sabeelinstitute.kanban"
+              }
             }
           ]
         }
