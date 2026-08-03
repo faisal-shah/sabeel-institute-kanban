@@ -163,6 +163,36 @@ if (!existsSync(iconPath)) {
   }
 }
 
+// 9. Crash reporting must actually be switched on.
+//
+// `app/.env.local` is gitignored on purpose — the DSN is not secret (it ships in
+// every bundle) but keeping it out of git stops a fork inheriting this project's
+// Sentry quota. The cost is that a FRESH CLONE does not have it, and nothing
+// about the resulting build looks wrong: `initErrorReporting()` sees no DSN,
+// returns early, and the app ships with crash reporting silently off. There is
+// no error, no warning, and no way to tell from the artifact.
+//
+// That is precisely the shape this repo guards rather than remembers, so this is
+// a hard failure even though the value only matters for release builds. A
+// missing DSN costs thirty seconds to fix and is invisible for months if missed.
+const envPath = resolve(root, 'app/.env.local');
+if (!existsSync(envPath)) {
+  fail(
+    'app/.env.local is missing, so the build would ship with crash reporting OFF.\n' +
+      '    It is gitignored by design, so a fresh clone never has it. Create it with:\n' +
+      '      EXPO_PUBLIC_SENTRY_DSN_NATIVE=<DSN from Sentry -> project -> Client Keys>\n' +
+      '    Nothing about the resulting build looks wrong without it — that is why this fails here.',
+  );
+} else {
+  const env = readFileSync(envPath, 'utf8');
+  const dsn = env.match(/^\s*EXPO_PUBLIC_SENTRY_DSN_NATIVE\s*=\s*(\S+)/m)?.[1];
+  if (!dsn) {
+    fail('app/.env.local has no EXPO_PUBLIC_SENTRY_DSN_NATIVE, so native crash reporting is off.');
+  } else if (!/^https:\/\/[^@]+@/.test(dsn)) {
+    fail(`EXPO_PUBLIC_SENTRY_DSN_NATIVE does not look like a Sentry DSN ("${dsn.slice(0, 12)}…").`);
+  }
+}
+
 if (problems.length > 0) {
   console.error('\niOS config check FAILED\n');
   for (const p of problems) console.error(`  - ${p}\n`);

@@ -33,14 +33,25 @@ if ! node scripts/deploy-notes.mjs "$VERSION" >/dev/null 2>&1; then
   exit 1
 fi
 
-# 3. Stamp the running commit onto the sign-in screen.
+# 3. Crash reporting must actually be on. `app/.env.local` is gitignored, so any
+#    fresh clone builds a release that reports nothing — `initErrorReporting()`
+#    returns early on a missing DSN and the artifact looks identical. Same guard
+#    as check-ios-config.mjs; the exposure is not iOS-specific.
+if ! grep -qE '^\s*EXPO_PUBLIC_SENTRY_DSN_NATIVE\s*=\s*https://[^@]+@' app/.env.local 2>/dev/null; then
+  echo "app/.env.local has no usable EXPO_PUBLIC_SENTRY_DSN_NATIVE." >&2
+  echo "This build would ship with crash reporting silently OFF. It is gitignored," >&2
+  echo "so a fresh clone never has it. Add the DSN from Sentry -> Client Keys." >&2
+  exit 1
+fi
+
+# 4. Stamp the running commit onto the sign-in screen.
 node scripts/gen-build-info.mjs
 
 (cd app/android && ./gradlew bundleRelease --no-daemon)
 
 [ -f "$AAB" ] || { echo "bundleRelease produced no AAB at $AAB" >&2; exit 1; }
 
-# 4. Never ship the debug key. Everything up to v0.7.4 went out signed with the
+# 5. Never ship the debug key. Everything up to v0.7.4 went out signed with the
 #    debug keystore committed to this PUBLIC repo; Play would reject it, but the
 #    check is here so the answer is known before the upload rather than after.
 #    An AAB is jar-signed, so this is jarsigner rather than apksigner.

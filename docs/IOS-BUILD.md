@@ -120,6 +120,11 @@ Both are gitignored, and neither failing announces itself:
   returns early on a missing DSN — so the app ships with crash reporting silently
   switched off, and nothing anywhere says so. `EXPO_PUBLIC_*` is inlined at bundle
   time, so it must be present *before* the build, not added later.
+
+  **`npm run check:ios` now refuses to pass without it**, and `build-aab.sh`
+  refuses to build — deliberately, even though the value only matters for release
+  builds. Only `EXPO_PUBLIC_SENTRY_DSN_NATIVE` is needed for iOS; the other two
+  are web-only. Get the DSN from Sentry -> the mobile project -> Client Keys.
 - **`app/src/build-info.ts`** — generated, and `npm ci` creates it via the root
   `prepare` script. It is what puts the version and commit on the sign-in screen.
   It records the commit at the moment it runs, so **re-run
