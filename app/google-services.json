@@ -30,11 +30,27 @@
           }
         },
         {
+          "client_id": "826656438175-sfe9900t7jnq2a7l7mojg33mvkirotc7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban",
+            "certificate_hash": "527b51d27f250e785687ed48b51f0f966f82e977"
+          }
+        },
+        {
           "client_id": "826656438175-thcgf7kg1j9v5pstr52hmpd529bphkla.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.sabeelinstitute.kanban",
             "certificate_hash": "a658d933b2070031af585f975492c26e3d2577b0"
+          }
+        },
+        {
+          "client_id": "826656438175-uivdbu5sekihee2n4t51fkv0d2jtoatq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabeelinstitute.kanban",
+            "certificate_hash": "6df7b416af0f61c29e19b79ff6909fb3fbe5c097"
           }
         },
         {
