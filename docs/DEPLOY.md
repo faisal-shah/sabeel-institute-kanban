@@ -150,11 +150,16 @@ cause is almost always the app signing fingerprint, but "registered" and
    versionCode, which is derived from the version, so it means bumping the
    version and writing a deploy-log entry, not just rebuilding.
 
-The bundled `google-services.json` is *believed* not to matter at runtime here —
-`WEB_CLIENT_ID` is a hardcoded constant in `app/src/firebase-config.ts` and the
-package/signature check is server-side — so a bundle built before the fingerprint
-was added should still work. If step 3 ever turns out to be the actual fix, that
-belief is wrong and this paragraph should say so.
+**The bundled `google-services.json` does not matter at runtime, confirmed.**
+`WEB_CLIENT_ID` is a hardcoded constant in `app/src/firebase-config.ts`, and the
+plugin bakes only `default_web_client_id`, `gcm_defaultSenderId`,
+`google_api_key`, `google_app_id`, `google_crash_reporting_api_key`,
+`google_storage_bucket` and `project_id` into the app — **no certificate hashes**.
+Check `app/android/app/build/generated/res/processReleaseGoogleServices/values/values.xml`
+if it is ever doubted again. A bundle built before a fingerprint was added still
+works once the fingerprint is registered, so **never spend a version bump on a
+rebuild for this**: registration is entirely server-side. Proven on 2026-08-03,
+when the fix was fingerprints and the shipped AAB never changed.
 
 ### Debug installs alongside; the two release builds do not
 
