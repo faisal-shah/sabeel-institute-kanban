@@ -84,6 +84,24 @@ export function RichEditor({
 }) {
   const t = useTheme();
   const ref = useRef<EnrichedTextInputInstance>(null);
+  /**
+   * Seed ONCE, and mean it.
+   *
+   * Callers pass the same state they update from `onChangeMarkdown` — the card
+   * screen hands us `description`, which every keystroke rewrites. Recomputing
+   * `markdownToHtml(initialMarkdown)` on each render therefore produced a NEW
+   * string per character and handed it back to the native input, which reapplied
+   * it and reset the document underneath the caret. What you saw was the cursor
+   * advancing and snapping back, characters going missing, and repeated spaces
+   * being impossible — the editor was being rebuilt between keystrokes.
+   *
+   * Freezing it here rather than asking callers to memoise is deliberate: the
+   * prop is named `initialMarkdown`, so honouring that is this component's job,
+   * and no caller can reintroduce the loop. The web sibling already does the
+   * same thing with its `seeded` ref.
+   */
+  const initialHtml = useRef<string | null>(null);
+  if (initialHtml.current === null) initialHtml.current = markdownToHtml(initialMarkdown);
   const [marks, setMarks] = useState<RichMarks>(EMPTY_MARKS);
   const [linkOpen, setLinkOpen] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
@@ -137,7 +155,7 @@ export function RichEditor({
 
         <EnrichedTextInput
           ref={ref}
-          defaultValue={markdownToHtml(initialMarkdown)}
+          defaultValue={initialHtml.current}
           placeholder={placeholder}
           placeholderTextColor={t.text.muted}
           autoFocus={autoFocus}

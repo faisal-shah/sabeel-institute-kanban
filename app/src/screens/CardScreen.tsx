@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
@@ -128,6 +128,17 @@ export function CardScreen({
     if (!titleDirty) setTitle(card.data.title);
     if (!descDirty) setDescription(card.data.description);
   }, [card.data, titleDirty, descDirty]);
+
+  /**
+   * Stable identity, or the `ActivityLog` memo below is inert — a new arrow
+   * every render fails the shallow compare and the list re-renders on every
+   * keystroke of the description, which is the cost that memo exists to avoid.
+   */
+  const cardTitleFor = useCallback(
+    (id: string) =>
+      (boardCards.data ?? NO_CARDS).find((x) => x.id === id)?.title ?? 'another card',
+    [boardCards.data],
+  );
 
   if (card.status === 'loading' || board.status === 'loading') {
     return <Spinner label="Loading card…" />;
@@ -742,10 +753,7 @@ export function CardScreen({
           cardId={cardId}
           members={assignable}
           columns={b.columns}
-          cardTitleFor={(id) =>
-            (boardCards.data ?? NO_CARDS).find((x) => x.id === id)?.title ??
-            'another card'
-          }
+          cardTitleFor={cardTitleFor}
         />
       </Panel>
 

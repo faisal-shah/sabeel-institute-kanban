@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { type MentionCandidate } from '@sabeel/shared';
 import { addComment, deleteComment, editComment, useComments } from '../comments';
@@ -28,7 +28,20 @@ function when(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-export function Comments({
+/**
+ * Memoised because the card screen re-renders on EVERY KEYSTROKE.
+ *
+ * The description editor keeps its markdown in card-screen state, so typing one
+ * character re-rendered this whole list along with it. Measured on the real app:
+ * 17ms per keystroke with no comments, 45ms with twenty-five — a ~22 char/second
+ * ceiling that reads as a slide show, and it gets worse the busier the card.
+ *
+ * Nothing here depends on the description, so a shallow prop compare is enough.
+ * Its props must therefore stay referentially stable across a keystroke; they
+ * are (`b.members` and `c.assigneeUids` come straight off the live queries), and
+ * an inline array or arrow added later would silently undo this.
+ */
+export const Comments = memo(function Comments({
   cardId,
   members,
   prioritiseUids,
@@ -232,7 +245,7 @@ export function Comments({
       </Panel>
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   actions: { gap: space.md },

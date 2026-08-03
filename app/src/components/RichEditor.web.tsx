@@ -166,21 +166,39 @@ function Bridge({
     [editor],
   );
 
+  /**
+   * Hold the callbacks in refs so the listener registers ONCE.
+   *
+   * Callers pass inline arrows — `onChangeMarkdown={(v) => { … }}` on the card
+   * screen — so their identity changes on every render. With them in the
+   * dependency array, every keystroke tore down Lexical's update listener and
+   * registered a new one, on top of the work the listener itself does. Reading
+   * them through refs keeps the latest function without making registration
+   * depend on its identity.
+   *
+   * Deliberately not solved by asking callers to `useCallback`: this component
+   * cannot enforce that, and forgetting it is silent.
+   */
+  const onChangeRef = useRef(onChangeMarkdown);
+  const onMarksRef = useRef(onMarks);
+  onChangeRef.current = onChangeMarkdown;
+  onMarksRef.current = onMarks;
+
   useEffect(
     () =>
       editor.registerUpdateListener(({ editorState }) => {
         editorState.read(() => {
           const html = $generateHtmlFromNodes(editor, null);
-          onChangeMarkdown(htmlToMarkdown(html));
+          onChangeRef.current(htmlToMarkdown(html));
 
           const sel = $getSelection();
           if (!$isRangeSelection(sel)) {
-            onMarks(EMPTY_MARKS);
+            onMarksRef.current(EMPTY_MARKS);
             return;
           }
           const anchor = sel.anchor.getNode();
           const list = $findMatchingParent(anchor, $isListNode);
-          onMarks({
+          onMarksRef.current({
             bold: sel.hasFormat('bold'),
             italic: sel.hasFormat('italic'),
             bullets: $isListNode(list) && list.getListType() === 'bullet',
@@ -189,7 +207,7 @@ function Bridge({
           });
         });
       }),
-    [editor, onChangeMarkdown, onMarks],
+    [editor],
   );
 
   useEffect(() => {

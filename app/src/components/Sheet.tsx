@@ -45,11 +45,31 @@ export function Sheet({
       onRequestClose={onClose}
       statusBarTranslucent
     >
+      {/*
+        The backdrop is a POINTER affordance only — deliberately NOT a button.
+
+        `accessibilityRole="button"` does not merely add an ARIA role on web:
+        react-native-web maps it to a real <button> ELEMENT
+        (AccessibilityUtil/propsToAccessibilityComponent). So this wrapper became
+        a <button> containing the whole dialog — including its TextInput. Nesting
+        interactive content inside a button is invalid HTML, and the browser
+        resolved it by treating a space typed in the field as activating the
+        button: the sheet dismissed mid-word. It cost a label called "waiting on"
+        its space, and it applied to every sheet with a field in it — the link
+        dialog too. Native RN renders no button element and has no key
+        activation, which is why Android never showed it.
+
+        Verified in both directions on the real app: with the role, typing a
+        space closes the sheet; without it, the space lands in the field. Do not
+        restore the role to make the backdrop "accessible" — it never was. The
+        sheet has a real Cancel button, and `onRequestClose` handles Escape on
+        web and Back on Android, which are the routes keyboards and assistive
+        tech actually use.
+      */}
       <Pressable
         style={[styles.backdrop, { backgroundColor: t.effect.overlay }]}
         onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
+        focusable={false}
       >
         {/* Absorbs taps so a press inside does not dismiss via the backdrop. */}
         <Pressable

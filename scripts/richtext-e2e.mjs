@@ -259,6 +259,33 @@ const comment = (await db.collection('cards/rt_c/comments').get()).docs[0]?.data
 check('the mention resolved to a uid', !!comment && comment.mentionUids.includes(sara));
 check('the handle is literal text in the stored markdown', !!comment && comment.body.includes('@'));
 
+/**
+ * A SPACE typed into a sheet must not dismiss it.
+ *
+ * `accessibilityRole="button"` on the Sheet backdrop made react-native-web
+ * render a real <button> wrapping the whole dialog, TextInput included; the
+ * browser then treated a space in the field as activating it and the sheet shut
+ * mid-word. Reported from production on a label called "waiting on".
+ *
+ * Lives here rather than in a unit test because it only exists in the DOM: the
+ * component tree looks identical either way, and native never reproduces it.
+ * Reverting Sheet.tsx must make this check fail — that was verified when it was
+ * written, and is the only reason to trust it.
+ */
+await page.getByRole('button', { name: 'New label' }).first().click();
+await page.waitForTimeout(700);
+const labelName = page.getByPlaceholder(/label name/i).first();
+await labelName.click();
+await labelName.type('waiting', { delay: 20 });
+await page.keyboard.press('Space');
+await page.waitForTimeout(400);
+const sheetSurvived =
+  (await labelName.count()) > 0 && (await labelName.isVisible().catch(() => false));
+const typed = sheetSurvived ? await labelName.inputValue().catch(() => '') : '(sheet dismissed)';
+check('a space in a sheet field does not dismiss the sheet', typed === 'waiting ', typed);
+await page.keyboard.press('Escape').catch(() => {});
+await page.waitForTimeout(300);
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 await page.screenshot({ path: 'shots/richtext-e2e.png', fullPage: true });
 await browser.close();
