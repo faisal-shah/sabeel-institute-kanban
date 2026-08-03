@@ -15,10 +15,11 @@ import type { SessionUser } from '../session';
  * all. Measured before the extraction: 45ms per keystroke on a card with 25
  * comments, which is a ~22 character/second ceiling and reads as a slide show.
  *
- * That is why `Comments`, `ActivityLog` and `Attachments` are memoised. Those
- * stay: the card screen still holds other per-keystroke state — `newLabelName`
- * in the new-label sheet has exactly this shape — so they are still earning
- * their keep, and removing them would trade a measured win for tidiness.
+ * `Comments`, `ActivityLog` and `Attachments` were memoised as a stopgap for
+ * the same problem. Those wrappers are GONE: the card screen no longer holds a
+ * single per-keystroke draft, so they guarded nothing measurable while imposing
+ * a standing requirement that their props stay referentially stable forever.
+ * `scripts/typing-perf-e2e.mjs` tests the property instead.
  *
  * THE DIRTY FLAG IS THE WHOLE POINT OF OWNING THIS LOCALLY.
  *

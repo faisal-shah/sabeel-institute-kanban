@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { useMemo } from 'react';
 import { collection, limit, orderBy, query } from 'firebase/firestore';
 import {
   describeActivity,
@@ -44,15 +44,7 @@ function when(ms: number): string {
  * it", and an unbounded log on an old card would be a slow query nobody scrolls
  * to the end of.
  */
-/**
- * Memoised for the same reason as `Comments`: the card screen re-renders on
- * every keystroke of the description editor, and nothing in this list depends
- * on the description. See the note there for the measurements.
- *
- * `cardTitleFor` is a function prop, so the call site must pass a stable one or
- * this memo does nothing at all — CardScreen wraps it in `useCallback`.
- */
-export const ActivityLog = memo(function ActivityLog({
+export function ActivityLog({
   cardId,
   members,
   columns,
@@ -124,7 +116,7 @@ export const ActivityLog = memo(function ActivityLog({
       ))}
     </View>
   );
-});
+}
 
 const styles = StyleSheet.create({
   list: { gap: space.xs },

@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { type MentionCandidate } from '@sabeel/shared';
 import { addComment, deleteComment, editComment, useComments } from '../comments';
@@ -186,19 +186,19 @@ function CommentComposer({
 }
 
 /**
- * Memoised because the card screen re-renders on EVERY KEYSTROKE.
+ * The card's comment thread.
  *
- * The description editor keeps its markdown in card-screen state, so typing one
- * character re-rendered this whole list along with it. Measured on the real app:
- * 17ms per keystroke with no comments, 45ms with twenty-five — a ~22 char/second
- * ceiling that reads as a slide show, and it gets worse the busier the card.
+ * NOT memoised, and that is a deliberate removal rather than an oversight. It
+ * used to be, because the card screen held the description draft and so
+ * re-rendered this whole list on every keystroke. The draft now lives in the
+ * editor that owns it, so there is no per-character render here to prevent —
+ * and a memo kept for a reason that no longer exists is inert machinery plus a
+ * standing requirement that every prop stay referentially stable forever.
  *
- * Nothing here depends on the description, so a shallow prop compare is enough.
- * Its props must therefore stay referentially stable across a keystroke; they
- * are (`b.members` and `c.assigneeUids` come straight off the live queries), and
- * an inline array or arrow added later would silently undo this.
+ * `scripts/typing-perf-e2e.mjs` measures the property directly, so a re-hoist
+ * is caught by a test rather than guarded by a wrapper nobody can evaluate.
  */
-export const Comments = memo(function Comments({
+export function Comments({
   cardId,
   members,
   prioritiseUids,
@@ -320,7 +320,7 @@ export const Comments = memo(function Comments({
       />
     </>
   );
-});
+}
 
 const styles = StyleSheet.create({
   actions: { gap: space.md },

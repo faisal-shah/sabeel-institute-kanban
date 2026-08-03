@@ -1,15 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import {
-  CARD_TITLE_MAX,
-  LABEL_COLORS,
-  LABEL_NAME_MAX,
-  readableInkOn,
-  todayInOrgTz,
-  validateLabelName,
-  type Priority,
-} from '@sabeel/shared';
+import { readableInkOn, todayInOrgTz, type Priority } from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -38,9 +30,10 @@ import {
 } from '../components/AssigneePicker';
 import { Subtasks } from '../components/Subtasks';
 import { CardDescription } from '../components/CardDescription';
+import { CardTitleEditor } from '../components/CardTitleEditor';
+import { NewLabelSheet } from '../components/NewLabelSheet';
 import { DateField } from '../components/DateField';
 import { Select } from '../components/Select';
-import { Sheet } from '../components/Sheet';
 import {
   Body,
   Button,
@@ -51,7 +44,6 @@ import {
   Row,
   Screen,
   Spinner,
-  TextField,
   Title,
 } from '../components/ui';
 import { radius, space, type, useTheme } from '../theme';
@@ -91,48 +83,36 @@ export function CardScreen({
   const boardCards = useBoardCards(boardId);
   const t = useTheme();
 
-  const [title, setTitle] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
-  const [editingTitle, setEditingTitle] = useState(false);
   // Owned here, not in AssigneePicker: the control that opens it lives on the
   // section heading, outside that component.
   const [picking, setPicking] = useState(false);
   const { run, busy, error, setError } = useAction('card');
-  // ONE dirty flag PER EDITOR. They were a single shared flag, and because the
-  // title and description editors can both be open at once, saving or cancelling
-  // the title cleared it — which re-armed the seeding effect below and silently
-  // overwrote an unsaved description with the server's copy. Typing a long
-  // description, then fixing the title, then watching the description vanish is
-  // a data-loss bug with no error and nothing to undo.
-  const [titleDirty, setTitleDirty] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  /**
-   * The "new label" sheet. This is the ONE label affordance a plain member gets:
-   * Board Settings — where labels are curated — is manager-only, and needing a
-   * manager to coin a tag while you are looking at the card it belongs on is
-   * exactly the friction that made per-board labels get re-created everywhere.
-   */
   const [addingLabel, setAddingLabel] = useState(false);
-  const [newLabelName, setNewLabelName] = useState('');
-  const [newLabelColor, setNewLabelColor] = useState<string>(LABEL_COLORS[0]);
 
-  // Seed each local editor once the card arrives, but never stomp on typing.
-  // Checked FIELD BY FIELD so one editor's state cannot speak for the other.
-  useEffect(() => {
-    if (!card.data) return;
-    if (!titleDirty) setTitle(card.data.title);
-  }, [card.data, titleDirty]);
-
-  /**
-   * Stable identity, or the `ActivityLog` memo below is inert — a new arrow
-   * every render fails the shallow compare and the list re-renders on every
-   * keystroke of the description, which is the cost that memo exists to avoid.
+  /*
+   * NO EDITOR DRAFT AND NO SEEDING EFFECT LIVE HERE — deliberately, and this is
+   * what retires a data-loss bug rather than merely avoiding it.
+   *
+   * This screen used to hold `title`, `titleDirty`, `editingTitle`, the same
+   * for the description, and an effect that re-seeded them from the server. The
+   * two editors can be open at once, and they shared one dirty flag: saving the
+   * title cleared it, re-armed the effect, and silently overwrote an unsaved
+   * description with the server's copy. Someone typed a long description, fixed
+   * the title, and watched it vanish — no error, nothing to undo. Splitting the
+   * flag fixed it only for as long as everyone remembered why there were two.
+   *
+   * Each editor now owns its own draft, so neither can reach the other's state
+   * at all, and a keystroke re-renders one editor instead of this whole screen.
    */
-  const cardTitleFor = useCallback(
-    (id: string) =>
-      (boardCards.data ?? NO_CARDS).find((x) => x.id === id)?.title ?? 'another card',
-    [boardCards.data],
-  );
+
+  // Resolves a card id to a title, for the subtask entries in the activity log.
+  // A plain arrow: nothing downstream keys off its identity now that
+  // `ActivityLog` is no longer memoised, and a `useCallback` whose only purpose
+  // was feeding that shallow compare would outlive its reason.
+  const cardTitleFor = (id: string) =>
+    (boardCards.data ?? NO_CARDS).find((x) => x.id === id)?.title ?? 'another card';
 
   if (card.status === 'loading' || board.status === 'loading') {
     return <Spinner label="Loading card…" />;
@@ -193,17 +173,6 @@ export function CardScreen({
   const parent = c.parentId
     ? (boardCards.data ?? NO_CARDS).find((x) => x.id === c.parentId)
     : undefined;
-
-  const saveTitle = () =>
-    run(async () => {
-      const next = title.trim();
-      // An empty title is a half-finished edit, not a save — and the rules
-      // reject it anyway (title.size() > 0).
-      if (!next) return;
-      await updateCard(cardId, { title: next }, user);
-      setEditingTitle(false);
-      setTitleDirty(false);
-    });
 
   // Share an https link to this card. The receiver opens it — desktop lands in
   // the web app, a phone opens the browser (or, once App Links ship, the app) —
@@ -318,51 +287,12 @@ export function CardScreen({
             TRUNCATES it, so a long title could not be read at all on the one
             screen dedicated to that card. As a heading it wraps and shows in
             full. */}
-        {editingTitle ? (
-          <>
-            <Hint>Title</Hint>
-            <TextField
-              value={title}
-              onChangeText={(v) => { setTitle(v); setTitleDirty(true); }}
-              maxLength={CARD_TITLE_MAX}
-              autoFocus
-              label="Card title"
-              onSubmit={saveTitle}
-            />
-            <Row>
-              <Button
-                busy={busy}
-                label="Save"
-                disabled={!title.trim() || title.trim() === c.title}
-                onPress={saveTitle}
-              />
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onPress={() => {
-                  setTitle(c.title);
-                  setEditingTitle(false);
-                  setTitleDirty(false);
-                }}
-              />
-            </Row>
-          </>
-        ) : (
-          <Row style={styles.between}>
-            <View style={styles.grow}>
-              <Title>{c.title}</Title>
-            </View>
-            <IconAction
-              icon="edit"
-              label="Edit title"
-              onPress={() => {
-                setTitle(c.title);
-                setEditingTitle(true);
-              }}
-              disabled={busy}
-            />
-          </Row>
-        )}
+        <CardTitleEditor
+          title={c.title}
+          busy={busy}
+          run={run}
+          onSave={(next) => updateCard(cardId, { title: next }, user)}
+        />
         {/* The column is EDITABLE here. Previously it was a read-only pill, so
             moving a card meant leaving the detail view, finding it on the board
             and using a separate move action — for the one property you most
@@ -611,11 +541,9 @@ export function CardScreen({
             label="New label"
             accent
             disabled={busy || knownLabels === null}
-            onPress={() => {
-              setNewLabelName('');
-              setNewLabelColor(LABEL_COLORS[0]);
-              setAddingLabel(true);
-            }}
+            // No draft to reset: the sheet is mounted only while open, so its
+            // name and colour start fresh every time by construction.
+            onPress={() => setAddingLabel(true)}
           />
         </Row>
         {labels.status === 'ready' && (labels.data ?? []).length === 0 ? (
@@ -623,62 +551,23 @@ export function CardScreen({
         ) : null}
       </Panel>
 
-      <Sheet
-        visible={addingLabel}
-        title="New label"
-        onClose={() => setAddingLabel(false)}
-      >
-        <Hint>Labels are shared by every board.</Hint>
-        <TextField
-          value={newLabelName}
-          onChangeText={setNewLabelName}
-          placeholder="Label name"
-          maxLength={LABEL_NAME_MAX}
-          autoFocus
-        />
-        <Row style={styles.wrap}>
-          {LABEL_COLORS.map((colour) => (
-            <Pressable
-              key={colour}
-              accessibilityRole="button"
-              accessibilityLabel={`Label colour ${colour}`}
-              onPress={() => setNewLabelColor(colour)}
-              style={[
-                styles.swatch,
-                {
-                  backgroundColor: colour,
-                  borderColor:
-                    newLabelColor === colour ? t.text.primary : 'transparent',
-                },
-              ]}
-            />
-          ))}
-        </Row>
-        <Button
-          label="Add label"
+      {addingLabel ? (
+        <NewLabelSheet
+          knownLabels={knownLabels}
           busy={busy}
-          disabled={busy || !newLabelName.trim() || knownLabels === null}
-          onPress={() => {
-            if (knownLabels === null) return;
-            const problem = validateLabelName(newLabelName, knownLabels);
-            if (problem) {
-              setError(problem);
-              return;
-            }
+          onError={setError}
+          onClose={() => setAddingLabel(false)}
+          onCreate={(name, color) =>
             void run(async () => {
               // Created AND applied in one go — coining a label while looking at
               // a card means you want it on that card.
-              const id = await createLabel({
-                name: newLabelName,
-                color: newLabelColor,
-                user,
-              });
+              const id = await createLabel({ name, color, user });
               await updateCard(cardId, { labelIds: [...c.labelIds, id] }, user);
               setAddingLabel(false);
-            });
-          }}
+            })
+          }
         />
-      </Sheet>
+      ) : null}
 
       <Heading>Comments ({c.commentCount})</Heading>
       <Comments
