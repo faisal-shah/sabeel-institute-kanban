@@ -320,11 +320,25 @@ name"*. Everything up to that point is already committed and waiting.
    one.
 3. **Build and upload:** `npm run build:aab`, then Play Console → Testing →
    Internal testing → Create new release.
+3b. **After the AAB finishes processing:** Internal testing -> Save -> Review
+   release -> Start rollout. Play will block on **App content** declarations
+   first (privacy policy, data safety, ads, content rating, target audience) —
+   the dashboard lists which. Then Testers tab -> add the team's emails -> copy
+   the **opt-in link**; testers must accept it before Play shows them the app.
+   **A privacy policy URL is needed** for Data safety and does not exist yet;
+   hosting one next to the manual on the pages site is the obvious home.
 4. **Firebase again, AFTER that first upload** → add the SHA-1 from Play Console
    → App integrity → *App signing key certificate*, and re-download
    `google-services.json` once more. This is the fingerprint Play-installed
    copies actually run under. Easy to skip, and the failure looks like a device
    problem: sign-in breaks only for people who installed from Play.
+
+   **No rebuild or re-upload is needed for this.** The registration is
+   server-side: `WEB_CLIENT_ID` is a hardcoded constant in
+   `app/src/firebase-config.ts`, not read from `google-services.json` at
+   runtime, so the binary does not carry the fingerprint list. Commit the
+   re-downloaded file to keep the repo honest, but the uploaded AAB stands. The
+   proof is signing in on a Play-installed build.
 5. **Tell the team to uninstall and reinstall** from the Play invite. Android
    refuses an update signed by a different key, so there is no in-place upgrade
    from the old sideloaded build. Nothing is lost — all state is in Firestore.
