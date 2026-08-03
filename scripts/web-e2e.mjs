@@ -61,7 +61,11 @@ const server = createServer(async (req, res) => {
 const results = [];
 function check(name, ok, detail = '') {
   results.push({ name, ok, detail });
-  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? ` — ${detail}` : ''}`);
+  // Detail describes the FAILURE, so it prints only when there is one — the
+  // same rule `screens-e2e.mjs` states. On a passing line it reads as the
+  // opposite of what happened: `ok  the composer is empty — composer still
+  // holds ""` says the check failed to anyone skimming.
+  console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${!ok && detail ? ` — ${detail}` : ''}`);
 }
 
 function grantAdmin(email) {
@@ -421,6 +425,47 @@ try {
     await admin.getByText(title).waitFor({ timeout: 20000 });
   }
   check('cards can be created and appear live', true);
+
+  // ESCAPE CLOSES THE COMPOSER AND DISCARDS THE TITLE.
+  //
+  // Unique to the wide web board: it is a raw DOM <input> with its own
+  // onKeyDown, and Escape is its ONLY dismiss — that composer has no Cancel
+  // button at all. Nothing tested it, so an extraction could quietly drop the
+  // handler and leave people with a composer they cannot close without
+  // reloading.
+  //
+  // Discarding is asserted separately from closing, because a composer that
+  // closed while keeping the text would reopen with a stale title and silently
+  // create the wrong card on the next Add.
+  await admin.getByRole('button', { name: '+ Add card' }).first().click();
+  const escInput = admin.getByPlaceholder('Card title');
+  await escInput.waitFor({ timeout: 10000 });
+  await escInput.click();
+  await escInput.pressSequentially('abandoned title', { delay: 10 });
+  await escInput.press('Escape');
+  check(
+    'Escape closes the add-card composer',
+    await escInput
+      .waitFor({ state: 'detached', timeout: 10000 })
+      .then(() => true)
+      .catch(() => false),
+  );
+
+  await admin.getByRole('button', { name: '+ Add card' }).first().click();
+  const reopened = admin.getByPlaceholder('Card title');
+  await reopened.waitFor({ timeout: 10000 });
+  check(
+    'Escape discards what was typed',
+    (await reopened.inputValue()) === '',
+    `reopened holding ${JSON.stringify(await reopened.inputValue())}`,
+  );
+  await reopened.press('Escape');
+  await admin.waitForTimeout(300);
+  check(
+    'the abandoned title never became a card',
+    (await admin.locator('[data-testid="card-abandoned title"]').count()) === 0,
+  );
+
   await admin.screenshot({ path: join(SHOTS, 'p3-board-cards-light.png'), fullPage: true });
 
   // Cards land in creation order (each appended after the last).
@@ -964,6 +1009,18 @@ try {
   await admin.keyboard.type('second comment');
   await admin.getByRole('button', { name: 'Comment', exact: true }).click();
   await admin.getByText('second comment').waitFor({ timeout: 20000 });
+
+  // THE COMPOSER EMPTIES ITSELF, which is what `composerKey` is for.
+  //
+  // `RichEditor` is uncontrolled — it seeds once at mount — so clearing `draft`
+  // does nothing visible on its own; bumping the key to remount it is the only
+  // reset there is. Untested until now, and the failure is quiet: the next
+  // comment starts with the previous one still in the box.
+  check(
+    'the comment composer is empty after posting',
+    (await editorText(commentBox)).trim() === '',
+    `composer still holds ${JSON.stringify((await editorText(commentBox)).slice(0, 60))}`,
+  );
 
   const editButtons = admin.getByRole('button', { name: 'Edit comment' });
   check('two comments are present to test one-at-a-time', (await editButtons.count()) === 2);

@@ -421,7 +421,7 @@ const smallTargets = (page) =>
   ]);
 
 // ---- The tour --------------------------------------------------------------
-const SCREENS = 14;
+const SCREENS = 15;
 
 async function tour(page, tag, width) {
   /**
@@ -576,6 +576,42 @@ async function tour(page, tag, width) {
     await prev.click();
     await page.waitForTimeout(700);
   }
+
+  /**
+   * THE ADD-CARD COMPOSER, OPEN.
+   *
+   * An open composer is its own layout, exactly as `card-editing`,
+   * `card-comment` and `card-sheet` are — and until this entry the sweep had
+   * NO screen with any composer open at any width. That is the same blind spot
+   * that let a <button> wrapping a TextInput ship: a structural check cannot
+   * see a control that is never on screen.
+   *
+   * It matters most on the narrow board, where the composer is pinned above
+   * the keyboard at the bottom of a non-scrolling screen — 320px is where a
+   * field, two buttons and the pager have to coexist or something bleeds.
+   */
+  await visit('board-compose', async () => {
+    await page.getByRole('button', { name: '+ Add card' }).first().click();
+    await page.getByPlaceholder('Card title').first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(400);
+  });
+
+  // Close it again before the tour moves on, as `settings` does for
+  // `card-sheet`: an open composer holds focus and the steps below tap cards.
+  //
+  // HOW you close it differs by layout, like selecting does. The wide web board
+  // is a raw-DOM composer with no Cancel at all — Escape is its only dismiss —
+  // while the narrow layout is the RN one with a Cancel button.
+  if (width >= WIDE_BREAKPOINT) {
+    await page.keyboard.press('Escape');
+  } else {
+    await page.getByRole('button', { name: 'Cancel' }).first().click();
+  }
+  await page.waitForTimeout(500);
+  check(
+    `${tag} / the add-card composer closes again`,
+    (await page.getByPlaceholder('Card title').count()) === 0,
+  );
 
   /**
    * BULK SELECTION, which floats a bar over the board.

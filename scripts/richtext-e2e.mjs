@@ -240,6 +240,47 @@ check(
 );
 await page.getByRole('button', { name: 'Cancel' }).first().click().catch(() => {});
 
+/**
+ * EDITING A COMMENT MUST NOT REWRITE THE MARKUP IT DID NOT TOUCH.
+ *
+ * The round trip is proven here for descriptions and for newly posted
+ * comments, but never for the EDIT path — which is a second `RichEditor` with
+ * a second seed, re-parsing stored markdown back into a document and
+ * serialising it out again. A seed or a serialiser that differed by one
+ * character would silently rewrite every comment anyone edits, and the only
+ * evidence would be in the stored bytes: the rendered comment looks the same
+ * either way, which is exactly why this is asserted against Firestore.
+ *
+ * Runs before the mention section, where this card still has NO comments, so
+ * `.first()` can only mean the comment posted here.
+ */
+await page.waitForTimeout(500);
+const editBox = page.locator('[data-testid="comment-editor"]');
+await editBox.click();
+await page.keyboard.type('keep this exactly');
+await page.getByRole('button', { name: 'Comment', exact: true }).click();
+await page.waitForTimeout(2000);
+
+const posted = (await db.collection('cards/rt_c/comments').get()).docs[0];
+const postedBody = posted.data().body;
+
+await page.getByRole('button', { name: 'Edit comment' }).first().click();
+const editArea = page.locator('[data-testid="comment-edit-editor"]');
+await editArea.waitFor({ timeout: 20000 });
+await editArea.click();
+await page.keyboard.press('Control+End');
+await page.keyboard.type(' plus more');
+await page.getByRole('button', { name: 'Save', exact: true }).first().click();
+await page.waitForTimeout(2000);
+
+const editedBody = (await db.doc(`cards/rt_c/comments/${posted.id}`).get()).data().body;
+check(
+  'editing a comment appends without rewriting the stored markdown',
+  editedBody === `${postedBody} plus more`,
+  `stored ${JSON.stringify(editedBody)}, expected ${JSON.stringify(`${postedBody} plus more`)}`,
+);
+check('the edit is recorded as an edit', !!(await db.doc(`cards/rt_c/comments/${posted.id}`).get()).data().editedAt);
+
 // ---- a mid-text mention resolves to a uid ---------------------------------
 await page.waitForTimeout(500);
 const box = page.locator('[data-testid="comment-editor"]');
@@ -255,7 +296,13 @@ if (await rows.count()) await rows.first().click();
 await page.waitForTimeout(500);
 await page.getByRole('button', { name: 'Comment', exact: true }).click();
 await page.waitForTimeout(2000);
-const comment = (await db.collection('cards/rt_c/comments').get()).docs[0]?.data();
+// BY CONTENT, not by index. This card now holds the comment the edit check
+// posted as well, and `docs[0]` is document-id order — which would pick either
+// one and make this check pass or fail for reasons that have nothing to do with
+// mentions.
+const comment = (await db.collection('cards/rt_c/comments').get()).docs
+  .map((d) => d.data())
+  .find((d) => d.body.includes('please review'));
 check('the mention resolved to a uid', !!comment && comment.mentionUids.includes(sara));
 check('the handle is literal text in the stored markdown', !!comment && comment.body.includes('@'));
 
