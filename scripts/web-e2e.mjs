@@ -715,6 +715,45 @@ try {
 
   await admin.screenshot({ path: join(SHOTS, 'p5-card-detail-light.png'), fullPage: true });
 
+  // ---- Saving the TITLE must not discard an unsaved DESCRIPTION -----------
+  //
+  // The card screen holds a draft per editor and both can be open at once. They
+  // used to share ONE dirty flag, so saving the title cleared it, re-armed the
+  // seeding effect, and silently overwrote an unsaved description with the
+  // server's copy — a long description lost with no error and nothing to undo.
+  // Two separate flags fixed it, which works only while everyone remembers why.
+  //
+  // Nothing has ever tested it. This is that test, and it is deliberately
+  // written against the arrangement it describes rather than after any
+  // refactor: a test written afterwards encodes whatever was built and cannot
+  // report that the behaviour changed.
+  await admin.getByRole('button', { name: 'Edit description' }).click();
+  const descBox = admin.locator('[contenteditable="true"]').first();
+  await descBox.waitFor({ timeout: 20000 });
+  await descBox.click();
+  await descBox.pressSequentially('unsaved draft text', { delay: 10 });
+
+  await admin.getByRole('button', { name: 'Edit title' }).click();
+  const titleBox = admin.getByLabel('Card title');
+  await titleBox.waitFor({ timeout: 20000 });
+  await titleBox.fill('Fix signup flow renamed');
+  await admin.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await admin.waitForTimeout(1500);
+
+  check(
+    'saving the title leaves an unsaved description untouched',
+    (await editorText(descBox)).includes('unsaved draft text'),
+    await editorText(descBox).catch(() => '(editor gone)'),
+  );
+
+  // Put it back so later steps see the title they expect.
+  await admin.getByRole('button', { name: 'Edit title' }).click();
+  await admin.getByLabel('Card title').fill('Fix signup flow');
+  await admin.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await admin.waitForTimeout(1200);
+  await admin.getByRole('button', { name: 'Cancel' }).first().click();
+  await admin.waitForTimeout(800);
+
   // ---- Comments, mentions and activity (Phases 8-9) ----------------------
   // Still on the card detail screen from the assignment above.
   const commentBox = commentEditor(admin);
