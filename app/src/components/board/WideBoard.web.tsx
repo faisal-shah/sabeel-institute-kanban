@@ -152,6 +152,74 @@ function CardTile({
   );
 }
 
+/**
+ * The add-card composer, owning its own draft.
+ *
+ * Same reason as the native `AddCardForm`: the title used to live in
+ * `WideBoard`'s state, so each character re-rendered every column, every tile
+ * and the drag machinery with them.
+ *
+ * DELIBERATELY NOT the shared `AddCardForm`. This is a raw DOM <input> with
+ * inline styles and its own key handling, and this surface has the strictest
+ * screenshot coverage in the repo — swapping in the React Native control would
+ * change the visible composer and the button's label ("Add card", not "Add")
+ * for no gain. The duplication here is a rendering difference, not a rule.
+ *
+ * MODULE LEVEL, and it has to stay there. Declared inside `WideBoard` it would
+ * get a fresh identity on every render, so React would unmount and remount it
+ * on each keystroke — losing focus and the caret, which is worse than the
+ * re-render it is here to prevent.
+ *
+ * Escape is the ONLY way to dismiss this composer: there is no Cancel button.
+ * Discarding is free because the draft is local — the parent clears `adding`,
+ * this unmounts, and the text goes with it.
+ */
+function WebAddCardForm({
+  onAdd,
+  onCancel,
+}: {
+  /** Called with a trimmed, non-empty title. */
+  onAdd: (title: string) => void;
+  onCancel: () => void;
+}) {
+  const t = useWebTheme();
+  const [title, setTitle] = useState('');
+
+  function submit() {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+  }
+
+  return (
+    <div>
+      <input
+        autoFocus
+        value={title}
+        placeholder="Card title"
+        maxLength={CARD_TITLE_MAX}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: space.sm,
+          borderRadius: radius.sm,
+          border: `1px solid ${t.border.subtle}`,
+          background: t.bg.surface,
+          color: t.text.primary,
+        }}
+      />
+      <button onClick={submit} style={primaryBtn(t)}>
+        Add card
+      </button>
+    </div>
+  );
+}
+
 export function WideBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
   const board = useBoard(boardId);
@@ -164,7 +232,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     null,
   );
   const [adding, setAdding] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
   // Which column is mid-rename. Its delete button steps aside while editing, so
   // the cancel ✕ and the delete ✕ are never sitting next to each other.
@@ -254,10 +321,9 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
     [drag, cards.data, byColumn, user, autoScroll],
   );
 
-  async function addCard(columnId: string) {
-    const title = newTitle.trim();
-    if (!title) return;
-    setNewTitle('');
+  // The title comes from `WebAddCardForm`, already trimmed and non-empty — the
+  // draft lives there so typing one does not re-render the board.
+  async function addCard(columnId: string, title: string) {
     setAdding(null);
     try {
       await createCard({
@@ -599,34 +665,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               </div>
 
               {adding === col.id ? (
-                <div>
-                  <input
-                    autoFocus
-                    value={newTitle}
-                    placeholder="Card title"
-                    maxLength={CARD_TITLE_MAX}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void addCard(col.id);
-                      if (e.key === 'Escape') {
-                        setAdding(null);
-                        setNewTitle('');
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      padding: space.sm,
-                      borderRadius: radius.sm,
-                      border: `1px solid ${t.border.subtle}`,
-                      background: t.bg.surface,
-                      color: t.text.primary,
-                    }}
-                  />
-                  <button onClick={() => void addCard(col.id)} style={primaryBtn(t)}>
-                    Add card
-                  </button>
-                </div>
+                <WebAddCardForm
+                  onAdd={(title) => void addCard(col.id, title)}
+                  onCancel={() => setAdding(null)}
+                />
               ) : (
                 <button onClick={() => setAdding(col.id)} style={{ ...btn(t), width: '100%' }}>
                   + Add card
