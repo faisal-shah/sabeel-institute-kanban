@@ -101,9 +101,9 @@ a debug signature. Play wants one bundle carrying every ABI and does its own
 per-device splitting, so the `splits` block turns itself off for bundle tasks —
 leaving both on fails with *"Multiple shrunk-resources files found"*.
 
-### Three SHA-1s, because there are three signing identities
+### Four SHA-1s, because there are four signing identities
 
-All three belong in Firebase; each covers a different way the app gets onto a
+All four belong in Firebase; each covers a different way the app gets onto a
 device, and a missing one fails only for that route:
 
 | Build | Signed with | Needed for |
@@ -111,12 +111,27 @@ device, and a missing one fails only for that route:
 | `npm run dev:android`, `expo run:android` | committed debug keystore | day-to-day development |
 | `npm run build:apk` (sideload) | upload key, `~/keys/…jks` | quick testing of a real release build |
 | installed from Play | **Google's app signing key** | everyone actually using the app |
+| **Internal app sharing link** | **Play's internal test certificate** | handing a build to a developer without shipping it to the testers |
 
-The third is the one that gets forgotten, because Play App Signing re-signs the
-bundle: the fingerprint under Play Console → App integrity → *App signing key
-certificate* is what Play-installed copies run under, not the upload key's. Miss
-it and sign-in fails with `DEVELOPER_ERROR` for Play users only, while every
-build on your own machine works — so it reads as a device problem.
+The last two are the ones that get forgotten, and for the same reason: **Play
+re-signs whatever you upload**, so the key you built with is not the key the
+installed app runs under.
+
+- Play App Signing: Play Console → App integrity → *App signing key
+  certificate*. Miss it and sign-in fails with `DEVELOPER_ERROR` for Play users
+  only, while every build on your own machine works — so it reads as a device
+  problem.
+- **Internal app sharing has its OWN certificate**, separate from both of the
+  above: Play Console → Testing → Internal app sharing → *Internal test
+  certificate*. Enabled 2026-08-03 so a build can go to a developer without
+  becoming an update for the Sabeel testers on the internal testing track. Its
+  SHA-1 must be registered too, or sign-in fails on exactly those builds and
+  nothing else.
+
+**A shared build cannot install over a Play-installed one.** Different signing
+key means Android refuses the update with a signature mismatch — uninstall
+first, and uninstall again to go back. Same package name, so only one at a
+time. (The `.debug` variant is a different package and does sit alongside both.)
 
 ### DEVELOPER_ERROR on a Play install — diagnose in this order
 
@@ -137,10 +152,14 @@ cause is almost always the app signing fingerprint, but "registered" and
 
 1. **Is the fingerprint registered?** Google Cloud Console -> APIs & Services ->
    **Credentials** -> OAuth 2.0 Client IDs. There should be one **Android** client
-   per registered SHA-1 — debug, upload key, and Play's app signing key — each
-   marked "Auto created by Google service", which is Firebase creating them when a
-   fingerprint is added. Three entries for one package is correct, not a
-   duplicate.
+   per registered SHA-1 — debug, upload key, Play's app signing key, and the
+   internal-app-sharing certificate — each marked "Auto created by Google
+   service", which is Firebase creating them when a fingerprint is added.
+   Several entries for one package is correct, not a duplicate.
+   **Which install is it?** If sign-in fails on a build you got from an internal
+   app sharing LINK but works on one from the internal testing track, it is the
+   internal test certificate that is missing, not the app signing key — they are
+   different certificates and the symptom is identical.
 2. **If it is there, it is propagation.** OAuth client changes take minutes and
    sometimes hours. Force-stop the app and retry; then clear the device's Google
    Play services cache (Settings -> Apps -> Google Play services -> Storage ->

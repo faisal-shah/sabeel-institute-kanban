@@ -113,9 +113,12 @@ lives in a personal Google account — a continuity risk independent of OAuth.
       committed to `app/src/firebase-config.ts`.
 - [ ] **Register the Android app.** Package name: `com.sabeelinstitute.kanban`.
       → **Hand back:** `google-services.json` (save it to `app/`).
-- [ ] **Add the debug SHA-1**, then **re-download `google-services.json`** — the
-      re-download is what adds the Android OAuth client, and native Google
-      Sign-In silently fails without it (that is the `DEVELOPER_ERROR` case).
+- [ ] **Add the debug SHA-1.** Adding the fingerprint in Firebase is what
+      creates the Android OAuth client, and native Google Sign-In fails with
+      `DEVELOPER_ERROR` until it exists. Registration is entirely SERVER-SIDE:
+      re-downloading `google-services.json` is not needed and no rebuild is
+      either — the plugin bakes no certificate hashes into the app (verified
+      2026-08-03, see `docs/DEPLOY.md` § DEVELOPER_ERROR).
       The debug fingerprint for this repo's committed debug keystore is:
 
       `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
