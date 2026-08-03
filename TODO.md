@@ -332,6 +332,16 @@ name"*. Everything up to that point is already committed and waiting.
    account their phone's Play Store uses. Waiting for an invite that never
    arrives is the default way to lose an afternoon here.
 
+   **If ONE tester gets "Item not found" while it works for everyone else**,
+   suspect device eligibility before anything else: `minSdkVersion 33` means
+   **Android 13 or newer**, which is a much higher floor than most apps set, and
+   Play renders "not available for your device" as this same screen when you
+   arrive by direct link. Check Settings -> About phone -> Android version.
+   Then check the Play Store's ACTIVE account (profile icon) — being signed in
+   is not the same as the Store using that account, and the mismatch never
+   resolves on its own. A pre-13 device is not fixable without reversing the
+   Android 13 floor; point that person at the web app instead.
+
    **"Item not found" right after opting in is normal, not a fault.** The opt-in
    page says so in passing and it is easy to miss: a first-time download can take
    a while to propagate, and for a brand-new app's first release that is closer
