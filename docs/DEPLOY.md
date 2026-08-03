@@ -118,14 +118,27 @@ certificate* is what Play-installed copies run under, not the upload key's. Miss
 it and sign-in fails with `DEVELOPER_ERROR` for Play users only, while every
 build on your own machine works — so it reads as a device problem.
 
-### One device holds ONE of them
+### Debug installs alongside; the two release builds do not
 
-`applicationId` is `com.sabeelinstitute.kanban` for all three, and Android keys an
-install on package name. Different signatures, same package, so installing any
-one of them replaces nothing and simply fails: **uninstall first** to move between
-a Play install and a locally built APK. If side-by-side ever becomes worth it,
-give debug builds an `applicationIdSuffix` and register that package as its own
-Firebase Android app — a real change, not a flag.
+Debug builds carry `applicationIdSuffix '.debug'`, so
+**`com.sabeelinstitute.kanban.debug`** is a separate app to Android and sits on
+the same device as the real one. Its launcher label is **"Sabeel Kanban (dev)"**
+(`app/android/app/src/debug/res/values/strings.xml` — a build-type source set,
+because declaring `app_name` again via `resValue` collides with `src/main/res`).
+
+Two consequences worth knowing:
+
+- **It is a different app to Firebase too**, registered separately with the debug
+  SHA-1. Without that registration the google-services plugin fails the build
+  outright: *"No matching client found for package name"*.
+- **`expo run:android` does not know about the suffix.** It reads the id with a
+  regex over the `applicationId` line alone, so it would install the `.debug` APK
+  and then try to launch the unsuffixed package. `npm run dev:android` passes
+  `--app-id com.sabeelinstitute.kanban.debug` to correct that.
+
+**A sideloaded release APK and a Play install still collide** — both are
+`com.sabeelinstitute.kanban` with different signatures, so neither can replace
+the other. Uninstall to move between those two.
 
 ### Building a sideloadable APK
 

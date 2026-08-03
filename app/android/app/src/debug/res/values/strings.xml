@@ -1,0 +1,12 @@
+<resources>
+  <!--
+    Debug builds install alongside the Play build (see applicationIdSuffix in
+    build.gradle), so they need a launcher label that tells them apart. Two
+    identical "Sabeel Kanban" icons side by side is worse than one.
+
+    A build-type source set overrides src/main; declaring the same name with
+    `resValue` in the debug buildType instead would be a duplicate-resource
+    error, because src/main/res already defines app_name.
+  -->
+  <string name="app_name">Sabeel Kanban (dev)</string>
+</resources>

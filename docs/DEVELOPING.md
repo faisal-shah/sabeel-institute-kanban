@@ -108,8 +108,12 @@ Already built once? Just restart Metro and relaunch, which is much faster:
 
 ```sh
 cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start
-adb shell monkey -p com.sabeelinstitute.kanban -c android.intent.category.LAUNCHER 1
+adb shell monkey -p com.sabeelinstitute.kanban.debug -c android.intent.category.LAUNCHER 1
 ```
+
+Note the **`.debug` suffix**: dev builds install as a separate app
+(`Sabeel Kanban (dev)`) so they can sit beside the Play build. The release
+package has no suffix.
 
 **Web and Android share the emulator data.** Sign in as `faisal` on both and it
 is the same account — approve once and both are in.
@@ -248,7 +252,7 @@ launch**, so `EXPO_PUBLIC_USE_EMULATORS` must be set when Metro starts and Metro
 must be restarted with `--clear` after config changes; and `expo run:android`
 printing BUILD SUCCESSFUL is **not** proof the APK installed (if the shared AVD
 drops mid-run, a stale build stays on the device). Confirm with
-`adb shell dumpsys package com.sabeelinstitute.kanban | grep versionName` before
+`adb shell dumpsys package com.sabeelinstitute.kanban.debug | grep versionName` before
 trusting a native screenshot.
 
 ## A five-minute tour

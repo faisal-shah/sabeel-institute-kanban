@@ -281,11 +281,28 @@ real reason to plan it rather than slip it into a release.
 
 ### Do these in order, next time you are at the computer
 
-1. **Firebase** → Project settings → Android app → add SHA-1
-   `33:93:4A:A4:5F:51:60:23:E3:86:6F:68:84:8A:20:2C:44:28:2E:97`, then
-   **re-download `google-services.json`** and hand it over to be committed. The
-   re-download is what creates the OAuth client; without it sign-in fails with
-   `DEVELOPER_ERROR`.
+**Order matters.** Debug builds are broken until step 1b lands — the
+google-services plugin fails outright with *"No matching client found for package
+name"*. Everything up to that point is already committed and waiting.
+
+1. **Firebase** → Project settings → **your existing Android app**
+   (`com.sabeelinstitute.kanban`) → add SHA-1
+   `33:93:4A:A4:5F:51:60:23:E3:86:6F:68:84:8A:20:2C:44:28:2E:97` (the upload
+   key). The re-download below is what creates the OAuth client; without it
+   sign-in fails with `DEVELOPER_ERROR`.
+1b. **Firebase** → **Add app → Android**, package name
+   **`com.sabeelinstitute.kanban.debug`**, and give it the DEBUG SHA-1
+   `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`. This is the
+   side-by-side dev build; it is a separate app to Android and to Firebase, but
+   lives in the SAME project, so one `google-services.json` covers both.
+1c. **Download `google-services.json` once**, after both of the above. It will
+   contain **two** `client` entries. Put the same file in **both** places — they
+   are byte-identical today and must stay so:
+   - `app/google-services.json` (Expo's copy)
+   - `app/android/app/google-services.json` (the one Gradle actually reads)
+
+   Both are committed by design. Easiest over the GitHub web UI: open each file,
+   "Edit", paste, commit — then tell me and I will pull and verify.
 2. **Play Console** → upload `~/keys/upload_certificate.pem` as the upload key,
    and let Google create and manage the app signing key.
 3. **Build and upload:** `npm run build:aab`, then Play Console → Testing →
@@ -298,6 +315,8 @@ real reason to plan it rather than slip it into a release.
 5. **Tell the team to uninstall and reinstall** from the Play invite. Android
    refuses an update signed by a different key, so there is no in-place upgrade
    from the old sideloaded build. Nothing is lost — all state is in Firestore.
+   (This does NOT affect the `.debug` dev build, which is a separate app and can
+   stay installed alongside.)
 6. **Later, once everyone has moved:** remove the download section from the
    kanban page in the pages repo, and delete the `kanban-latest` release there.
 
