@@ -124,6 +124,17 @@ Sign-in fails only for Play-installed copies while every local build works. The
 cause is almost always the app signing fingerprint, but "registered" and
 "in effect" are different things, so check in this order rather than rebuilding:
 
+0. **Is Play App Signing "quantum-ready"?** Play Console -> App integrity ->
+   App signing. If the app signing key is badged **Quantum-ready (beta)**, that
+   page lists a **Classical key** AND a **Post-quantum cryptography key**, each
+   with its own fingerprints — and any **Previous app signing keys** row is a
+   third certificate, the classical key still served to older devices. Google's
+   guidance is that **all three must be registered** with API providers. This is
+   the trap that cost a night: registering only the classical key makes every
+   other check pass — the fingerprint matches, the OAuth client exists, the
+   package is right — while devices served either of the other two certificates
+   get `DEVELOPER_ERROR`. Register every SHA-1 that page shows.
+
 1. **Is the fingerprint registered?** Google Cloud Console -> APIs & Services ->
    **Credentials** -> OAuth 2.0 Client IDs. There should be one **Android** client
    per registered SHA-1 — debug, upload key, and Play's app signing key — each
