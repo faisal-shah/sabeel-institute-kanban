@@ -95,3 +95,13 @@ jobs:
       # somebody's notes.
       - name: Rich text end-to-end (web)
         run: bash scripts/e2e.sh scripts/richtext-e2e.mjs
+
+      # Typing must not get slower as a screen gets busier. Asserts a RATIO
+      # between a busy screen and an empty one, never a stopwatch reading:
+      # absolute ms/char on a shared runner moves more than 3x between runs, so
+      # an absolute threshold would be either useless or flaky, and a check
+      # people learn to ignore is worse than none. Guards the draft-ownership
+      # rule in CLAUDE.md — the bug it replaces shipped and was reported from a
+      # phone as "unusable on Android, like a slide show on web".
+      - name: Typing stays fast as screens fill up (web)
+        run: bash scripts/e2e.sh scripts/typing-perf-e2e.mjs

@@ -29,6 +29,163 @@ function when(ms: number): string {
 }
 
 /**
+ * Editing one comment, with the draft owned HERE.
+ *
+ * UNMOUNT-SCOPED — no dirty flag and no reseeding effect, deliberately. This
+ * renders only while its row is the one being edited, so the lifecycle is the
+ * reset and there is no server value that could arrive mid-edit to be clobbered
+ * by. Do NOT "fix" this by copying `CardDescription`'s shape: that one needs a
+ * dirty flag because its parent keeps it mounted and re-feeds it the server's
+ * copy, which is not the situation here.
+ *
+ * `editing` stays in the parent, so "only one row at a time" is unchanged by
+ * this component existing.
+ */
+function CommentEditor({
+  initialBody,
+  candidates,
+  prioritiseUids,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  initialBody: string;
+  candidates: readonly MentionCandidate[];
+  prioritiseUids?: readonly string[];
+  busy: boolean;
+  onSave: (body: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(initialBody);
+
+  return (
+    <>
+      {/* Seeded from the PROP, not from `draft`. `RichEditor` seeds once either
+          way, so this is the same behaviour — but the prop is what the initial
+          markdown actually is, and handing it a value that changes on every
+          keystroke invites someone to conclude the seam is controlled. */}
+      <RichEditor
+        initialMarkdown={initialBody}
+        onChangeMarkdown={setDraft}
+        candidates={candidates}
+        prioritiseUids={prioritiseUids}
+        placeholder="Edit your comment — @ to mention someone"
+        testID="comment-edit-editor"
+        minHeight={72}
+      />
+      <Row>
+        <Button
+          busy={busy}
+          disabled={draft.trim().length === 0 || busy}
+          label="Save"
+          onPress={() => onSave(draft)}
+        />
+        <Button label="Cancel" variant="secondary" onPress={onCancel} />
+      </Row>
+    </>
+  );
+}
+
+/**
+ * The comment box, owning its draft and its remount key.
+ *
+ * Both belong together and neither belongs to the list. With `draft` in
+ * `Comments`, typing a comment re-rendered every comment above it plus their
+ * markdown — measured at 21.1 ms/char on a card with 25 comments against 4.8 on
+ * a card with none, a 4.4x penalty for the crime of having a busy card.
+ * `scripts/typing-perf-e2e.mjs` holds that ratio near 1 from here on.
+ */
+function CommentComposer({
+  cardId,
+  candidates,
+  prioritiseUids,
+  user,
+  run,
+  busy,
+}: {
+  cardId: string;
+  candidates: readonly MentionCandidate[];
+  prioritiseUids?: readonly string[];
+  user: SessionUser;
+  /** Shared with the list, so errors reach the one banner it renders. The
+   *  optional label is load-bearing: this call site passes `addComment`. */
+  run: (fn: () => Promise<unknown>, label?: string) => void;
+  busy: boolean;
+}) {
+  const [draft, setDraft] = useState('');
+  /**
+   * Bumped to remount the composer after a successful post.
+   *
+   * The rich editor is UNCONTROLLED — it seeds from `initialMarkdown` once, so
+   * setting `draft` back to '' does not empty the box. A remount is safe at
+   * exactly this moment and no other: the text has already been handed to
+   * `addComment`, so there is nothing to lose.
+   */
+  const [composerKey, setComposerKey] = useState(0);
+
+  return (
+    <Panel>
+      <RichEditor
+        key={composerKey}
+        initialMarkdown={draft}
+        onChangeMarkdown={setDraft}
+        candidates={candidates}
+        prioritiseUids={prioritiseUids}
+        placeholder="Add a comment — @ to mention someone"
+        testID="comment-editor"
+        minHeight={72}
+      />
+
+      {/* Submit sits DIRECTLY under the field. The mention hint used to be
+          between them, pushing the button ~50dp lower — far enough that the
+          keyboard covered it while the field itself stayed clear, so there was
+          nothing to scroll and no way to reach Comment without dismissing the
+          keyboard. The hint is guidance, not a step, so it reads fine after. */}
+      <Button
+        label="Comment"
+        disabled={draft.trim().length === 0 || busy}
+        busy={busy}
+        onPress={() => {
+          // Clear the box IMMEDIATELY rather than after the server
+          // acknowledges. `addDoc` resolves on server ack, which on a phone
+          // can take many seconds — during which the draft sat there, the
+          // button stayed enabled, and nothing indicated progress. It looked
+          // dead, so you tap it again. Firestore applies the write locally
+          // first, so the comment appears on its own.
+          //
+          // The text is restored if the write actually fails, because losing
+          // what someone typed is far worse than a second of uncertainty.
+          const body = draft;
+          setDraft('');
+          setComposerKey((k) => k + 1);
+          void run(async () => {
+            try {
+              await addComment({ cardId, body, candidates, user });
+            } catch (e) {
+              // Restore what they typed, and remount so the box shows it
+              // again — losing it is far worse than a second of uncertainty.
+              setDraft(body);
+              setComposerKey((k) => k + 1);
+              throw e;
+            }
+          }, 'addComment');
+        }}
+      />
+
+      {/* You can only mention people who can open the card, which is board
+          members. If you are the only one, say so rather than letting the
+          autocomplete look broken. */}
+      {candidates.length <= 1 ? (
+        <Hint>
+          You are the only member of this board, so there is nobody to mention
+          yet. Add people under board Settings.
+        </Hint>
+      ) : null}
+    </Panel>
+  );
+}
+
+/**
  * Memoised because the card screen re-renders on EVERY KEYSTROKE.
  *
  * The description editor keeps its markdown in card-screen state, so typing one
@@ -55,18 +212,10 @@ export const Comments = memo(function Comments({
   user: SessionUser;
 }) {
   const comments = useComments(cardId);
-  const [draft, setDraft] = useState('');
-  /**
-   * Bumped to remount the composer after a successful post.
-   *
-   * The rich editor is UNCONTROLLED — it seeds from `initialMarkdown` once, so
-   * setting `draft` back to '' does not empty the box. A remount is safe at
-   * exactly this moment and no other: the text has already been handed to
-   * `addComment`, so there is nothing to lose.
-   */
-  const [composerKey, setComposerKey] = useState(0);
+  // Which row is open, and nothing about what has been typed into it — the
+  // drafts live in the two components below. This is what keeps typing a
+  // comment from re-rendering every comment above it.
   const [editing, setEditing] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
   const { run, busy, error } = useAction('comments');
 
   const candidates: MentionCandidate[] = useMemo(
@@ -117,10 +266,7 @@ export const Comments = memo(function Comments({
                     <IconAction
                       icon="edit"
                       label="Edit comment"
-                      onPress={() => {
-                        setEditing(c.id);
-                        setEditDraft(c.body);
-                      }}
+                      onPress={() => setEditing(c.id)}
                     />
                   ) : null}
                   {canDelete ? (
@@ -136,40 +282,19 @@ export const Comments = memo(function Comments({
             </Row>
 
             {editing === c.id ? (
-              <>
-                <RichEditor
-                  initialMarkdown={editDraft}
-                  onChangeMarkdown={setEditDraft}
-                  candidates={candidates}
-                  prioritiseUids={prioritiseUids}
-                  placeholder="Edit your comment — @ to mention someone"
-                  testID="comment-edit-editor"
-                  minHeight={72}
-                />
-                <Row>
-                  <Button
-                    busy={busy}
-                    disabled={editDraft.trim().length === 0 || busy}
-                    label="Save"
-                    onPress={() =>
-                      run(async () => {
-                        await editComment({
-                          cardId,
-                          commentId: c.id,
-                          body: editDraft,
-                          candidates,
-                        });
-                        setEditing(null);
-                      })
-                    }
-                  />
-                  <Button
-                    label="Cancel"
-                    variant="secondary"
-                    onPress={() => setEditing(null)}
-                  />
-                </Row>
-              </>
+              <CommentEditor
+                initialBody={c.body}
+                candidates={candidates}
+                prioritiseUids={prioritiseUids}
+                busy={busy}
+                onSave={(body) =>
+                  run(async () => {
+                    await editComment({ cardId, commentId: c.id, body, candidates });
+                    setEditing(null);
+                  })
+                }
+                onCancel={() => setEditing(null)}
+              />
             ) : (
               <>
                 <RichText markdown={c.body} />
@@ -185,64 +310,14 @@ export const Comments = memo(function Comments({
         );
       })}
 
-      <Panel>
-        <RichEditor
-          key={composerKey}
-          initialMarkdown={draft}
-          onChangeMarkdown={setDraft}
-          candidates={candidates}
-          prioritiseUids={prioritiseUids}
-          placeholder="Add a comment — @ to mention someone"
-          testID="comment-editor"
-          minHeight={72}
-        />
-
-        {/* Submit sits DIRECTLY under the field. The mention hint used to be
-            between them, pushing the button ~50dp lower — far enough that the
-            keyboard covered it while the field itself stayed clear, so there was
-            nothing to scroll and no way to reach Comment without dismissing the
-            keyboard. The hint is guidance, not a step, so it reads fine after. */}
-        <Button
-          label="Comment"
-          disabled={draft.trim().length === 0 || busy}
-          busy={busy}
-          onPress={() => {
-            // Clear the box IMMEDIATELY rather than after the server
-            // acknowledges. `addDoc` resolves on server ack, which on a phone
-            // can take many seconds — during which the draft sat there, the
-            // button stayed enabled, and nothing indicated progress. It looked
-            // dead, so you tap it again. Firestore applies the write locally
-            // first, so the comment appears on its own.
-            //
-            // The text is restored if the write actually fails, because losing
-            // what someone typed is far worse than a second of uncertainty.
-            const body = draft;
-            setDraft('');
-            setComposerKey((k) => k + 1);
-            void run(async () => {
-              try {
-                await addComment({ cardId, body, candidates, user });
-              } catch (e) {
-                // Restore what they typed, and remount so the box shows it
-                // again — losing it is far worse than a second of uncertainty.
-                setDraft(body);
-                setComposerKey((k) => k + 1);
-                throw e;
-              }
-            }, 'addComment');
-          }}
-        />
-
-        {/* You can only mention people who can open the card, which is board
-            members. If you are the only one, say so rather than letting the
-            autocomplete look broken. */}
-        {candidates.length <= 1 ? (
-          <Hint>
-            You are the only member of this board, so there is nobody to mention
-            yet. Add people under board Settings.
-          </Hint>
-        ) : null}
-      </Panel>
+      <CommentComposer
+        cardId={cardId}
+        candidates={candidates}
+        prioritiseUids={prioritiseUids}
+        user={user}
+        run={run}
+        busy={busy}
+      />
     </>
   );
 });
