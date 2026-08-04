@@ -1,34 +1,28 @@
 /**
- * Upload the release AAB to Google Play, without a browser.
+ * Upload the release AAB to the Play internal testing track, without a browser.
  *
- *   node scripts/publish-play.mjs --check       # every gate + the Play permission
- *   node scripts/publish-play.mjs --share       # internal app sharing, link only
- *   node scripts/publish-play.mjs --internal    # the internal TESTING track
+ *   node scripts/publish-play.mjs --check      # every gate + the Play permission
+ *   node scripts/publish-play.mjs --internal   # publish; the testers get it
  *   node scripts/publish-play.mjs --help
  *
- * A destination must be NAMED. There is no default: the two differ in who
- * sees the build, so guessing would sometimes publish to the whole team.
+ * The destination must be NAMED. Publishing is a release to the whole tester
+ * list, so a bare invocation prints help and refuses rather than guessing.
  *
- * TWO DESTINATIONS, DELIBERATELY DIFFERENT IN WEIGHT:
+ * INTERNAL APP SHARING IS NOT AN OPTION HERE, deliberately. It is the obvious
+ * way to hand one build to one person, and it refuses this app: it requires the
+ * app to have been PUBLISHED, and internal-testing releases do not count — the
+ * app is a Draft, and for an internal tool it may always be. The support for it
+ * was written, proved not to work, and removed rather than left as a flag that
+ * fails. `docs/DEPLOY.md` keeps the reasoning so nobody re-derives it; the
+ * developer's pre-release route is the APK download page.
  *
- *  --share  Internal app sharing. Returns a download link and touches nothing
- *           else: the Sabeel testers on the internal track do not receive it and
- *           are not notified. This is the "put a build on my phone while I am
- *           away from the computer" case, and the one that cannot disturb
- *           anyone — but it still has to be asked for by name.
- *
- *  --internal  The internal testing track. This IS a release to the team, so it
- *           carries the same gates `build-aab.sh` does and asks before doing it.
- *
- * Internal app sharing needs no edit/commit cycle; the testing track does —
- * insert an edit, upload, point the track at the new versionCode, commit.
+ * The flow is edit -> upload -> point the track at the new versionCode -> commit.
  *
  * CREDENTIALS LIVE OUTSIDE THE REPO, like the keystore. This repo is public: a
  * service-account key committed here would be a publish credential for the app,
  * readable by anyone, forever, whatever a later commit removes.
  *
- * The service account needs Play Console's "Release apps to testing tracks"
- * permission, which covers internal app sharing too.
+ * The service account needs Play Console's "Release apps to testing tracks".
  */
 import { createRequire } from 'node:module';
 import { readFile, stat } from 'node:fs/promises';
@@ -53,7 +47,7 @@ const API = 'https://androidpublisher.googleapis.com';
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
-const toTrack = args.includes('--internal');
+const publish = args.includes('--internal');
 const app = JSON.parse(await readFile(resolve(ROOT, 'app/app.json'), 'utf8')).expo;
 const pkg = app.android.package;
 const version = app.version;
@@ -63,19 +57,23 @@ const die = (m) => {
   process.exit(1);
 };
 
-if (args.includes('--help') || args.length === 0) {
+// Anything that is not a recognised flag must NOT fall through to publishing.
+// Collapsing the two destinations into one briefly made the publish path
+// unconditional, so `--dry-run` — or any typo — would have released to the
+// testers. Lint caught it as an unused variable, which is a thin thread.
+const known = ['--check', '--internal', '--help'];
+const unknown = args.filter((a) => !known.includes(a));
+if (unknown.length) {
+  console.error(`\nUnrecognised: ${unknown.join(' ')}`);
+}
+if (args.includes('--help') || args.length === 0 || unknown.length) {
   console.log(`
   --check      run every gate and prove the Play permission; upload nothing
-  --share      internal app sharing: a link, and nobody is notified (safe)
-  --internal   the internal TESTING track: the team gets this (a release)
+  --internal   publish to the internal testing track; the testers get it
 `);
-  process.exit(args.length === 0 ? 1 : 0);
+  process.exit(args.includes('--help') && !unknown.length ? 0 : 1);
 }
-// The two destinations differ in who sees the build, so a command that names
-// both is a typo, not a preference — and guessing would publish to the team.
-if (toTrack && args.includes('--share')) {
-  die('--share and --internal are different audiences. Pass one.');
-}
+
 
 // ---- gates, before anything leaves this machine ----------------------------
 
@@ -178,9 +176,8 @@ if (aab && srcNewest > aab.mtimeMs) {
  * `build-aab.sh` checks this at build time, but this script uploads whatever
  * sits at the path — and the staleness gate above only compares timestamps, so
  * an old debug-signed bundle with no source changes since would sail through.
- * It matters most for --share: the internal testing track would reject a wrong
- * upload key, but internal app sharing re-signs with Play's own internal test
- * certificate and would happily distribute it.
+ * Play would reject a wrong upload key on the track, but failing here names the
+ * problem instead of making Play do it.
  *
  * An AAB is a signed jar, so this is jarsigner, not apksigner.
  */
@@ -266,7 +263,7 @@ console.log(
   `bundle    ${aab ? `${(aab.size / 1024 / 1024).toFixed(1)} MB, built ${new Date(aab.mtimeMs).toISOString()}` : 'none built yet'}`,
 );
 console.log(`key       ${KEY}`);
-console.log(`target    ${toTrack ? 'internal TESTING track (the team sees this)' : 'internal app sharing (link only)'}`);
+console.log('target    internal TESTING track (the testers get this)');
 
 if (check) {
   /*
@@ -309,49 +306,12 @@ const upload = async (url) => {
   return JSON.parse(text);
 };
 
+if (!publish) {
+  die('Nothing to do. Pass --internal to publish, or --check to test the setup.');
+}
+
 let committed = false;
-if (!toTrack) {
-  console.log('\nUploading to internal app sharing…');
-  // upload() throws, and there is no edit to unwind here — but an unhandled
-  // rejection would surface as a stack trace instead of a sentence.
-  const out = await upload(
-    `${API}/upload/androidpublisher/v3/applications/internalappsharing/${pkg}/artifacts/bundle?uploadType=media`,
-  ).catch((e) => {
-    /*
-     * NOT_PUBLISHED is not about this bundle, this key, or these permissions.
-     * Internal app sharing REQUIRES THE APP TO HAVE BEEN PUBLISHED, and Play
-     * does not count internal-testing releases as published — so an app that
-     * only ever went to internal testing cannot use it at all.
-     *
-     * Confirmed 2026-08-03 by uploading the same bundle by hand in Play
-     * Console, which refused it in plain words. Worth translating, because the
-     * raw error reads like a problem with the artifact and sent this
-     * investigation down two wrong paths (a stale bundle, then the uploader
-     * list).
-     */
-    if (/NOT_PUBLISHED/.test(e.message)) {
-      die(
-        `Play refuses internal app sharing for this app:\n\n` +
-          `  Internal app sharing requires the app to have been PUBLISHED.\n` +
-          `  Releases on the internal testing track do not count.\n\n` +
-          `Until this app is published, use the internal testing track instead:\n` +
-          `  npm run publish:play -- --internal\n\n` +
-          `That is a release the whole tester list receives, so it is a\ndifferent decision, not a workaround.`,
-      );
-    }
-    die(e.message);
-  });
-  if (!out.downloadUrl) {
-    die(`Upload succeeded but returned no downloadUrl:\n${JSON.stringify(out, null, 2)}`);
-  }
-  console.log('\nDone. Open this on the phone (signed in as a tester):\n');
-  console.log(`  ${out.downloadUrl}\n`);
-  console.log('It installs that exact build and notifies nobody.');
-  console.log(
-    'A Play-installed copy must be uninstalled first — different signing key,\n' +
-      'so Android refuses it as a signature mismatch. Nothing is lost; state is in Firestore.\n',
-  );
-} else {
+{
   console.log('\nUploading to the internal testing track…');
   const edit = await api('POST', '/edits');
   /*

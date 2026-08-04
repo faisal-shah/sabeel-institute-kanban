@@ -278,50 +278,33 @@ every app, so this is a single note, not one per app.
 API, so a build can reach a phone when nobody is at the computer that built it.
 
 ```
-npm run publish:play -- --check      # gates + credentials, uploads nothing
-npm run publish:play -- --share      # internal app sharing, link only
-npm run publish:play -- --internal   # the internal TESTING track
+npm run publish:play -- --check      # every gate + the Play permission, uploads nothing
+npm run publish:play -- --internal   # publish to the internal testing track
 ```
 
-**The two destinations are not the same weight.** `--share` returns a download
-link and touches nothing else — the Sabeel testers on the internal track neither
-receive it nor are told about it. `--internal` IS
-a release to the team. Internal app sharing needs no edit/commit cycle; the
-testing track does, so that path inserts an edit, uploads, points the track at
-the new `versionCode`, and commits.
+**There is one destination, and it must be named.** Publishing is a release to
+the whole tester list, so a bare invocation prints help and refuses rather than
+guessing; unrecognised flags are refused too. The flow is edit → upload → point
+the track at the new `versionCode` → commit, and a failure discards the edit.
 
-**`--share` DOES NOT WORK FOR THIS APP YET, and the reason is not obvious.**
-Internal app sharing requires the app to have been **published**, and Play does
-not count internal-testing releases as published — so an app whose only releases
-are on the internal track cannot use internal app sharing at all. The API says
-`NOT_PUBLISHED / FAILED_PRECONDITION`, which reads like a problem with the
-bundle; uploading the same file by hand in Play Console says it in plain words
-(*"The app … needs to be published before you can use internal app sharing"*).
-Confirmed 2026-08-03. `publish-play.mjs` translates the error rather than
-printing it.
+**Internal app sharing was removed, not left as a broken flag.** It is the
+obvious tool for handing one build to one person, and it refuses this app: it
+requires the app to have been **published**, and internal-testing releases do not
+count. The dashboard shows why — *"Draft app"*, internal testing *"Active · Not
+reviewed"*. For an internal tool that may never change, and publishing would mean
+a real store listing, content rating, data safety and review, plus handing Google
+working credentials for an app restricted to `@oursabeel.com`.
 
-The Play dashboard states it directly: the app is a **"Draft app"**, with
-Production, Open and Closed testing all *Inactive* and Internal testing
-*Active · Not reviewed*. Internal testing works precisely because it is the one
-track that skips review — which is also why it does not make the app published.
-
-That makes the **internal testing track the only channel this app has**. So "get
-a build onto a phone without being at the computer" means `--internal`, which
-the whole tester list receives.
-
-**And it may stay that way permanently.** Publishing means completing the store
-listing (the app still shows a temporary name), content rating, data safety and
-target-audience declarations, then passing review on a reviewed track. For an
-internal tool used by a dozen colleagues there may never be a reason to do any
-of that — in which case internal app sharing is not "not yet available", it is
-simply not available, and `--share` should be treated as dead for this app
-rather than retried.
+The support was written, proved not to work against the live API and by hand in
+the Console, and then deleted — an option that cannot succeed is a trap that
+costs somebody an evening. The reasoning is kept here so it is not re-derived.
+**The developer's pre-release route is the APK download page**, above.
 
 **Gates, before anything leaves the machine.**
 
 - A store-legal version, and a deploy-log entry that already describes it.
-- `--share` and `--internal` together are refused. They are different audiences,
-  so a command naming both is a typo, and guessing would publish to the team.
+- A destination must be named, and unknown flags are refused, so no typo can
+  reach the publish path.
 - **The bundle must SAY it is this version.** The versionName is read out of
   `base/manifest/AndroidManifest.xml` inside the AAB and compared with
   `app.json`. This started as an mtime comparison and was defeated the first
@@ -329,10 +312,8 @@ rather than retried.
   timestamp, and a bundle whose contents said 0.7.4 passed as 0.7.5. A timestamp
   describes the file, not the build. mtime survives only as a secondary note.
 - **The signature must not be the debug key**, checked here and not merely
-  trusted from `build-aab.sh`. It matters most for `--share`: the testing track
-  would reject a wrong upload key, but internal app sharing re-signs with Play's
-  own internal test certificate and would distribute a debug-signed build
-  happily.
+  trusted from `build-aab.sh`. Play would reject a wrong upload key anyway, but
+  failing here names the problem instead of making Play do it.
 
 `--check` runs all of it, proves the Play permission by creating and discarding
 an edit, and uploads nothing. **Every artifact gate is advisory there and fatal
@@ -535,8 +516,7 @@ why a release exists.
   permission without uploading. The console is only needed for things the API
   cannot do — permissions, and reading the app-signing fingerprints. There is
   still deliberately **no deploy from CI** (see `CLAUDE.md`).
-- `--share` (internal app sharing) does **not** work for this app; see the
-  download-page section above for why.
+- Internal app sharing is deliberately not supported; see above for why.
 - `versionCode` is derived from the semver (`major*1000000 + minor*1000 + patch`),
   so it increases on its own. Play rejects a duplicate outright, which is the
   backstop.
