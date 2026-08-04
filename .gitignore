@@ -48,3 +48,7 @@ app/ios/
 # Release signing — the keystore and its passwords never enter this repo.
 app/android/keystore.properties
 *.jks
+# Play publishing credentials. They belong in ~/keys/, never here — this repo is
+# PUBLIC, and a service-account key committed once stays readable in history.
+*play-publisher*.json
+*service-account*.json

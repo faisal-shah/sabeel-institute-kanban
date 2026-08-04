@@ -30,7 +30,8 @@
     "grant-admin": "bash scripts/grant-admin.sh",
     "seed": "node scripts/seed-dev.mjs",
     "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs",
-    "deadcode": "knip"
+    "deadcode": "knip",
+    "publish:play": "node scripts/publish-play.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -39,6 +40,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "firebase-admin": "^13.10.0",
     "globals": "^16.5.0",
+    "google-auth-library": "^11.0.0",
     "knip": "^5.88.1",
     "playwright": "^1.61.1",
     "typescript": "~6.0.3",

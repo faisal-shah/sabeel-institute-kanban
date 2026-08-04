@@ -226,6 +226,62 @@ global rollout, an app sideloaded from a page rather than a store needs its
 signing key registered under Play Console -> Android developer verification.
 Retiring that channel resolves it; so would registering the upload key there.
 
+### Publishing from the command line, without a browser
+
+`npm run publish:play` uploads the release AAB through the Google Play Developer
+API, so a build can reach a phone when nobody is at the computer that built it.
+
+```
+npm run publish:play -- --check      # gates + credentials, uploads nothing
+npm run publish:play -- --share      # internal app sharing (default)
+npm run publish:play -- --internal   # the internal TESTING track
+```
+
+**The two destinations are not the same weight.** `--share` returns a download
+link and touches nothing else — the Sabeel testers on the internal track neither
+receive it nor are told about it, which is why it is the default. `--internal` IS
+a release to the team. Internal app sharing needs no edit/commit cycle; the
+testing track does, so that path inserts an edit, uploads, points the track at
+the new `versionCode`, and commits.
+
+**Gates, before anything leaves the machine.** Store-legal version, a deploy-log
+entry that already describes this release, and — the one that has caught a real
+mistake here — a bundle that is NEWER than `app/src` and `packages/shared/src`.
+An artifact left at the output path from a previous build is the failure this
+repo has already paid for once; comparing mtimes catches it without parsing a
+protobuf manifest out of the bundle.
+
+**The credential lives at `~/keys/sabeel-play-publisher.json`** (override with
+`SK_PLAY_KEY`), beside the upload keystore and for the same reason: this repo is
+PUBLIC, and a service-account key committed once is a publish credential for the
+app that stays readable in history no matter what a later commit removes.
+`.gitignore` carries a name-pattern backstop, but the file should simply never be
+inside the repo.
+
+One-time setup, all of it in consoles:
+
+1. **Google Cloud** → the project already backing Firebase → *APIs & Services* →
+   enable **Google Play Android Developer API**.
+2. **IAM & Admin → Service Accounts** → create one (a name like
+   `sabeel-play-publisher`), then *Keys → Add key → JSON*. That download is the
+   only copy; Google keeps none.
+3. **Play Console → Users and permissions → Invite new user** → the service
+   account's `…iam.gserviceaccount.com` address → grant it on **this app only**,
+   with **Release apps to testing tracks**. That single permission covers
+   internal app sharing as well.
+4. `chmod 600 ~/keys/sabeel-play-publisher.json`.
+5. `npm run publish:play -- --check`.
+
+**Sign-in on a shared build needs the internal-app-sharing SHA-1**, which is a
+fourth certificate distinct from the upload key and Play's app signing key — see
+the table above. Miss it and Google sign-in fails on exactly those builds and
+nothing else. Registering it is server-side only: no rebuild, no
+`google-services.json` re-download, so it can be done from a phone.
+
+**A shared build cannot install over a Play-installed one** — different signing
+key, so Android refuses it as a signature mismatch. Uninstall first; nothing is
+lost, because all state is in Firestore.
+
 ### Building a sideloadable APK
 
 Still supported and unchanged; it is just no longer published anywhere:

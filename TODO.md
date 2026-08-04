@@ -15,6 +15,40 @@ tells you the command to run.
 
 ---
 
+## Play publishing from the command line — SET THIS UP
+
+So a build can reach your phone when you are away from this machine. Everything
+below is console work; the script is already written (`npm run publish:play`).
+
+- [ ] **Enable the API.** Google Cloud Console → the project already backing
+      Firebase → *APIs & Services → Library* → **Google Play Android Developer
+      API** → Enable.
+- [ ] **Create the service account.** *IAM & Admin → Service Accounts → Create*,
+      name it `sabeel-play-publisher`. No project roles are needed — its power
+      comes from Play Console, not IAM. Then *Keys → Add key → Create new key →
+      JSON*. **That download is the only copy.**
+- [ ] **Give it Play access.** Play Console → *Users and permissions → Invite new
+      user* → paste the service account's `…iam.gserviceaccount.com` address →
+      restrict it to **this app** → tick **Release apps to testing tracks**.
+      That one permission also covers internal app sharing. Send the invite.
+- [ ] **Put the key where the script looks:**
+      ```
+      mkdir -p ~/keys
+      mv ~/Downloads/<the-file>.json ~/keys/sabeel-play-publisher.json
+      chmod 600 ~/keys/sabeel-play-publisher.json
+      ```
+      **Never inside the repo — it is public.** Hand back nothing; do not paste
+      any part of it into chat.
+- [ ] **Confirm it works:** `npm run publish:play -- --check`. It authenticates
+      and runs the gates without uploading. Paste the output if it complains.
+- [ ] **Register the internal-app-sharing SHA-1** in Firebase, if not already:
+      Play Console → *Testing → Internal app sharing → Internal test
+      certificate* → copy the SHA-1 → Firebase Console → Project settings →
+      Android app `com.sabeelinstitute.kanban` → *Add fingerprint*. Without it
+      Google sign-in fails on shared builds **and nothing else**, which reads as
+      a device problem. Server-side only: no rebuild, no `google-services.json`
+      re-download, so this one can be done from your phone.
+
 ## Stats backfill — done
 
 - [x] Re-ran `scripts/backfill-stats.mjs --write` on 29 July (2026) to fill the
