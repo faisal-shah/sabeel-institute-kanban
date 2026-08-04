@@ -214,11 +214,17 @@ creation**.
       Access → Integrations, and it uploads builds rather than delivering
       pushes. Both download exactly once and both are real secrets — keep either
       out of the repo. Both are in Drive.
-- [ ] **Decide the distribution route** before submitting. Internal TestFlight
-      needs no Beta App Review and fits a dozen colleagues; anything reviewed
-      needs **working demo credentials** in the review notes, because sign-in is
-      `@oursabeel.com`-only *and* admin-gated, so a reviewer cannot get in. See
-      `docs/IOS-BUILD.md`.
+- [ ] **Decide the distribution route** before submitting.
+      **Internal TestFlight is not the low-friction option it looks like**: every
+      tester must be a *user on your App Store Connect team*, with a role in the
+      developer account, accepted by invitation — not a download link. Thirteen
+      colleagues means thirteen standing accounts.
+      **External TestFlight** is the link-based one (up to 10,000, Apple ID and
+      the TestFlight app, no ASC membership), and the price is Beta App Review on
+      the first build of each version — so it needs **working demo credentials**,
+      because sign-in is `@oursabeel.com`-only *and* admin-gated and a reviewer
+      cannot get in. A dedicated pre-approved `@oursabeel.com` account solves it
+      once. See `docs/IOS-BUILD.md`.
 
 Then, on the Mac: `npm run check:ios` must pass before building. It verifies the
 bundle id, the Firebase project, the Google Sign-In URL scheme and the icon.

@@ -230,11 +230,25 @@ make, not a default.
 Decide the distribution route before submitting, because it changes what review
 demands:
 
-- **TestFlight, internal testers** — no Beta App Review. Testers must be users on
-  the App Store Connect team (up to 100). For a dozen colleagues this is the
-  least friction by a wide margin.
-- **TestFlight, external testers** — needs Beta App Review.
+- **TestFlight, internal testers** — no Beta App Review, builds land within
+  minutes. The price is not small and is easy to miss: each tester must be a
+  **user on the App Store Connect team** (up to 100), holding Account Holder,
+  Admin, App Manager, Developer or Marketing. That is a role inside the Apple
+  developer account, accepted by invitation — not a download link. Thirteen
+  colleagues means thirteen people with standing access to the account that
+  ships the app.
+- **TestFlight, external testers** — up to 10,000, invited by email or a public
+  link, **not** App Store Connect users. They need an Apple ID and the TestFlight
+  app, nothing more. The price is **Beta App Review on the first build of each
+  version**, which means the demo-credentials problem below.
 - **Public App Store** — full review.
+
+**Which one depends on what you would rather maintain**, and the earlier version
+of this file got it wrong by calling internal "least friction by a wide margin"
+while only counting review. Internal trades one recurring cost (review) for a
+standing one (team membership for everyone). For an internal tool at a nonprofit,
+**external is usually the better trade**: one dedicated review account, created
+once, against a dozen people holding roles in the developer account.
 
 For either reviewed route there is a hard problem to solve up front: **a reviewer
 cannot sign in.** Sign-in is Google-only, restricted to `@oursabeel.com`
