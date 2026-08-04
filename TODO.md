@@ -182,7 +182,7 @@ lives in a personal Google account — a continuity risk independent of OAuth.
 
 ---
 
-## D2. iOS registration — **blocked on one console fix** (2026-08-01)
+## D2. iOS registration — console work DONE; the route is the open decision
 
 An iOS app was registered in the **right Firebase project**
 (`sabeel-institute-kanban`) but with the **wrong bundle id**:
@@ -199,19 +199,21 @@ creation**.
 - [x] **Deleted the `com.sabeelinstitute.timetracker` iOS app** (2026-08-01).
 - [x] **Registered the bundle id in the Apple Developer portal** and created the
       app in App Store Connect as `com.sabeelinstitute.kanban` (2026-08-01).
-- [ ] **App ID capabilities: tick Push Notifications, and nothing else.** Not
+- [x] **App ID capabilities: Push Notifications only** (2026-08-04). Not
       Background Modes (our pushes are alerts, not silent), not Associated
       Domains (no universal links), not Sign in with Apple (the enterprise-account
       exemption to guideline 4.8 applies). Reasoning in `docs/IOS-BUILD.md`.
-- [ ] **APNs authentication key.** Apple Developer → Certificates, Identifiers &
-      Profiles → **Keys** → new key with *Apple Push Notifications service (APNs)*
-      enabled. Upload the `.p8` to Firebase → Project settings → Cloud Messaging →
-      iOS app, along with its **Key ID** and your **Team ID**. **Without this,
-      push does not work on iOS at all** — the app already uses push (§ I).
-      **This is NOT the App Store Connect API key.** That one is a different `.p8`,
-      made in App Store Connect → Users and Access → Integrations, and it uploads
-      builds rather than delivering pushes. Both download exactly once and both
-      are real secrets — keep either out of the repo.
+- [x] **APNs authentication key created and uploaded to Firebase** → Project
+      settings → Cloud Messaging → iOS app, with its Key ID and Team ID
+      (2026-08-04). Not verifiable from this side: Firebase exposes no API for
+      reading APNs configuration, so the proof is a push actually arriving on a
+      device — worth doing as the first check after the first TestFlight build,
+      because until then nothing distinguishes "uploaded" from "uploaded wrong".
+      **This is NOT the App Store Connect API key.**
+      That one is a different `.p8`, made in App Store Connect → Users and
+      Access → Integrations, and it uploads builds rather than delivering
+      pushes. Both download exactly once and both are real secrets — keep either
+      out of the repo. Both are in Drive.
 - [ ] **Decide the distribution route** before submitting. Internal TestFlight
       needs no Beta App Review and fits a dozen colleagues; anything reviewed
       needs **working demo credentials** in the review notes, because sign-in is
