@@ -289,13 +289,22 @@ bundle; uploading the same file by hand in Play Console says it in plain words
 Confirmed 2026-08-03. `publish-play.mjs` translates the error rather than
 printing it.
 
-That makes the **internal testing track the only reviewless channel** for this
-app: it is the one track that does not require review, and everything else
-(closed, open, production) does. So "get a build onto a phone without being at
-the computer" currently means `--internal`, which the whole tester list
-receives. The wrong lesson would be to reach for internal app sharing again
-later without checking; the right one is that it unlocks only once the app is
-published.
+The Play dashboard states it directly: the app is a **"Draft app"**, with
+Production, Open and Closed testing all *Inactive* and Internal testing
+*Active · Not reviewed*. Internal testing works precisely because it is the one
+track that skips review — which is also why it does not make the app published.
+
+That makes the **internal testing track the only channel this app has**. So "get
+a build onto a phone without being at the computer" means `--internal`, which
+the whole tester list receives.
+
+**And it may stay that way permanently.** Publishing means completing the store
+listing (the app still shows a temporary name), content rating, data safety and
+target-audience declarations, then passing review on a reviewed track. For an
+internal tool used by a dozen colleagues there may never be a reason to do any
+of that — in which case internal app sharing is not "not yet available", it is
+simply not available, and `--share` should be treated as dead for this app
+rather than retried.
 
 **Gates, before anything leaves the machine.**
 
