@@ -129,7 +129,9 @@ async function newestSource(dir, newest = 0) {
   }
   return newest;
 }
-let staleNote = false;
+// Any artifact gate that WOULD refuse. In --check these are advisory, so the
+// credentials can still be proved while the bundle is absent, stale or wrong.
+let artifactNote = false;
 const srcNewest = Math.max(
   await newestSource(resolve(ROOT, 'app/src')),
   await newestSource(resolve(ROOT, 'packages/shared/src')),
@@ -140,18 +142,19 @@ const srcNewest = Math.max(
 );
 if (aab) {
   const inside = bundleVersion();
-  if (!inside.length) {
-    die(`Could not read a version out of ${AAB}.\nRebuild: npm run build:aab`);
+  const problem = !inside.length
+    ? `Could not read a version out of ${AAB}.`
+    : !inside.includes(version)
+      ? `That bundle is NOT ${version}.\n  app.json says: ${version}\n  bundle carries: ${inside.join(', ')}`
+      : null;
+  if (problem) {
+    const msg = `${problem}\nRebuild: npm run build:aab`;
+    if (!check) die(msg);
+    artifactNote = true;
+    console.log(`\nNOTE — would refuse to upload:\n${msg}`);
+  } else {
+    console.log(`bundle carries version ${version} (read from the manifest)`);
   }
-  if (!inside.includes(version)) {
-    die(
-      `That bundle is NOT ${version}.\n` +
-        `  app.json says: ${version}\n` +
-        `  bundle carries: ${inside.join(', ')}\n` +
-        `Rebuild: npm run build:aab`,
-    );
-  }
-  console.log(`bundle carries version ${version} (read from the manifest)`);
 }
 
 if (aab && srcNewest > aab.mtimeMs) {
@@ -161,7 +164,7 @@ if (aab && srcNewest > aab.mtimeMs) {
     `  source: ${new Date(srcNewest).toISOString()}\n` +
     `Rebuild with: npm run build:aab`;
   if (!check) die(stale);
-  staleNote = true;
+  artifactNote = true;
   console.log(`\nNOTE — would refuse to upload:\n${stale}`);
 }
 
@@ -188,11 +191,19 @@ if (aab) {
   } catch {
     signer = '';
   }
-  if (!signer) die(`Could not read a signature from ${AAB}. Rebuild: npm run build:aab`);
-  if (/CN=Android Debug/i.test(signer)) {
-    die(`REFUSING: that bundle is signed with the DEBUG key (${signer}).\nRebuild with the upload key: npm run build:aab`);
+  const sigProblem = !signer
+    ? `Could not read a signature from ${AAB}.`
+    : /CN=Android Debug/i.test(signer)
+      ? `That bundle is signed with the DEBUG key (${signer}).`
+      : null;
+  if (sigProblem) {
+    const msg = `${sigProblem}\nRebuild with the upload key: npm run build:aab`;
+    if (!check) die(`REFUSING: ${msg}`);
+    artifactNote = true;
+    console.log(`\nNOTE — would refuse to upload:\n${msg}`);
+  } else {
+    console.log(`signed by ${signer}`);
   }
-  console.log(`signed by ${signer}`);
 }
 
 const keyFile = await stat(KEY).catch(() => null);
@@ -204,13 +215,32 @@ if (!keyFile) {
   );
 }
 
-const auth = new GoogleAuth({
-  keyFile: KEY,
-  scopes: ['https://www.googleapis.com/auth/androidpublisher'],
-});
-const client = await auth.getClient();
-const { token } = await client.getAccessToken();
-if (!token) die('Could not get an access token from the service-account key.');
+/*
+ * A revoked, replaced or malformed key throws here rather than returning
+ * nothing, so this is wrapped: otherwise the most likely real-world failure —
+ * someone rotated the key — arrives as a stack trace.
+ */
+let token;
+try {
+  const auth = new GoogleAuth({
+    keyFile: KEY,
+    scopes: ['https://www.googleapis.com/auth/androidpublisher'],
+  });
+  ({ token } = await (await auth.getClient()).getAccessToken());
+} catch (e) {
+  die(
+    `That key did not authenticate:\n${e.message}\n\n` +
+      `If it was rotated or deleted, mint a new one:\n` +
+      `  Google Cloud → IAM & Admin → Service Accounts → the publisher\n` +
+      `  → Keys → Add key → JSON, then replace ${KEY}`,
+  );
+}
+if (!token) {
+  die(
+    `No access token came back from ${KEY}.\n` +
+      `The file parses but Google issued nothing — replace the key as above.`,
+  );
+}
 
 const api = async (method, path, payload) => {
   const res = await fetch(`${API}/androidpublisher/v3/applications/${pkg}${path}`, {
@@ -254,8 +284,8 @@ if (check) {
         `"Release apps to testing tracks" on this app in Play Console.`,
     );
   }
-  const verdict = staleNote
-    ? '--check: the service account can release to this app, but the bundle\nabove is stale — a real run would refuse it.'
+  const verdict = artifactNote
+    ? '--check: the service account can release to this app, but a real run\nwould refuse the bundle for the reason noted above.'
     : '--check: gates pass, and the service account really can release to this\napp (an edit was created and discarded).';
   console.log(`\n${verdict}\nNothing was uploaded.\n`);
   process.exit(0);
