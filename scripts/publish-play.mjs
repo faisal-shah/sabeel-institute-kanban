@@ -222,7 +222,7 @@ const api = async (method, path, payload) => {
     ...(payload ? { body: JSON.stringify(payload) } : {}),
   });
   const text = await res.text();
-  if (!res.ok) die(`${method} ${path} failed (${res.status})\n${text}`);
+  if (!res.ok) throw new Error(`${method} ${path} failed (${res.status})\n${text}`);
   return text ? JSON.parse(text) : {};
 };
 
@@ -243,8 +243,17 @@ if (check) {
    * that fails at the first upload with a 403. Inserting an edit and deleting it
    * exercises the exact permission the real run needs and leaves nothing behind.
    */
-  const probe = await api('POST', '/edits');
-  await api('DELETE', `/edits/${probe.id}`);
+  let probe;
+  try {
+    probe = await api('POST', '/edits');
+    await api('DELETE', `/edits/${probe.id}`);
+  } catch (e) {
+    die(
+      `The key authenticates, but Play refused the operation:\n${e.message}\n\n` +
+        `Most likely the service account has not been granted\n` +
+        `"Release apps to testing tracks" on this app in Play Console.`,
+    );
+  }
   const verdict = staleNote
     ? '--check: the service account can release to this app, but the bundle\nabove is stale — a real run would refuse it.'
     : '--check: gates pass, and the service account really can release to this\napp (an edit was created and discarded).';
@@ -262,16 +271,21 @@ const upload = async (url) => {
     signal: AbortSignal.timeout(15 * 60 * 1000),
   });
   const text = await res.text();
-  if (!res.ok) die(`Upload failed (${res.status})\n${text}`);
+  if (!res.ok) throw new Error(`Upload failed (${res.status})\n${text}`);
   return JSON.parse(text);
 };
 
 let committed = false;
 if (!toTrack) {
   console.log('\nUploading to internal app sharing…');
+  // upload() throws, and there is no edit to unwind here — but an unhandled
+  // rejection would surface as a stack trace instead of a sentence.
   const out = await upload(
     `${API}/upload/androidpublisher/v3/applications/internalappsharing/${pkg}/artifacts/bundle?uploadType=media`,
-  );
+  ).catch((e) => die(e.message));
+  if (!out.downloadUrl) {
+    die(`Upload succeeded but returned no downloadUrl:\n${JSON.stringify(out, null, 2)}`);
+  }
   console.log('\nDone. Open this on the phone (signed in as a tester):\n');
   console.log(`  ${out.downloadUrl}\n`);
   console.log('It installs that exact build and notifies nobody.');
@@ -283,15 +297,12 @@ if (!toTrack) {
   console.log('\nUploading to the internal testing track…');
   const edit = await api('POST', '/edits');
   /*
-   * Discard the edit if anything after this throws. An abandoned edit is not
-   * fatal — Play expires them — but leaving drafts behind after a failed
-   * publish makes the Console state ambiguous the next time someone looks.
+   * Anything that throws from here must DISCARD the edit, not merely mention
+   * it. The first version of this logged from a `process.on('exit')` handler,
+   * which cannot await — so it announced a cleanup it was incapable of doing,
+   * and `die()` called process.exit before any catch could run anyway.
    */
-  process.on('exit', (code) => {
-    if (code !== 0 && !committed) {
-      console.error(`\nDiscarding the unfinished edit ${edit.id}.`);
-    }
-  });
+  try {
   const bundle = await upload(
     `${API}/upload/androidpublisher/v3/applications/${pkg}/edits/${edit.id}/bundles?uploadType=media`,
   );
@@ -304,4 +315,11 @@ if (!toTrack) {
   committed = true;
   console.log(`\nDone. v${version} (code ${bundle.versionCode}) is on the internal testing track.`);
   console.log('Testers get it from Play; propagation takes a few minutes.\n');
+  } catch (e) {
+    if (!committed) {
+      await api('DELETE', `/edits/${edit.id}`).catch(() => {});
+      console.error(`\nDiscarded the unfinished edit ${edit.id}; nothing was released.`);
+    }
+    die(e.message);
+  }
 }
