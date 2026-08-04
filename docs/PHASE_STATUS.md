@@ -367,6 +367,11 @@ the team.
 
 ### 2026-08-03 — Typing stops re-rendering the world — v0.7.5
 
+**Client only.** No `functions/src`, `firestore.rules`, `firestore.indexes.json`,
+`storage.rules` — and, unlike v0.7.0, no `packages/shared/src` either, so the
+functions bundle is genuinely untouched and functions do not redeploy. Checked
+with `git diff` against the v0.7.4 tag, not assumed.
+
 Reported from a phone: the description editor was "unusable on Android, and like
 a slide show on web". Three separate causes, all fixed, plus the pattern behind
 the third fixed everywhere it occurs.
