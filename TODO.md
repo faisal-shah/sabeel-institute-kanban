@@ -43,6 +43,11 @@ below is console work; the script is already written (`npm run publish:play`).
       gate and proves the Play permission by creating and discarding an edit —
       a key mints a token whether or not Play granted it anything, so this
       checks the thing that actually fails. Uploads nothing.
+- [x] **Internal app sharing is NOT available to this app** — it requires the
+      app to have been published, and internal-testing releases do not count
+      (confirmed in Play Console, 2026-08-03). Nothing to do; `--internal` is
+      the channel until the app is published. The SHA-1 below was registered
+      anyway and will be needed the day it does unlock.
 - [ ] **Register the internal-app-sharing SHA-1** in Firebase, if not already:
       Play Console → *Testing → Internal app sharing → Internal test
       certificate* → copy the SHA-1 → Firebase Console → Project settings →

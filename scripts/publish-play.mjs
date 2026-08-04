@@ -316,7 +316,31 @@ if (!toTrack) {
   // rejection would surface as a stack trace instead of a sentence.
   const out = await upload(
     `${API}/upload/androidpublisher/v3/applications/internalappsharing/${pkg}/artifacts/bundle?uploadType=media`,
-  ).catch((e) => die(e.message));
+  ).catch((e) => {
+    /*
+     * NOT_PUBLISHED is not about this bundle, this key, or these permissions.
+     * Internal app sharing REQUIRES THE APP TO HAVE BEEN PUBLISHED, and Play
+     * does not count internal-testing releases as published — so an app that
+     * only ever went to internal testing cannot use it at all.
+     *
+     * Confirmed 2026-08-03 by uploading the same bundle by hand in Play
+     * Console, which refused it in plain words. Worth translating, because the
+     * raw error reads like a problem with the artifact and sent this
+     * investigation down two wrong paths (a stale bundle, then the uploader
+     * list).
+     */
+    if (/NOT_PUBLISHED/.test(e.message)) {
+      die(
+        `Play refuses internal app sharing for this app:\n\n` +
+          `  Internal app sharing requires the app to have been PUBLISHED.\n` +
+          `  Releases on the internal testing track do not count.\n\n` +
+          `Until this app is published, use the internal testing track instead:\n` +
+          `  npm run publish:play -- --internal\n\n` +
+          `That is a release the whole tester list receives, so it is a\ndifferent decision, not a workaround.`,
+      );
+    }
+    die(e.message);
+  });
   if (!out.downloadUrl) {
     die(`Upload succeeded but returned no downloadUrl:\n${JSON.stringify(out, null, 2)}`);
   }

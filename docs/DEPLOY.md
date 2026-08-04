@@ -279,6 +279,24 @@ a release to the team. Internal app sharing needs no edit/commit cycle; the
 testing track does, so that path inserts an edit, uploads, points the track at
 the new `versionCode`, and commits.
 
+**`--share` DOES NOT WORK FOR THIS APP YET, and the reason is not obvious.**
+Internal app sharing requires the app to have been **published**, and Play does
+not count internal-testing releases as published — so an app whose only releases
+are on the internal track cannot use internal app sharing at all. The API says
+`NOT_PUBLISHED / FAILED_PRECONDITION`, which reads like a problem with the
+bundle; uploading the same file by hand in Play Console says it in plain words
+(*"The app … needs to be published before you can use internal app sharing"*).
+Confirmed 2026-08-03. `publish-play.mjs` translates the error rather than
+printing it.
+
+That makes the **internal testing track the only reviewless channel** for this
+app: it is the one track that does not require review, and everything else
+(closed, open, production) does. So "get a build onto a phone without being at
+the computer" currently means `--internal`, which the whole tester list
+receives. The wrong lesson would be to reach for internal app sharing again
+later without checking; the right one is that it unlocks only once the app is
+published.
+
 **Gates, before anything leaves the machine.**
 
 - A store-legal version, and a deploy-log entry that already describes it.
