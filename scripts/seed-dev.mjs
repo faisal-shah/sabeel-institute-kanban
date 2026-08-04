@@ -105,6 +105,38 @@ for (;;) {
 }
 await admin.getByRole('button', { name: 'Back' }).first().click();
 
+/**
+ * Fill a field and act on it, re-filling if the value is wiped underneath us.
+ *
+ * These are controlled React inputs, and the previous write's Firestore snapshot
+ * lands asynchronously. The sequence that fails: fill "Blocked", the snapshot
+ * from the PREVIOUS column add arrives, React re-renders from state that does
+ * not have the new text, the field goes empty, and the add button — which is
+ * gated on the text — disables. The click then waits on a permanently disabled
+ * control and times out 30s later pointing at the BUTTON, which reads as "the
+ * button is broken".
+ *
+ * Checking the value once immediately after filling is NOT enough: that check
+ * passes, and the wipe happens after it. So this retries the whole
+ * fill-then-confirm-enabled cycle, which is robust whatever the cause.
+ *
+ * Used for every controlled input here — board name, column, label, card title.
+ */
+async function fillThen(page, placeholder, value, act) {
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    await page.getByPlaceholder(placeholder).fill(value);
+    try {
+      await act({ timeout: 4000 });
+      return;
+    } catch {
+      // Either the value was wiped or the control is still busy from the
+      // previous write. Both are answered by filling again and retrying.
+      await page.waitForTimeout(500);
+    }
+  }
+  throw new Error(`"${placeholder}" would not accept ${JSON.stringify(value)} — the field kept being cleared`);
+}
+
 // A board with MANY columns — the case that shows whether the layout holds up.
 //
 // Wait for the board LIST to actually render before deciding whether the board
@@ -118,40 +150,19 @@ if (await existing.isVisible().catch(() => false)) {
   await existing.click();
 } else {
   await admin.getByRole('button', { name: 'New board' }).click();
-  await admin.getByPlaceholder('Board name').fill('Fundraising 2026');
-  await admin.getByRole('button', { name: 'Create', exact: true }).click();
+  await fillThen(admin, 'Board name', 'Fundraising 2026', (o) =>
+    admin.getByRole('button', { name: 'Create', exact: true }).click(o),
+  );
 }
 await admin.getByText('To Do').first().waitFor({ timeout: 30000 });
 
 await admin.getByRole('button', { name: 'Board settings' }).click();
 await admin.getByText('Board settings').waitFor({ timeout: 25000 });
-/**
- * Fill a field and WAIT FOR THE VALUE TO STICK before acting on it.
- *
- * These are controlled React inputs: `fill()` sets the DOM value and dispatches
- * an input event, but if a Firestore snapshot lands in the same tick React
- * re-renders from state that has not caught up and the field goes empty again.
- * The add button is gated on the text, so the click then waits on a permanently
- * disabled control and times out 30s later pointing at the BUTTON — which reads
- * as "the button is broken" rather than "the text never arrived".
- *
- * Seen on a cold stack, where snapshots arrive in bursts: the seed failed twice
- * at the same column while the very same fill-then-click worked by hand.
- */
-async function fillAndConfirm(page, placeholder, value) {
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
-    const field = page.getByPlaceholder(placeholder);
-    await field.fill(value);
-    if ((await field.inputValue()) === value) return;
-    await page.waitForTimeout(300);
-  }
-  throw new Error(`"${placeholder}" would not hold the value ${JSON.stringify(value)}`);
-}
-
 for (const name of COLUMNS) {
   if (await admin.getByText(name).first().isVisible().catch(() => false)) continue;
-  await fillAndConfirm(admin, 'New column name', name);
-  await admin.getByRole('button', { name: 'Add column' }).click();
+  await fillThen(admin, 'New column name', name, (o) =>
+    admin.getByRole('button', { name: 'Add column' }).click(o),
+  );
   await admin.getByText(name).first().waitFor({ timeout: 25000 });
 }
 // Let the column writes settle: the settings controls disable while one is in
@@ -171,8 +182,7 @@ for (const label of ['urgent', 'donor-facing']) {
     for (let i = 0; i < 30 && (await add.isDisabled().catch(() => false)); i += 1) {
       await admin.waitForTimeout(500);
     }
-    await admin.getByPlaceholder('New label name').fill(label);
-    await add.click({ timeout: 15000 });
+    await fillThen(admin, 'New label name', label, (o) => add.click(o));
     await admin.getByText(label).first().waitFor({ timeout: 25000 });
   } catch {
     // Labels are decoration for a dev seed; a board without them is still
@@ -202,8 +212,10 @@ await admin.getByText('To Do').first().waitFor({ timeout: 30000 });
 for (const title of CARDS) {
   if (await admin.getByText(title).first().isVisible().catch(() => false)) continue;
   await admin.getByRole('button', { name: '+ Add card' }).first().click();
-  await admin.getByPlaceholder('Card title').fill(title);
-  await admin.keyboard.press('Enter');
+  await fillThen(admin, 'Card title', title, async () => {
+    await admin.keyboard.press('Enter');
+    await admin.getByText(title).first().waitFor({ timeout: 4000 });
+  });
   await admin.getByText(title).first().waitFor({ timeout: 25000 });
 }
 
