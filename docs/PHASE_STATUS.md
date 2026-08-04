@@ -365,6 +365,84 @@ the team.
 
 ## Deploy log
 
+### 2026-08-03 — Typing stops re-rendering the world — v0.7.5
+
+Reported from a phone: the description editor was "unusable on Android, and like
+a slide show on web". Three separate causes, all fixed, plus the pattern behind
+the third fixed everywhere it occurs.
+
+**The two acute bugs.** A native `defaultValue` was recomputed from
+`initialMarkdown` on every render, so the editor re-seeded itself between
+keystrokes and the caret snapped back — repeated spaces were impossible. And
+`Sheet`'s backdrop carried `accessibilityRole="button"`, which react-native-web
+maps to a real `<button>` ELEMENT wrapping the whole dialog, TextInput included;
+the browser then treated a space typed in the field as activating it, so any
+sheet with a field in it closed mid-word. It cost a label called "waiting on" its
+space. Native renders no button element, which is why Android never showed it.
+
+**The chronic one: drafts held in screens.** A text draft changes on every
+keystroke, so a screen holding one re-renders every live-query list, markdown
+render and `.map` it draws, per character. Ten instances, all moved into the
+component that owns the field.
+
+Measured before and after, by `scripts/typing-perf-e2e.mjs`:
+
+| | before | after |
+|---|---|---|
+| Card description, 25 comments | 45.1 ms/char | 8.0 → 4.2 |
+| Comment box, busy vs empty card | 21.1 vs 4.8 (4.41x) | 5.3 vs 5.2 (1.02x) |
+| Add card, busy vs empty board | — | 1.5 vs 1.6 (0.94x) |
+
+45ms/char is a ceiling of about 22 characters per second, which is why it read as
+a slide show. The suite asserts a **ratio**, never a stopwatch reading: absolute
+ms/char on a shared runner moves over 3x between runs, so an absolute threshold
+would be either useless or flaky, and a check people learn to ignore is worse
+than none. It was seen RED on the comment regression before the fix and green
+after, so it can fail.
+
+**What this retires rather than avoids.** `CardScreen` held `title`,
+`titleDirty`, `editingTitle`, the same for the description, and an effect
+re-seeding both. The two editors can be open at once and once shared one dirty
+flag, so saving the title re-armed the effect and silently overwrote an unsaved
+description — a long description lost with no error and nothing to undo.
+Splitting the flag fixed it only while everyone remembered why there were two.
+The screen now holds no draft and no seeding effect at all, so neither editor can
+reach the other's state. A regression test for exactly that data loss was written
+FIRST and seen passing on the old code, so it can report a change rather than
+encode one.
+
+Three `memo` wrappers (`Comments`, `ActivityLog`, `Attachments`) were **removed**,
+not kept. They were a stopgap for the draft being in the wrong place; with no
+per-keystroke render left they guarded nothing measurable while imposing a
+standing requirement that every prop stay referentially stable forever. The
+ratios held after removing them — measured, not assumed.
+
+Also: every editor now closes only once its write LANDS, so a failed save leaves
+your text on screen instead of discarding it behind an error. `ColumnNameEditor`
+was changed to match `saveLabelName` rather than documenting that two editors one
+screen apart differed. And `WideBoard.tsx` no longer calls `.sort()` on an array
+owned by a `useMemo` during render.
+
+Coverage went up alongside: comment editing, subtasks, title rename, Escape
+closing the web composer, the composer emptying after a post, byte-equality
+through the comment EDIT path, and a `board-compose` sweep entry — the first
+screen in the sweep with any composer open at any width, which is the blind spot
+that let the `<button>`-wrapping-a-`TextInput` bug ship.
+
+Verified: perf 3/3, web-e2e 106/106, sweep 182/182 at five widths, richtext
+22/22, unit 36/36.
+
+**Two checks are NOT covered by any of that, and were done on the emulator
+instead.** Every suite here is web-only, and the native `RichEditor.tsx` is a
+different file from `RichEditor.web.tsx` — the original "unusable on Android"
+bug lived in the native one, where no web suite could see it. So the comment
+composer and a comment being edited were each typed into with repeated spaces
+and read back with `adb shell uiautomator dump`, the method that proved the
+original fix. Separately, `WideBoard.tsx` (the native tablet board) is reached
+by no Playwright suite at all — Metro serves `WideBoard.web.tsx` on web and
+`NarrowBoard.tsx` narrow — so its shared `AddCardForm` was checked by
+screenshot at tablet width.
+
 ### 2026-07-31 — A real app icon — v0.7.4
 
 Icon assets and config only. No functions, rules, indexes, shared package or
