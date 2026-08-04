@@ -297,9 +297,12 @@ the new `versionCode`, and commits.
   happily.
 
 `--check` runs all of it, proves the Play permission by creating and discarding
-an edit, and uploads nothing. It does **not** require a bundle to exist, because
-its purpose is confirming the setup before the first build — and it will not
-claim "gates pass" when one of them would refuse.
+an edit, and uploads nothing. **Every artifact gate is advisory there and fatal
+on a real run** — the bundle may be missing, stale or the wrong version and
+`--check` will still tell you whether the credentials and permissions work,
+because that is the state you are in *before* rebuilding and the question
+`--check` exists to answer. It reports what a real run would refuse, and will not
+claim "gates pass" when one of them would.
 
 **One credential for every app, named for the ACCOUNT not the app.** A Play
 service account belongs to the developer account and is scoped per-app by Play
