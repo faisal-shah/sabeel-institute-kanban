@@ -147,7 +147,16 @@ if [ -d "$PAGES_DIR/.git" ]; then
   grep -q "<span class=\"published\">${PUBLISHED}</span>" \
     "$PAGES_DIR/sabeel-kanban/index.html" \
     || { echo "FAILED to update the published time on the download page" >&2; exit 1; }
-  echo "Page labelled v${VERSION}, published ${PUBLISHED}"
+  # The SIZE on the button, which drifted silently for four releases: the page
+  # advertised 31 MB while the asset had grown to 37. Nobody edits a number they
+  # are not looking at, so the script owns it now.
+  SIZE_MB="$(( ( $(stat -c %s "$APK") + 524288 ) / 1048576 ))"
+  sed -i -E "s#(Download for Android \()[0-9]+(&nbsp;MB\))#\1${SIZE_MB}\2#" \
+    "$PAGES_DIR/sabeel-kanban/index.html"
+  grep -q "Download for Android (${SIZE_MB}&nbsp;MB)" \
+    "$PAGES_DIR/sabeel-kanban/index.html" \
+    || { echo "FAILED to update the download size on the page" >&2; exit 1; }
+  echo "Page labelled v${VERSION}, ${SIZE_MB} MB, published ${PUBLISHED}"
   git -C "$PAGES_DIR" add sabeel-kanban/index.html
   git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION} (${PUBLISHED})" \
     && git -C "$PAGES_DIR" push -q \
