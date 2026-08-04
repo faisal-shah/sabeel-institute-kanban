@@ -50,13 +50,28 @@ const API = 'https://androidpublisher.googleapis.com';
 const args = process.argv.slice(2);
 const check = args.includes('--check');
 const toTrack = args.includes('--internal');
-const pkg = JSON.parse(await readFile(resolve(ROOT, 'app/app.json'), 'utf8')).expo.android.package;
-const version = JSON.parse(await readFile(resolve(ROOT, 'app/app.json'), 'utf8')).expo.version;
+const app = JSON.parse(await readFile(resolve(ROOT, 'app/app.json'), 'utf8')).expo;
+const pkg = app.android.package;
+const version = app.version;
 
 const die = (m) => {
   console.error(`\n${m}\n`);
   process.exit(1);
 };
+
+if (args.includes('--help') || args.length === 0) {
+  console.log(`
+  --check      run every gate and prove the Play permission; upload nothing
+  --share      internal app sharing: a link, and nobody is notified (safe)
+  --internal   the internal TESTING track: the team gets this (a release)
+`);
+  process.exit(args.length === 0 ? 1 : 0);
+}
+// The two destinations differ in who sees the build, so a command that names
+// both is a typo, not a preference — and guessing would publish to the team.
+if (toTrack && args.includes('--share')) {
+  die('--share and --internal are different audiences. Pass one.');
+}
 
 // ---- gates, before anything leaves this machine ----------------------------
 
@@ -79,13 +94,31 @@ const aab = await stat(AAB).catch(() => null);
 if (!aab && !check) die(`No bundle at ${AAB}\nRun: npm run build:aab`);
 
 /**
- * REFUSE A BUNDLE OLDER THAN THE CODE.
+ * REFUSE A BUNDLE THAT IS NOT THIS VERSION — by reading what is INSIDE it.
  *
- * The failure this exists for has happened here: an artifact sitting at the
- * output path from a previous build was taken for the new one, and the version
- * it carried was only noticed after it was public. Comparing mtimes catches it
- * without needing to parse a protobuf manifest out of the bundle.
+ * The first version of this gate compared mtimes, and it was defeated the first
+ * time it was tested: copying the file back after an experiment refreshed its
+ * timestamp, and a bundle whose contents said 0.7.4 then passed as 0.7.5. A
+ * timestamp describes the file, not the build.
+ *
+ * The versionName survives in the base manifest as a plain string, so the
+ * bundle can be asked what it actually is. mtime stays as a secondary hint,
+ * because a bundle older than the source is worth mentioning even when the
+ * version happens to match.
  */
+function bundleVersion() {
+  try {
+    const manifest = execFileSync('unzip', ['-p', AAB, 'base/manifest/AndroidManifest.xml'], {
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    // Binary protobuf; the versionName is stored as a readable string in it.
+    const found = [...manifest.toString('latin1').matchAll(/\d+\.\d+\.\d+/g)].map((m) => m[0]);
+    return [...new Set(found)];
+  } catch {
+    return [];
+  }
+}
+
 async function newestSource(dir, newest = 0) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     if (e.name === 'node_modules' || e.name === 'build' || e.name.startsWith('.')) continue;
@@ -96,10 +129,31 @@ async function newestSource(dir, newest = 0) {
   }
   return newest;
 }
+let staleNote = false;
 const srcNewest = Math.max(
   await newestSource(resolve(ROOT, 'app/src')),
   await newestSource(resolve(ROOT, 'packages/shared/src')),
+  // Native config decides what the bundle IS — minSdk, signing, the version
+  // code. `newestSource` skips any `build` directory, so the bundle's own
+  // output folder cannot make this always-stale.
+  await newestSource(resolve(ROOT, 'app/android')),
 );
+if (aab) {
+  const inside = bundleVersion();
+  if (!inside.length) {
+    die(`Could not read a version out of ${AAB}.\nRebuild: npm run build:aab`);
+  }
+  if (!inside.includes(version)) {
+    die(
+      `That bundle is NOT ${version}.\n` +
+        `  app.json says: ${version}\n` +
+        `  bundle carries: ${inside.join(', ')}\n` +
+        `Rebuild: npm run build:aab`,
+    );
+  }
+  console.log(`bundle carries version ${version} (read from the manifest)`);
+}
+
 if (aab && srcNewest > aab.mtimeMs) {
   const stale =
     `The bundle is OLDER than the source.\n` +
@@ -107,7 +161,38 @@ if (aab && srcNewest > aab.mtimeMs) {
     `  source: ${new Date(srcNewest).toISOString()}\n` +
     `Rebuild with: npm run build:aab`;
   if (!check) die(stale);
+  staleNote = true;
   console.log(`\nNOTE — would refuse to upload:\n${stale}`);
+}
+
+/*
+ * REFUSE A DEBUG-SIGNED BUNDLE, independently of how it was built.
+ *
+ * `build-aab.sh` checks this at build time, but this script uploads whatever
+ * sits at the path — and the staleness gate above only compares timestamps, so
+ * an old debug-signed bundle with no source changes since would sail through.
+ * It matters most for --share: the internal testing track would reject a wrong
+ * upload key, but internal app sharing re-signs with Play's own internal test
+ * certificate and would happily distribute it.
+ *
+ * An AAB is a signed jar, so this is jarsigner, not apksigner.
+ */
+if (aab) {
+  let signer = '';
+  try {
+    signer = execFileSync(
+      'jarsigner',
+      ['-verify', '-verbose:summary', '-certs', AAB],
+      { encoding: 'utf8' },
+    ).match(/Signed by "(.*)"/)?.[1] ?? '';
+  } catch {
+    signer = '';
+  }
+  if (!signer) die(`Could not read a signature from ${AAB}. Rebuild: npm run build:aab`);
+  if (/CN=Android Debug/i.test(signer)) {
+    die(`REFUSING: that bundle is signed with the DEBUG key (${signer}).\nRebuild with the upload key: npm run build:aab`);
+  }
+  console.log(`signed by ${signer}`);
 }
 
 const keyFile = await stat(KEY).catch(() => null);
@@ -160,9 +245,10 @@ if (check) {
    */
   const probe = await api('POST', '/edits');
   await api('DELETE', `/edits/${probe.id}`);
-  console.log('\n--check: gates pass, and the service account really can');
-  console.log('release to this app (an edit was created and discarded).');
-  console.log('Nothing was uploaded.\n');
+  const verdict = staleNote
+    ? '--check: the service account can release to this app, but the bundle\nabove is stale — a real run would refuse it.'
+    : '--check: gates pass, and the service account really can release to this\napp (an edit was created and discarded).';
+  console.log(`\n${verdict}\nNothing was uploaded.\n`);
   process.exit(0);
 }
 
@@ -180,6 +266,7 @@ const upload = async (url) => {
   return JSON.parse(text);
 };
 
+let committed = false;
 if (!toTrack) {
   console.log('\nUploading to internal app sharing…');
   const out = await upload(
@@ -195,6 +282,16 @@ if (!toTrack) {
 } else {
   console.log('\nUploading to the internal testing track…');
   const edit = await api('POST', '/edits');
+  /*
+   * Discard the edit if anything after this throws. An abandoned edit is not
+   * fatal — Play expires them — but leaving drafts behind after a failed
+   * publish makes the Console state ambiguous the next time someone looks.
+   */
+  process.on('exit', (code) => {
+    if (code !== 0 && !committed) {
+      console.error(`\nDiscarding the unfinished edit ${edit.id}.`);
+    }
+  });
   const bundle = await upload(
     `${API}/upload/androidpublisher/v3/applications/${pkg}/edits/${edit.id}/bundles?uploadType=media`,
   );
@@ -204,6 +301,7 @@ if (!toTrack) {
     releases: [{ versionCodes: [String(bundle.versionCode)], status: 'completed' }],
   });
   await api('POST', `/edits/${edit.id}:commit`);
+  committed = true;
   console.log(`\nDone. v${version} (code ${bundle.versionCode}) is on the internal testing track.`);
   console.log('Testers get it from Play; propagation takes a few minutes.\n');
 }
