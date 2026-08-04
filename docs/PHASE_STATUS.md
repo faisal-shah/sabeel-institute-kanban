@@ -429,8 +429,11 @@ through the comment EDIT path, and a `board-compose` sweep entry — the first
 screen in the sweep with any composer open at any width, which is the blind spot
 that let the `<button>`-wrapping-a-`TextInput` bug ship.
 
-Verified: perf 3/3, web-e2e 106/106, sweep 182/182 at five widths, richtext
-22/22, unit 36/36.
+Verified, re-run in full after the release bump: unit 419 (functions 383,
+shared 27, app 9), emulator 291, and every e2e suite — sweep 182/182 at five
+widths, web 106/106, stats 271/271, richtext 22/22, attachments 17/17, and
+typing-perf 3/3 at ratios of 1.09 (comment) and 0.74 (description), against the
+4.41x that started this.
 
 **Two checks are NOT covered by any of that, and were done on the emulator
 instead.** Every suite here is web-only, and the native `RichEditor.tsx` is a
