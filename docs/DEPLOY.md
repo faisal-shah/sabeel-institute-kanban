@@ -483,16 +483,35 @@ emulator-mode bundle must never reach Hosting.
 
 ## Shipping a release
 
-`android/` is committed; there is no EAS. A ship touches three surfaces and they
-go out in one batch, after Faisal's go-ahead.
+`android/` is committed; there is no EAS. A ship touches **web, the APK download
+page, and Play**, and they go out in one batch after Faisal's go-ahead. (iOS is
+its own runbook.)
 
 ```sh
-# 0. version bump in app/app.json + the deploy-log entry in docs/PHASE_STATUS.md
-git push origin main                                  # FIRST — a release tags a pushed commit
+# 0. app/app.json version + the deploy-log entry in docs/PHASE_STATUS.md
+# 1. WRITE THE "What's new" PARAGRAPH on the download page — see below, nothing checks it
+git push origin main            # FIRST — a release attaches to a commit GitHub already has
+npm run web:export -w @sabeel/app
 npx firebase deploy --only hosting --project sabeel-institute-kanban
-npm run build:aab                                     # then upload at Play Console
-cd app && npx expo prebuild --platform ios && ...     # docs/IOS-BUILD.md
+npm run build:apk && scripts/publish-apk.sh          # download page + versioned GitHub release
+npm run build:aab && npm run publish:play -- --internal   # the team, via Play
 ```
+
+**Push before publishing.** `publish-apk.sh` cuts a GitHub Release, which cannot
+attach to a commit GitHub has not seen — shipping v0.7.0 failed at exactly that
+step with `target_commitish is invalid`.
+
+**Build the artifacts AFTER the last commit.** Both `build:apk` and `build:aab`
+stamp the running commit onto the sign-in screen. An artifact built earlier
+carries a superseded hash, so rebuild if anything landed since — the version
+gate will not catch it, because the version is still right.
+
+**The download page's "What's new" paragraph is hand-written and nothing checks
+it.** The script owns the version, the timestamp and the download size, and
+asserts all three. The prose it sits beside does not update itself: it spent four
+releases advertising 31 MB and, until v0.7.5, still announced the move to Google
+Play beside a live download button. Write it in
+`../faisal-shah.github.io/sabeel-kanban/index.html` before publishing.
 
 Before sharing any build:
 
@@ -511,8 +530,13 @@ why a release exists.
 
 ### Play specifics
 
-- Uploading is manual, in the console. There is deliberately **no deploy from
-  CI** (see `CLAUDE.md`).
+- Uploading is **scripted**: `npm run publish:play -- --internal` does the whole
+  edit/upload/track/commit cycle, and `-- --check` proves the gates and the Play
+  permission without uploading. The console is only needed for things the API
+  cannot do — permissions, and reading the app-signing fingerprints. There is
+  still deliberately **no deploy from CI** (see `CLAUDE.md`).
+- `--share` (internal app sharing) does **not** work for this app; see the
+  download-page section above for why.
 - `versionCode` is derived from the semver (`major*1000000 + minor*1000 + patch`),
   so it increases on its own. Play rejects a duplicate outright, which is the
   backstop.

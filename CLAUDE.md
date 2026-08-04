@@ -386,13 +386,20 @@ Playwright for web) — never claim a screen works because the code looks right.
   module — never hand-roll `onSnapshot` state in a hook (lint-enforced). See
   `docs/INHERITED-STACK.md` for why this is non-negotiable.
 - **Deploying needs Faisal's go-ahead** (set 2026-07-25). Do everything up to and
-  including the commit, then **stop and show him what is ready** — he says go
-  before the web deploy, the APK build and the release. Once he does, ship
-  **every** surface in one batch; never ask platform by platform. The gate exists
-  because a release is only reversible *forwards*, through another release.
+  including the commit, then **stop and show him what is ready**. Once he says
+  go, ship **every** surface in one batch; never ask platform by platform. The
+  gate exists because a release is only reversible *forwards*, through another
+  release. The surfaces are **web hosting, the APK download page, and Play
+  internal testing** — `docs/DEPLOY.md` § Shipping a release has the order, and
+  the order matters: **push `main` first** (a GitHub Release cannot attach to an
+  unpushed commit), and **build the artifacts after the last commit** or they
+  stamp a superseded hash onto the sign-in screen.
 - **Android ships through Google Play** (decided 2026-08-02), release-signed.
-  Build with **`npm run build:aab`** and upload the bundle at Play Console →
-  Internal testing. Play wants an **AAB**, not APKs: one artifact carrying every
+  Build with **`npm run build:aab`**, then **`npm run publish:play -- --internal`**
+  — the upload is scripted through the Play Developer API, so it needs no
+  browser. `-- --check` proves every gate and the Play permission without
+  uploading anything. Play Console is still required for the things the API
+  cannot do: granting permissions, and reading the app-signing fingerprints. Play wants an **AAB**, not APKs: one artifact carrying every
   ABI, from which Play generates per-device splits. The `splits` block in
   `app/android/app/build.gradle` therefore switches itself **off** for bundle
   tasks — both on at once fails with *"Multiple shrunk-resources files found"*.
