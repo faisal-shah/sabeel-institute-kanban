@@ -226,6 +226,41 @@ global rollout, an app sideloaded from a page rather than a store needs its
 signing key registered under Play Console -> Android developer verification.
 Retiring that channel resolves it; so would registering the upload key there.
 
+### What to back up, and what to regenerate instead
+
+Three files sit in `~/keys`. They are not equivalent, and treating them the same
+is how people end up with a backup that cannot sign and a credential copied
+somewhere it did not need to be.
+
+| File | Back up? | Why |
+|---|---|---|
+| `sabeel-kanban-upload.jks` | **Yes** | Cannot be recreated. Losing it is recoverable only through a Play upload-key reset |
+| `app/android/keystore.properties` | **Yes, with it** | The keystore is **useless without these passwords** — this is the half that gets forgotten |
+| `sabeel-play-publisher.json` | **No** | Mint a fresh key in seconds; another copy is only another thing to leak |
+| `upload_certificate.pem` | No | Public certificate, re-exportable from the keystore and downloadable from Play Console |
+
+**The keystore and its passwords travel together or not at all.** Backing up the
+`.jks` alone produces a file nobody can open. Backing up
+`keystore.properties` alone produces passwords for a keystore that no longer
+exists. Whether they live in the same place is a real choice: one folder is
+convenient and means a single compromise yields both; passwords in a password
+manager and the keystore in Drive is the safer split. Pick deliberately.
+
+**Losing the upload key is friction, not death.** Under Play App Signing, Google
+holds the *app signing* key — the one that actually has to stay constant — so a
+lost upload key is reset through Play Console support and updates resume. The
+app signing key is the one that can never be replaced, and it is not on this
+machine.
+
+**The service-account key is deliberately NOT backed up.** It is regenerable:
+Google Cloud → *IAM & Admin → Service Accounts* → the publisher account → *Keys →
+Add key → JSON*, then delete the old one. That is also the rotation procedure, so
+"lost it" and "might be exposed" have the same one-minute answer. What is worth
+recording instead is the **pointer** — which Google Cloud project and which
+`…iam.gserviceaccount.com` address — because that is the part you would otherwise
+have to go hunting for. It is org-scoped, not app-scoped: one account publishes
+every app, so this is a single note, not one per app.
+
 ### Publishing from the command line, without a browser
 
 `npm run publish:play` uploads the release AAB through the Google Play Developer
