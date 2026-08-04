@@ -279,12 +279,27 @@ a release to the team. Internal app sharing needs no edit/commit cycle; the
 testing track does, so that path inserts an edit, uploads, points the track at
 the new `versionCode`, and commits.
 
-**Gates, before anything leaves the machine.** Store-legal version, a deploy-log
-entry that already describes this release, and — the one that has caught a real
-mistake here — a bundle that is NEWER than `app/src` and `packages/shared/src`.
-An artifact left at the output path from a previous build is the failure this
-repo has already paid for once; comparing mtimes catches it without parsing a
-protobuf manifest out of the bundle.
+**Gates, before anything leaves the machine.**
+
+- A store-legal version, and a deploy-log entry that already describes it.
+- `--share` and `--internal` together are refused. They are different audiences,
+  so a command naming both is a typo, and guessing would publish to the team.
+- **The bundle must SAY it is this version.** The versionName is read out of
+  `base/manifest/AndroidManifest.xml` inside the AAB and compared with
+  `app.json`. This started as an mtime comparison and was defeated the first
+  time it was tested: copying the file back after an experiment refreshed its
+  timestamp, and a bundle whose contents said 0.7.4 passed as 0.7.5. A timestamp
+  describes the file, not the build. mtime survives only as a secondary note.
+- **The signature must not be the debug key**, checked here and not merely
+  trusted from `build-aab.sh`. It matters most for `--share`: the testing track
+  would reject a wrong upload key, but internal app sharing re-signs with Play's
+  own internal test certificate and would distribute a debug-signed build
+  happily.
+
+`--check` runs all of it, proves the Play permission by creating and discarding
+an edit, and uploads nothing. It does **not** require a bundle to exist, because
+its purpose is confirming the setup before the first build — and it will not
+claim "gates pass" when one of them would refuse.
 
 **One credential for every app, named for the ACCOUNT not the app.** A Play
 service account belongs to the developer account and is scoped per-app by Play

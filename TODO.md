@@ -39,8 +39,10 @@ below is console work; the script is already written (`npm run publish:play`).
       ```
       **Never inside the repo — it is public.** Hand back nothing; do not paste
       any part of it into chat.
-- [ ] **Confirm it works:** `npm run publish:play -- --check`. It authenticates
-      and runs the gates without uploading. Paste the output if it complains.
+- [ ] **Confirm it works:** `npm run publish:play -- --check`. It runs every
+      gate and proves the Play permission by creating and discarding an edit —
+      a key mints a token whether or not Play granted it anything, so this
+      checks the thing that actually fails. Uploads nothing.
 - [ ] **Register the internal-app-sharing SHA-1** in Firebase, if not already:
       Play Console → *Testing → Internal app sharing → Internal test
       certificate* → copy the SHA-1 → Firebase Console → Project settings →
