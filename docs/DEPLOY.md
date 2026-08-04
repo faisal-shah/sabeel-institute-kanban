@@ -251,6 +251,13 @@ An artifact left at the output path from a previous build is the failure this
 repo has already paid for once; comparing mtimes catches it without parsing a
 protobuf manifest out of the bundle.
 
+**One credential for every app, named for the ACCOUNT not the app.** A Play
+service account belongs to the developer account and is scoped per-app by Play
+Console permissions, so one key publishes them all and a second app needs no new
+credential — only a tick box. That is the opposite of the upload **keystore**,
+which is per-app and stays app-named (`sabeel-kanban-upload.jks`). Every sibling
+repo can copy this script and find the same key with no configuration.
+
 **The credential lives at `~/keys/sabeel-play-publisher.json`** (override with
 `SK_PLAY_KEY`), beside the upload keystore and for the same reason: this repo is
 PUBLIC, and a service-account key committed once is a publish credential for the

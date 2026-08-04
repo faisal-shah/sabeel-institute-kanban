@@ -38,6 +38,12 @@ const { GoogleAuth } = require('google-auth-library');
 
 const ROOT = resolve(import.meta.dirname, '..');
 const AAB = resolve(ROOT, 'app/android/app/build/outputs/bundle/release/app-release.aab');
+// Named for the DEVELOPER ACCOUNT (sabeel), not for this app: one service
+// account publishes every app on the account, scoped per-app by Play Console
+// permissions, so a second app needs a tick box rather than a new credential.
+// Every sibling repo defaults to this same path with no configuration.
+// (The upload KEYSTORE is the opposite — one per app — hence
+// `sabeel-kanban-upload.jks` beside it.)
 const KEY = process.env.SK_PLAY_KEY ?? join(homedir(), 'keys', 'sabeel-play-publisher.json');
 const API = 'https://androidpublisher.googleapis.com';
 
@@ -67,7 +73,10 @@ try {
 }
 
 const aab = await stat(AAB).catch(() => null);
-if (!aab) die(`No bundle at ${AAB}\nRun: npm run build:aab`);
+// In --check the artifact is ADVISORY: the point of --check is to prove the
+// credentials and permissions work, which must be answerable before a bundle
+// has ever been built. Refusing here made it useless for exactly that.
+if (!aab && !check) die(`No bundle at ${AAB}\nRun: npm run build:aab`);
 
 /**
  * REFUSE A BUNDLE OLDER THAN THE CODE.
@@ -91,13 +100,14 @@ const srcNewest = Math.max(
   await newestSource(resolve(ROOT, 'app/src')),
   await newestSource(resolve(ROOT, 'packages/shared/src')),
 );
-if (srcNewest > aab.mtimeMs) {
-  die(
+if (aab && srcNewest > aab.mtimeMs) {
+  const stale =
     `The bundle is OLDER than the source.\n` +
-      `  bundle: ${new Date(aab.mtimeMs).toISOString()}\n` +
-      `  source: ${new Date(srcNewest).toISOString()}\n` +
-      `Rebuild with: npm run build:aab`,
-  );
+    `  bundle: ${new Date(aab.mtimeMs).toISOString()}\n` +
+    `  source: ${new Date(srcNewest).toISOString()}\n` +
+    `Rebuild with: npm run build:aab`;
+  if (!check) die(stale);
+  console.log(`\nNOTE — would refuse to upload:\n${stale}`);
 }
 
 const keyFile = await stat(KEY).catch(() => null);
@@ -117,15 +127,42 @@ const client = await auth.getClient();
 const { token } = await client.getAccessToken();
 if (!token) die('Could not get an access token from the service-account key.');
 
-const mb = (aab.size / 1024 / 1024).toFixed(1);
+const api = async (method, path, payload) => {
+  const res = await fetch(`${API}/androidpublisher/v3/applications/${pkg}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(payload ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  });
+  const text = await res.text();
+  if (!res.ok) die(`${method} ${path} failed (${res.status})\n${text}`);
+  return text ? JSON.parse(text) : {};
+};
+
 console.log(`\npackage   ${pkg}`);
 console.log(`version   ${version}`);
-console.log(`bundle    ${mb} MB, built ${new Date(aab.mtimeMs).toISOString()}`);
+console.log(
+  `bundle    ${aab ? `${(aab.size / 1024 / 1024).toFixed(1)} MB, built ${new Date(aab.mtimeMs).toISOString()}` : 'none built yet'}`,
+);
 console.log(`key       ${KEY}`);
 console.log(`target    ${toTrack ? 'internal TESTING track (the team sees this)' : 'internal app sharing (link only)'}`);
 
 if (check) {
-  console.log('\n--check: gates pass and the credentials work. Nothing uploaded.\n');
+  /*
+   * PROVE AUTHORIZATION, not just authentication.
+   *
+   * A service-account key mints an access token whether or not Play Console has
+   * granted it anything, so "we got a token" would report success for a setup
+   * that fails at the first upload with a 403. Inserting an edit and deleting it
+   * exercises the exact permission the real run needs and leaves nothing behind.
+   */
+  const probe = await api('POST', '/edits');
+  await api('DELETE', `/edits/${probe.id}`);
+  console.log('\n--check: gates pass, and the service account really can');
+  console.log('release to this app (an edit was created and discarded).');
+  console.log('Nothing was uploaded.\n');
   process.exit(0);
 }
 
@@ -141,20 +178,6 @@ const upload = async (url) => {
   const text = await res.text();
   if (!res.ok) die(`Upload failed (${res.status})\n${text}`);
   return JSON.parse(text);
-};
-
-const api = async (method, path, payload) => {
-  const res = await fetch(`${API}/androidpublisher/v3/applications/${pkg}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(payload ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(payload ? { body: JSON.stringify(payload) } : {}),
-  });
-  const text = await res.text();
-  if (!res.ok) die(`${method} ${path} failed (${res.status})\n${text}`);
-  return text ? JSON.parse(text) : {};
 };
 
 if (!toTrack) {
