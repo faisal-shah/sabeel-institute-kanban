@@ -408,17 +408,22 @@ Playwright for web) — never claim a screen works because the code looks right.
   under Play Console → App integrity → *App signing key certificate*, NOT the
   upload key's. Both belong in Firebase; miss the former and sign-in fails with
   `DEVELOPER_ERROR` for Play users only, while local builds work.
-- **The GitHub-release APK channel is RETIRED and FROZEN at v0.7.4.**
-  `scripts/publish-apk.sh` refuses to run without `SK_LEGACY_APK_CHANNEL=1`.
-  The frozen asset is the last debug-signed build, which is what existing
-  installs match; a newer, properly-signed APK **cannot install over it**, so
-  publishing one breaks the download for everyone who already has the app. It
-  ran by accident once for 59 seconds. Existing users move across by
-  uninstalling and reinstalling from Play — nothing is lost, all state is in
-  Firestore. **Never `git add` a binary** to any repo: committing per-release
-  APKs bloated the pages history (~31 MB each) and had to be rewritten out.
-  `*.apk` is gitignored in the pages repo as the backstop, and that rule still
-  holds in the sibling time-tracker.
+- **The GitHub-release APK is the DEVELOPER'S pre-release route** (un-retired
+  2026-08-03, reversing the 2026-08-02 retirement). Testers get builds from
+  Play internal testing; this channel exists because Faisal must test a release
+  build *before* they see it, from a phone, away from the machine — and Play's
+  one feature for that, **internal app sharing, refuses this app**: it requires
+  the app to have been PUBLISHED, and internal-testing releases do not count.
+  The app is a Draft, and for an internal tool it may always be.
+  **The signature rule is permanent**: an APK from here is signed with the
+  UPLOAD key, a Play install with GOOGLE'S app signing key, and neither can
+  replace the other — uninstall first, nothing is lost because all state is in
+  Firestore. That is what made replacing the old frozen asset dangerous while
+  the team still had it sideloaded; they are on Play now.
+  **Never `git add` a binary** to any repo: committing per-release APKs bloated
+  the pages history (~31 MB each) and had to be rewritten out. `*.apk` is
+  gitignored in the pages repo as the backstop, and that rule still holds in the
+  sibling time-tracker.
 - **Any script whose first act after its checks is a public upload needs a dry
   run.** `publish-apk.sh --check` exists because running it to *test* a new gate
   published a build. If a check is worth writing, exercising it must be free.

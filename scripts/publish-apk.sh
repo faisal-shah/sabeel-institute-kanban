@@ -24,34 +24,30 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# THIS CHANNEL IS RETIRED (2026-08-02). Android ships through Google Play now;
-# use `npm run build:aab`.
+# UN-RETIRED 2026-08-03, for one job Play cannot do.
 #
-# The rolling download is FROZEN at v0.7.4, the last debug-signed build, because
-# that is what the team already has installed. Publishing anything newer here
-# would be actively harmful rather than merely obsolete: every build from now on
-# is signed with the real upload key, and Android refuses to update an install
-# whose signature does not match. Anyone tapping the download would get "App not
-# installed" and have no idea why. That is not hypothetical — it happened once,
-# for 59 seconds, and is the reason this block exists.
+# Android ships to the team through Google Play internal testing. But the
+# developer needs to test a release build BEFORE the testers receive it, and
+# from a phone, away from this machine. Play offers exactly one feature for
+# that — internal app sharing — and it refuses this app: it requires the app to
+# have been PUBLISHED, and internal-testing releases do not count. The app is
+# still a Draft. See docs/DEPLOY.md.
 #
-# The script is kept, working, for one job: replacing the frozen asset if it is
-# ever lost. Hence an override rather than deletion.
-if [ "${SK_LEGACY_APK_CHANNEL:-}" != "1" ]; then
-  cat >&2 <<'EOF'
-publish-apk.sh is RETIRED — Android releases go to Google Play.
-
-  npm run build:aab     then upload at Play Console -> Internal testing
-
-The GitHub-release download is frozen at v0.7.4 (debug-signed) because that is
-what existing installs match. A newer, properly-signed APK cannot install over
-it, so publishing one here breaks the download for everyone who already has the
-app.
-
-If you really are restoring the frozen asset:  SK_LEGACY_APK_CHANNEL=1 $0
-EOF
-  exit 1
-fi
+# So this channel is the developer's pre-release route, not a second channel for
+# the team. Play remains where testers get builds.
+#
+# WHAT CHANGED SINCE IT WAS RETIRED, and why publishing here is safe now:
+# the frozen asset was the last DEBUG-signed build, and replacing it with a
+# properly signed one meant anyone who had installed it could not update —
+# Android refuses an install whose signature does not match, with only "App not
+# installed" to explain it. That happened once, for 59 seconds. The team has
+# since moved to Play, so the population still holding a sideloaded build is the
+# developer, who knows to uninstall first.
+#
+# THE SIGNATURE RULE STILL APPLIES, and always will: an APK from here is signed
+# with the UPLOAD key, while a Play install is signed with GOOGLE'S app signing
+# key. They cannot replace one another in either direction. Uninstall first.
+# Nothing is lost — all state is in Firestore.
 
 REPO="faisal-shah/faisal-shah.github.io"
 APP_REPO="faisal-shah/sabeel-institute-kanban"

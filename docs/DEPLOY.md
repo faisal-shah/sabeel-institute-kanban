@@ -67,24 +67,35 @@ lying around is a thing someone later has to reason about.
 
 From then on, promote everyone else in-app under **People**.
 
-## Public download page — RETIRED, frozen at v0.7.4
+## Public download page — the developer's pre-release route
 
-The team used to download an APK from a GitHub Pages site:
+Un-retired 2026-08-03. Testers get Android builds from **Play internal
+testing**; this channel exists for one thing Play cannot do for this app —
+letting the developer test a release build *before* the testers see it, from a
+phone, away from the build machine.
 
-<https://faisal-shah.github.io/sabeel-kanban/>
+Play's feature for exactly that is internal app sharing, and it **refuses this
+app**: it requires the app to have been published, and internal-testing releases
+do not count. The dashboard shows why — "Draft app", internal testing "Active ·
+Not reviewed". For an internal tool that may never change.
 
-**Android ships through Google Play from v0.7.5 (2026-08-02).** That page is
-frozen at v0.7.4 — the last debug-signed build — and comes down once everyone has
-moved across. It is frozen rather than updated because every build from now on
-carries the real upload key, and **Android refuses to update an install whose
-signature does not match**: a newer APK there would give "App not installed" to
-exactly the people who already have the app. `scripts/publish-apk.sh` now refuses
-to run without `SK_LEGACY_APK_CHANNEL=1`, kept working only so the frozen asset
-can be restored if lost.
+```
+npm run build:apk                 # release-signed, per-ABI
+SK_CHECK=1 scripts/publish-apk.sh # dry run: every gate, uploads nothing
+scripts/publish-apk.sh            # replaces the rolling asset + cuts the release
+```
 
-**Never `git add` an APK — to that repo or any other.** Committing a binary per
-release is what bloated the pages history (~31 MB each) and had to be rewritten
-out; `*.apk` is gitignored there as the backstop. That rule outlives the channel.
+**The signature rule is permanent.** An APK from here is signed with the
+**upload key**; a Play install is signed with **Google's app signing key**.
+Neither can install over the other — Android refuses with a signature mismatch
+and says only "App not installed". Uninstall first; nothing is lost, because all
+state is in Firestore.
+
+That rule is also why this was retired for a day: the frozen asset was the last
+debug-signed build, and replacing it would have stranded everyone who had it.
+The team has since moved to Play, so the only sideload install left is the
+developer's.
+
 
 ## Android releases — Google Play
 
