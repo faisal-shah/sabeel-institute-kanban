@@ -1,17 +1,21 @@
 /**
  * Upload the release AAB to Google Play, without a browser.
  *
- *   node scripts/publish-play.mjs --check       # gates + auth only, uploads nothing
- *   node scripts/publish-play.mjs --share       # internal app sharing (default)
+ *   node scripts/publish-play.mjs --check       # every gate + the Play permission
+ *   node scripts/publish-play.mjs --share       # internal app sharing, link only
  *   node scripts/publish-play.mjs --internal    # the internal TESTING track
+ *   node scripts/publish-play.mjs --help
+ *
+ * A destination must be NAMED. There is no default: the two differ in who
+ * sees the build, so guessing would sometimes publish to the whole team.
  *
  * TWO DESTINATIONS, DELIBERATELY DIFFERENT IN WEIGHT:
  *
  *  --share  Internal app sharing. Returns a download link and touches nothing
  *           else: the Sabeel testers on the internal track do not receive it and
  *           are not notified. This is the "put a build on my phone while I am
- *           away from the computer" case, and it is the default because it is
- *           the one that cannot disturb anyone.
+ *           away from the computer" case, and the one that cannot disturb
+ *           anyone — but it still has to be asked for by name.
  *
  *  --internal  The internal testing track. This IS a release to the team, so it
  *           carries the same gates `build-aab.sh` does and asks before doing it.

@@ -268,13 +268,13 @@ API, so a build can reach a phone when nobody is at the computer that built it.
 
 ```
 npm run publish:play -- --check      # gates + credentials, uploads nothing
-npm run publish:play -- --share      # internal app sharing (default)
+npm run publish:play -- --share      # internal app sharing, link only
 npm run publish:play -- --internal   # the internal TESTING track
 ```
 
 **The two destinations are not the same weight.** `--share` returns a download
 link and touches nothing else — the Sabeel testers on the internal track neither
-receive it nor are told about it, which is why it is the default. `--internal` IS
+receive it nor are told about it. `--internal` IS
 a release to the team. Internal app sharing needs no edit/commit cycle; the
 testing track does, so that path inserts an edit, uploads, points the track at
 the new `versionCode`, and commits.
