@@ -284,6 +284,11 @@ to testers without the manual export-compliance prompt.
   `app.json`, so no dSYM upload is wired for iOS builds. Crashes will report;
   stack traces will not be symbolicated. Decide whether that matters before the
   App Store build.
+- **The distribution certificate's private key.** It lives in the build Mac's
+  keychain and nowhere else. Export a `.p12` and keep it with the two `.p8`
+  keys — a rebuilt Mac otherwise costs a new certificate, and Apple caps how
+  many an account may hold. Same rule as the Android upload keystore: back up
+  what cannot be recreated, and note a pointer to what can.
 - **iPad.** `supportsTablet` is `false`. If that changes, the phone-first layout
   needs a look at iPad widths — the breakpoint work in `scripts/screens-e2e.mjs`
   covers 320-500px only.

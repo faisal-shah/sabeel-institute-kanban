@@ -226,8 +226,41 @@ creation**.
       cannot get in. A dedicated pre-approved `@oursabeel.com` account solves it
       once. See `docs/IOS-BUILD.md`.
 
-Then, on the Mac: `npm run check:ios` must pass before building. It verifies the
-bundle id, the Firebase project, the Google Sign-In URL scheme and the icon.
+- [ ] **Export the iOS distribution certificate as a `.p12`** into Drive beside
+      the two `.p8` keys. Its private key lives in the build Mac's **keychain**
+      and nowhere else; if that Mac is rebuilt or lost, the certificate cannot be
+      recovered, only re-created — and Apple caps how many distribution
+      certificates an account may hold. This is the same rule as the Android
+      keystore: back up what cannot be recreated. Not urgent until the first
+      build exists, but easy to forget once it does.
+- [ ] **If the route is EXTERNAL TestFlight: create the review account first.**
+      A pre-approved `appreview@oursabeel.com` (or similar) that Apple's
+      reviewer can actually sign in with, since sign-in is domain-restricted
+      *and* admin-gated. Create it, approve it, and keep it — every reviewed
+      submission needs it, so it is infrastructure rather than a one-off.
+
+### Next, in order
+
+1. Decide the route (above). Everything else waits on it.
+2. If external: create and approve the review account.
+3. On the Mac: `cd app && npx expo prebuild --platform ios`.
+   **Always `--platform ios`** — a bare prebuild is *clean* by default and
+   deletes the committed `android/`, silently dropping `minSdkVersion 33`.
+4. `npm run check:ios` — must pass before building. It verifies the bundle id,
+   the Firebase project, the Google Sign-In URL scheme and the icon.
+5. Archive in Xcode → Distribute to App Store Connect.
+   **`ios.buildNumber` must increase on EVERY upload** — unlike Android's
+   version code, it does not derive itself from the version string.
+6. **First thing to check on the device: a push actually arrives.** That is the
+   only proof the APNs key was uploaded correctly; nothing on this side can
+   distinguish "uploaded" from "uploaded wrong".
+7. Export the `.p12` (above) once the certificate exists.
+
+**Claude can do, on your say-so:** wire the Sentry config plugin so iOS crashes
+are symbolicated. Right now `@sentry/react-native` is installed and initialised
+but no dSYM upload is configured, so crashes will report with useless stack
+traces. Cheaper before the first build than after the first crash.
+
 `docs/IOS-BUILD.md` is the runbook.
 
 > Nothing here needs a code change from Claude — `app/app.json` is already wired.
