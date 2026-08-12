@@ -502,6 +502,10 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       {width === 0 ? null : (
       <ScrollView
         ref={scroller}
+        // A focused composer must not stop the next tap reaching Add, Cancel
+        // or a card tile — all of which live inside this scroller. `Sheet`
+        // carries the mechanism.
+        keyboardShouldPersistTaps="handled"
         // Restore the remembered column when the CONTENT has been measured.
         // `contentOffset` alone is not enough — Android does not honour it here —
         // and a scrollTo from onLayout runs before the pages exist, so it lands
@@ -565,6 +569,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                 // Bounded, so it SCROLLS rather than growing past the page and
                 // being clipped. See styles.page.
                 style={styles.fill}
+                keyboardShouldPersistTaps="handled"
                 data={colCards}
                 keyExtractor={(c) => c.id}
                 renderItem={({ item }) => (

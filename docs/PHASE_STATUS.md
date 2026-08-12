@@ -365,6 +365,72 @@ the team.
 
 ## Deploy log
 
+### 2026-08-12 — The taps a scroller was eating — v0.7.6
+
+**Client only.** No `functions/src`, `packages/shared/src`, `firestore.rules`,
+`firestore.indexes.json` or `storage.rules`, so functions do not redeploy.
+
+Reported from a phone as slowness in the link dialog: "no immediate response…
+sometimes several seconds" between pressing **Add link** and anything happening.
+It was not slow. **The taps were being discarded.**
+
+**The evidence, from the screen recording rather than from a theory.** Stepping
+the frames: the touch indicator lands inside the button on all three taps, so
+delivery was never the problem. The button's measured fill is `#83114F` at full
+strength through taps one and two — a `Pressable` that never entered its pressed
+state, so no handler ran — and 0.8 opacity on the third, which is the one that
+worked. 3.5 seconds and three taps for one press. Throughout, the caret is still
+blinking in the URL field.
+
+**Cause.** `Sheet` puts its content in a `ScrollView`, whose default is
+`keyboardShouldPersistTaps="never"`. React Native then takes the responder in
+the CAPTURE phase whenever any `TextInput` is focused, so the control under the
+finger never becomes responder — RN's own source says the first tap is meant to
+go to the scroll view and the second to the interior view. Under edge-to-edge it
+does not stop at one: the guard is "an input is focused AND a keyboard may be
+open", and the second half is cleared by `keyboardDidHide`, which this app does
+not reliably get. The keyboard goes away, the field keeps focus, and the sheet
+goes on eating taps.
+
+Web was ruled out first, by measurement rather than by elimination: a standalone
+bench mounting the real `RichEditor.web` outside Firebase put the click at
+16–105 ms across a short and a 40-paragraph description, with and without 25
+comments and a second editor on the page. There was never a slow path to find.
+
+**Fixed everywhere the shape occurs, not just in the dialog.** `Sheet`, the
+board pager and its card list, the wide board's two scrollers, and the three
+pickers — assignees, subtask links, board members — which were three copies of
+the same capped list under a filter field. Those three are now one `PickerList`
+in `ui.tsx`, because a fourth picker written by copying a third would have
+copied the bug.
+
+**The guard is lint, and it is lint on purpose.** Every e2e suite here is
+Playwright on web; this is native responder behaviour with no DOM equivalent, so
+no test can see it. `no-restricted-syntax` now requires every scroller in
+`app/src` to state a `keyboardShouldPersistTaps` — "say something" rather than
+"say handled", since `always` is right for a scroller with nothing tappable in
+it. Writing it exposed a second trap worth recording: flat config **replaces** a
+rule rather than merging it, so the new block silently disabled the hardcoded-
+colour rule over the same files and lint still passed. Both selector sets are
+now composed into each block, and both were falsified separately — one
+deliberate violation each, both seen red, then reverted.
+
+**Two more defects the recording showed, in the same dialog.** The label field
+was reseeded from the live editor selection on every parent render, so opening
+the sheet — which moves focus off the editor — could blank both fields: 3 of 12
+opens on the bench. The fields are now unmount-scoped and the selection is
+captured once, when the sheet opens. And the dialog had **two Cancel buttons**,
+one above the other, because `Sheet` already supplies one.
+
+The two fields were also indistinguishable once filled — placeholders vanish,
+and there were no labels — which is why the recording shows the same URL pasted
+into both. They now carry visible labels, address first, and the address takes
+the focus since it is the required one.
+
+`richtext-e2e.mjs` gains the link dialog, which had no coverage at all: the
+selection prefills the label, an unsafe scheme is refused, exactly one Cancel,
+and the stored markdown is `[docs](https://ok.test/page)`.
+
 ### 2026-08-03 — Typing stops re-rendering the world — v0.7.5
 
 **Client only.** No `functions/src`, `firestore.rules`, `firestore.indexes.json`,

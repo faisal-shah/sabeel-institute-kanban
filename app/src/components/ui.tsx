@@ -13,6 +13,7 @@ import {
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -673,6 +674,31 @@ export function Row({
   return <View style={[styles.row, style]}>{children}</View>;
 }
 
+/**
+ * The capped, scrollable list a "pick one of these" section is made of.
+ *
+ * Three identical copies existed — assignees, subtask links, board members —
+ * each `<ScrollView style={{maxHeight: 220}} nestedScrollEnabled>` under a
+ * filter field. That arrangement is precisely the one
+ * `keyboardShouldPersistTaps` governs, and at its default a focused filter
+ * makes the ScrollView EAT the tap on the row being picked: the row does not
+ * light up and nothing happens. `Sheet` carries the mechanism in full.
+ *
+ * So it is one component rather than three, because the answer has to be in one
+ * place: a fourth picker written by copying a third would have copied the bug.
+ */
+export function PickerList({ children }: { children: ReactNode }) {
+  return (
+    <ScrollView
+      style={styles.pickerList}
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
 export const TextField = forwardRef<TextInput, {
   value: string;
   onChangeText: (v: string) => void;
@@ -988,6 +1014,8 @@ const styles = StyleSheet.create({
   },
   assigneeInitials: { fontSize: 9, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  /** Capped so a picker cannot grow with the board or the directory. */
+  pickerList: { maxHeight: 220 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.sm },
   banner: {
     borderRadius: radius.sm,

@@ -237,7 +237,16 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
         onError={setError}
       />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator style={styles.fill}>
+      {/* `keyboardShouldPersistTaps` on both scrollers here and below: the
+          composer's field sits INSIDE them, and a focused field otherwise
+          makes the ScrollView eat the next tap — on Add, on Cancel, on a
+          card. `Sheet` carries the mechanism. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        style={styles.fill}
+        keyboardShouldPersistTaps="handled"
+      >
         {columns.map((col) => {
           const colCards = byColumn.get(col.id) ?? [];
           return (
@@ -268,7 +277,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 ) : null}
               </Row>
 
-              <ScrollView style={styles.fill}>
+              <ScrollView style={styles.fill} keyboardShouldPersistTaps="handled">
                 {colCards.map((card) => {
                   const selected = selection.isSelected(card.id);
                   return (

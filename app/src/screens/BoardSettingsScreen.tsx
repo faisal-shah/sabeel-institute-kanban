@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
   LABEL_COLORS,
@@ -38,6 +38,7 @@ import {
   Card,
   Heading,
   IconAction,
+  PickerList,
   Row,
   Screen,
   Spinner,
@@ -503,9 +504,7 @@ export function BoardSettingsScreen({
             ]}
           >
             <Hint>Add someone</Hint>
-            {/* Capped and scrollable: this section must not grow with the
-                directory. Same shape as the assignee and subtask pickers. */}
-            <ScrollView style={styles.pickerList} nestedScrollEnabled>
+            <PickerList>
               {nonMembers.map((u) => (
                 <Pressable
                   key={u.uid}
@@ -533,7 +532,7 @@ export function BoardSettingsScreen({
                   <Hint>{u.email}</Hint>
                 </Pressable>
               ))}
-            </ScrollView>
+            </PickerList>
             <Button
               label="Done"
               variant="secondary"
@@ -815,7 +814,6 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   /** Roughly four rows, then it scrolls. */
-  pickerList: { maxHeight: 220 },
   option: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,

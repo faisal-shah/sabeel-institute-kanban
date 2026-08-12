@@ -572,6 +572,9 @@ function Chart({
               ref={scroller}
               horizontal
               showsHorizontalScrollIndicator
+              // Nothing tappable in here, but say so rather than inherit the
+              // default that eats taps — the rule exists so no scroller is silent.
+              keyboardShouldPersistTaps="handled"
               scrollEventThrottle={32}
               onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
               // Newest at the right, and start there: the recent end is what

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { BoardMemberProfile } from '../boards';
-import { Body, Button, Hint, IconAction, Row, TextField } from './ui';
+import { Body, Button, Hint, IconAction, PickerList, Row, TextField } from './ui';
 import { radius, space, useTheme } from '../theme';
 
 /**
@@ -152,8 +152,7 @@ export function AssigneePicker({
             label="Filter people"
           />
           {matches.length === 0 ? <Hint>No one matches.</Hint> : null}
-          {/* Capped and scrollable: the section must not grow with the board. */}
-          <ScrollView style={styles.pickerList} nestedScrollEnabled>
+          <PickerList>
             {matches.map((m) => (
               <Pressable
                 key={m.uid}
@@ -176,7 +175,7 @@ export function AssigneePicker({
                 <Hint>{m.email}</Hint>
               </Pressable>
             ))}
-          </ScrollView>
+          </PickerList>
           <Button
             label="Done"
             variant="secondary"
@@ -202,7 +201,6 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   /** Roughly four rows, then it scrolls. */
-  pickerList: { maxHeight: 220 },
   option: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,

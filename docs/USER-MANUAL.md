@@ -136,6 +136,13 @@ Tap any card to open the full view.
   the link button when you want a word to carry the address instead, like
   [the handbook](https://example.org).
 
+  The link button asks for two things: the **address** first, then the **text to
+  show**. If you selected some words before tapping it, they are already filled
+  in as the text, and you only need the address. Leave the text empty and the
+  address stands in for it. **Add link** stays greyed out until the address is
+  one the card can actually open — it must start with `http://`, `https://` or
+  `mailto:`.
+
   **Pasting from elsewhere is safe and simplified.** Copy from a document or a
   web page and anything the card cannot show — headings, colours, tables,
   images — arrives as ordinary text with the bold, italics, lists and links

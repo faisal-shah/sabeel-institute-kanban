@@ -80,7 +80,40 @@ export function Sheet({
           onPress={() => {}}
         >
           <Body>{title}</Body>
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+          {/*
+            `keyboardShouldPersistTaps` IS WHAT MAKES THE BUTTONS IN HERE WORK.
+
+            At its default — `'never'` — a ScrollView with a focused TextInput
+            inside it takes the responder in the CAPTURE phase and eats the
+            touch. React Native says so in its own source: "the first tap should
+            be sent to the scroll view and dismiss the keyboard, then the second
+            tap goes to the actual interior view". A `Pressable` under the
+            finger therefore never becomes responder — it does not even show its
+            pressed state — and `onPress` never runs.
+
+            Every sheet in this app is a field followed by the button that acts
+            on it, so that default eats the tap the user actually came to make.
+            Filmed on a phone in the link dialog: three taps on Add link over
+            3.5 seconds, the first two with the button at full opacity (no press
+            state) and the third at 0.8 (pressed) — and only that one worked.
+
+            Worse here than the RN comment implies, because it does not stop at
+            one tap: the guard is `a TextInput is focused AND a keyboard may be
+            open`, and the second half is `_keyboardMetrics != null`, cleared by
+            `keyboardDidHide` — an event this app does not reliably get under
+            edge-to-edge (see the `expo-firebase-stack` skill). The keyboard
+            goes away, the field keeps focus, and the ScrollView goes on eating
+            taps with nothing on screen to explain why.
+
+            `'handled'` is the value that means what a dialog wants: a tap a
+            child handles reaches it, and a tap nothing handles still dismisses
+            the keyboard.
+          */}
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            keyboardShouldPersistTaps="handled"
+          >
             {children}
           </ScrollView>
           <Button label="Cancel" variant="secondary" onPress={onClose} />

@@ -412,7 +412,18 @@ export function RichEditor({
 }) {
   const t = useTheme();
   const [marks, setMarks] = useState<RichMarks>(EMPTY_MARKS);
-  const [linkOpen, setLinkOpen] = useState(false);
+  /**
+   * The link sheet, and the selected text CAPTURED at the moment it opens.
+   *
+   * `initialText` used to be `cmds.current?.selectedText()` read inline in the
+   * render below — a live editor read on every render, which answers "" as soon
+   * as the sheet takes focus and the editor's selection goes. See `LinkFields`
+   * for what that cost. One capture, on the one event that needs it.
+   */
+  const [linkSheet, setLinkSheet] = useState<{ open: boolean; text: string }>({
+    open: false,
+    text: '',
+  });
   const cmds = useRef<Parameters<Parameters<typeof Bridge>[0]['registerCommands']>[0] | null>(null);
   const registerCommands = useCallback((c: NonNullable<typeof cmds.current>) => {
     cmds.current = c;
@@ -467,7 +478,8 @@ export function RichEditor({
       toggleItalic: () => cmds.current?.toggleItalic(),
       toggleBullets: () => cmds.current?.toggleBullets(),
       toggleNumbers: () => cmds.current?.toggleNumbers(),
-      promptLink: () => setLinkOpen(true),
+      promptLink: () =>
+        setLinkSheet({ open: true, text: cmds.current?.selectedText() ?? '' }),
     }),
     [],
   );
@@ -572,12 +584,12 @@ export function RichEditor({
       </LexicalComposer>
 
       <LinkSheet
-        visible={linkOpen}
-        initialText={cmds.current?.selectedText() ?? ''}
-        onCancel={() => setLinkOpen(false)}
+        visible={linkSheet.open}
+        initialText={linkSheet.text}
+        onCancel={() => setLinkSheet({ open: false, text: '' })}
         onConfirm={(href, text) => {
           cmds.current?.applyLink(href, text);
-          setLinkOpen(false);
+          setLinkSheet({ open: false, text: '' });
         }}
       />
     </View>

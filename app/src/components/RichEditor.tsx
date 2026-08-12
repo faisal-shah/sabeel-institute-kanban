@@ -103,7 +103,23 @@ export function RichEditor({
   const initialHtml = useRef<string | null>(null);
   if (initialHtml.current === null) initialHtml.current = markdownToHtml(initialMarkdown);
   const [marks, setMarks] = useState<RichMarks>(EMPTY_MARKS);
-  const [linkOpen, setLinkOpen] = useState(false);
+  /**
+   * The link sheet, and the SELECTION IT WAS OPENED ON — range and text both.
+   *
+   * Reading `sel.current` as the sheet confirmed looked safe, since a ref cannot
+   * change during a render. It is not: `onChangeSelection` keeps firing while
+   * the sheet is up, so by the time Add link is pressed the range may no longer
+   * be the one the user highlighted, and the link is applied somewhere else.
+   * Capture it once, on the one event that means "the user asked for a link".
+   */
+  const [linkSheet, setLinkSheet] = useState<{
+    open: boolean;
+    text: string;
+    start: number;
+    end: number;
+  }>({ open: false, text: '', start: 0, end: 0 });
+  const closeLinkSheet = () =>
+    setLinkSheet({ open: false, text: '', start: 0, end: 0 });
   const [query, setQuery] = useState<string | null>(null);
   const pitch = useRef(ROW_PITCH);
   /**
@@ -129,7 +145,7 @@ export function RichEditor({
       toggleItalic: () => ref.current?.toggleItalic(),
       toggleBullets: () => ref.current?.toggleUnorderedList(),
       toggleNumbers: () => ref.current?.toggleOrderedList(),
-      promptLink: () => setLinkOpen(true),
+      promptLink: () => setLinkSheet({ open: true, ...sel.current }),
     }),
     [],
   );
@@ -206,12 +222,12 @@ export function RichEditor({
       </View>
 
       <LinkSheet
-        visible={linkOpen}
-        initialText={sel.current.text}
-        onCancel={() => setLinkOpen(false)}
+        visible={linkSheet.open}
+        initialText={linkSheet.text}
+        onCancel={closeLinkSheet}
         onConfirm={(href, text) => {
-          ref.current?.setLink(sel.current.start, sel.current.end, text, href);
-          setLinkOpen(false);
+          ref.current?.setLink(linkSheet.start, linkSheet.end, text, href);
+          closeLinkSheet();
         }}
       />
     </View>

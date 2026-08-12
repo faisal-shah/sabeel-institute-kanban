@@ -333,6 +333,77 @@ check('a space in a sheet field does not dismiss the sheet', typed === 'waiting 
 await page.keyboard.press('Escape').catch(() => {});
 await page.waitForTimeout(300);
 
+/**
+ * THE LINK DIALOG, which had no coverage at all until a phone recording showed
+ * three things wrong with it at once.
+ *
+ * What is provable from a browser is asserted here. What is NOT: the dead taps
+ * that prompted this, which were `Sheet`'s ScrollView eating the press while a
+ * field held focus — native responder behaviour with no DOM equivalent. That
+ * one is held by the lint rule in eslint.config.mjs, because no Playwright
+ * suite can see it and a check that cannot fail is worse than none.
+ */
+await page.getByRole('button', { name: 'Edit description' }).click();
+await page.waitForTimeout(700);
+await editor.click();
+await page.keyboard.press('Control+a');
+await page.keyboard.type('see the docs');
+await page.waitForTimeout(300);
+// Select the word "docs".
+await page.keyboard.down('Shift');
+for (let i = 0; i < 4; i += 1) await page.keyboard.press('ArrowLeft');
+await page.keyboard.up('Shift');
+await page.getByRole('button', { name: 'Link', exact: true }).first().click();
+await page.getByPlaceholder('https://…').waitFor({ timeout: 15000 });
+await page.waitForTimeout(600);
+
+/*
+ * The label is captured when the sheet OPENS and nothing may put it back.
+ *
+ * It used to be read from the live editor selection on every parent render,
+ * with an effect reseeding both fields whenever that value changed — and
+ * opening the sheet moves focus off the editor, so the selection goes and the
+ * effect fired again with "". Intermittent: 3 of 12 opens on the bench lost the
+ * selected word, and a URL typed fast enough went with it. The wait above is
+ * deliberately long enough for that second render to have happened.
+ */
+check(
+  'the selected word prefills the link label',
+  (await page.getByPlaceholder('Text to show').inputValue()) === 'docs',
+  await page.getByPlaceholder('Text to show').inputValue(),
+);
+check(
+  'Add link is refused until the address is one we would render',
+  (await page.getByRole('button', { name: 'Add link' }).getAttribute('aria-disabled')) === 'true',
+);
+// One Cancel. `Sheet` supplies its own, and the sheet used to add a second
+// beside Add link — two identical buttons, one above the other.
+check(
+  'the dialog offers exactly one Cancel',
+  (await page.getByRole('button', { name: 'Cancel', exact: true }).count()) === 1,
+  String(await page.getByRole('button', { name: 'Cancel', exact: true }).count()),
+);
+
+await page.getByPlaceholder('https://…').fill('javascript:alert(1)');
+await page.waitForTimeout(400);
+check(
+  'and a scheme the renderer would drop is refused here too',
+  (await page.getByRole('button', { name: 'Add link' }).getAttribute('aria-disabled')) === 'true',
+);
+
+await page.getByPlaceholder('https://…').fill('https://ok.test/page');
+await page.waitForTimeout(400);
+await page.getByRole('button', { name: 'Add link' }).click();
+await page.getByPlaceholder('https://…').waitFor({ state: 'detached', timeout: 20000 });
+await page.getByRole('button', { name: 'Save' }).first().click();
+await page.waitForTimeout(1500);
+const linked = (await db.doc('cards/rt_c').get()).data().description;
+check(
+  'the link is stored as markdown, over the words that were selected',
+  linked.includes('[docs](https://ok.test/page)'),
+  linked,
+);
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 await page.screenshot({ path: 'shots/richtext-e2e.png', fullPage: true });
 await browser.close();
