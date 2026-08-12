@@ -376,12 +376,22 @@ check(
   'Add link is refused until the address is one we would render',
   (await page.getByRole('button', { name: 'Add link' }).getAttribute('aria-disabled')) === 'true',
 );
-// One Cancel. `Sheet` supplies its own, and the sheet used to add a second
-// beside Add link — two identical buttons, one above the other.
+/*
+ * One Cancel. `Sheet` supplies its own, and the sheet used to add a second
+ * beside Add link — two identical buttons, one directly above the other.
+ *
+ * SCOPED TO THE DIALOG, which is the whole difficulty: the description editor
+ * behind the modal has a Cancel of its own, and a page-wide count therefore
+ * says 2 whether or not the bug is present. react-native-web's Modal renders
+ * `role="dialog"` (ModalContent), so the overlay is addressable — and that is
+ * the only thing separating "one dialog, one editor" from "two in the dialog".
+ */
+const dialog = page.getByRole('dialog');
+check('the link dialog is addressable as a dialog', (await dialog.count()) === 1);
 check(
   'the dialog offers exactly one Cancel',
-  (await page.getByRole('button', { name: 'Cancel', exact: true }).count()) === 1,
-  String(await page.getByRole('button', { name: 'Cancel', exact: true }).count()),
+  (await dialog.getByRole('button', { name: 'Cancel', exact: true }).count()) === 1,
+  String(await dialog.getByRole('button', { name: 'Cancel', exact: true }).count()),
 );
 
 await page.getByPlaceholder('https://…').fill('javascript:alert(1)');

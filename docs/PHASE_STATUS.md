@@ -429,7 +429,28 @@ the focus since it is the required one.
 
 `richtext-e2e.mjs` gains the link dialog, which had no coverage at all: the
 selection prefills the label, an unsafe scheme is refused, exactly one Cancel,
-and the stored markdown is `[docs](https://ok.test/page)`.
+and the stored markdown is `[docs](https://ok.test/page)`. The Cancel count has
+to be scoped to `role="dialog"` — react-native-web's Modal supplies that — since
+the description editor behind the overlay has a Cancel of its own and a
+page-wide count reads 2 whether the bug is present or not. It was written
+unscoped first and failed for that reason.
+
+**Verified.** `richtext-e2e` 28/28, the width sweep 182/182, `web-e2e` 106/106,
+419 unit tests, lint and typecheck.
+
+**And verified on Android, which is the only surface that can show it.** On the
+AVD, with the keyboard up and the address field focused, ONE tap on Add link
+closes the dialog: the sole significant change across an 8-second screen
+recording is the dialog going away, 2.73 s in against a tap injected at ~2.5 s.
+The device was confirmed to be running this code first — the sign-in stamp read
+`v0.7.6 · 86e724d+` — because a bare `expo start` does not regenerate
+`app/src/build-info.ts`, and it had been sitting at v0.7.5 from the last build.
+
+The causal proof is the reverse: **removing `keyboardShouldPersistTaps` from
+`Sheet` and letting Metro reload reproduces the report exactly** — one tap, the
+dialog stays open. Restoring it makes the same check pass again. That check
+lives outside the repo, in the session scratchpad, deliberately: CI has no
+emulator, and a suite nothing invokes is not coverage.
 
 ### 2026-08-03 — Typing stops re-rendering the world — v0.7.5
 
