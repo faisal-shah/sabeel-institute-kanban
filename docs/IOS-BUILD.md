@@ -258,6 +258,29 @@ registration work. End-to-end push is verifiable only on a physical iPhone, whic
 means through TestFlight. Treat "push works on iOS" as unverified until it has
 been seen on a real device, and do not let a green simulator run stand in for it.
 
+## Four registrations, one bundle id — and they are not each other
+
+`com.sabeelinstitute.kanban` is registered four separate times, across three
+consoles. They look like one thing because they share a name, and treating them
+as one is how this checklist came to claim the App Store Connect app existed when
+only the portal identifier did — noticed when an upload had nowhere to land.
+
+| Registration | Where | What it gets you |
+|---|---|---|
+| **App ID** (+ capabilities) | developer.apple.com → Identifiers | The bundle id exists and is allowed to use Push. Signing and provisioning profiles are built against it. Without it, nothing can be signed. |
+| **APNs key** | developer.apple.com → Keys | The credential Apple accepts for sending push to this team. Uploaded to Firebase. |
+| **Firebase iOS app** | Firebase console | `GoogleService-Info.plist`, so the SDK knows which project it is. |
+| **App Store Connect app** | appstoreconnect.apple.com → Apps | The distribution record: versions, builds, **TestFlight**, App Review, availability. A build has nowhere to upload without it. |
+
+The first three are identity, entitlement and configuration. Only the last is
+distribution. **TestFlight is a tab inside that last one** — there is no
+top-level TestFlight section, so its apparent absence means the app record is
+missing, not that something is broken.
+
+The same split exists on Android and is worth the analogy: the Firebase Android
+app and the upload keystore are identity and signing; the Play Console listing is
+distribution. Neither creates the other there either.
+
 ## App ID capabilities — enable exactly ONE
 
 The Apple Developer portal shows a long list when you register the identifier.
