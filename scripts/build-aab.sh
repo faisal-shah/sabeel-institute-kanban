@@ -44,6 +44,24 @@ if ! grep -qE '^\s*EXPO_PUBLIC_SENTRY_DSN_NATIVE\s*=\s*https://[^@]+@' app/.env.
   exit 1
 fi
 
+# 3b. Symbolication. WARNS rather than fails, and the difference from gate 3 is
+#     the point: without a DSN nothing is reported at all, whereas without these
+#     the reports still arrive and are merely harder to read. Blocking a release
+#     on a machine that simply has no token would be the wrong trade.
+#
+#     `app/android/app/build.gradle` applies sentry.gradle only when
+#     SENTRY_AUTH_TOKEN is set, so their absence is a silent no-op — which is
+#     exactly why it is said out loud here.
+missing_sentry=""
+for v in SENTRY_ORG SENTRY_PROJECT SENTRY_AUTH_TOKEN; do
+  [ -n "$(eval "printf '%s' \"\${$v:-}\"")" ] || missing_sentry="${missing_sentry} ${v}"
+done
+if [ -n "$missing_sentry" ]; then
+  echo "WARNING:${missing_sentry} not set — this build uploads no source maps," >&2
+  echo "so Android crashes will report minified frames. Same three variables as" >&2
+  echo "the iOS build; see docs/SECRETS.md. Building anyway." >&2
+fi
+
 # 4. Stamp the running commit onto the sign-in screen.
 node scripts/gen-build-info.mjs
 

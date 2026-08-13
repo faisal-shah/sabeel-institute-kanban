@@ -247,25 +247,39 @@ creation**.
       submission needs it, so it is infrastructure rather than a one-off. Not
       blocking the first TestFlight build, so it can wait until you submit.
 
-- [x] **Sentry dSYM upload wired for iOS (2026-08-12).**
-      `@sentry/react-native/expo` is registered **bare** in `app/app.json`, so it
-      takes `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN` from the build
-      shell rather than from a committed file — this repo is public, and the
-      plugin writes options verbatim into `ios/sentry.properties`.
-      `npm run check:ios` fails if the plugin is missing and warns if the three
-      variables are absent. **You must export them on the Mac before archiving**
-      (see below); without them the build succeeds and silently uploads nothing.
-      Android is untouched by design: a config plugin runs at prebuild, and
-      `app/android/` is never prebuilt.
+- [x] **Symbolication wired for BOTH platforms (2026-08-12), at parity.**
+      `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN` in the build shell,
+      one set of names for iOS and Android, and both report to the same Sentry
+      project because both read `EXPO_PUBLIC_SENTRY_DSN_NATIVE`.
+      iOS: `@sentry/react-native/expo` registered **bare** in `app/app.json` —
+      options would be written verbatim into `ios/sentry.properties` and this
+      repo is public. Android: `app/android/app/build.gradle` applies
+      `sentry.gradle`, gated on `SENTRY_AUTH_TOKEN`, since a config plugin runs
+      at prebuild and that folder is never prebuilt.
+      **You must export the three before building a release, on either
+      platform.** Without them each build succeeds and uploads nothing.
+      `npm run check:ios` and `scripts/build-aab.sh` both warn; neither fails,
+      because unlike a missing DSN this degrades reports rather than losing them.
+      Verified by diffing the Gradle task graph: no token → zero Sentry tasks, so
+      CI and a fresh clone are unaffected.
+      **You already have a token** — the sibling time-tracker uses one at
+      `app/android/sentry.properties` (gitignored there). If it is an
+      organization token with `project:releases` it works here unchanged; only
+      `SENTRY_PROJECT` differs, since the two apps are separate Sentry projects.
 
 ### Next, in order
 
-1. **Sentry auth token** — Sentry → Settings → Auth Tokens, scopes
-   `project:releases` and `org:read`. Keep it with the other secrets; it never
-   goes in the repo or in chat. You will export three variables in the build
-   shell on the Mac:
-   `SENTRY_ORG`, `SENTRY_PROJECT` (the React Native project) and
+1. **Sentry: export the three variables** in whichever shell cuts a release —
+   the Mac for iOS, this machine for `npm run build:aab`.
+   `SENTRY_ORG`, `SENTRY_PROJECT` (the kanban React Native project) and
    `SENTRY_AUTH_TOKEN`.
+   The token and org slug are already in the sibling time-tracker's gitignored
+   `app/android/sentry.properties`; reuse them if that token is org-scoped with
+   `project:releases`, otherwise make a new one at Sentry → Settings → Auth
+   Tokens. Only `SENTRY_PROJECT` differs between the two apps.
+   Worth a moment: the kanban native Sentry project was created as the *android*
+   one, and iOS now reports to it too. Renaming the slug is safe — the DSN keys
+   on the numeric project id — but if you do, `SENTRY_PROJECT` changes with it.
 2. **Add core developers as App Store Connect users** so internal TestFlight can
    reach them. Only the handful who need pre-release builds — every one of them
    holds a role in the developer account.

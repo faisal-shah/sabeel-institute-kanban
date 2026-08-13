@@ -157,10 +157,13 @@ evidence is a crash report full of hex addresses weeks later. `npm run check:ios
 warns when they are absent rather than failing, because only the archiving
 machine needs them.
 
-**This wires iOS only.** A config plugin runs at `prebuild`, and `app/android/`
-is committed and never prebuilt — so the plugin's Android half does nothing here
-by design. Android symbolication, if it is ever wanted, is a hand edit to
-`app/android/app/build.gradle`, like everything else in that folder.
+**The same three variables serve Android**, so the two platforms are at parity
+and there is one set of names to remember. They get there by a different
+mechanism — `app/android/app/build.gradle` applies `sentry.gradle` when
+`SENTRY_AUTH_TOKEN` is set — because a config plugin runs at `prebuild` and that
+folder is committed and never prebuilt. `scripts/build-aab.sh` warns when they
+are missing, exactly as `check:ios` does here. Full reasoning in
+`docs/SECRETS.md`.
 
 ### Then
 

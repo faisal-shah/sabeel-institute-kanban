@@ -16,6 +16,13 @@ ui-debug.log
 .env.local
 app/.env.local
 functions/.env
+# Sentry build config. Neither should ever exist here — org, project and token
+# come from the environment (docs/SECRETS.md) — but both are files the tooling
+# writes a real auth token into, and this repo is PUBLIC. Backstop, not a plan.
+app/android/sentry.properties
+app/ios/sentry.properties
+.env.sentry-build-plugin
+app/.env.sentry-build-plugin
 
 # Migration inputs (ClickUp exports may contain personal data)
 migration/

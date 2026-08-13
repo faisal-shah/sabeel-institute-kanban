@@ -2,6 +2,37 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+/**
+ * Sentry source-map upload, so an Android crash reports function names rather
+ * than minified frames — the same thing `@sentry/react-native/expo` does for
+ * iOS, reached a different way for a deliberate reason.
+ *
+ * A config plugin runs at PREBUILD, and this folder is committed and hand-edited
+ * — `npx expo prebuild` is always scoped to `--platform ios` here, so a plugin
+ * can never reach Android. Wiring it in Gradle is not a workaround; it is the
+ * only mechanism that applies to a bare-workflow native folder.
+ *
+ * GATED ON THE ENVIRONMENT, and that gate is load-bearing. Without
+ * SENTRY_AUTH_TOKEN this block does nothing at all, so CI, a fresh clone and any
+ * machine without the token build exactly what they built before. The release
+ * path must not acquire a dependency on a network service that can fail.
+ *
+ * THE SAME THREE VARIABLES SERVE BOTH PLATFORMS — SENTRY_ORG, SENTRY_PROJECT and
+ * SENTRY_AUTH_TOKEN — because `sentry-cli` reads them from the environment and
+ * the Expo plugin is registered bare so that it falls back to them too. One set
+ * of names, one place to set them, and nothing project-identifying committed to
+ * a public repo. Deliberately NOT the sibling time-tracker's `sentry.properties`
+ * file: that would be a second source for the same three values, and the two
+ * would drift. See docs/SECRETS.md.
+ *
+ * Android and iOS report to ONE Sentry project, since both read
+ * EXPO_PUBLIC_SENTRY_DSN_NATIVE — so SENTRY_PROJECT is a single value and parity
+ * is structural rather than something to keep in step.
+ */
+if (System.getenv("SENTRY_AUTH_TOKEN")) {
+    apply from: new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute(null, rootDir).text.trim(), "../sentry.gradle")
+}
+
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**

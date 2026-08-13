@@ -43,31 +43,56 @@ Locally, `functions/.secret.local` (gitignored) sets it empty so the emulator
 never reports. The emulator still logs one 403 at startup trying to reach real
 Secret Manager — harmless, not silenced, and not a new failure.
 
-## Build machine — the shell that archives for iOS, and nowhere else
+## Build machine — the shell that cuts a RELEASE, on either platform
 
 | Name | Used by | Where to get it |
 |---|---|---|
-| `SENTRY_ORG` | `@sentry/react-native/expo` at prebuild | Sentry → Settings → the org URL slug |
-| `SENTRY_PROJECT` | same | the **React Native** project, shared with Android |
-| `SENTRY_AUTH_TOKEN` | same | Sentry → Settings → Auth Tokens, scopes `project:releases` + `org:read` |
+| `SENTRY_ORG` | both native builds | Sentry → Settings → the org URL slug |
+| `SENTRY_PROJECT` | both | the **React Native** project — Android and iOS share it |
+| `SENTRY_AUTH_TOKEN` | both | Sentry → Settings → Auth Tokens, scopes `project:releases` + `org:read` |
 
 Only the first two are non-secret. **The token is genuinely secret** and belongs
 in the build shell's environment, never in a file this repo tracks.
 
-They are environment variables rather than plugin options deliberately: the
-plugin writes whatever options it is given verbatim into `ios/sentry.properties`,
-**this repo is public**, and the plugin's own code warns that an `authToken`
-option "will be written to the application package". Registered bare, it falls
-back to these three names.
+**One set of names for both platforms**, reached two different ways because the
+two native folders are managed differently:
 
-Absent, the Xcode build **succeeds and uploads no dSYMs**, so iOS crashes arrive
-as raw addresses instead of function names — with nothing failing to say so.
-`npm run check:ios` warns about them rather than failing, since only the Mac
-needs them.
+- **iOS** — `@sentry/react-native/expo` in `app/app.json`, registered **bare**.
+  Given `organization`/`project` options it writes them verbatim into
+  `ios/sentry.properties`, and **this repo is public**; its own code also warns
+  that an `authToken` option "will be written to the application package". Bare,
+  it falls back to these three variables.
+- **Android** — `app/android/app/build.gradle` applies `sentry.gradle`, but
+  **only when `SENTRY_AUTH_TOKEN` is set**. `sentry-cli` reads all three from the
+  environment. Deliberately NOT the sibling time-tracker's committed-example
+  `android/sentry.properties`: a second file holding the same three values is a
+  second thing to keep in step, and this one would hold a real token in a public
+  repo.
+
+A config plugin cannot do the Android half. Plugins run at `prebuild`, and
+`app/android/` is committed and hand-edited — prebuild here is always scoped
+`--platform ios`. Gradle is the only mechanism that reaches it.
+
+**Both platforms report to ONE Sentry project**, since both read
+`EXPO_PUBLIC_SENTRY_DSN_NATIVE`. Parity is structural, not something to maintain.
+
+Absent, both builds **succeed and upload nothing**, so crashes arrive as
+minified frames with nothing failing to say so. Said out loud in two places
+rather than enforced: `npm run check:ios` warns, and `scripts/build-aab.sh`
+warns. Neither fails — unlike the DSN gate beside it, which does. The difference
+is deliberate: no DSN means *no reports at all*, while no token means reports
+that are merely harder to read, and blocking a release on a machine that has no
+token would be the worse trade.
+
+The Android gate is also what keeps this safe: with no token the release build
+registers no Sentry tasks at all — verified by diffing the Gradle task graph —
+so CI and a fresh clone build exactly what they built before, and the release
+path never depends on reaching sentry.io.
 
 **Do NOT run `npx @sentry/wizard`** to set this up. It rewrites committed native
 files and Metro config and writes a `sentry.properties` containing a real token.
-The plugin registration in `app/app.json` is the whole configuration.
+The plugin registration in `app/app.json` and the gated `apply from:` in
+`build.gradle` are the whole configuration.
 
 ## Reporting is off against the emulators
 
