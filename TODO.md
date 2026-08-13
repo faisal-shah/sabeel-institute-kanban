@@ -197,8 +197,21 @@ creation**.
       Verified a genuinely new registration (new `CLIENT_ID`,
       `REVERSED_CLIENT_ID` and `GOOGLE_APP_ID`), and `npm run check:ios` passes.
 - [x] **Deleted the `com.sabeelinstitute.timetracker` iOS app** (2026-08-01).
-- [x] **Registered the bundle id in the Apple Developer portal** and created the
-      app in App Store Connect as `com.sabeelinstitute.kanban` (2026-08-01).
+- [x] **Registered the bundle id in the Apple Developer portal** (2026-08-01),
+      at developer.apple.com -> Certificates, Identifiers & Profiles.
+- [ ] **Create the app record in App Store Connect.** SEPARATE FROM THE ABOVE,
+      on a different site, and this checklist previously recorded them as one
+      ticked item — which is how it went unnoticed until an upload had nowhere to
+      land. Registering an identifier in the portal does not create an app.
+      App Store Connect -> Apps -> **+** -> New App:
+      platform **iOS**, name `Sabeel Kanban`, primary language English (U.S.),
+      bundle id `com.sabeelinstitute.kanban` from the dropdown, SKU
+      `sabeel-kanban`, Full Access.
+      The **name must be unique across the whole App Store** even for an unlisted
+      app; `Sabeel Institute Kanban` is the fallback. The name can change later,
+      the bundle id and SKU cannot.
+      **TestFlight is a tab inside the app record**, not a top-level section — it
+      does not exist until the app does.
 - [x] **App ID capabilities: Push Notifications only** (2026-08-04). Not
       Background Modes (our pushes are alerts, not silent), not Associated
       Domains (no universal links), not Sign in with Apple (the enterprise-account
