@@ -145,7 +145,7 @@ public, and the plugin writes whatever options it is given straight into
 ```bash
 export SENTRY_ORG=<org slug>            # Sentry -> Settings -> the URL slug
 export SENTRY_PROJECT=<native project>  # the React Native project, shared with Android
-export SENTRY_AUTH_TOKEN=<token>        # Settings -> Auth Tokens: project:releases + org:read
+export SENTRY_AUTH_TOKEN=<token>        # an ORG token, scope org:ci — see docs/SECRETS.md
 ```
 
 **The token is a real secret.** Never commit it, never paste it in chat, and do

@@ -49,7 +49,7 @@ Secret Manager — harmless, not silenced, and not a new failure.
 |---|---|---|
 | `SENTRY_ORG` | both native builds | Sentry → Settings → the org URL slug |
 | `SENTRY_PROJECT` | both | the **React Native** project — Android and iOS share it |
-| `SENTRY_AUTH_TOKEN` | both | Sentry → Settings → Auth Tokens, scopes `project:releases` + `org:read` |
+| `SENTRY_AUTH_TOKEN` | both | An **organization** token: Settings → Developer Settings → Organization Tokens. Scope `org:ci` — see below |
 
 Only the first two are non-secret. **The token is genuinely secret** and belongs
 in the build shell's environment, never in a file this repo tracks.
@@ -105,10 +105,10 @@ and aborted the suite until this gate was added.
 
 ## Deliberately NOT configured
 
-- **Web and Android source-map upload.** Still not wired, for the reason below:
-  events, tags and user ids arrive, only the stack frames are minified. Android
-  would need a hand edit to the committed `app/android/app/build.gradle`, since a
-  config plugin cannot reach a folder that is never prebuilt.
+- **Web source-map upload.** Not wired: a web stack trace still names the bundle
+  chunk and the line, and the web bundle is not minified past readability the way
+  a Hermes bytecode frame is. Android and iOS *are* wired — see the build-machine
+  section above.
 - **Any Cloud Storage credential** — the bucket is reached through the Admin SDK
   and the client Firebase config, neither of which is a secret. No bucket
   is provisioned.

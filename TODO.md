@@ -262,10 +262,13 @@ creation**.
       because unlike a missing DSN this degrades reports rather than losing them.
       Verified by diffing the Gradle task graph: no token → zero Sentry tasks, so
       CI and a fresh clone are unaffected.
-      **You already have a token** — the sibling time-tracker uses one at
-      `app/android/sentry.properties` (gitignored there). If it is an
-      organization token with `project:releases` it works here unchanged; only
-      `SENTRY_PROJECT` differs, since the two apps are separate Sentry projects.
+      **You already have a token and it works here unchanged.**
+      `sabeel-apk-sourcemaps`, an ORGANIZATION token with scope `org:ci`, used by
+      the sibling time-tracker. Organization tokens reach **every project in the
+      org**, so one token serves every Sabeel app; only `SENTRY_PROJECT` differs.
+      Confirmed against the API: releases endpoints answer 200, while org and
+      project-list endpoints answer 403 — `org:ci` grants exactly the CI/release
+      permissions and nothing more, which is the right shape for a build secret.
 
 ### Next, in order
 
@@ -274,9 +277,9 @@ creation**.
    `SENTRY_ORG`, `SENTRY_PROJECT` (the kanban React Native project) and
    `SENTRY_AUTH_TOKEN`.
    The token and org slug are already in the sibling time-tracker's gitignored
-   `app/android/sentry.properties`; reuse them if that token is org-scoped with
-   `project:releases`, otherwise make a new one at Sentry → Settings → Auth
-   Tokens. Only `SENTRY_PROJECT` differs between the two apps.
+   `app/android/sentry.properties` — copy both from there; no new token is
+   needed. Only `SENTRY_PROJECT` differs between the two apps. Sentry shows a
+   token's value **only once**, at creation, so that file is the copy you have.
    Worth a moment: the kanban native Sentry project was created as the *android*
    one, and iOS now reports to it too. Renaming the slug is safe — the DSN keys
    on the numeric project id — but if you do, `SENTRY_PROJECT` changes with it.

@@ -243,9 +243,12 @@ if (missingSentry.length) {
     `${missingSentry.join(', ')} not set in this shell.\n` +
       '    Harmless anywhere but the Mac you archive on. There, their absence means\n' +
       '    the build succeeds and silently uploads no dSYMs, so iOS crashes report as\n' +
-      '    raw addresses. The token is a real secret: create it at Sentry -> Settings\n' +
-      '    -> Auth Tokens with project:releases and org:read, export it in the build\n' +
-      '    shell, and never commit it. See docs/SECRETS.md.',
+      '    raw addresses instead of function names.\n' +
+      '    The token is an ORGANIZATION token — Sentry -> Settings -> Developer\n' +
+      '    Settings -> Organization Tokens, scope org:ci. Org tokens reach every\n' +
+      '    project in the org, so one serves every Sabeel app; only SENTRY_PROJECT\n' +
+      '    differs. It is a real secret: export it in the build shell, never commit\n' +
+      '    it, and note that Sentry shows its value only once. See docs/SECRETS.md.',
   );
 }
 
