@@ -45,7 +45,8 @@
           "cameraPermission": "Sabeel Kanban uses the camera so you can attach a photo to a card."
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "@sentry/react-native/expo"
     ]
   }
 }

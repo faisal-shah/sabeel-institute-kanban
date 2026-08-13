@@ -131,6 +131,37 @@ Both are gitignored, and neither failing announces itself:
   `node scripts/gen-build-info.mjs` right before archiving**, or a TestFlight
   build will name whatever commit was checked out when you last installed.
 
+  This is not hypothetical: a device check on 2026-08-12 read `v0.7.5 · ff5bb42`
+  off a build serving current source, because a bare `expo start` does not
+  regenerate the file. Everything about the running app looked right.
+
+### Three environment variables the SHELL that archives needs
+
+`@sentry/react-native/expo` is registered **bare** in `app.json`, so it reads all
+three from the environment rather than from a committed file — this repo is
+public, and the plugin writes whatever options it is given straight into
+`ios/sentry.properties`.
+
+```bash
+export SENTRY_ORG=<org slug>            # Sentry -> Settings -> the URL slug
+export SENTRY_PROJECT=<native project>  # the React Native project, shared with Android
+export SENTRY_AUTH_TOKEN=<token>        # Settings -> Auth Tokens: project:releases + org:read
+```
+
+**The token is a real secret.** Never commit it, never paste it in chat, and do
+not pass it as an `authToken` plugin option — the plugin itself warns that doing
+so writes it into the application package.
+
+Missing, the Xcode build **succeeds and uploads no debug symbols**, so the first
+evidence is a crash report full of hex addresses weeks later. `npm run check:ios`
+warns when they are absent rather than failing, because only the archiving
+machine needs them.
+
+**This wires iOS only.** A config plugin runs at `prebuild`, and `app/android/`
+is committed and never prebuilt — so the plugin's Android half does nothing here
+by design. Android symbolication, if it is ever wanted, is a hand edit to
+`app/android/app/build.gradle`, like everything else in that folder.
+
 ### Then
 
 ```bash
@@ -227,8 +258,43 @@ make, not a default.
 
 ## Getting it to testers, and the login gate
 
-Decide the distribution route before submitting, because it changes what review
-demands:
+**Decided 2026-08-12. Two channels, and they are not competing:**
+
+- **Internal TestFlight while stabilising** — Faisal and any core developer.
+  These are people who genuinely belong on the App Store Connect team, so the
+  standing-membership cost that rules internal out for thirteen colleagues does
+  not apply to two or three developers. No Beta App Review; builds land minutes
+  after processing. **Builds expire after 90 days**, which is fine for a
+  development channel and is exactly why it is not the destination.
+- **Unlisted App Distribution as the permanent route** — a normal App Store app
+  that is not searchable and appears in no category, chart or recommendation,
+  reachable only by direct link. No user cap, all App Store regions, managed and
+  unmanaged devices alike, and **no expiry**: updates arrive like any other app.
+  Colleagues need no App Store Connect account, no MDM enrolment and no
+  redemption code — just the link.
+
+Unlisted fits **both** Sabeel apps, which is why it was chosen over anything
+app-specific. Apple asks that an unlisted app carry its own access control, and
+this one already does: `@oursabeel.com`-only sign-in, enforced server-side, with
+admin approval on top. The sibling recordings app has the same shape with
+invited students beside staff.
+
+**What was considered and rejected, so it is not re-litigated:**
+
+- **Apple Business Manager Custom Apps.** Free, but needs a D-U-N-S number, and
+  on unmanaged personal devices — which is every device here, there is no MDM —
+  it reaches people only through **redemption codes**: a CSV of one-time codes,
+  locked to the ABM account's own country, and a mechanism Apple publishes
+  migration guidance *away* from. It is also a **one-way door**: an app first
+  distributed privately through Business Manager needs a brand-new App Store
+  Connect app record before it can be made unlisted. Custom Apps go through App
+  Review anyway, so it buys no exemption.
+- **Apple Developer Enterprise Program.** Requires **100+ employees** and is
+  restricted to cases the App Store, Custom Apps, Ad Hoc and TestFlight cannot
+  serve. Thirteen people do not qualify.
+
+Neither route below avoids review; the differences are who can install and what
+review costs:
 
 - **TestFlight, internal testers** — no Beta App Review, builds land within
   minutes. The price is not small and is easy to miss: each tester must be a
@@ -241,16 +307,12 @@ demands:
   link, **not** App Store Connect users. They need an Apple ID and the TestFlight
   app, nothing more. The price is **Beta App Review on the first build of each
   version**, which means the demo-credentials problem below.
-- **Public App Store** — full review.
+- **Public App Store, listed or unlisted** — full review either way. Unlisted is
+  the same submission with one extra request afterwards; the app must already be
+  submitted to App Review and **must not be in a beta state** when you ask, so
+  request it on a build you intend to release rather than a TestFlight one.
 
-**Which one depends on what you would rather maintain**, and the earlier version
-of this file got it wrong by calling internal "least friction by a wide margin"
-while only counting review. Internal trades one recurring cost (review) for a
-standing one (team membership for everyone). For an internal tool at a nonprofit,
-**external is usually the better trade**: one dedicated review account, created
-once, against a dozen people holding roles in the developer account.
-
-For either reviewed route there is a hard problem to solve up front: **a reviewer
+For any reviewed route there is a hard problem to solve up front: **a reviewer
 cannot sign in.** Sign-in is Google-only, restricted to `@oursabeel.com`
 server-side, *and* every new account lands `pending` until an admin approves it.
 An app that cannot be opened is rejected, every time. So supply working demo
@@ -277,13 +339,11 @@ to testers without the manual export-compliance prompt.
 
 ## Things that are genuinely open
 
-- **APNs key.** Firebase needs an APNs authentication key (`.p8`) from the Apple
-  Developer portal before push works on iOS at all. Tracked in `TODO.md`.
-- **Sentry on iOS.** `@sentry/react-native` is a dependency and initialised in
-  `app/src/sentry.ts`, but there is no `@sentry/react-native` config plugin in
-  `app.json`, so no dSYM upload is wired for iOS builds. Crashes will report;
-  stack traces will not be symbolicated. Decide whether that matters before the
-  App Store build.
+- **Proof that the APNs key works.** The key itself is created and uploaded to
+  Firebase (2026-08-04) — that part is done. What is open is *verification*:
+  Firebase exposes no API for reading APNs configuration back, so nothing here
+  can tell "uploaded" from "uploaded wrong". The only proof is a push arriving on
+  a real device, which is why it is the first thing to check on the first build.
 - **The distribution certificate's private key.** It lives in the build Mac's
   keychain and nowhere else. Export a `.p12` and keep it with the two `.p8`
   keys — a rebuilt Mac otherwise costs a new certificate, and Apple caps how

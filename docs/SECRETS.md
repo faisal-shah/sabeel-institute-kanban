@@ -43,6 +43,32 @@ Locally, `functions/.secret.local` (gitignored) sets it empty so the emulator
 never reports. The emulator still logs one 403 at startup trying to reach real
 Secret Manager — harmless, not silenced, and not a new failure.
 
+## Build machine — the shell that archives for iOS, and nowhere else
+
+| Name | Used by | Where to get it |
+|---|---|---|
+| `SENTRY_ORG` | `@sentry/react-native/expo` at prebuild | Sentry → Settings → the org URL slug |
+| `SENTRY_PROJECT` | same | the **React Native** project, shared with Android |
+| `SENTRY_AUTH_TOKEN` | same | Sentry → Settings → Auth Tokens, scopes `project:releases` + `org:read` |
+
+Only the first two are non-secret. **The token is genuinely secret** and belongs
+in the build shell's environment, never in a file this repo tracks.
+
+They are environment variables rather than plugin options deliberately: the
+plugin writes whatever options it is given verbatim into `ios/sentry.properties`,
+**this repo is public**, and the plugin's own code warns that an `authToken`
+option "will be written to the application package". Registered bare, it falls
+back to these three names.
+
+Absent, the Xcode build **succeeds and uploads no dSYMs**, so iOS crashes arrive
+as raw addresses instead of function names — with nothing failing to say so.
+`npm run check:ios` warns about them rather than failing, since only the Mac
+needs them.
+
+**Do NOT run `npx @sentry/wizard`** to set this up. It rewrites committed native
+files and Metro config and writes a `sentry.properties` containing a real token.
+The plugin registration in `app/app.json` is the whole configuration.
+
 ## Reporting is off against the emulators
 
 Both app seams gate on `USE_EMULATORS`, so a DSN in `.env.local` is ignored
@@ -54,11 +80,10 @@ and aborted the suite until this gate was added.
 
 ## Deliberately NOT configured
 
-- **`SENTRY_AUTH_TOKEN`** — would enable source-map upload so release stack
-  traces are readable. Not wired because it is a real secret and because
-  `@sentry/wizard`, the usual way to set it up, rewrites committed native files
-  and metro config. Events, tags and user ids arrive without it; only the stack
-  frames are minified.
+- **Web and Android source-map upload.** Still not wired, for the reason below:
+  events, tags and user ids arrive, only the stack frames are minified. Android
+  would need a hand edit to the committed `app/android/app/build.gradle`, since a
+  config plugin cannot reach a folder that is never prebuilt.
 - **Any Cloud Storage credential** — the bucket is reached through the Admin SDK
   and the client Firebase config, neither of which is a secret. No bucket
   is provisioned.

@@ -13,6 +13,17 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const problems = [];
 const fail = (msg) => problems.push(msg);
+/**
+ * For things that are only wrong ON THE BUILD MACHINE.
+ *
+ * A hard failure would be wrong: this script is run from any checkout, and the
+ * Sentry build variables below only have to exist in the shell that archives.
+ * But they cannot be silent either — a missing token skips the symbol upload
+ * without failing the build, so the first evidence would be an unreadable crash
+ * report weeks later.
+ */
+const warnings = [];
+const warn = (msg) => warnings.push(msg);
 
 const app = JSON.parse(readFileSync(resolve(root, 'app/app.json'), 'utf8')).expo;
 const plistPath = resolve(root, 'app/GoogleService-Info.plist');
@@ -103,6 +114,31 @@ if (!existsSync(plistPath)) {
         '    then re-download the plist.',
     );
   }
+
+  // 4b. The Sentry plugin, which is what makes an iOS crash report readable.
+  //
+  // Registered BARE, like the one above and for the same reason: given
+  // `organization`/`project` it writes them into `ios/sentry.properties`, and
+  // this repo is public. Bare, the plugin falls back to SENTRY_ORG and
+  // SENTRY_PROJECT from the environment at build time — which is also where the
+  // auth token has to come from, so all three arrive the same way and none of
+  // them is in git. Never pass `authToken` here: the plugin itself warns that it
+  // would be written into the application package.
+  const SENTRY = '@sentry/react-native/expo';
+  if (!plugins.includes(SENTRY)) {
+    if (plugins.find((p) => Array.isArray(p) && p[0] === SENTRY)) {
+      fail(
+        `"${SENTRY}" is configured with options. Register it bare — this repo is\n` +
+          '    public, and options are written verbatim into ios/sentry.properties.\n' +
+          '    Supply SENTRY_ORG and SENTRY_PROJECT in the build environment instead.',
+      );
+    } else {
+      fail(
+        `app.json plugins is missing "${SENTRY}", so no dSYM upload is wired and\n` +
+          '    every iOS crash arrives as raw addresses instead of function names.',
+      );
+    }
+  }
 }
 
 // 5. Export compliance. Leaving this out does not fail a build — it parks every
@@ -191,6 +227,31 @@ if (!existsSync(envPath)) {
   } else if (!/^https:\/\/[^@]+@/.test(dsn)) {
     fail(`EXPO_PUBLIC_SENTRY_DSN_NATIVE does not look like a Sentry DSN ("${dsn.slice(0, 12)}…").`);
   }
+}
+
+// 10. The three Sentry build variables, which are needed only where you archive.
+//
+// The plugin is registered bare (see 4b), so it takes org, project and the auth
+// token from the environment. Missing, the Xcode build still SUCCEEDS and simply
+// does not upload debug symbols — so the first sign is a crash report full of
+// hex addresses, long after the build that caused it. Warned rather than failed,
+// because only the Mac doing the archive needs them.
+const SENTRY_BUILD_VARS = ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'];
+const missingSentry = SENTRY_BUILD_VARS.filter((v) => !process.env[v]);
+if (missingSentry.length) {
+  warn(
+    `${missingSentry.join(', ')} not set in this shell.\n` +
+      '    Harmless anywhere but the Mac you archive on. There, their absence means\n' +
+      '    the build succeeds and silently uploads no dSYMs, so iOS crashes report as\n' +
+      '    raw addresses. The token is a real secret: create it at Sentry -> Settings\n' +
+      '    -> Auth Tokens with project:releases and org:read, export it in the build\n' +
+      '    shell, and never commit it. See docs/SECRETS.md.',
+  );
+}
+
+if (warnings.length > 0) {
+  console.warn('\niOS config warnings (build-machine only)\n');
+  for (const w of warnings) console.warn(`  ! ${w}\n`);
 }
 
 if (problems.length > 0) {

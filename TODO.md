@@ -214,17 +214,23 @@ creation**.
       Access → Integrations, and it uploads builds rather than delivering
       pushes. Both download exactly once and both are real secrets — keep either
       out of the repo. Both are in Drive.
-- [ ] **Decide the distribution route** before submitting.
-      **Internal TestFlight is not the low-friction option it looks like**: every
-      tester must be a *user on your App Store Connect team*, with a role in the
-      developer account, accepted by invitation — not a download link. Thirteen
-      colleagues means thirteen standing accounts.
-      **External TestFlight** is the link-based one (up to 10,000, Apple ID and
-      the TestFlight app, no ASC membership), and the price is Beta App Review on
-      the first build of each version — so it needs **working demo credentials**,
-      because sign-in is `@oursabeel.com`-only *and* admin-gated and a reviewer
-      cannot get in. A dedicated pre-approved `@oursabeel.com` account solves it
-      once. See `docs/IOS-BUILD.md`.
+- [x] **Distribution route decided (2026-08-12): internal TestFlight while
+      stabilising, then Unlisted App Distribution as the permanent route.**
+      Internal TestFlight is right for Faisal and core developers — people who
+      genuinely belong on the App Store Connect team — and avoids Beta App
+      Review entirely; its 90-day build expiry is why it is not the destination.
+      **Unlisted** is a normal App Store app that is not searchable and appears
+      in no chart or category, reachable only by direct link: no user cap, no
+      expiry, managed and unmanaged devices, and colleagues need no ASC account,
+      no MDM and no redemption code. It suits the recordings app equally, which
+      is why it was chosen over anything app-specific.
+      **Rejected:** Apple Business Manager Custom Apps (needs a D-U-N-S number,
+      reaches unmanaged devices only via country-locked redemption codes Apple is
+      migrating away from, still requires App Review, and is a *one-way door* —
+      an app distributed privately through ABM needs a brand-new App Store
+      Connect record before it can be made unlisted); the Apple Developer
+      Enterprise Program (requires 100+ employees). Reasoning in
+      `docs/IOS-BUILD.md`.
 
 - [ ] **Export the iOS distribution certificate as a `.p12`** into Drive beside
       the two `.p8` keys. Its private key lives in the build Mac's **keychain**
@@ -233,37 +239,62 @@ creation**.
       certificates an account may hold. This is the same rule as the Android
       keystore: back up what cannot be recreated. Not urgent until the first
       build exists, but easy to forget once it does.
-- [ ] **If the route is EXTERNAL TestFlight: create the review account first.**
-      A pre-approved `appreview@oursabeel.com` (or similar) that Apple's
-      reviewer can actually sign in with, since sign-in is domain-restricted
-      *and* admin-gated. Create it, approve it, and keep it — every reviewed
-      submission needs it, so it is infrastructure rather than a one-off.
+- [ ] **Create the review account — needed for the UNLISTED submission**, not for
+      internal TestFlight. A pre-approved `appreview@oursabeel.com` (or similar)
+      that Apple's reviewer can actually sign in with, since sign-in is
+      domain-restricted *and* admin-gated. An app a reviewer cannot open is
+      rejected every time. Create it, approve it, and keep it — every reviewed
+      submission needs it, so it is infrastructure rather than a one-off. Not
+      blocking the first TestFlight build, so it can wait until you submit.
+
+- [x] **Sentry dSYM upload wired for iOS (2026-08-12).**
+      `@sentry/react-native/expo` is registered **bare** in `app/app.json`, so it
+      takes `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN` from the build
+      shell rather than from a committed file — this repo is public, and the
+      plugin writes options verbatim into `ios/sentry.properties`.
+      `npm run check:ios` fails if the plugin is missing and warns if the three
+      variables are absent. **You must export them on the Mac before archiving**
+      (see below); without them the build succeeds and silently uploads nothing.
+      Android is untouched by design: a config plugin runs at prebuild, and
+      `app/android/` is never prebuilt.
 
 ### Next, in order
 
-1. Decide the route (above). Everything else waits on it.
-2. If external: create and approve the review account.
+1. **Sentry auth token** — Sentry → Settings → Auth Tokens, scopes
+   `project:releases` and `org:read`. Keep it with the other secrets; it never
+   goes in the repo or in chat. You will export three variables in the build
+   shell on the Mac:
+   `SENTRY_ORG`, `SENTRY_PROJECT` (the React Native project) and
+   `SENTRY_AUTH_TOKEN`.
+2. **Add core developers as App Store Connect users** so internal TestFlight can
+   reach them. Only the handful who need pre-release builds — every one of them
+   holds a role in the developer account.
 3. On the Mac: `cd app && npx expo prebuild --platform ios`.
    **Always `--platform ios`** — a bare prebuild is *clean* by default and
    deletes the committed `android/`, silently dropping `minSdkVersion 33`.
 4. `npm run check:ios` — must pass before building. It verifies the bundle id,
-   the Firebase project, the Google Sign-In URL scheme and the icon.
-5. Archive in Xcode → Distribute to App Store Connect.
+   the Firebase project, the Google Sign-In URL scheme, the icon, the Sentry
+   plugin, and warns about the three build variables.
+   Then `node scripts/gen-build-info.mjs` immediately before archiving, or the
+   sign-in screen names whatever commit was last checked out.
+5. Archive in Xcode → Distribute to App Store Connect → internal TestFlight.
    **`ios.buildNumber` must increase on EVERY upload** — unlike Android's
-   version code, it does not derive itself from the version string.
+   version code, it does not derive itself from the version string. It is still
+   `1`.
 6. **First thing to check on the device: a push actually arrives.** That is the
    only proof the APNs key was uploaded correctly; nothing on this side can
    distinguish "uploaded" from "uploaded wrong".
 7. Export the `.p12` (above) once the certificate exists.
-
-**Claude can do, on your say-so:** wire the Sentry config plugin so iOS crashes
-are symbolicated. Right now `@sentry/react-native` is installed and initialised
-but no dSYM upload is configured, so crashes will report with useless stack
-traces. Cheaper before the first build than after the first crash.
+8. **When it is stable: create and approve the review account, submit to App
+   Review, then request unlisted distribution.** The request needs the app
+   submitted and **not in a beta state**, so make it against a build you intend
+   to release rather than a TestFlight one.
 
 `docs/IOS-BUILD.md` is the runbook.
 
-> Nothing here needs a code change from Claude — `app/app.json` is already wired.
+> Everything left here is console or build-machine work. The repo side is done:
+> `app/app.json` carries the bundle id, the plist, the Google Sign-In plugin and
+> now the Sentry plugin, and `npm run check:ios` guards all of it.
 
 ---
 
