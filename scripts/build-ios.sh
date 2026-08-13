@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# Build and upload the iOS app WITHOUT touching Xcode's UI.
+#
+#   bash scripts/build-ios.sh            # archive, export, upload to TestFlight
+#   bash scripts/build-ios.sh --check    # run every gate, build nothing
+#   bash scripts/build-ios.sh --no-upload  # archive and export an .ipa, stop there
+#
+# Runs on the Mac. Everything it needs lives in the gitignored
+# `app/.env.sentry-build-plugin`; nothing has to be exported by hand.
+#
+# WHY COMMAND LINE RATHER THAN THE XCODE GUI, beyond preference: Xcode runs build
+# phases in a SANITISED environment and, since Xcode 15, does not inherit the
+# environment of a terminal that launched it. So the Sentry symbol upload cannot
+# see its token in a GUI archive — the archive succeeds and uploads nothing, with
+# no error. `xcodebuild` inherits the shell, which makes the whole thing one
+# reproducible command and is also the shape any CI job would take.
+#
+# The gates mirror scripts/build-aab.sh. A release should not be able to go out
+# of one store with a guarantee the other store's release does not have.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+CHECK_ONLY=false
+UPLOAD=true
+for arg in "$@"; do
+  case "$arg" in
+    --check) CHECK_ONLY=true ;;
+    --no-upload) UPLOAD=false ;;
+    -h | --help) sed -n '2,18p' "$0"; exit 0 ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
+
+die() { echo "$@" >&2; exit 1; }
+
+# ---------------------------------------------------------------- gates
+
+# 0. The platform. Everything below needs Xcode, and the error you get from
+#    running this on Linux otherwise names a missing binary rather than the
+#    reason.
+[ "$(uname -s)" = "Darwin" ] || die "build-ios.sh needs macOS — iOS archives cannot be produced on Linux."
+
+command -v xcodebuild >/dev/null || die "xcodebuild not found. Install Xcode and run: sudo xcode-select -s /Applications/Xcode.app"
+command -v pod >/dev/null || die "CocoaPods not found. Install it: sudo gem install cocoapods (or brew install cocoapods)"
+
+# 1. The build-machine values, loaded BEFORE the gates rather than after.
+#    check:ios warns when the Sentry variables are missing, and running it first
+#    made it warn about values this script was about to supply — a check crying
+#    wolf is a check people stop reading.
+# shellcheck source=scripts/load-build-env.sh
+. scripts/load-build-env.sh
+
+VERSION="$(node -p "require('./app/app.json').expo.version")"
+BUILD_NUMBER="$(node -p "require('./app/app.json').expo.ios.buildNumber")"
+
+# 2. Store-legal version — one check shared with Android and web.
+node scripts/check-version.mjs
+
+# 3. A deploy-log entry must exist BEFORE the build, exactly as for the AAB. It
+#    is the release notes and the only record of why a release exists.
+if ! node scripts/deploy-notes.mjs "$VERSION" >/dev/null 2>&1; then
+  die "No deploy-log entry for v${VERSION} in docs/PHASE_STATUS.md.
+Write it first — it is the release notes, and the only record of why."
+fi
+
+# 4. The iOS config itself: bundle id vs the plist, the Firebase project, the
+#    Google Sign-In URL scheme, the icon's alpha channel, export compliance.
+npm run --silent check:ios
+
+# 5. Crash reporting must actually be on. Same gate as build-aab.sh: app/.env.local
+#    is gitignored, so a fresh clone builds a release that reports nothing and
+#    looks identical.
+if ! grep -qE '^\s*EXPO_PUBLIC_SENTRY_DSN_NATIVE\s*=\s*https://[^@]+@' app/.env.local 2>/dev/null; then
+  die "app/.env.local has no usable EXPO_PUBLIC_SENTRY_DSN_NATIVE.
+This build would ship with crash reporting silently OFF. It is gitignored, so a
+fresh clone never has it — copy it across from another machine."
+fi
+
+[ -n "${IOS_TEAM_ID:-}" ] || die "IOS_TEAM_ID is not set.
+Put it in app/.env.sentry-build-plugin. Find it at developer.apple.com ->
+Membership details -> Team ID (ten characters)."
+
+missing_sentry=""
+for v in SENTRY_ORG SENTRY_PROJECT SENTRY_AUTH_TOKEN; do
+  [ -n "$(eval "printf '%s' \"\${$v:-}\"")" ] || missing_sentry="${missing_sentry} ${v}"
+done
+if [ -n "$missing_sentry" ]; then
+  echo "WARNING:${missing_sentry} not set — this build uploads no debug symbols," >&2
+  echo "so iOS crashes will report raw addresses. See docs/SECRETS.md. Building anyway." >&2
+fi
+
+# 6. Upload credentials, checked NOW rather than after a twenty-minute archive.
+#    An App Store Connect API key is what makes this browserless; it is a
+#    different .p8 from the APNs key.
+if [ "$UPLOAD" = true ]; then
+  [ -n "${ASC_KEY_ID:-}" ] || die "ASC_KEY_ID is not set (App Store Connect API key id).
+Put it in app/.env.sentry-build-plugin, with ASC_ISSUER_ID and ASC_KEY_PATH.
+The key is App Store Connect -> Users and Access -> Integrations -> App Store
+Connect API. It is NOT the APNs key. Use --no-upload to skip uploading."
+  [ -n "${ASC_ISSUER_ID:-}" ] || die "ASC_ISSUER_ID is not set (the Issuer ID above the key list)."
+  [ -n "${ASC_KEY_PATH:-}" ] || die "ASC_KEY_PATH is not set (path to the AuthKey_<id>.p8 file)."
+  [ -f "${ASC_KEY_PATH}" ] || die "ASC_KEY_PATH points at ${ASC_KEY_PATH}, which does not exist."
+fi
+
+echo
+echo "app          Sabeel Kanban (com.sabeelinstitute.kanban)"
+echo "version      ${VERSION}  (build ${BUILD_NUMBER})"
+echo "team         ${IOS_TEAM_ID}"
+echo "symbols      ${SENTRY_PROJECT:-<none>}"
+echo "upload       $([ "$UPLOAD" = true ] && echo "yes, to TestFlight" || echo "no (--no-upload)")"
+echo
+
+if [ "$CHECK_ONLY" = true ]; then
+  echo "--check: every gate passed; nothing was built."
+  exit 0
+fi
+
+# ---------------------------------------------------------------- build
+
+# 7. Stamp the running commit onto the sign-in screen. Immediately before the
+#    build, never earlier: it records the commit at the moment it runs, and a
+#    stale stamp is how a device check reads the wrong version off a correct build.
+node scripts/gen-build-info.mjs
+
+# 8. Regenerate ios/. ALWAYS --platform ios: a bare prebuild is clean by default
+#    and would delete the committed android/, silently dropping minSdkVersion 33.
+(cd app && npx expo prebuild --platform ios)
+(cd app/ios && pod install)
+
+WORKSPACE="$(find app/ios -maxdepth 1 -name '*.xcworkspace' | head -1)"
+[ -n "$WORKSPACE" ] || die "no .xcworkspace under app/ios after prebuild + pod install."
+
+# The scheme is whatever prebuild named it — discovered rather than assumed, so a
+# rename in app.json does not silently break this script.
+SCHEME="$(xcodebuild -workspace "$WORKSPACE" -list -json | node -e '
+  let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+    const schemes = JSON.parse(s).workspace.schemes.filter((x) => !/Tests?$/.test(x));
+    process.stdout.write(schemes[0] ?? "");
+  });')"
+[ -n "$SCHEME" ] || die "could not determine the Xcode scheme from $WORKSPACE."
+echo "scheme       ${SCHEME}"
+
+ARCHIVE="build/ios/${SCHEME}-${VERSION}-${BUILD_NUMBER}.xcarchive"
+EXPORT_DIR="build/ios/export"
+rm -rf "$ARCHIVE" "$EXPORT_DIR"
+mkdir -p build/ios
+
+# All three or none: a partially-set key is how `set -u` turns a config mistake
+# into an unbound-variable error twenty minutes into a build.
+AUTH=()
+if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
+  AUTH=(-authenticationKeyPath "${ASC_KEY_PATH}"
+        -authenticationKeyID "${ASC_KEY_ID}"
+        -authenticationKeyIssuerID "${ASC_ISSUER_ID}")
+fi
+
+# 9. Archive. `-allowProvisioningUpdates` lets Xcode create and download the
+#    signing assets itself, which is what removes the last reason to open the UI.
+xcodebuild -workspace "$WORKSPACE" \
+  -scheme "$SCHEME" \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath "$ARCHIVE" \
+  -allowProvisioningUpdates \
+  "${AUTH[@]}" \
+  DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+  archive
+
+[ -d "$ARCHIVE" ] || die "xcodebuild reported success but produced no archive at $ARCHIVE."
+
+# 10. Export, and upload in the same step when asked. `destination: upload` in the
+#     options plist is what sends it to App Store Connect without Xcode Organizer
+#     or Transporter.
+PLIST="build/ios/ExportOptions.plist"
+DESTINATION=$([ "$UPLOAD" = true ] && echo upload || echo export)
+cat > "$PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>app-store-connect</string>
+  <key>destination</key><string>${DESTINATION}</string>
+  <key>teamID</key><string>${IOS_TEAM_ID}</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>uploadSymbols</key><true/>
+  <key>manageAppVersionAndBuildNumber</key><false/>
+</dict>
+</plist>
+PLISTEOF
+
+xcodebuild -exportArchive \
+  -archivePath "$ARCHIVE" \
+  -exportPath "$EXPORT_DIR" \
+  -exportOptionsPlist "$PLIST" \
+  -allowProvisioningUpdates \
+  "${AUTH[@]}"
+
+echo
+if [ "$UPLOAD" = true ]; then
+  echo "Uploaded v${VERSION} build ${BUILD_NUMBER} to App Store Connect."
+  echo "It appears on internal TestFlight after processing — a few minutes."
+  echo
+  echo "BUMP expo.ios.buildNumber before the next upload. Apple requires it to"
+  echo "increase every time, even for the same version; unlike Android's"
+  echo "versionCode it does not derive itself."
+else
+  echo "Exported to ${EXPORT_DIR} (not uploaded)."
+fi

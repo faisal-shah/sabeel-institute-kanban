@@ -31,7 +31,8 @@
     "seed": "node scripts/seed-dev.mjs",
     "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs",
     "deadcode": "knip",
-    "publish:play": "node scripts/publish-play.mjs"
+    "publish:play": "node scripts/publish-play.mjs",
+    "build:ios": "bash scripts/build-ios.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

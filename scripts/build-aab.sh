@@ -44,6 +44,11 @@ if ! grep -qE '^\s*EXPO_PUBLIC_SENTRY_DSN_NATIVE\s*=\s*https://[^@]+@' app/.env.
   exit 1
 fi
 
+# 3a. Load the build-machine values, so no shell setup is needed. The Gradle
+#     gate reads the ENVIRONMENT, so this must happen before gradlew starts.
+# shellcheck source=scripts/load-build-env.sh
+. "$(dirname "$0")/load-build-env.sh"
+
 # 3b. Symbolication. WARNS rather than fails, and the difference from gate 3 is
 #     the point: without a DSN nothing is reported at all, whereas without these
 #     the reports still arrive and are merely harder to read. Blocking a release

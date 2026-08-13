@@ -272,40 +272,47 @@ creation**.
 
 ### Next, in order
 
-1. **Sentry: export the three variables** in whichever shell cuts a release —
-   the Mac for iOS, this machine for `npm run build:aab`.
-   `SENTRY_ORG`, `SENTRY_PROJECT` (the kanban React Native project) and
-   `SENTRY_AUTH_TOKEN`.
-   The token and org slug are already in the sibling time-tracker's gitignored
-   `app/android/sentry.properties` — copy both from there; no new token is
-   needed. Only `SENTRY_PROJECT` differs between the two apps. Sentry shows a
-   token's value **only once**, at creation, so that file is the copy you have.
-   Worth a moment: the kanban native Sentry project was created as the *android*
-   one, and iOS now reports to it too. Renaming the slug is safe — the DSN keys
-   on the numeric project id — but if you do, `SENTRY_PROJECT` changes with it.
-2. **Add core developers as App Store Connect users** so internal TestFlight can
-   reach them. Only the handful who need pre-release builds — every one of them
-   holds a role in the developer account.
-3. On the Mac: `cd app && npx expo prebuild --platform ios`.
-   **Always `--platform ios`** — a bare prebuild is *clean* by default and
-   deletes the committed `android/`, silently dropping `minSdkVersion 33`.
-4. `npm run check:ios` — must pass before building. It verifies the bundle id,
-   the Firebase project, the Google Sign-In URL scheme, the icon, the Sentry
-   plugin, and warns about the three build variables.
-   Then `node scripts/gen-build-info.mjs` immediately before archiving, or the
-   sign-in screen names whatever commit was last checked out.
-5. Archive in Xcode → Distribute to App Store Connect → internal TestFlight.
-   **`ios.buildNumber` must increase on EVERY upload** — unlike Android's
-   version code, it does not derive itself from the version string. It is still
-   `1`.
-6. **First thing to check on the device: a push actually arrives.** That is the
-   only proof the APNs key was uploaded correctly; nothing on this side can
-   distinguish "uploaded" from "uploaded wrong".
-7. Export the `.p12` (above) once the certificate exists.
-8. **When it is stable: create and approve the review account, submit to App
-   Review, then request unlisted distribution.** The request needs the app
-   submitted and **not in a beta state**, so make it against a build you intend
-   to release rather than a TestFlight one.
+Everything Claude could do is done: the build is one command, the gates run
+first, and the Sentry values are already in place. What is left is four values
+only you can get, then the build.
+
+1. **Fill in four blanks in `app/.env.sentry-build-plugin`** (already created,
+   gitignored, mode 600; the Sentry three are filled in already):
+   - `IOS_TEAM_ID` — developer.apple.com -> Membership details -> Team ID.
+   - `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` — App Store Connect -> Users
+     and Access -> Integrations -> App Store Connect API. **This is not the APNs
+     key**: a different `.p8` for a different job. You have one in Drive.
+2. **Add core developers as App Store Connect users**, so internal TestFlight can
+   reach them. Only the few who need pre-release builds — each holds a role in
+   the developer account.
+3. **On the Mac:**
+   ```bash
+   git pull && npm ci
+   # copy app/.env.local and app/.env.sentry-build-plugin across
+   npm run build:ios -- --check     # free, proves every gate
+   npm run build:ios                # archive + upload to TestFlight
+   ```
+   `--check` first. It catches a missing value in two seconds instead of twenty
+   minutes into an archive.
+4. **Bump `expo.ios.buildNumber` before every re-upload.** Apple requires it to
+   increase even for the same version; unlike Android's versionCode it does not
+   derive itself. It is `1` now.
+5. **First thing on a real device: confirm a push arrives.** The only proof the
+   APNs key was uploaded correctly — nothing on this side distinguishes
+   "uploaded" from "uploaded wrong", and a simulator cannot test it because it
+   gets no real APNs token.
+6. **Export the iOS distribution certificate as a `.p12`** to Drive once it
+   exists. Its private key lives only in that Mac's keychain, and Apple caps how
+   many distribution certificates an account may hold. This is also what a
+   GitHub Actions build would need, so it stops being merely a backup.
+7. **When it is stable:** create and approve the review account, submit to App
+   Review, then request unlisted distribution — against a release build, not a
+   TestFlight one.
+
+Answer one thing on the first build and record it here: whether automatic
+signing re-adds the **Push Notifications** capability and the `aps-environment`
+entitlement after a prebuild. If not, it belongs in `app/app.json` under
+`ios.entitlements` — never re-clicked in Xcode, since `ios/` is regenerated.
 
 `docs/IOS-BUILD.md` is the runbook.
 

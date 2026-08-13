@@ -203,24 +203,40 @@ folder is committed and never prebuilt. `scripts/build-aab.sh` warns when they
 are missing, exactly as `check:ios` does here. Full reasoning in
 `docs/SECRETS.md`.
 
-### Then
+### Then — one command, no Xcode UI
 
 ```bash
 git pull
 npm ci                                  # also generates build-info.ts
-# copy app/.env.local into place before building
-npm run check:ios                       # must pass before anything else
-cd app
-npx expo prebuild --platform ios        # NOT bare prebuild
-cd ios && pod install && cd ..
-open ios/*.xcworkspace                  # .xcworkspace, never .xcodeproj
+# copy app/.env.local and app/.env.sentry-build-plugin into place
+npm run build:ios -- --check            # every gate, builds nothing
+npm run build:ios                       # archive, export, upload to TestFlight
 ```
+
+`scripts/build-ios.sh` does the whole thing: gates, `gen-build-info`,
+`expo prebuild --platform ios`, `pod install`, `xcodebuild archive`, then export
+with `destination: upload` so it goes straight to App Store Connect. No
+Organizer, no Transporter, no signing dialog — `-allowProvisioningUpdates` with
+an App Store Connect API key lets Xcode fetch the signing assets itself.
+
+`--check` is free and runs every gate. Use it first; it catches a missing team
+id, a missing API key or an absent deploy-log entry in two seconds rather than
+twenty minutes into an archive.
+
+**It refuses to run anywhere but macOS**, and the prebuild inside it is always
+`--platform ios`, so it cannot be the thing that deletes `android/`.
 
 Expo 57 / React Native 0.86, so a current Xcode and CocoaPods are assumed; if the
 toolchain is too old `pod install` is where it surfaces.
 
-In Xcode: select the scheme, set the team under Signing & Capabilities, and build
-to a simulator first. Only then archive.
+Worth doing once by hand before the first upload: build to a **simulator** and
+sign in. Google Sign-In opens a web session and returns through the URL scheme,
+which is the single most likely thing to be misconfigured, and the simulator can
+prove it. Push cannot be proved there — see below.
+
+```bash
+cd app && npx expo run:ios      # simulator, debug
+```
 
 **Push notifications need the Push Notifications capability**, and the app does
 use push (`app/src/notify.ts`, `expo-notifications` + FCM). Because `ios/` is
