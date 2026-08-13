@@ -135,18 +135,56 @@ Both are gitignored, and neither failing announces itself:
   off a build serving current source, because a bare `expo start` does not
   regenerate the file. Everything about the running app looked right.
 
-### Three environment variables the SHELL that archives needs
+### Three Sentry values, and how they reach an Xcode build
 
 `@sentry/react-native/expo` is registered **bare** in `app.json`, so it reads all
-three from the environment rather than from a committed file — this repo is
-public, and the plugin writes whatever options it is given straight into
+three at build time rather than from a committed file — this repo is public, and
+the plugin writes whatever options it is given straight into
 `ios/sentry.properties`.
 
-```bash
-export SENTRY_ORG=<org slug>            # Sentry -> Settings -> the URL slug
-export SENTRY_PROJECT=<native project>  # the React Native project, shared with Android
-export SENTRY_AUTH_TOKEN=<token>        # an ORG token, scope org:ci — see docs/SECRETS.md
 ```
+SENTRY_ORG=<org slug>            # Sentry -> Settings -> the org URL slug
+SENTRY_PROJECT=<native project>  # the React Native project, shared with Android
+SENTRY_AUTH_TOKEN=<token>        # an ORG token, scope org:ci — see docs/SECRETS.md
+```
+
+**EXPORTING THEM IN YOUR SHELL DOES NOT REACH XCODE.** Xcode's build system runs
+Run Script phases in a sanitised environment, and since Xcode 15 it no longer
+inherits the environment of a terminal that launched it either — so
+`export …; open ios/*.xcworkspace` looks right and silently changes nothing. The
+symptom is the one this whole area specialises in: the archive succeeds and
+uploads no symbols.
+
+Two ways that actually work. Pick by how you are building:
+
+- **Archiving in the Xcode GUI — fill in `app/ios/sentry.properties`.** The
+  plugin generates that file at prebuild with `# no org found, falling back to
+  SENTRY_ORG environment variable` in place of each value; replace those lines:
+
+  ```properties
+  defaults.url=https://sentry.io/
+  defaults.org=<org slug>
+  defaults.project=<native project>
+  auth.token=<token>
+  ```
+
+  Safe **only because `app/ios/` is gitignored and regenerated** — it is a build
+  product on a build machine, not repo config. That is also the catch: **every
+  `expo prebuild` rewrites it**, so re-fill it after each one. This is the
+  difference between a generated file on the Mac and an option in `app.json`,
+  which would be committed to a public repo.
+
+- **Archiving from the command line** — `xcodebuild` *does* inherit the shell, so
+  plain `export`s work:
+
+  ```bash
+  export SENTRY_ORG=… SENTRY_PROJECT=… SENTRY_AUTH_TOKEN=…
+  xcodebuild -workspace app/ios/*.xcworkspace -scheme <scheme> \
+             -configuration Release archive -archivePath build/kanban.xcarchive
+  ```
+
+  This is also the shape any CI job would take, so it is worth being the one you
+  learn.
 
 **The token is a real secret.** Never commit it, never paste it in chat, and do
 not pass it as an `authToken` plugin option — the plugin itself warns that doing

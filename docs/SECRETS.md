@@ -69,6 +69,32 @@ two native folders are managed differently:
   second thing to keep in step, and this one would hold a real token in a public
   repo.
 
+### Getting them into the build, on each machine
+
+**`app/.env.local` is NOT the mechanism.** Nothing sources it: Expo reads it to
+inline `EXPO_PUBLIC_*` into the JS bundle, and two gates read it as a file to
+check the DSN line exists. `sentry-cli` never sees it, so `SENTRY_*` placed there
+does nothing at all — silently, since the build still succeeds.
+
+**Linux, for `npm run build:aab`** — either works, pick one:
+
+- `export` them in the shell (or keep them in a gitignored file you `source`).
+- Put them in **`app/.env.sentry-build-plugin`**, which `sentry.gradle` finds on
+  its own — it sets `SENTRY_DOTENV_PATH` to that file when it exists. Same
+  ergonomics as `.env.local`, no shell ceremony, and already gitignored.
+
+  ```properties
+  SENTRY_ORG=<org slug>
+  SENTRY_PROJECT=<native project>
+  SENTRY_AUTH_TOKEN=<token>
+  ```
+
+**Mac, for Xcode** — `export` does **not** reach an Xcode GUI build: build phases
+run in a sanitised environment and Xcode 15+ does not inherit from a launching
+terminal. Fill in `app/ios/sentry.properties` (a gitignored build product, so
+this is not repo config — but prebuild rewrites it), or archive with `xcodebuild`
+from the shell, which does inherit. `docs/IOS-BUILD.md` has both.
+
 A config plugin cannot do the Android half. Plugins run at `prebuild`, and
 `app/android/` is committed and hand-edited — prebuild here is always scoped
 `--platform ios`. Gradle is the only mechanism that reaches it.

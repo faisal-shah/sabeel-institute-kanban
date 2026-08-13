@@ -247,8 +247,11 @@ if (missingSentry.length) {
       '    The token is an ORGANIZATION token — Sentry -> Settings -> Developer\n' +
       '    Settings -> Organization Tokens, scope org:ci. Org tokens reach every\n' +
       '    project in the org, so one serves every Sabeel app; only SENTRY_PROJECT\n' +
-      '    differs. It is a real secret: export it in the build shell, never commit\n' +
-      '    it, and note that Sentry shows its value only once. See docs/SECRETS.md.',
+      '    differs. It is a real secret; Sentry shows its value only once.\n' +
+      '    NOTE an export in your shell does NOT reach an Xcode GUI build — build\n' +
+      '    phases run sanitised and Xcode 15+ ignores the launching terminal. Fill\n' +
+      '    in app/ios/sentry.properties (gitignored, but rewritten by every\n' +
+      '    prebuild) or archive with xcodebuild. See docs/SECRETS.md.',
   );
 }
 
