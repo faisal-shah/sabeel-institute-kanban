@@ -289,22 +289,29 @@ Everything Claude could do is done: the build is one command, the gates run
 first, and the Sentry values are already in place. What is left is four values
 only you can get, then the build.
 
-**BLOCKER, found on the first archive that ever completed (2026-08-13): the App
-Store Connect API key needs the ADMIN role.** The archive now succeeds and holds
-a real `SabeelKanban.app`; the **export** fails with `Cloud signing permission
-error` and `No signing certificate "iOS Distribution" found`. Cloud signing
-(`-allowProvisioningUpdates`) mints the distribution certificate and profile
-through that key, and **Certificates, Identifiers & Profiles is reachable over
-the API only by an *Admin* key** — App Manager and Developer cannot touch it.
-The proof is in this Mac's keychain: the key has already created four *Apple
-Development* certificates ("Created via API"), and no distribution one — it can
-sign for debugging and nothing else. Fix in App Store Connect → **Users and
-Access → Integrations → App Store Connect API**: give the existing key **Admin**,
-or, if the role cannot be edited after creation, generate a new Admin key and
-replace `ASC_KEY_ID` / `ASC_ISSUER_ID` in `app/.env.sentry-build-plugin` plus the
-`.p8` in `~/.appstoreconnect/private_keys/`. **Nothing in the repo changes.**
-The finished archive is kept, so re-exporting afterwards takes seconds rather
-than another full build.
+**RESOLVED 2026-08-13 — v0.7.7 build 1 is on TestFlight.** The first iOS build
+shipped. What it cost, kept because the cause is not guessable from the symptom:
+
+The App Store Connect API key needed the **Admin** role. Export failed with
+`Cloud signing permission error` and `No signing certificate "iOS Distribution"
+found`, while the archive itself was fine. Cloud signing
+(`-allowProvisioningUpdates`) mints the distribution certificate through that
+key, and **Certificates, Identifiers & Profiles answers over the API only to an
+*Admin* key** — App Manager and Developer cannot reach it at all. The tell was in
+the keychain: the key had created four *Apple Development* certificates ("Created
+via API") and no distribution one, so it could sign for debugging and nothing
+else. A new Admin key fixed it; only `ASC_KEY_ID` changed, the Issuer ID is
+per-team and stayed the same, and nothing in the repo needed editing.
+
+Two things worth reusing next time:
+
+- **A cloud-managed distribution certificate never lands in the keychain.**
+  After a successful export `security find-identity` still shows no distribution
+  identity. Do not read that as failure.
+- **Prove a signing fix by re-exporting the archive you already have**
+  (`destination: export` in the options plist) rather than starting another
+  twenty-minute build. It exercises exactly the step that failed and uploads
+  nothing.
 
 1. **Put the App Store Connect key file on the Mac.** Every identifier is
    already in `app/.env.sentry-build-plugin` (created, gitignored, mode 600) —
@@ -338,7 +345,8 @@ than another full build.
    minutes into an archive.
 4. **Bump `expo.ios.buildNumber` before every re-upload.** Apple requires it to
    increase even for the same version; unlike Android's versionCode it does not
-   derive itself. It is `1` now.
+   derive itself. Build `1` shipped 2026-08-13, so it is `2` now and the next
+   upload will take it — bump again before the one after that.
 5. **First thing on a real device: confirm a push arrives.** The only proof the
    APNs key was uploaded correctly — nothing on this side distinguishes
    "uploaded" from "uploaded wrong", and a simulator cannot test it because it
