@@ -94,12 +94,24 @@ fi
 #    different .p8 from the APNs key.
 if [ "$UPLOAD" = true ]; then
   [ -n "${ASC_KEY_ID:-}" ] || die "ASC_KEY_ID is not set (App Store Connect API key id).
-Put it in app/.env.sentry-build-plugin, with ASC_ISSUER_ID and ASC_KEY_PATH.
-The key is App Store Connect -> Users and Access -> Integrations -> App Store
-Connect API. It is NOT the APNs key. Use --no-upload to skip uploading."
-  [ -n "${ASC_ISSUER_ID:-}" ] || die "ASC_ISSUER_ID is not set (the Issuer ID above the key list)."
-  [ -n "${ASC_KEY_PATH:-}" ] || die "ASC_KEY_PATH is not set (path to the AuthKey_<id>.p8 file)."
-  [ -f "${ASC_KEY_PATH}" ] || die "ASC_KEY_PATH points at ${ASC_KEY_PATH}, which does not exist."
+Put it in app/.env.sentry-build-plugin, with ASC_ISSUER_ID. The key is App Store
+Connect -> Users and Access -> Integrations -> App Store Connect API. It is NOT
+the APNs key. Use --no-upload to skip uploading."
+  [ -n "${ASC_ISSUER_ID:-}" ] || die "ASC_ISSUER_ID is not set (the Issuer ID above the key list; a UUID).
+An APNs key has no Issuer ID — if yours does not, it is the wrong .p8."
+
+  # ASC_KEY_PATH is OPTIONAL: default to the directory Apple's own tooling
+  # searches, so placing the file is the only step and nothing has to be edited.
+  # `~` is expanded here because a dotenv value is a literal string — the loader
+  # does not run a shell over it, deliberately.
+  : "${ASC_KEY_PATH:=${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
+  ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"
+  [ -f "${ASC_KEY_PATH}" ] || die "No App Store Connect key at:
+  ${ASC_KEY_PATH}
+Put AuthKey_${ASC_KEY_ID}.p8 there (mkdir -p ~/.appstoreconnect/private_keys),
+or set ASC_KEY_PATH in app/.env.sentry-build-plugin to wherever it lives.
+It downloads from App Store Connect exactly once — if it is lost, revoke the key
+and generate another."
 fi
 
 echo

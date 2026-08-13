@@ -276,15 +276,24 @@ Everything Claude could do is done: the build is one command, the gates run
 first, and the Sentry values are already in place. What is left is four values
 only you can get, then the build.
 
-1. **Fill in three blanks in `app/.env.sentry-build-plugin`** (already created,
-   gitignored, mode 600; the Sentry three and `IOS_TEAM_ID` are done):
-   `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` — App Store Connect -> Users
-   and Access -> **Integrations** -> App Store Connect API, key with App Manager
-   access.
-   **This is NOT the APNs key**, and the two are easy to confuse because both
+1. **Put the App Store Connect key file on the Mac.** Every identifier is
+   already in `app/.env.sentry-build-plugin` (created, gitignored, mode 600) —
+   the Sentry three, `IOS_TEAM_ID`, `ASC_KEY_ID` and `ASC_ISSUER_ID`. The only
+   thing missing is the `.p8` itself, which is a secret and lives in Drive:
+
+   ```bash
+   mkdir -p ~/.appstoreconnect/private_keys
+   cp AuthKey_<KEY_ID>.p8 ~/.appstoreconnect/private_keys/
+   ```
+
+   That is the directory Apple's own tooling searches, so nothing needs editing;
+   `ASC_KEY_PATH` only exists for keeping it somewhere else.
+
+   **It is NOT the APNs key**, and the two are easy to confuse because both
    download as `AuthKey_<KeyID>.p8`. The tell is the **Issuer ID**: an App Store
    Connect API key has one (a UUID), an APNs key never does — it has a Team ID
-   instead. The APNs key is the one already uploaded to Firebase for push.
+   instead. The APNs key is the one already uploaded to Firebase for push, and
+   it belongs nowhere near this step.
 2. **Add core developers as App Store Connect users**, so internal TestFlight can
    reach them. Only the few who need pre-release builds — each holds a role in
    the developer account.
