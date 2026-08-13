@@ -411,6 +411,29 @@ country-locked redemption codes, still require App Review, and are a one-way doo
 record before it can be made unlisted. The Enterprise Program needs 100+
 employees.
 
+**What the first real `pod install` cost.** Every gate passed, and had always
+passed — but no iOS pod integration had ever COMPLETED, so two failures sat past
+the gates where nothing could see them. Neither announces itself:
+
+- **`AppCheckCore` cannot be integrated as a static library.** Expo's autolinker
+  already enables modular headers for the dependencies of Swift packages, but
+  only ONE level deep: `ExpoAdapterGoogleSignIn` → `GoogleSignIn` is covered,
+  `GoogleSignIn` → `AppCheckCore` → `GoogleUtilities`/`RecaptchaInterop` is not.
+  Fixed with `expo-build-properties`, `ios.extraPods` naming those two pods with
+  `modular_headers: true` — the remedy CocoaPods itself prints, scoped to the
+  two pods that actually lack module maps. Deliberately **not**
+  `useFrameworks: 'static'`: that changes linkage for all 112 pods, and the
+  precompiled React Native xcframeworks this build uses are documented to fail
+  under it — which is why `forceStaticLinking` exists to mop up after it.
+- **The build archived a pod instead of the app.** The scheme was read as
+  `schemes[0]` of the WORKSPACE, which carries a scheme for every pod once they
+  integrate — 131 of them, `AppAuth` sorting first. Archiving a pod **succeeds**:
+  the archive simply holds no app, and the only symptom is
+  `exportArchive … expected one {}` a step later — an empty set of valid export
+  methods, because a static library has none. Discovery now asks the app
+  `.xcodeproj`, which knows exactly one scheme, and the archive is asserted to
+  contain an app while the scheme that built it is still in hand.
+
 ### 2026-08-12 — The taps a scroller was eating — v0.7.6
 
 **Client only.** No `functions/src`, `packages/shared/src`, `firestore.rules`,

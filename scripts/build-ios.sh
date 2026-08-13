@@ -144,12 +144,22 @@ WORKSPACE="$(find app/ios -maxdepth 1 -name '*.xcworkspace' | head -1)"
 
 # The scheme is whatever prebuild named it — discovered rather than assumed, so a
 # rename in app.json does not silently break this script.
-SCHEME="$(xcodebuild -workspace "$WORKSPACE" -list -json | node -e '
+#
+# Ask the APP PROJECT, never the workspace. Once pods are integrated the
+# workspace carries a scheme for EVERY pod — 131 of them here — and the first
+# alphabetically is `AppAuth`, not the app. That is not a build failure you can
+# see: archiving a pod SUCCEEDS, and produces an .xcarchive with no
+# Products/Applications, which only surfaces one step later as the baffling
+# `exportArchive ... expected one {}` — an empty set of valid export methods,
+# because a static library has none. The project knows exactly one scheme.
+PROJECT="$(find app/ios -maxdepth 1 -name '*.xcodeproj' | head -1)"
+[ -n "$PROJECT" ] || die "no .xcodeproj under app/ios after prebuild."
+SCHEME="$(xcodebuild -project "$PROJECT" -list -json | node -e '
   let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
-    const schemes = JSON.parse(s).workspace.schemes.filter((x) => !/Tests?$/.test(x));
+    const schemes = JSON.parse(s).project.schemes.filter((x) => !/Tests?$/.test(x));
     process.stdout.write(schemes[0] ?? "");
   });')"
-[ -n "$SCHEME" ] || die "could not determine the Xcode scheme from $WORKSPACE."
+[ -n "$SCHEME" ] || die "could not determine the Xcode scheme from $PROJECT."
 echo "scheme       ${SCHEME}"
 
 ARCHIVE="build/ios/${SCHEME}-${VERSION}-${BUILD_NUMBER}.xcarchive"
@@ -179,6 +189,13 @@ xcodebuild -workspace "$WORKSPACE" \
   archive
 
 [ -d "$ARCHIVE" ] || die "xcodebuild reported success but produced no archive at $ARCHIVE."
+
+# An archive of a LIBRARY target is a perfectly valid .xcarchive — it simply has
+# no app inside. Nothing above notices, and the only downstream symptom is an
+# export error about the `method` key that says nothing about the real cause.
+# Assert the archive holds an app while the scheme that built it is still in hand.
+[ -d "$ARCHIVE/Products/Applications" ] || die \
+  "archive at $ARCHIVE contains no app — scheme '$SCHEME' is not the app's."
 
 # 10. Export, and upload in the same step when asked. `destination: upload` in the
 #     options plist is what sends it to App Store Connect without Xcode Organizer
