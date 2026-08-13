@@ -365,6 +365,52 @@ the team.
 
 ## Deploy log
 
+### 2026-08-12 — Crash reports you can read, and the iOS route — v0.7.7
+
+**No user-visible change on any surface.** This version exists so the first iOS
+build carries an honest number: v0.7.6 shipped from `493816a`, and the tree has
+moved since, so an iOS build stamped 0.7.6 would have contained code that never
+shipped as 0.7.6 on web or Android. The rule is one version across three
+surfaces, and it only means anything if the version identifies the code.
+
+**iOS goes out first at this version.** Web and Android are unaffected by
+anything here — the Android change is inert without a token in the environment —
+so they can pick 0.7.7 up on the next release that has a reason of its own.
+Nothing is required of them to unblock the iOS build.
+
+**Symbolication, at parity.** Both native platforms now upload source maps and
+debug symbols, on one set of names: `SENTRY_ORG`, `SENTRY_PROJECT`,
+`SENTRY_AUTH_TOKEN`, read from the build shell. iOS through
+`@sentry/react-native/expo` registered **bare** in `app.json` — options are
+written verbatim into `ios/sentry.properties` and this repo is public. Android
+through `sentry.gradle`, applied from `app/android/app/build.gradle` and **gated
+on the token**, because a config plugin runs at prebuild and that folder is
+committed and never prebuilt.
+
+The gate is the safety property, and it was verified rather than assumed: with no
+token the release build registers **zero** Sentry tasks — diffed off the Gradle
+task graph — so CI, a fresh clone and any machine without the token build exactly
+what they built before, and the release path never depends on reaching sentry.io.
+
+The token itself needed no work: the organization token already used by the
+sibling time-tracker (`org:ci`) reaches every project in the org. Confirmed by
+probe against the kanban project — releases and `files/dsyms/` answer 200, while
+org-level endpoints answer 403, which is the right shape for a build secret. The
+native Sentry project was renamed from `…-android` to `…-mobile`, since iOS now
+reports into it; renaming a slug does not touch the DSN, which carries the
+numeric project id.
+
+**Distribution route settled: internal TestFlight while stabilising, then
+Unlisted App Distribution permanently.** Unlisted is a normal App Store app that
+is not searchable and appears in no chart — link-only, no user cap, no expiry, no
+App Store Connect accounts for colleagues and no MDM. It suits the sibling
+recordings app equally. Apple Business Manager custom apps were rejected: they
+need a D-U-N-S number, reach unmanaged personal devices only through
+country-locked redemption codes, still require App Review, and are a one-way door
+— an app distributed privately through ABM needs a brand-new App Store Connect
+record before it can be made unlisted. The Enterprise Program needs 100+
+employees.
+
 ### 2026-08-12 — The taps a scroller was eating — v0.7.6
 
 **Client only.** No `functions/src`, `packages/shared/src`, `firestore.rules`,
