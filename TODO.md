@@ -289,6 +289,23 @@ Everything Claude could do is done: the build is one command, the gates run
 first, and the Sentry values are already in place. What is left is four values
 only you can get, then the build.
 
+**BLOCKER, found on the first archive that ever completed (2026-08-13): the App
+Store Connect API key needs the ADMIN role.** The archive now succeeds and holds
+a real `SabeelKanban.app`; the **export** fails with `Cloud signing permission
+error` and `No signing certificate "iOS Distribution" found`. Cloud signing
+(`-allowProvisioningUpdates`) mints the distribution certificate and profile
+through that key, and **Certificates, Identifiers & Profiles is reachable over
+the API only by an *Admin* key** — App Manager and Developer cannot touch it.
+The proof is in this Mac's keychain: the key has already created four *Apple
+Development* certificates ("Created via API"), and no distribution one — it can
+sign for debugging and nothing else. Fix in App Store Connect → **Users and
+Access → Integrations → App Store Connect API**: give the existing key **Admin**,
+or, if the role cannot be edited after creation, generate a new Admin key and
+replace `ASC_KEY_ID` / `ASC_ISSUER_ID` in `app/.env.sentry-build-plugin` plus the
+`.p8` in `~/.appstoreconnect/private_keys/`. **Nothing in the repo changes.**
+The finished archive is kept, so re-exporting afterwards takes seconds rather
+than another full build.
+
 1. **Put the App Store Connect key file on the Mac.** Every identifier is
    already in `app/.env.sentry-build-plugin` (created, gitignored, mode 600) —
    the Sentry three, `IOS_TEAM_ID`, `ASC_KEY_ID` and `ASC_ISSUER_ID`. The only
