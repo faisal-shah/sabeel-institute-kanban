@@ -199,7 +199,7 @@ creation**.
 - [x] **Deleted the `com.sabeelinstitute.timetracker` iOS app** (2026-08-01).
 - [x] **Registered the bundle id in the Apple Developer portal** (2026-08-01),
       at developer.apple.com -> Certificates, Identifiers & Profiles.
-- [ ] **Create the app record in App Store Connect.** SEPARATE FROM THE ABOVE,
+- [x] **Created the app record in App Store Connect** (2026-08-13). SEPARATE FROM THE ABOVE,
       on a different site, and this checklist previously recorded them as one
       ticked item — which is how it went unnoticed until an upload had nowhere to
       land. Registering an identifier in the portal does not create an app.
