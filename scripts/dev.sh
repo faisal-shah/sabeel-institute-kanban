@@ -134,7 +134,15 @@ case "${1:-status}" in
         npx expo start --port 8081 >/tmp/sk-metro.log 2>&1 & disown )
     for _ in $(seq 1 40); do lsof -ti:8081 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 3; done
 
-    xcrun simctl bootstatus "$IOS_SIM" -b >/dev/null 2>&1 || xcrun simctl boot "$IOS_SIM"
+    # Ask the STATE, rather than inferring it from bootstatus's exit code.
+    # `bootstatus || boot` looks equivalent and is not: bootstatus also fails
+    # when it is interrupted, and the fallback then tries to boot a device that
+    # is already up, which errors with "Unable to boot device in current state:
+    # Booted" and stops the script for no reason.
+    if ! xcrun simctl list devices | grep -q "$IOS_SIM (.*) (Booted)"; then
+      xcrun simctl boot "$IOS_SIM" || exit 1
+    fi
+    xcrun simctl bootstatus "$IOS_SIM" -b >/dev/null 2>&1 || true
 
     if [ "${2:-}" = "--build" ] \
        || ! xcrun simctl get_app_container "$IOS_SIM" "$IOS_BUNDLE_ID" >/dev/null 2>&1; then
