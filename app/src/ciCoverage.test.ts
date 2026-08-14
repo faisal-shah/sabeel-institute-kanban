@@ -36,9 +36,50 @@ describe('CI e2e coverage', () => {
     // is trivially true and this test would pass while proving nothing.
     expect(onDisk.length).toBeGreaterThan(0);
 
-    const missing = onDisk.filter((f) => !ci.includes(`scripts/${f}`));
+    const missing = onDisk
+      .filter((f) => !LOCAL_ONLY.has(f))
+      .filter((f) => !ci.includes(`scripts/${f}`));
     expect(missing, `e2e suites on disk but not run by CI: ${missing.join(', ')}`).toEqual(
       [],
     );
   });
+
+  /**
+   * The exemption is itself checked, because an allowlist nobody verifies is how
+   * "temporarily local-only" becomes permanent. If one of these ever DOES get a
+   * CI step, this fails and the entry must be deleted — the list cannot quietly
+   * outlive its reason.
+   */
+  it('keeps the local-only list honest', () => {
+    const repo = resolve(import.meta.dirname, '../..');
+    const ci = readFileSync(resolve(repo, '.github/workflows/ci.yml'), 'utf8');
+    const onDisk = new Set(
+      readdirSync(resolve(repo, 'scripts')).filter((f) => f.endsWith('-e2e.mjs')),
+    );
+
+    for (const f of LOCAL_ONLY) {
+      expect(onDisk.has(f), `${f} is listed local-only but no longer exists`).toBe(true);
+      expect(
+        ci.includes(`scripts/${f}`),
+        `${f} is now run by CI — delete it from LOCAL_ONLY`,
+      ).toBe(false);
+    }
+  });
 });
+
+/**
+ * Suites that CANNOT run in CI, with the reason. Everything else must have a CI
+ * step; see the test above.
+ *
+ * `screens-ios-e2e.mjs` drives a booted iOS SIMULATOR through Maestro. That
+ * needs macOS with Xcode, a simulator runtime, a debug build installed on it and
+ * Metro serving — none of which exist on the Linux runner this project's CI
+ * uses, and adding a macOS runner to boot a simulator and build the app for
+ * every push is a cost this repo has not chosen to pay. It is run by hand from
+ * the Mac that builds iOS: `bash scripts/dev.sh ios && node scripts/screens-ios-e2e.mjs`.
+ *
+ * This is a deliberate hole, declared rather than hidden. The alternative was
+ * naming the file something the glob misses, which would have been the same hole
+ * with nothing to read.
+ */
+const LOCAL_ONLY = new Set(['screens-ios-e2e.mjs']);
