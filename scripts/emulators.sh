@@ -8,12 +8,8 @@ cd "$(dirname "$0")/.."
 # bundle — without this you get stale (or missing) triggers and the symptom is a
 # user who signs in and never gets provisioned.
 
-if [ -n "${SK_JDK21_HOME:-}" ]; then
-  export JAVA_HOME="$SK_JDK21_HOME"
-elif [ -d "$HOME/opt/jdk-21" ]; then
-  export JAVA_HOME="$HOME/opt/jdk-21"
-fi
-[ -n "${JAVA_HOME:-}" ] && export PATH="$JAVA_HOME/bin:$PATH"
+# shellcheck source=scripts/jdk21.sh
+. "$(dirname "$0")/jdk21.sh"
 
 npm run build -w @sabeel/shared
 npm run build -w functions

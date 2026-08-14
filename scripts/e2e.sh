@@ -9,12 +9,8 @@ cd "$(dirname "$0")/.."
 # to drive. The script also builds the PRODUCTION bundle and asserts the dev row
 # is absent from it — so the safety property is tested, not assumed.
 
-if [ -n "${SK_JDK21_HOME:-}" ]; then
-  export JAVA_HOME="$SK_JDK21_HOME"
-elif [ -d "$HOME/opt/jdk-21" ]; then
-  export JAVA_HOME="$HOME/opt/jdk-21"
-fi
-[ -n "${JAVA_HOME:-}" ] && export PATH="$JAVA_HOME/bin:$PATH"
+# shellcheck source=scripts/jdk21.sh
+. "$(dirname "$0")/jdk21.sh"
 
 WEB_PORT=8086
 export E2E_BASE="http://127.0.0.1:${WEB_PORT}/"
