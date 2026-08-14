@@ -12,11 +12,13 @@ import * as Sentry from '@sentry/react-native';
  * without it everything here is a no-op, so a dev build never sends noise to the
  * production project.
  *
- * Release JS stacks are minified. Uploading source maps needs a
- * SENTRY_AUTH_TOKEN build step, which is deliberately NOT wired: that token is a
- * real secret (unlike the DSN), and `@sentry/wizard` — which would set it up —
- * rewrites committed native files and metro config. Events, messages, tags and
- * user ids all arrive without it.
+ * Release JS stacks are minified, so source maps and debug symbols are uploaded
+ * at build time — Android from `app/android/app/build.gradle`, iOS through the
+ * `@sentry/react-native/expo` plugin. Both read SENTRY_AUTH_TOKEN from the build
+ * environment (see docs/SECRETS.md), and the Android side is GATED on it: no
+ * token, no Sentry Gradle tasks at all, so a fresh clone or CI builds exactly
+ * what it built before. Events, messages, tags and user ids all arrive either
+ * way; without the upload the frames are simply minified.
  */
 /**
  * Reporting is OFF whenever the app is pointed at the emulators, even though a

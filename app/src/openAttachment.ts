@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { isAvailableAsync, shareAsync } from 'expo-sharing';
 import { attachmentCacheName } from '@sabeel/shared';
+import type { Untimed } from './slowWrites';
 
 /**
  * Native side of the open seam (web sibling: openAttachment.web.ts).
@@ -38,7 +39,7 @@ function isSharingBusy(e: unknown): boolean {
   return typeof e === 'object' && e !== null && (e as { code?: unknown }).code === SHARING_BUSY;
 }
 
-async function shareInstead(uri: string, mimeType: string): Promise<void> {
+async function shareInstead(uri: string, mimeType: string, untimed: Untimed): Promise<void> {
   if (!(await isAvailableAsync())) {
     throw new Error('No app on this device can open that file.');
   }
@@ -46,7 +47,10 @@ async function shareInstead(uri: string, mimeType: string): Promise<void> {
     // The share sheet lists everything that can take the file — save it to
     // Drive, send it on — which beats "nothing happened" when no viewer claims
     // the type.
-    await shareAsync(uri, { mimeType, dialogTitle: 'Open with' });
+    //
+    // UNTIMED: this promise is the one SharingModule.kt stores and resolves from
+    // onActivityResult, so it is held for as long as the chooser is up.
+    await untimed(() => shareAsync(uri, { mimeType, dialogTitle: 'Open with' }));
   } catch (e) {
     if (isSharingBusy(e)) {
       throw new Error('Another file is still opening. Finish with it, then try this one again.');
@@ -55,16 +59,24 @@ async function shareInstead(uri: string, mimeType: string): Promise<void> {
   }
 }
 
+/**
+ * `untimed` marks the parts whose length is not this app's to answer for: the
+ * download (proportional to the file, up to 10MB) and the hand-off to whatever
+ * opens it (held until the person is finished reading). What stays measured is
+ * `getUrl` — the `getAttachmentUrl` callable — which should be quick regardless
+ * of either. See slowWrites.ts.
+ */
 export async function openAttachment(
   file: { id: string; name: string; contentType: string },
   getUrl: () => Promise<string>,
+  untimed: Untimed,
 ): Promise<void> {
   const url = await getUrl();
   const target = `${FileSystem.cacheDirectory ?? ''}${attachmentCacheName(file.id, file.name)}`;
-  await FileSystem.downloadAsync(url, target);
+  await untimed(() => FileSystem.downloadAsync(url, target));
 
   if (Platform.OS !== 'android') {
-    await shareInstead(target, file.contentType);
+    await shareInstead(target, file.contentType, untimed);
     return;
   }
 
@@ -79,13 +91,20 @@ export async function openAttachment(
     // The app manifest also needs a <queries> entry for VIEW with mimeType
     // */*. On API 30+ package visibility hides every handler from us, and the
     // symptom is an open that silently resolves to nothing at all.
-    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-      data: contentUri,
-      flags: 1,
-      type: file.contentType,
-    });
+    //
+    // UNTIMED, and this is the one that surprises: IntentLauncherModule.kt uses
+    // startActivityForResult and resolves from onActivityResult, so this await
+    // spans the whole time the viewer is on screen. Reading a PDF for two
+    // minutes used to be filed as a two-minute slow write.
+    await untimed(() =>
+      IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+        data: contentUri,
+        flags: 1,
+        type: file.contentType,
+      }),
+    );
   } catch {
     // ActivityNotFoundException: nothing installed claims this type.
-    await shareInstead(target, file.contentType);
+    await shareInstead(target, file.contentType, untimed);
   }
 }

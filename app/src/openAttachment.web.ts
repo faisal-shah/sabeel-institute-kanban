@@ -1,3 +1,5 @@
+import type { Untimed } from './slowWrites';
+
 /**
  * Web side of the open seam (native sibling: openAttachment.ts).
  *
@@ -11,6 +13,10 @@ export async function openAttachment(
   // already carries both.
   _file: { id: string; name: string; contentType: string },
   getUrl: () => Promise<string>,
+  // Unused, and correctly so: the native sibling excludes a download and a
+  // viewer hand-off from the slow-write clock, and this platform performs
+  // neither — the browser takes the URL and everything after is its business.
+  _untimed: Untimed,
 ): Promise<void> {
   // Open the tab SYNCHRONOUSLY, while the tap is still the reason anything is
   // happening. Awaiting the URL first and calling window.open after is the

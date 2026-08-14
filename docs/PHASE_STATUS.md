@@ -365,6 +365,67 @@ the team.
 
 ## Deploy log
 
+### 2026-08-13 — The slow writes that were really a file picker — v0.7.8
+
+**Client only.** No `functions/src`, `packages/shared/src`, `firestore.rules`,
+`storage.rules` or index changes, and **nothing a user can see** — this is
+telemetry accuracy. It also carries v0.7.7 (symbolication + the iOS route) to
+web and Android, which had no reason of their own to ship it.
+
+**Sentry was filing `Slow write: uploadAttachment took 9278ms` repeatedly, and
+none of them were slow writes.** `useAction.run` wraps a whole user action in
+`timed`, and the upload action *starts* by opening the system file picker. The
+stopwatch was running while a person browsed their files, framed a photo, or
+answered the camera prompt. Backing out of the picker was reported too — a slow
+write for a write that never happened.
+
+The same defect one function over: `openAttachment` ends at
+`IntentLauncher.startActivityAsync`, which uses `startActivityForResult` and
+resolves from `onActivityResult` — so the promise is held until the reader
+closes the document. The share fallback (`expo-sharing`) has the same shape, and
+that is also the iOS path.
+
+Measured on the emulator against the shipped build, then against the fix:
+
+| Interaction | Before | After |
+|---|---|---|
+| Attach a file, ~33s in the picker | `uploadAttachment took 37992ms` | silent |
+| Open a file, ~21s in the viewer | `openAttachment took 20935ms` | silent |
+| Take a photo (permission + framing), 104s total | would have been ~104000ms | silent |
+
+The `openAttachment` report landed **100ms after Back was pressed**, which is the
+whole mechanism in one number.
+
+**`timed` now charges only what this app is answerable for.** Its callback gets
+an `untimed` helper and wraps the regions whose duration is not ours: the picker,
+the viewer/share hand-off, and the byte transfer — that last one because it is
+proportional to file size and uplink (the cap is 10 MB), so a large attachment on
+a poor connection clears a threshold written for a metadata write. What stays
+measured is `setDoc` and the callables, which should be quick whatever the file
+weighs. The excluded total rides along as `waitedMs`, so a report still shows the
+whole picture.
+
+`busy` deliberately still spans the picker — it is what stops the attach control
+taking a second tap. The two spans were the same region and should not have been.
+
+**Round two on this monitor, and the threshold did NOT move again.** 2026-07-24
+answered the same class — a cold-started callable inside the timed region — by
+turning the volume down (error → warning, 3s → 5s). Tuning a measurement you know
+to be wrong only hides it; this fixes what the region measures. A cold
+`finalizeAttachment` can still trip 5s and should, because that is real latency
+someone waits for.
+
+Guarded by `app/src/slowWrites.test.ts` (8 cases, fake timers), which was
+falsified against the old behaviour first: reinstating the un-subtracted clock
+fails exactly the four exclusion cases and no others.
+
+Also: `app/src/sentry.ts` still claimed source-map upload was "deliberately not
+wired", untrue since v0.7.7.
+
+Verified: lint, typecheck, 44 unit tests, `attachments-e2e` on web, and the three
+interactions above on the AVD — each run against the shipped build first, so the
+silence afterwards means the code changed rather than the test being weak.
+
 ### 2026-08-12 — Crash reports you can read, and the iOS route — v0.7.7
 
 **No user-visible change on any surface.** This version exists so the first iOS

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { toUserMessage } from './errors';
-import { timed } from './slowWrites';
+import { timed, type Untimed } from './slowWrites';
 
 /**
  * The ONE way to run a user-triggered mutation.
@@ -17,13 +17,20 @@ import { timed } from './slowWrites';
  * Errors go through `toUserMessage`, so anything a user is told about also
  * reaches Sentry, and slow writes are timed (see slowWrites.ts) because a
  * mutation that takes seconds is a defect even when it eventually succeeds.
+ *
+ * `busy` and the stopwatch cover the SAME region, and that is right for a
+ * Firestore write but wrong for an action that opens system UI: `busy` should
+ * span the file picker — it is what keeps the attach button from taking a
+ * second tap — while the stopwatch should not. So the callback is handed
+ * `untimed` and wraps anything whose duration is not ours (see slowWrites.ts).
+ * Only the callbacks that need it take the argument.
  */
 export function useAction(source: string) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const run = useCallback(
-    async (fn: () => Promise<unknown>, label = source) => {
+    async (fn: (untimed: Untimed) => Promise<unknown>, label = source) => {
       setBusy(true);
       setError(null);
       try {

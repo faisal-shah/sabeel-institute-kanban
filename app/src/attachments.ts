@@ -9,6 +9,7 @@ import {
 import { db, functions, storage } from './firebase';
 import { EMULATOR_HOST, USE_EMULATORS } from './env';
 import { useLiveQuery } from './liveQuery';
+import type { Untimed } from './slowWrites';
 import type { SessionUser } from './session';
 
 export interface Attachment {
@@ -141,8 +142,14 @@ export async function uploadAttachment(params: {
   /** Fires before anything is awaited, so the caller can show the row at once. */
   onStart: (attachmentId: string) => void;
   onProgress: (attachmentId: string, fraction: number) => void;
+  /**
+   * Keeps the byte transfer out of the slow-write measurement — see
+   * slowWrites.ts. REQUIRED rather than defaulted to identity: this has exactly
+   * one call site, and an optional one is a thing to forget there.
+   */
+  untimed: Untimed;
 }): Promise<void> {
-  const { cardId, picked, user, onStart, onProgress } = params;
+  const { cardId, picked, user, onStart, onProgress, untimed } = params;
   const target = doc(attachmentsRef(cardId));
   const attachmentId = target.id;
   onStart(attachmentId);
@@ -173,7 +180,13 @@ export async function uploadAttachment(params: {
   });
 
   try {
-    await sendBytes(cardId, attachmentId, picked, (f) => onProgress(attachmentId, f));
+    // The transfer is UNTIMED and the two round trips either side are not: how
+    // long 10MB takes is a fact about the connection, while `setDoc` and
+    // `finalize` should be quick whatever the file weighs. Only the second kind
+    // is worth an alert.
+    await untimed(() =>
+      sendBytes(cardId, attachmentId, picked, (f) => onProgress(attachmentId, f)),
+    );
     await finalize({ cardId, attachmentId });
   } catch (e) {
     // Roll back through the callable — see removeAttachment for why a client

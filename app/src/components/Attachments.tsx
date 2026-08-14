@@ -119,8 +119,15 @@ export function Attachments({
   const start = (source: PickSource) => {
     setPicking(false);
     let started: string | null = null;
-    void run(async () => {
-      const picked = await pickAttachment(source);
+    void run(async (untimed) => {
+      // The pick is UNTIMED but still inside `run`, and the split is the point:
+      // `busy` must span the picker so the attach control stops taking taps,
+      // while the slow-write clock must not — browsing your files, framing a
+      // photo or answering the camera prompt is not this app being slow. Shipped
+      // charged, and it dominated: ~33s in the picker was filed as
+      // `uploadAttachment took 37992ms`, and backing out reported a slow write
+      // for a write that never happened.
+      const picked = await untimed(() => pickAttachment(source));
       if (!picked) return;
       // Checked here as well as in the rules, so the ordinary mistake of
       // grabbing a huge file fails with a sentence instead of a raw
@@ -134,6 +141,7 @@ export function Attachments({
           cardId,
           picked,
           user,
+          untimed,
           onStart: (id) => {
             started = id;
             setProgress((p) => ({ ...p, [id]: null }));
@@ -176,9 +184,11 @@ export function Attachments({
   const open = (a: Attachment) => {
     if (!beginOpen(a.id)) return;
     void run(
-      () =>
-        openAttachment({ id: a.id, name: a.name, contentType: a.contentType }, () =>
-          attachmentUrl(cardId, a.id),
+      (untimed) =>
+        openAttachment(
+          { id: a.id, name: a.name, contentType: a.contentType },
+          () => attachmentUrl(cardId, a.id),
+          untimed,
         ),
       'openAttachment',
     ).finally(endOpen);
