@@ -109,6 +109,62 @@ is always a new iOS app registration and a fresh plist.
 
 ## First build on the Mac
 
+### Tooling a fresh Mac does NOT have, and why `brew` cannot supply it
+
+**`/opt/homebrew` is owned by a different account on this machine** — mode 775,
+group `admin`, and the working account is not in `admin` — so every
+`brew install` fails with a message about changing ownership that reads like a
+fixable warning and invites a `sudo chown` of a shared prefix. **`npm`'s global
+prefix is that same unwritable `/opt/homebrew`**, so `npm i -g` fails the same
+way. The answer in both cases is `~/.local`: the account owns it and it is
+already first on `PATH`.
+
+None of this is needed to ARCHIVE — `build-ios.sh` needs only Xcode and the
+values in `app/.env.sentry-build-plugin`. This is what the LOCAL DEV LOOP needs,
+and every row was discovered by something failing:
+
+| Tool | Why it is needed | How, without brew |
+|---|---|---|
+| **Firebase CLI** | `emulators.sh` and `test-emulator.sh` invoke a bare `firebase` | `npm config set prefix ~/.local && npm i -g firebase-tools` |
+| **Playwright browsers** | `seed-dev.mjs` seeds by *driving the web app*; `playwright` is already a devDependency, only its binaries are absent | `npx playwright install chromium` |
+| **JDK 21** | the Firestore and Auth emulators are Java | already on the machine at `/opt/homebrew/opt/openjdk@21` — point `SK_JDK21_HOME` at it (`emulators.sh` reads it) |
+| **`idb`** *(optional)* | scripting the simulator's UI; `simctl` has no tap primitive | prebuilt `idb-companion.universal.tar.gz` from the idb releases into `~/.local/opt`, plus `uv tool install fb-idb --python 3.11` |
+
+Four traps, each of which cost real time:
+
+- **`expo run:ios` exits 1 on a perfectly good build.** Its last act is
+  `ensureSimulatorAppRunning`, which shells out to `osascript` to raise the
+  Simulator window — and AppleScript automation is not permitted from a non-GUI
+  shell. The app is compiled, signed and installed well before that. `dev.sh ios`
+  therefore tolerates the exit code and **verifies the install** instead.
+- **`idb_companion` must be launched by its real path, never a symlink.** It
+  resolves its sibling `Frameworks/` through `@rpath`, and a symlink on `PATH`
+  breaks that. Use a wrapper script that `exec`s the real binary.
+- **`IDB_COMPANION` is a socket address, not a path to the binary.** Pointing it
+  at the executable gives `Socket operation on non-socket`. Run
+  `idb_companion --udid <UDID>`, read the `grpc_port` it prints, then
+  `idb connect localhost <port>`.
+- **This Mac's Homebrew Python ships without `ensurepip`**, so `python3 -m venv`
+  cannot bootstrap pip at all. `uv` avoids the problem and can pin the
+  interpreter version a package actually supports.
+
+### The local loop
+
+```bash
+scripts/dev.sh ios          # or: npm run dev:ios
+scripts/dev.sh ios --build  # compile and install first
+scripts/dev.sh stop         # free every port, including the idb companion
+```
+
+It stops everything, starts the emulators, the web server and Metro, seeds,
+boots the simulator and launches the app. **The web server is started even
+though nothing on iOS reads it** — `seed-dev.mjs` drives the web app in a
+browser to create its data, so no web server means no seed and a simulator that
+comes up signed in to an empty project.
+
+Emulator data is in-memory and discarded on stop, so re-seeding is normal rather
+than a sign something broke.
+
 ### Two files a fresh clone does NOT have
 
 Both are gitignored, and neither failing announces itself:

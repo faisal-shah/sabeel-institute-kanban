@@ -24,6 +24,7 @@
     "emulators": "bash scripts/emulators.sh",
     "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 8086",
     "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android --app-id com.sabeelinstitute.kanban.debug",
+    "dev:ios": "bash scripts/dev.sh ios",
     "build:apk": "node scripts/gen-build-info.mjs && cd app/android && ./gradlew assembleRelease --no-daemon",
     "build:aab": "bash scripts/build-aab.sh",
     "check:ios": "node scripts/check-ios-config.mjs",

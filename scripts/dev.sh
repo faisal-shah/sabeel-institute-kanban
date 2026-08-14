@@ -5,6 +5,8 @@
 #   scripts/dev.sh stop       free EVERY port this project uses
 #   scripts/dev.sh web        stop, start emulators + web, seed
 #   scripts/dev.sh android    stop, start emulators + Metro for the device build
+#   scripts/dev.sh ios        stop, start emulators + web + Metro, seed, launch the
+#                             simulator app (add --build to compile and install first)
 #   scripts/dev.sh e2e        stop, then run the full suite (it manages its own)
 #
 # Why this exists: half a dozen debugging sessions were lost to a stale emulator
@@ -12,10 +14,17 @@
 # "Could not start Authentication Emulator, port taken", or worse, a dev server
 # that answers on 8086 while serving code from another checkout.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
-PORTS=(8080 9099 5001 9199 4400 4401 4500 4501 9150 8086 8081)
-LABELS=("firestore" "auth" "functions" "storage" "hub" "hub-alt" "logging" "logging-alt" "fs-ws" "web" "metro")
+PORTS=(8080 9099 5001 9199 4400 4401 4500 4501 9150 8086 8081 10882)
+LABELS=("firestore" "auth" "functions" "storage" "hub" "hub-alt" "logging" "logging-alt" "fs-ws" "web" "metro" "idb")
+
+# The iOS simulator to drive. A name, not a UDID, so it survives a wiped device
+# set; override for a different size without editing this file.
+IOS_SIM="${SK_IOS_SIM:-iPhone 17 Pro}"
+# No `.debug` suffix on iOS, unlike Android: the simulator build installs under
+# the same bundle id as the App Store build, because they never coexist.
+IOS_BUNDLE_ID="com.sabeelinstitute.kanban"
 
 status() {
   local any=0
@@ -41,6 +50,7 @@ stop() {
   done
   pkill -9 -f "firebase emulators" 2>/dev/null
   pkill -9 -f "expo start" 2>/dev/null
+  pkill -9 -f "idb_companion" 2>/dev/null
   sleep 3
   # Verify rather than assume: a kill that silently failed is how a "cleared"
   # port ends up serving the previous session's code.
@@ -107,6 +117,62 @@ case "${1:-status}" in
         npx expo start --dev-client --port 8081 >/tmp/sk-metro.log 2>&1 & disown )
     for _ in $(seq 1 40); do ss -ltn 2>/dev/null | grep -q ':8081' && break; sleep 3; done
     echo "Metro on 8081 (log: /tmp/sk-metro.log). Launch the installed dev build."
+    ;;
+  ios)
+    echo "Stopping:"; stop || exit 1
+    # The web server is not optional here even though nothing iOS uses it:
+    # `seed-dev.mjs` seeds by DRIVING the web app in a browser, so no web server
+    # means no seed, and the simulator comes up signed in to an empty project.
+    nohup npm run emulators >/tmp/sk-emulators.log 2>&1 & disown
+    nohup npm run dev:web   >/tmp/sk-web.log       2>&1 & disown
+    wait_for http://127.0.0.1:8080/ firestore || exit 1
+    wait_for http://127.0.0.1:8086/ web       || exit 1
+    wait_for_auth_trigger || exit 1
+    npm run seed || exit 1
+
+    ( cd app && nohup env EXPO_PUBLIC_USE_EMULATORS=1 \
+        npx expo start --port 8081 >/tmp/sk-metro.log 2>&1 & disown )
+    for _ in $(seq 1 40); do lsof -ti:8081 -sTCP:LISTEN >/dev/null 2>&1 && break; sleep 3; done
+
+    xcrun simctl bootstatus "$IOS_SIM" -b >/dev/null 2>&1 || xcrun simctl boot "$IOS_SIM"
+
+    if [ "${2:-}" = "--build" ] \
+       || ! xcrun simctl get_app_container "$IOS_SIM" "$IOS_BUNDLE_ID" >/dev/null 2>&1; then
+      echo "Building for the simulator (first run takes a while)..."
+      # `|| true`: expo run:ios exits 1 on a PERFECTLY GOOD build. Its last act is
+      # `ensureSimulatorAppRunning`, which shells out to osascript to raise the
+      # Simulator window, and AppleScript automation is not permitted from a
+      # non-GUI shell. The app is compiled, signed and installed by then.
+      ( cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:ios --device "$IOS_SIM" ) || true
+      # So verify the INSTALL, never that exit code.
+      xcrun simctl get_app_container "$IOS_SIM" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || {
+        echo "  build did NOT install $IOS_BUNDLE_ID — read the error above" >&2; exit 1; }
+    fi
+
+    # Sign the app OUT before launching, by clearing its data container.
+    #
+    # Every run above wipes the emulators and re-seeds, so each seed mints NEW
+    # uids. But the app persists its Firebase session in AsyncStorage — on
+    # purpose, or a restart would sign you out (app/src/firebase.ts) — and that
+    # persistence SURVIVES the backend being wiped. What is left is an auth
+    # session whose uid has no user doc, which the app correctly reads as an
+    # account outside the org and shows as **Wrong account**, with only a Sign
+    # out button. It looks like the domain check is broken. It is not: the client
+    # is simply older than the backend.
+    xcrun simctl terminate "$IOS_SIM" "$IOS_BUNDLE_ID" >/dev/null 2>&1 || true
+    APP_DATA="$(xcrun simctl get_app_container "$IOS_SIM" "$IOS_BUNDLE_ID" data 2>/dev/null || true)"
+    # `:?` so an empty path can never turn this into `rm -rf /Documents`.
+    if [ -n "$APP_DATA" ] && [ -d "$APP_DATA" ]; then
+      rm -rf "${APP_DATA:?}/Documents" "${APP_DATA:?}/Library"
+    fi
+
+    # Launch through simctl rather than letting expo do it, for the same reason.
+    xcrun simctl launch "$IOS_SIM" "$IOS_BUNDLE_ID" >/dev/null || exit 1
+    open -a Simulator 2>/dev/null || true
+    echo "Ready on $IOS_SIM. Tap 'faisal' on the dev sign-in row (already an admin)."
+    echo "  logs: /tmp/sk-emulators.log /tmp/sk-web.log /tmp/sk-metro.log"
+    echo "  to script the UI: idb_companion --udid \$(xcrun simctl list devices | \\"
+    echo "    grep -m1 '$IOS_SIM (' | grep -oE '[0-9A-F-]{36}')  # then: idb connect localhost <port>"
     ;;
   e2e)
     echo "Stopping:"; stop || exit 1
