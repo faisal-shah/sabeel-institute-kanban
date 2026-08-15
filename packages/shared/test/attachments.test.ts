@@ -199,6 +199,35 @@ describe('splitAttachmentName', () => {
     // Twelve including the dot is the boundary, so eleven characters still counts.
     expect(splitAttachmentName('a.elevenchars')).toEqual({ base: 'a', ext: '.elevenchars' });
   });
+
+  /**
+   * A dot in the middle of PROSE is not an extension, and this is the case that
+   * mattered: the sheet renders the suffix as fixed text, so a phantom one is a
+   * name the person renaming the file cannot repair.
+   */
+  it('does not turn a mid-name dot into an extension', () => {
+    for (const name of [
+      'Notes on v1.2 planning', // a space — prose
+      'meeting 3.30 pm',
+      'my file. txt', // a leading space inside the suffix
+      'photo 2026.08.15', // all digits — a date, not a kind
+      'budget v2.1',
+    ]) {
+      expect(splitAttachmentName(name)).toEqual({ base: name, ext: '' });
+    }
+  });
+
+  /** Real extensions still split, digits and all. */
+  it('keeps the extensions files actually have', () => {
+    expect(splitAttachmentName('archive.7z')).toEqual({ base: 'archive', ext: '.7z' });
+    expect(splitAttachmentName('clip.mp4')).toEqual({ base: 'clip', ext: '.mp4' });
+    expect(splitAttachmentName('ملف.pdf')).toEqual({ base: 'ملف', ext: '.pdf' });
+  });
+
+  /** A stem of nothing but whitespace is a whole NAME — see joinAttachmentName. */
+  it('does not split a name whose stem is blank', () => {
+    expect(splitAttachmentName('   .pdf')).toEqual({ base: '   .pdf', ext: '' });
+  });
 });
 
 describe('joinAttachmentName', () => {
@@ -235,11 +264,49 @@ describe('joinAttachmentName', () => {
       'a"b;c.pdf',
       '',
       '   ',
+      // The case the hand-written list missed until fuzz found its shape: the
+      // join used to TRIM the stem, so this renamed itself to `Q3 report.pdf`.
+      'Q3 report .pdf',
+      '   .pdf',
       `${'x'.repeat(400)}.txt`,
     ];
     for (const name of names) {
       const { base, ext } = splitAttachmentName(name);
       expect(joinAttachmentName(base, ext)).toBe(sanitizeAttachmentName(name));
+    }
+  });
+
+  /**
+   * And the list is not the criterion — the PROPERTY is.
+   *
+   * A hand-written set of names only ever proves the cases somebody thought of,
+   * and the one that shipped broken (a stem ending in a space) was not among
+   * them. Seeded so a failure is reproducible from its output alone, and drawn
+   * from an alphabet chosen to hit every branch of both functions: dots, spaces,
+   * the characters `sanitizeAttachmentName` strips, path separators, a control
+   * character, non-ASCII, and lengths straddling the cap.
+   */
+  it('round-trips for every name a fuzz can build', () => {
+    const ALPHABET = [...'ab.  /\\"\';ملف', 'x'.repeat(40)];
+    // xorshift32: deterministic, and no dependency.
+    let seed = 0x5abee1;
+    const next = () => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return (seed >>> 0) / 0x100000000;
+    };
+    for (let i = 0; i < 5000; i++) {
+      const len = Math.floor(next() * 12);
+      let name = '';
+      for (let j = 0; j < len; j++) {
+        name += ALPHABET[Math.floor(next() * ALPHABET.length)];
+      }
+      const { base, ext } = splitAttachmentName(name);
+      expect(
+        joinAttachmentName(base, ext),
+        `split/join disagreed with sanitize for ${JSON.stringify(name)}`,
+      ).toBe(sanitizeAttachmentName(name));
     }
   });
 });

@@ -45,7 +45,7 @@ const BLURB = {
   boards: 'The board list — the home screen.',
   mywork: 'Every card assigned to you, across every board, grouped by when it is due.',
   search: 'Search and its filter chips. The cursor is taken on desktop widths only.',
-  'search-filters': 'The Filters sheet, one section expanded. An accordion because only one open section fits inside a bounded modal at 320px — two would nest a capped scroller inside a capped scroller.',
+  'search-filters': 'The Filters sheet, one section expanded. An accordion because four headers already spend most of a bounded modal at 320px, and a second open section would double what has to be scrolled past to reach the rest. The rows do not scroll themselves — the sheet is the one scroller, because two nested on the same axis do not chain on iOS.',
   alerts: 'Notifications, newest first.',
   stats: 'Manager/admin only. A pushed screen, so it needs its own way back.',
   'stats-detail': 'A bar selected, with its breakdown below the chart. The panel appends below the fold on a phone, so the screen scrolls it into view — the one thing reading the code cannot show.',

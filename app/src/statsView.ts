@@ -32,7 +32,7 @@ export interface StatsView {
   selectedStart: string | null;
 }
 
-export const EMPTY_STATS_VIEW: StatsView = {
+const EMPTY_STATS_VIEW: StatsView = {
   scope: STATS_ALL_SCOPE,
   bucketing: 'day',
   metric: 'cardsCreated',
@@ -41,9 +41,11 @@ export const EMPTY_STATS_VIEW: StatsView = {
 
 const store = createViewStore<StatsView>(EMPTY_STATS_VIEW);
 
-export const getStatsView = store.get;
+// Only what the screen actually calls. The store's `get` and `reset` have no
+// reader here — sign-out already empties this through `resetAllViewStores` —
+// and an exported handle nothing uses is one somebody reaches for later without
+// the reason it was left there.
 export const setStatsView = store.set;
-export const clearStatsView = store.reset;
 export const useStatsView = store.use;
 
 /**

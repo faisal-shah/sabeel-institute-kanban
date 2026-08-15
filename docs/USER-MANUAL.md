@@ -224,10 +224,12 @@ name, size and kind. Change the name if you want to — `IMG_20260815_113244`
 means nothing to anyone next week, `Signed lease` does — and press **Upload**.
 Leave it alone and press Upload to keep the name it came with.
 
-The bit after the dot (`.pdf`, `.png`) isn't editable, and that's deliberate:
-it's how your phone or computer knows what to open the file with. If the file is
-over 10 MB the box says so and won't let you upload it, rather than letting you
-wait and then failing.
+The **extension** (`.pdf`, `.png`) sits beside the box and isn't editable, and
+that's deliberate: it's how your phone or computer knows what to open the file
+with. A file with no extension — and a name that merely happens to contain a dot,
+like `Notes on v1.2 planning` — is yours to edit all the way through. If the file
+is over 10 MB the box says so and won't let you upload it, rather than letting
+you wait and then failing.
 
 You can only name a file at this point — **not afterwards**. If you get it
 wrong, remove the file and attach it again.
@@ -387,10 +389,12 @@ Whatever you pick comes back as **its own chip** in that second row, so the
 answer to "what am I filtering by?" is always one row you can read at a glance —
 and tapping a chip removes that filter, the same gesture as everything else. When
 anything is active, a **clear-filters** icon appears at the end of the row and
-switches everything off at once. It is only there when there is something to
-clear, and the panel carries the same control so you can clear from inside it.
+switches every filter off at once. It is only there when there is something to
+clear, and the panel carries a **Clear all** button that does the same, because
+the panel covers the icon while it is open. Your **Sort** is not a filter and
+neither control touches it — the order you chose stays where you put it.
 
-### Sorting — what's new, and what's old
+### Sorting
 
 The **Sort** control has three settings:
 
@@ -717,8 +721,9 @@ Rename it in the box that appears when you pick it, **before** it uploads. You
 cannot rename it afterwards — remove it and attach it again.
 
 **…clear every filter at once?**
-The **clear-filters** icon at the end of the chip row, or **Clear all filters**
-inside the Filters panel. It only appears when something is actually filtering.
+The **clear-filters** icon at the end of the chip row, or **Clear all** inside
+the Filters panel. It only appears when something is actually filtering, and it
+leaves your **Sort** alone.
 
 **…see how much the boards are being used?** *(managers/admins)*
 **More → Stats** — cards created and archived, comments, how many different

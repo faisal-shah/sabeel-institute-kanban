@@ -62,9 +62,9 @@ Every phase is complete and the app is **live and in daily use** at
   which boards, or which people.
 - Sabeel brand palette (Option 1) and logo; single light theme, no dark mode.
 
-**Tests: 371 unit + 193 emulator integration + 494 browser e2e checks**, the last
-across four suites — access and board flow (91), attachments (17), the stats
-chart at nine widths (271), and every screen at five widths (115). All four run
+**Tests: 467 unit + 306 emulator integration + 619 browser e2e checks**, the last
+across four suites — access and board flow (116), attachments (21), the stats
+chart at nine widths (280), and every screen at five widths (202). All four run
 in CI on every push, and `app/src/ciCoverage.test.ts` fails if one is ever left
 out of the workflow.
 
@@ -369,8 +369,9 @@ the team.
 
 ### 2026-08-15 — Naming a file, drilling into a bar, and a search that sorts — v0.8.0
 
-Four features, independent of one another. **Server, rules and index changes are
-in this one** — the first three releases since v0.7.5 were client-only.
+Four features, independent of one another. **Server and rules changes are in
+this one** — the first three releases since v0.7.5 were client-only. No new
+index: the sort key is derived in memory, over cards already fetched.
 
 **1. A file is named before it uploads.** Picking a file now opens a sheet with
 its name in a field, its size and kind beside it, and an Upload button. The
@@ -422,8 +423,8 @@ not.
 **A bug this exposed, fixed here.** The period figure was
 `points.reduce((s, p) => s + p.value, 0)` — right for every counter, and for
 `activePeople` the exact distinct-count error `aggregate`'s own docblock warns
-about. It summed sixty daily distinct counts, so "23 people active in this
-period" was reachable in an organisation of thirteen. It now unions.
+about. It summed sixty daily distinct counts, so the period could report more
+people active than the organisation has. It now unions.
 
 **3. Search sorts by last activity.** Best match (the default, and exactly the
 old behaviour) / Newest first / Oldest first. With an empty box the first two
@@ -472,9 +473,98 @@ but not the view stores, so search filters survived a user switch on a shared
 device. Stores now register themselves, so the next one added is covered without
 anyone remembering.
 
-**Verification.** 461 unit tests (up from 430), 198 rules + 99 function tests on
-the emulator (three new rules tests for the `lastActivityAt` pin, three trigger
-tests proving a comment actually moves it). `scripts/attachments-e2e.mjs` 21/21.
+**A review pass over the four features, and what it found.** The fifteen that
+changed what a screen says, in descending order of how wrong it was, and a tail
+of smaller ones after them:
+
+- **The Stats breakdown reported a shortfall that did not exist.** `unattributed`
+  subtracted a one-shot `getDocs` figure from the LIVE subscribed one driving the
+  chart, so on the default view any colleague creating a card anywhere printed
+  `Boards not listed 1` — which the panel's own docblock says means a board this
+  reader cannot see. `_all` now rides in the same fan-out, so both sides of the
+  subtraction come from the same moment.
+- **An ordinary dot in a filename became an un-editable extension.** `Notes on
+  v1.2 planning` split into `Notes on v1` + `.2 planning`, and the sheet renders
+  the suffix as fixed text — so the name could not be repaired by the person
+  renaming it. An extension is now ASCII-alphanumeric with at least one letter,
+  which keeps `.7z` and `.tar.gz` and rejects prose and dates.
+- **The naming sheet could show one name and store another.** `maxLength` bounds
+  typing, not a pre-filled value: on web a 300-character picked name rendered in
+  full and was truncated server-side, and Android truncated the display while the
+  draft kept all 300. The field is seeded from `sanitizeAttachmentName` and
+  confirms through `joinAttachmentName` — which had zero production callers, so
+  the one join with a round-trip property was not the shipped path.
+- **Only the FIRST bar selection scrolled its breakdown into view.** `onLayout`
+  fires on mount and on layout CHANGE, so a second bar whose panel came out the
+  same shape never moved the page — the exact "tapping a bar looks like it did
+  nothing" the mechanism exists for. An effect on the selection spends a
+  remembered y; the layout records it.
+- **`commentCount` was pinned nowhere.** In the card's key list from the
+  beginning and constrained by no rule, so any active member could set it to
+  anything, and `onCommentWritten` only ever increments — a forged value never
+  self-corrects, and there is no backfill for it. All three trigger-owned fields
+  now go through one `triggerOwnedUnchanged()`.
+- **Pinning `lastActivityAt` secured nothing on its own**, because Search orders
+  by `max(lastActivityAt, updatedAt, createdAt)` and `updatedAt` is
+  client-written with its value constrained nowhere: `updatedAt: 9e15` pinned a
+  card to the top of "Newest first" for everyone, permanently. Both client stamps
+  are now bounded to "not in the future", with an hour of clock slack.
+- **Clear-all silently reset the sort.** `clearSearchFilters` was `store.reset`,
+  which restores `sort: 'best'` — contradicting the note added beside it that a
+  clear-all must not reorder a list it was not asked to reorder.
+- **`aggregate` was quadratic**, re-scanning the whole series once per bucket:
+  349 x 349 entry visits for the default daily view, re-run on every stats write
+  org-wide. Measured against this repo's own `lib/`: 0.99 → 0.06 ms/call for
+  `cardsCreated` and 1.11 → 0.07 for `activePeople` on V8, with byte-identical
+  output. Each bucket still comes from `valueBetween` over its own range — it is
+  just handed its own days, and the test that pins the two together now runs
+  over all three bucketings.
+- **The month cache could be evicted mid-flight.** `fetchOneScope` decided what
+  was cached BEFORE its `await` and read it back after, while every other scope
+  was concurrently evicting; the loser silently contributed zero and inflated the
+  residual. It also threw away months the range query had already paid for.
+- **Two controls answered to "Clear all filters"** — the screen's icon and the
+  sheet's button, both in the tree while the sheet is open. The sheet's says
+  `Clear all`. The same collision was one org-wide label away in the chip row
+  itself: labels are created by any member, so one called `Urgent` announced
+  identically to the priority chip beside it. The active-filter chips now say
+  what tapping them does and name their facet — `Remove the Urgent priority
+  filter` — which is both unique and more useful, since those chips are not
+  toggles. `Archived` and `Overdue` are, and keep their state suffix.
+- **A capped scroller inside a capped scroller.** The Filters sheet's rows
+  scrolled inside 220pt within the sheet's own bounded scroller; on iOS the inner
+  one takes the pan and does not chain, and a web sweep cannot see it. The sheet
+  is the one scroller now, and the docblock's arithmetic — which omitted the four
+  44pt section headers — says what it actually costs.
+- **Search collapsed three states into two**: a failed board read rendered as
+  `Nothing to show`, and a live filter as `Unavailable board` or `Someone no
+  longer on a board`. Definite claims made from an absence of information.
+- **A fan-out per bar tap under `Active people`**, one read per board, rendered
+  nowhere.
+- **`oldest` was not the reverse of `newest`** for cards sharing a timestamp —
+  common after an import or a bulk copy, since `bulkCopyToBoard` stamps one
+  `Date.now()` across a batch. The title tie-break turns with the direction, so
+  the browser suite's assertion is now a property rather than a coincidence.
+- **A staff headcount was written into a code comment and the deploy log.** This
+  repo is public; a bound (`more people than the organisation has`) carries the
+  identical point. A second instance from an earlier release went with it.
+
+Also: `joinAttachmentName`'s documented round trip was false for any stem ending
+in a space (`Q3 report .pdf` renamed itself on attach) and is now held by seeded
+fuzz rather than a hand-written list; `sanitizeAttachmentName` is idempotent, so
+running it twice on the way to storage cannot shorten a name by one character;
+the importer MERGES, so a re-run no longer wipes assignees, labels and the
+trigger-owned counters, and it no longer writes `commentCount` the trigger is
+already incrementing; a long board name in the breakdown ellipsises instead of
+pushing its figure off a 320px screen; and `getStatsView`/`clearStatsView` had no
+callers.
+
+**Verification.** 467 unit tests, 207 rules + 99 function tests on the emulator
+(nine new rules tests: the `commentCount` pin, the future-stamp bound in both
+directions, and the card whose stored stamp is ALREADY in the future — which is
+why the update test is on the change rather than on the value, or
+`subscribeToCard` would stop working on a card nobody could fix).
+`scripts/attachments-e2e.mjs` 21/21.
 Every e2e helper that the reorganisation broke was fixed in the same batch —
 notably `pickInFilters`, which needed to expand a section AND close the sheet:
 without the close, three later assertions would have matched the sheet's own row
@@ -483,6 +573,14 @@ scope, so its new drill-down assertions would have been vacuous; it now seeds
 three board scopes with an exact split, and asserts the rows add up to the bar.
 The screen sweep gained a Filters-sheet capture and a stats-with-a-bar-selected
 capture, since a structural check cannot see a panel that is never opened.
+
+Three checks were added for the review fixes above, each aimed at a failure a
+green suite had been reporting as a pass: `stats-e2e.mjs` taps TWO bars of equal
+value from a reset scroll position, because equal bars give equal-length lists
+and that is precisely the case a layout-driven scroll cannot see; `web-e2e.mjs`
+counts the controls answering to `Clear all filters` with the sheet open, and
+asserts that clearing the filters leaves the chosen sort alone. Browser totals:
+web 116, stats 280, screens 202, attachments 21.
 
 ### 2026-08-13 — The slow writes that were really a file picker — v0.7.8
 
@@ -1653,7 +1751,7 @@ v0.3.1.
 
 **Typing `@o` narrowed nothing.** `mentionSuggestions` matched the whole email
 address, and every account is `@oursabeel.com` — so `o, u, r, s, a, b, e, l, c,
-m` each matched all thirteen people. Matching the handle (which IS the local
+m` each matched every account there is. Matching the handle (which IS the local
 part) and the display name loses nothing and makes narrowing work. The cap of 5
 had been hiding it.
 

@@ -107,6 +107,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
    */
   const scroller = useRef<Scroller>(null);
   const scrolledFor = useRef<string | null>(null);
+  const detailY = useRef<number | null>(null);
 
   const active = useMyBoards(user);
   const archived = useArchivedBoards(user);
@@ -195,6 +196,39 @@ export function StatsScreen({ user }: { user: SessionUser }) {
     const lo = points[0].start < from ? from : points[0].start;
     return valueBetween(series, lo, points[points.length - 1].end, metric);
   }, [series, points, from, metric]);
+
+  /**
+   * Scroll the breakdown into view, once per selection.
+   *
+   * BOTH triggers below are needed, and neither is sufficient. `onLayout` fires
+   * on mount and on layout CHANGE — so on its own it misses the second
+   * selection whenever the new panel has the same geometry as the old one (one
+   * board row for bar A, one for bar B; the same number of active people), which
+   * is precisely the case this mechanism exists for: the page does not move and
+   * tapping the bar looks like it did nothing. The effect on its own misses the
+   * FIRST selection, because the panel has not been laid out yet and there is no
+   * y to scroll to.
+   *
+   * So the layout records the position and either route may spend it. A y
+   * remembered from the previous selection is still correct: everything above
+   * this panel is fixed, so its own height is the only thing that changes.
+   */
+  const revealDetail = (start: string) => {
+    if (scrolledFor.current === start) return;
+    const y = detailY.current;
+    if (y === null) return;
+    scrolledFor.current = start;
+    // A little above the panel, so the bar that was tapped stays on screen
+    // rather than the page jumping to a heading with no context above it.
+    scroller.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
+  };
+  const chosenStart = chosen?.start ?? null;
+  // Deps are the selection ALONE, deliberately: `revealDetail` reads nothing but
+  // refs, so it has nothing that can go stale, and re-running this on any other
+  // change would scroll the page under someone already reading it.
+  useEffect(() => {
+    if (chosenStart !== null) revealDetail(chosenStart);
+  }, [chosenStart]);
 
   if (months.status === 'error') {
     return (
@@ -304,13 +338,8 @@ export function StatsScreen({ user }: { user: SessionUser }) {
           {chosen ? (
             <View
               onLayout={(e) => {
-                if (scrolledFor.current === chosen.start) return;
-                scrolledFor.current = chosen.start;
-                // A little above the panel, so the bar that was tapped stays on
-                // screen rather than the page jumping to a heading with no
-                // context above it.
-                const y = Math.max(0, e.nativeEvent.layout.y - 120);
-                scroller.current?.scrollTo({ y, animated: true });
+                detailY.current = e.nativeEvent.layout.y;
+                revealDetail(chosen.start);
               }}
             >
               <StatsDetail
@@ -470,10 +499,10 @@ function Chart({
    *
    * NOT `points.reduce((s, p) => s + p.value, 0)`, which is what it used to be
    * and which is right for every counter and wrong for `activePeople`: that
-   * summed sixty daily DISTINCT counts, so "23 people active in this period"
-   * was reachable in an organisation of thirteen. It is the exact error
-   * `aggregate`'s own docblock warns about, committed one level up from the
-   * function that avoids it.
+   * summed sixty daily DISTINCT counts, so the period could report more people
+   * active than the organisation has. It is the exact error `aggregate`'s own
+   * docblock warns about, committed one level up from the function that avoids
+   * it.
    */
   total: number;
 }) {
@@ -986,35 +1015,48 @@ function StatsDetail({
   const rangeTo = point.end;
 
   const allBoards = scope === STATS_ALL_SCOPE;
+  /**
+   * Whether the fan-out is worth doing at all.
+   *
+   * `Active people` answers from the series already in hand, so a fetch under it
+   * is one read per board — every board, archived ones included — issued on
+   * every bar tap and thrown away unrendered. The render branches on the metric
+   * two ways and only ever read one of them.
+   */
+  const wantsBoards = allBoards && metric !== 'activePeople';
   const boardIds = useMemo(() => boards.map((b) => b.id).join(','), [boards]);
 
   /**
-   * Raw month documents per board, fetched once per (scope, bucket).
+   * Raw month documents per scope, fetched once per (board set, bucket).
    *
-   * Deliberately NOT keyed on the metric: one month document answers every
-   * counter, so switching metric re-derives from what is already here and costs
-   * nothing — which also means a metric switch cannot race a fetch.
+   * `wantsBoards` is settled for the LIFE of this component and is not a
+   * changing input: `setStatsControl` clears the selection whenever scope,
+   * metric or bucketing moves, so any of those unmounts this panel outright.
+   * Only picking a different BAR keeps it mounted, and that is exactly what the
+   * range below is keyed on.
    */
   const [fetched, setFetched] = useState<
     | { status: 'idle' | 'loading' }
-    | { status: 'ready'; docs: StatsMonthDoc[]; failed: number }
+    | { status: 'ready'; docs: StatsMonthDoc[] }
     | { status: 'error' }
   >({ status: 'idle' });
 
   useEffect(() => {
-    if (!allBoards) return;
+    if (!wantsBoards) return;
     let cancelled = false;
     setFetched({ status: 'loading' });
     fetchStatsMonths(
-      boardIds ? boardIds.split(',') : [],
+      // `_all` is fetched ALONGSIDE the boards, and that one extra document is
+      // what makes the residual below mean anything — see `barValue`.
+      [...(boardIds ? boardIds.split(',') : []), STATS_ALL_SCOPE],
       monthKeysBetween(rangeFrom, rangeTo),
       today,
     )
-      .then((r) => {
+      .then((docs) => {
         // Tapping bar A then bar B fans out twice, and A's reads can land after
         // B's. The cleanup flag is what stops the older answer overwriting the
         // newer one — the same guard Search uses around its own fetch.
-        if (!cancelled) setFetched({ status: 'ready', docs: r.docs, failed: r.failed });
+        if (!cancelled) setFetched({ status: 'ready', docs });
       })
       .catch(() => {
         if (!cancelled) setFetched({ status: 'error' });
@@ -1022,9 +1064,39 @@ function StatsDetail({
     return () => {
       cancelled = true;
     };
-  }, [allBoards, boardIds, rangeFrom, rangeTo, today]);
+  }, [wantsBoards, boardIds, rangeFrom, rangeTo, today]);
+
+  const byScope = useMemo(() => {
+    const m = new Map<string, StatsMonthDoc[]>();
+    if (fetched.status !== 'ready') return m;
+    for (const d of fetched.docs) {
+      const list = m.get(d.scope) ?? [];
+      list.push(d);
+      m.set(d.scope, list);
+    }
+    return m;
+  }, [fetched]);
+
+  /**
+   * Boards that did not answer — COUNTED from what came back, not carried
+   * alongside it.
+   *
+   * `fetchOneScope` returns one document per month for every scope it resolves,
+   * because an absent document is a real answer, so a scope with no documents at
+   * all is a scope that failed. Deriving it here also keeps the number honest
+   * now that `_all` rides in the same fan-out: a single `failed` tally would
+   * have counted that one as a board and said so.
+   */
+  const failedBoards = useMemo(
+    () =>
+      fetched.status === 'ready' ? boards.filter((b) => !byScope.has(b.id)).length : 0,
+    [fetched.status, boards, byScope],
+  );
 
   const rows = useMemo(() => {
+    // Counters only. `activePeople` lists people rather than decomposing a
+    // number, so every row below it would be computed for nothing.
+    if (metric === 'activePeople') return [];
     if (!allBoards) {
       // One scope, already subscribed — no read, and the row is still a way
       // through to the board it names.
@@ -1038,12 +1110,6 @@ function StatsDetail({
     }
     if (fetched.status !== 'ready') return [];
 
-    const byScope = new Map<string, StatsMonthDoc[]>();
-    for (const d of fetched.docs) {
-      const list = byScope.get(d.scope) ?? [];
-      list.push(d);
-      byScope.set(d.scope, list);
-    }
     return boards
       .map((b) => ({
         id: b.id,
@@ -1060,7 +1126,18 @@ function StatsDetail({
       // particular order, so without the name the list would reshuffle between
       // renders for no reason a reader could see.
       .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
-  }, [allBoards, fetched, boards, scope, scopeName, series, rangeFrom, rangeTo, metric]);
+  }, [
+    allBoards,
+    fetched.status,
+    byScope,
+    boards,
+    scope,
+    scopeName,
+    series,
+    rangeFrom,
+    rangeTo,
+    metric,
+  ]);
 
   const people = useMemo(
     () =>
@@ -1089,6 +1166,26 @@ function StatsDetail({
    */
   const attributed = rows.reduce((s, r) => s + r.value, 0);
   /**
+   * The bar's own figure AS OF THE SAME READ the rows came from.
+   *
+   * Deliberately NOT `point.value`, which is what this used to subtract from.
+   * That comes from the LIVE subscription driving the chart, while the rows are
+   * a one-shot `getDocs` taken when the bar was selected and never refreshed —
+   * so ordinary concurrent work moved the bar and left the rows behind, and the
+   * panel printed `Boards not listed 1` for a shortfall that did not exist. On
+   * the default view (all boards, daily, today's bar) anybody creating a card
+   * anywhere in the org was enough. `_all` rides in the same fan-out precisely
+   * so both sides of this subtraction come from the same moment.
+   */
+  const barValue = allBoards
+    ? valueBetween(
+        toDailySeries(byScope.get(STATS_ALL_SCOPE) ?? [], rangeFrom, rangeTo),
+        rangeFrom,
+        rangeTo,
+        metric,
+      )
+    : point.value;
+  /**
    * Only once the rows are actually in. While the fan-out is in flight `rows`
    * is empty, so an ungated subtraction reports the WHOLE bar as unaccounted
    * for — beside the spinner that says it is still counting. Three states, not
@@ -1098,7 +1195,7 @@ function StatsDetail({
   const unattributed =
     metric === 'activePeople' || !rowsSettled
       ? 0
-      : Math.max(0, point.value - attributed);
+      : Math.max(0, barValue - attributed);
 
   /**
    * Says what the LIST is, not what the bar was.
@@ -1138,9 +1235,9 @@ function StatsDetail({
           {allBoards && fetched.status === 'error' ? (
             <Hint>The per-board breakdown could not be loaded.</Hint>
           ) : null}
-          {allBoards && fetched.status === 'ready' && fetched.failed > 0 ? (
+          {allBoards && failedBoards > 0 ? (
             <Hint>
-              {fetched.failed} board{fetched.failed === 1 ? '' : 's'} could not be read,
+              {failedBoards} board{failedBoards === 1 ? '' : 's'} could not be read,
               so this list is incomplete.
             </Hint>
           ) : null}
@@ -1169,7 +1266,15 @@ function StatsDetail({
               onPress={() => onOpenBoard(r.id)}
               style={({ pressed }) => [styles.detailRow, pressed ? { opacity: 0.6 } : null]}
             >
-              <Body numberOfLines={1}>{r.name}</Body>
+              {/* The name needs a box that is ALLOWED to give. `numberOfLines`
+                  truncates text inside its box; it does not shrink the box, and
+                  Yoga defaults `flexShrink` to 0 — so a long board name pushed
+                  its own figure off the right edge at 320px instead of
+                  ellipsising. `flex: 1` on the wrapper is what makes the
+                  truncation reachable. */}
+              <View style={styles.detailName}>
+                <Body numberOfLines={1}>{r.name}</Body>
+              </View>
               <Body>{r.value}</Body>
             </Pressable>
           ))}
@@ -1198,6 +1303,7 @@ const styles = StyleSheet.create({
     gap: space.sm,
     minHeight: 44,
   },
+  detailName: { flex: 1 },
   personRow: { paddingVertical: space.xs },
   between: { justifyContent: 'space-between' },
   picker: {

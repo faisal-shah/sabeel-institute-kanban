@@ -315,7 +315,31 @@ describe('orderCards', () => {
       card({ id: 'a', title: 'Alpha', createdAt: 5 }),
     ];
     expect(orderCards(tied, 'newest', '').map((c) => c.id)).toEqual(['a', 'b']);
-    expect(orderCards(tied, 'oldest', '').map((c) => c.id)).toEqual(['a', 'b']);
+    // And the tie-break TURNS with the direction, so the two stay exact reverses
+    // of each other — which is what the manual promises "Oldest first" is.
+    expect(orderCards(tied, 'oldest', '').map((c) => c.id)).toEqual(['b', 'a']);
+  });
+
+  /**
+   * The property the browser suite asserts, tested where it can be made to fail.
+   *
+   * A tie is not exotic: `bulkCopyToBoard` stamps one `Date.now()` across a whole
+   * batch, and the importer stamps every card in a list with its ClickUp date.
+   * With an unflipped tie-break the reverse holds for every card EXCEPT the tied
+   * ones — which is a failure that shows up in a browser run, occasionally, and
+   * looks like flake.
+   */
+  it('orders oldest as the exact reverse of newest, ties included', () => {
+    const set = [
+      card({ id: 'a', title: 'Alpha', createdAt: 5 }),
+      card({ id: 'b', title: 'Beta', createdAt: 5 }),
+      card({ id: 'c', title: 'Gamma', createdAt: 9 }),
+      card({ id: 'd', title: 'Delta', createdAt: 1 }),
+      card({ id: 'e', title: 'Epsilon', createdAt: 9 }),
+    ];
+    const newest = orderCards(set, 'newest', '').map((c) => c.id);
+    const oldest = orderCards(set, 'oldest', '').map((c) => c.id);
+    expect(oldest).toEqual([...newest].reverse());
   });
 
   it('does not mutate its input', () => {

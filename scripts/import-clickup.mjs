@@ -2,8 +2,15 @@
 //
 // Reuses the tested mapping logic in @sabeel/shared (status→column, priority,
 // due date, idempotent sourceId) and writes boards/cards/comments with the
-// Admin SDK. Idempotent: a card's doc id is its ClickUp task id, so re-running
-// updates rather than duplicates.
+// Admin SDK. A card's doc id is its ClickUp task id, so re-running UPDATES the
+// card rather than duplicating it — and it merges, so anything the team has
+// since put on that card survives: assignees, labels, subscribers, and the
+// counters the triggers own (`commentCount`, `attachmentCount`,
+// `lastActivityAt`). A replacing write would silently take all of those away.
+//
+// COMMENTS ARE NOT IDEMPOTENT. They are added with generated ids, so a second
+// run posts every comment again. Re-running against a board that already has
+// them is a duplication, not a refresh.
 //
 // Decisions locked with Faisal for this dataset:
 //   - 3 boards, one per ClickUp List: Ideas / Action Items / Fundraiser.
@@ -248,7 +255,9 @@ for (const { bn, brows, cols } of plan) {
         priority: mapPriority(r['Priority']),
         labelIds: [],
         archived: false,
-        commentCount: comments.length,
+        // NOT `commentCount` — `onCommentWritten` owns it, and it increments per
+        // comment added below. Writing the total here as well counts every
+        // imported comment twice.
         createdAt,
         createdBy: adminUid,
         updatedAt: createdAt,
@@ -257,7 +266,9 @@ for (const { bn, brows, cols } of plan) {
       };
       const due = mapDueDate(r['Due Date']);
       if (due) card.dueDate = due;
-      await db.doc(`cards/${cardId}`).set(card);
+      // MERGE, so a re-run updates the imported fields and leaves everything the
+      // importer does not own where it is — see the note at the top of the file.
+      await db.doc(`cards/${cardId}`).set(card, { merge: true });
       nCards++;
 
       // Comments as real comments, oldest first, attributed in the body.

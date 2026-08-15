@@ -659,6 +659,134 @@ describe('lastActivityAt is trigger-owned', () => {
   });
 });
 
+describe('commentCount is trigger-owned', () => {
+  /**
+   * The third counter, and the one that had no pin at all.
+   *
+   * It was in the key list from the beginning and constrained nowhere, so any
+   * active member could write it to any number they liked — and
+   * `onCommentWritten` only ever INCREMENTS, so a forged value never
+   * self-corrects and there is no backfill script that would rebuild it. The
+   * card screen renders `Comments (N)` straight from the field.
+   */
+  it('refuses a card created claiming comments', async () => {
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/forged3'), card({ commentCount: 4 })),
+    );
+  });
+
+  it('refuses a client moving the count on an existing card', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        commentCount: 99,
+        updatedBy: 'member1',
+        updatedAt: 2,
+      }),
+    );
+  });
+
+  it('lets an ordinary edit carry the stored count through', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'edited fine, count untouched',
+        updatedBy: 'member1',
+        updatedAt: 2,
+      }),
+    );
+  });
+});
+
+describe('the stamps Search orders by cannot be set to the future', () => {
+  /**
+   * Pinning `lastActivityAt` alone secured nothing.
+   *
+   * Search orders by `lastActivityOf` = `max(lastActivityAt, updatedAt,
+   * createdAt)`, and `updatedAt` is client-written with its value constrained
+   * nowhere — so the pin above had an open door beside it, through which any
+   * member could hold the top of "Newest first", and the bottom of "Oldest
+   * first", for every colleague.
+   */
+  const future = () => Date.now() + 40 * 24 * 3600 * 1000;
+
+  it('refuses an edit stamping updatedAt in the future', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'pinned to the top',
+        updatedBy: 'member1',
+        updatedAt: future(),
+      }),
+    );
+  });
+
+  it('refuses a card created with a future updatedAt or createdAt', async () => {
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/f4'), card({ updatedAt: future() })),
+    );
+    await assertFails(
+      setDoc(doc(ctx('member1', 'member'), 'cards/f5'), card({ createdAt: future() })),
+    );
+  });
+
+  it('allows an hour of clock skew, because client clocks are wrong', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'ordinary edit from a fast clock',
+        updatedBy: 'member1',
+        updatedAt: Date.now() + 10 * 60 * 1000,
+      }),
+    );
+  });
+
+  it('still allows an ordinary edit stamped now', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'ordinary edit',
+        updatedBy: 'member1',
+        updatedAt: Date.now(),
+      }),
+    );
+  });
+
+  /**
+   * The test on an update is on the CHANGE, not on the value — and this is why.
+   *
+   * A card carrying a future stamp is reachable from data written before the
+   * bound existed, or from one badly-set clock. `subscribeToCard` deliberately
+   * does not restamp `updatedAt` (following a conversation is not doing work on
+   * the card), so a value-based test would make that card permanently
+   * un-subscribable, by nobody's fault and with no way to fix it.
+   */
+  describe('a card whose stored stamp is already in the future', () => {
+    beforeEach(async () => {
+      await env.withSecurityRulesDisabled(async (c) => {
+        await setDoc(
+          doc(c.firestore(), 'cards/skewed'),
+          card({ updatedAt: Date.now() + 40 * 24 * 3600 * 1000 }),
+        );
+      });
+    });
+
+    it('can still be written by a path that carries the stamp through', async () => {
+      await assertSucceeds(
+        updateDoc(doc(ctx('member1', 'member'), 'cards/skewed'), {
+          subscriberUids: ['member1'],
+          updatedBy: 'member1',
+        }),
+      );
+    });
+
+    it('cannot have that stamp pushed further forward', async () => {
+      await assertFails(
+        updateDoc(doc(ctx('member1', 'member'), 'cards/skewed'), {
+          title: 'further still',
+          updatedBy: 'member1',
+          updatedAt: Date.now() + 80 * 24 * 3600 * 1000,
+        }),
+      );
+    });
+  });
+});
+
 describe('deleting cards', () => {
   it('a plain member CANNOT delete — they archive instead', async () => {
     await assertFails(deleteDoc(doc(ctx('member1', 'member'), 'cards/card1')));

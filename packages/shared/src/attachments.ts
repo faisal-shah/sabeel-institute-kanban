@@ -75,6 +75,22 @@ export function isInlineSafe(contentType: string): boolean {
 const MAX_EXT_LEN = 12;
 
 /**
+ * What a trailing dot-segment must LOOK like to be an extension.
+ *
+ * The length bound alone is not enough, and the failure it misses is not
+ * exotic: `Notes on v1.2 planning` ends in a nine-character dot-segment, so it
+ * split into `Notes on v1` + `.2 planning` — and because the sheet renders the
+ * suffix as fixed text, the name could not be repaired by the person renaming
+ * it. `meeting 3.30pm` and `photo 2026.08.15` are the same shape.
+ *
+ * So: ASCII alphanumerics only, which rules out prose (a space, punctuation),
+ * and at least one LETTER, which rules out a version or a date segment. Real
+ * extensions satisfy both, `.7z` and `.mp4` included.
+ */
+const EXT_CHARS = /^\.[A-Za-z0-9]+$/;
+const EXT_LETTER = /[A-Za-z]/;
+
+/**
  * Split a filename into the part a person may edit and the suffix they may not.
  *
  * ONE definition of "the extension", shared by the rename field, the kind badge
@@ -83,7 +99,9 @@ const MAX_EXT_LEN = 12;
  * shows a kind the file does not have.
  *
  * A LEADING dot is not an extension — `.gitignore` is a whole name — which is
- * what `dot > 0` says.
+ * what `dot > 0` says. A base of nothing but whitespace is the same case: `.pdf`
+ * with three spaces in front of it is a name, not a stem plus a suffix, and
+ * treating it as the latter is what would break the round trip below.
  */
 export function splitAttachmentName(name: string | null | undefined): {
   base: string;
@@ -91,23 +109,35 @@ export function splitAttachmentName(name: string | null | undefined): {
 } {
   const s = name ?? '';
   const dot = s.lastIndexOf('.');
-  const hasExt = dot > 0 && s.length - dot <= MAX_EXT_LEN;
-  return hasExt ? { base: s.slice(0, dot), ext: s.slice(dot) } : { base: s, ext: '' };
+  if (dot <= 0) return { base: s, ext: '' };
+  const base = s.slice(0, dot);
+  const ext = s.slice(dot);
+  const isExt =
+    base.trim() !== '' &&
+    ext.length <= MAX_EXT_LEN &&
+    EXT_CHARS.test(ext) &&
+    EXT_LETTER.test(ext);
+  return isExt ? { base, ext } : { base: s, ext: '' };
 }
 
 /**
  * Put an edited base back together with the suffix it kept.
  *
  * Sanitizes, so a rename field cannot become a way around the cleaning every
- * other path gets. `joinAttachmentName(...splitAttachmentName(x))` equals
- * `sanitizeAttachmentName(x)` for every `x`, which is asserted rather than
- * assumed.
+ * other path gets — and so this is the ONE join. Building the name by hand at a
+ * call site skips the cleaning and skips the cap, which is how a picked name
+ * longer than `ATTACHMENT_NAME_MAX` reached the server and was renamed there.
+ *
+ * `joinAttachmentName(...splitAttachmentName(x))` equals
+ * `sanitizeAttachmentName(x)` for every `x` — asserted by fuzz, not by a list.
+ * The base is passed on UNTRIMMED for exactly that reason: sanitising already
+ * trims, and trimming here as well renamed `Q3 report .pdf` to `Q3 report.pdf`
+ * the moment it was attached.
  */
 export function joinAttachmentName(base: string, ext: string): string {
-  const trimmed = base.trim();
   // An empty base would leave a bare `.pdf` — a hidden file, not what anyone
   // renaming meant. Fall back to the word an empty name already falls back to.
-  return sanitizeAttachmentName(trimmed ? `${trimmed}${ext}` : `file${ext}`);
+  return sanitizeAttachmentName(base.trim() ? `${base}${ext}` : `file${ext}`);
 }
 
 /**
@@ -145,8 +175,14 @@ export function sanitizeAttachmentName(name: string | null | undefined): string 
   // unopenable, untyped blob. A long trailing dot-segment is not treated as an
   // extension, because it is not one — see `splitAttachmentName`, which is the
   // single place that rule lives.
+  //
+  // `trimEnd` on the shortened stem so this function is IDEMPOTENT. It runs
+  // twice on the way to storage — once in the naming sheet, once in
+  // `uploadAttachment` — and without it a cut that lands on a space leaves a
+  // trailing one that the second call then trims, so the row is stored under a
+  // name one character shorter than the sheet displayed.
   const { ext } = splitAttachmentName(cleaned);
-  return cleaned.slice(0, ATTACHMENT_NAME_MAX - ext.length) + ext;
+  return cleaned.slice(0, ATTACHMENT_NAME_MAX - ext.length).trimEnd() + ext;
 }
 
 /** RFC 5987 percent-encoding, as `filename*` requires. */

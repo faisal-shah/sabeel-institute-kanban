@@ -1,18 +1,22 @@
 /**
  * A list you narrow by typing, then pick from.
  *
- * The shape the card screen's assignee and subtask pickers already use — a
- * field, a capped scrolling list, and rows that say what picking them does. It
- * is a component here because the Filters sheet needs it three times over
- * (boards, labels, people) and three copies of a filter-and-pick loop is how
- * three slightly different behaviours get written by accident.
+ * The same shape the card screen's assignee and subtask pickers are built from
+ * — a field, a list, and rows that say what picking them does. It is a component
+ * here because the Filters sheet needs it three times over (boards, labels,
+ * people) and three copies of a filter-and-pick loop is how three slightly
+ * different behaviours get written by accident. Those two older pickers are NOT
+ * on it: each carries behaviour this does not have (creating a label from the
+ * field, excluding a card's own subtree), so migrating them is its own change
+ * rather than a claim to make here.
  *
- * `PickerList`, never a hand-rolled `ScrollView`: a capped scroller under a
- * FOCUSED `TextField` eats the tap on the row being picked — the row does not
- * even light up — and `PickerList` exists because that was found three separate
- * times. See its own note in `ui.tsx`.
+ * `PickerList`, never a hand-rolled `ScrollView`, wherever this scrolls at all:
+ * a capped scroller under a FOCUSED `TextField` eats the tap on the row being
+ * picked — the row does not even light up — and `PickerList` exists because that
+ * was found three separate times. See its own note in `ui.tsx`, and `bounded`
+ * below for when it should not scroll at all.
  */
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { Body, Hint, PickerList, TextField } from './ui';
 import { radius, space, useTheme } from '../theme';
@@ -31,6 +35,7 @@ export function NarrowList({
   placeholder,
   actionVerb,
   empty,
+  bounded = true,
 }: {
   items: readonly NarrowItem[];
   onPick: (id: string) => void;
@@ -49,6 +54,28 @@ export function NarrowList({
   actionVerb: string;
   /** Shown when there is nothing to offer at all. */
   empty: string;
+  /**
+   * Whether the rows cap their own height and scroll INSIDE that cap.
+   *
+   * `false` wherever this list already sits in a bounded scroller — the Filters
+   * sheet, whose body is exactly that. Two same-axis scrollers nested is a trap
+   * on iOS: the inner one takes the pan and does NOT chain, so a drag over the
+   * rows stops dead at the end of the inner list while the rest of the sheet
+   * sits below, reachable only by starting the drag somewhere else. Web chains
+   * and Android has `nestedScrollEnabled`, so a green web sweep says nothing
+   * about it. One scroller, and the sheet scrolls as one list; a long list is
+   * what the narrowing field above is for.
+   *
+   * Dropping `PickerList` here does NOT drop what it protects: the tap a focused
+   * `TextField` makes a scroller eat is governed by `keyboardShouldPersistTaps`,
+   * and the scroller that remains — `Sheet`'s body — sets it to `'handled'`
+   * already, for that exact reason and at length. Passing `false` anywhere the
+   * remaining scroller does not is how the bug comes back.
+   *
+   * `true` for a list on a plain screen, where nothing else is scrolling and the
+   * cap is what stops a long list pushing the page down.
+   */
+  bounded?: boolean;
 }) {
   const t = useTheme();
   // The draft belongs HERE, not to the screen: it changes on every keystroke,
@@ -67,6 +94,8 @@ export function NarrowList({
 
   if (items.length === 0) return <Hint>{empty}</Hint>;
 
+  const Rows = bounded ? PickerList : Fragment;
+
   return (
     <>
       <TextField
@@ -76,7 +105,7 @@ export function NarrowList({
         label={placeholder}
       />
       {matches.length === 0 ? <Hint>Nothing matches.</Hint> : null}
-      <PickerList>
+      <Rows>
         {matches.map((i) => {
           const selected = selectedIds?.includes(i.id) ?? false;
           return (
@@ -106,7 +135,7 @@ export function NarrowList({
             </Pressable>
           );
         })}
-      </PickerList>
+      </Rows>
     </>
   );
 }

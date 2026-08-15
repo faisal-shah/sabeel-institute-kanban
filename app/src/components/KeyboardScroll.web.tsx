@@ -28,9 +28,11 @@ export function KeyboardScroll({
   scrollRef?: Ref<Scroller>;
 }) {
   const inner = useRef<ScrollView>(null);
+  // `[]` for the reason its native sibling states: the handle closes over a ref,
+  // so it has nothing that can go stale.
   useImperativeHandle(scrollRef, () => ({
     scrollTo: (options) => inner.current?.scrollTo(options),
-  }));
+  }), []);
 
   return (
     <ScrollView

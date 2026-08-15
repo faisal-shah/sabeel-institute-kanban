@@ -31,6 +31,7 @@ import {
   CardGrid,
   FilterChip,
   IconAction,
+  LoadError,
   Card as Panel,
   Heading,
   Row,
@@ -48,6 +49,22 @@ import { useLayout } from '../theme/layout';
 
 const NO_LABELS: Label[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
+
+/**
+ * What tapping an ACTIVE chip does, said plainly.
+ *
+ * The four id- and value-shaped chips in the second row are not toggles: they
+ * exist only while their filter is on, and a tap removes it. `FilterChip`'s
+ * default `<label> filter, on` is therefore both less useful and AMBIGUOUS — the
+ * label set is org-wide and any member may create one, so a label called
+ * `Urgent` answers to exactly the name the priority chip beside it does, and a
+ * board or a colleague could too. Naming the facet as well as the action makes
+ * every chip in the row unique against the others, and against the Filters sheet
+ * behind them. `Archived` and `Overdue` keep the default: those two really are
+ * toggles, with an off state worth announcing.
+ */
+const removesFilter = (name: string, facet: string) =>
+  `Remove the ${name} ${facet} filter`;
 
 /**
  * `Best match` first because it is what Search has always done, and it is right
@@ -113,7 +130,11 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     let cancelled = false;
     const ids = boardIds ? boardIds.split(',') : [];
     if (ids.length === 0) {
-      setCards([]);
+      // Only a board list that is READY and empty is an empty result. `?? []`
+      // above yields no ids while the boards are still loading and again after
+      // that read fails, and `setCards([])` there reports "Nothing to show" — a
+      // definite claim that you have no cards — for an org full of them.
+      if (boards.status === 'ready') setCards([]);
       return;
     }
 
@@ -166,7 +187,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     return () => {
       cancelled = true;
     };
-  }, [boardIds, archivedOnly]);
+  }, [boardIds, archivedOnly, boards.status]);
 
   // Sorted the way the rest of the app sorts labels, so an emoji-prefixed name
   // files under its word rather than under the emoji.
@@ -212,20 +233,34 @@ export function SearchScreen({ user }: { user: SessionUser }) {
    * archiving a board drops it out of `useMyBoards`, and `removeBoardMember`
    * can take away the last board a chosen assignee shared with you — so all
    * three go through the one tested helper rather than three inline copies.
+   *
+   * THREE STATES reach all the way to the chip's words. `boards.data ?? []` and
+   * `allLabels.data ?? []` above turn both "still loading" and "that read
+   * failed" into "there are none of these" — so a perfectly live id gets a chip
+   * reading `Deleted label` or `Someone no longer on a board`. Those are
+   * definite claims about a colleague or a label, made from an absence of
+   * information, on the one row whose job is to say what is narrowing the
+   * results. Until the list is `ready` the chip names its FACET and asserts
+   * nothing; it is still visible and still removable, which is the part that
+   * matters.
    */
+  const labelsReady = allLabels.status === 'ready';
+  const boardsReady = boards.status === 'ready';
+
   const chosenLabels = useMemo(
-    () => chipsForIds(labelIds, labelList, 'Deleted label', sortLabels),
-    [labelList, labelIds],
+    () =>
+      chipsForIds(labelIds, labelList, labelsReady ? 'Deleted label' : 'Label', sortLabels),
+    [labelList, labelIds, labelsReady],
   );
   const chosenBoard = chipsForIds(
     boardId ? [boardId] : [],
     boardList,
-    'Unavailable board',
+    boardsReady ? 'Unavailable board' : 'Board',
   );
   const chosenPerson = chipsForIds(
     assigneeUid ? [assigneeUid] : [],
     people,
-    'Someone no longer on a board',
+    boardsReady ? 'Someone no longer on a board' : 'Assignee',
   );
 
   /**
@@ -364,6 +399,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             <FilterChip
               key={p}
               label={priorityLabel(p)}
+              accessibilityLabel={removesFilter(priorityLabel(p), 'priority')}
               active
               onPress={() =>
                 setSearchFilters((f) => ({ priorities: toggleIn(f.priorities, p) }))
@@ -374,6 +410,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             <FilterChip
               key={b.id}
               label={b.name}
+              accessibilityLabel={removesFilter(b.name, 'board')}
               active
               onPress={() => setSearchFilters({ boardId: undefined })}
             />
@@ -382,6 +419,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             <FilterChip
               key={p.id}
               label={p.name}
+              accessibilityLabel={removesFilter(p.name, 'assignee')}
               active
               onPress={() => setSearchFilters({ assigneeUid: undefined })}
             />
@@ -390,6 +428,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             <FilterChip
               key={l.id}
               label={l.name}
+              accessibilityLabel={removesFilter(l.name, 'label')}
               active
               onPress={() =>
                 setSearchFilters((f) => ({
@@ -435,13 +474,20 @@ export function SearchScreen({ user }: { user: SessionUser }) {
         onClearAll={anyActive ? clearSearchFilters : null}
       />
 
+      {/* Without this the screen waits on a spinner that will never resolve:
+          a failed board read leaves `cards` null forever, and the effect above
+          deliberately no longer fakes an empty result to get out of it. */}
+      {boards.status === 'error' ? <LoadError what="your boards" code={boards.error} /> : null}
+
       {error ? (
         <Panel style={styles.searchBar}>
           <Body>{error}</Body>
         </Panel>
       ) : null}
 
-      {loading || cards === null ? <Spinner label="Loading your cards…" /> : null}
+      {boards.status !== 'error' && (loading || cards === null) ? (
+        <Spinner label="Loading your cards…" />
+      ) : null}
 
       {!loading && cards !== null ? (
         <>

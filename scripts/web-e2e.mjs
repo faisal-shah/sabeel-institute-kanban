@@ -1511,7 +1511,12 @@ try {
       `${urgent} urgent, ${urgentOrHigh} urgent-or-high, ${total} in all`,
     );
     // Both picks read back as their own removable chip.
-    const chips = await admin.getByRole('button', { name: /^(Urgent|High) filter, on$/ }).count();
+    // The active-filter chips say what tapping them DOES, and name their facet:
+    // the label set is org-wide, so a label called `Urgent` would otherwise answer
+    // to exactly the name the priority chip beside it does.
+    const chips = await admin
+      .getByRole('button', { name: /^Remove the (Urgent|High) priority filter$/ })
+      .count();
     check('each chosen priority is its own chip', chips === 2, `${chips} chips`);
 
     await admin.getByRole('button', { name: 'Clear all filters' }).click();
@@ -1528,6 +1533,32 @@ try {
     );
     await admin.getByRole('button', { name: 'Clear all filters' }).click();
     await admin.waitForTimeout(600);
+  }
+
+  // ---- Two clear controls, two names --------------------------------------
+  // With something active, BOTH exist: the screen's `filter-alt-off` icon and
+  // the sheet's own button, because the screen's is behind the modal and a
+  // sheet you can filter from but not un-filter from is a trap. They must not
+  // answer to ONE name — a screen reader would read the same name for two
+  // controls, and `getByRole(…, { name })` would resolve to whichever came
+  // first instead of failing honestly.
+  {
+    await pickInFilters('Priority', priorityChip('Urgent'));
+    await admin.getByRole('button', { name: 'Filters', exact: true }).click();
+    const collided = await admin.getByRole('button', { name: 'Clear all filters' }).count();
+    check('the sheet does not duplicate the screen’s clear-filters name', collided === 1, `${collided} controls`);
+    // And it clears, which is the only reason it is in there.
+    await admin.getByRole('button', { name: 'Clear all', exact: true }).click();
+    await admin.waitForTimeout(500);
+    await admin.getByRole('button', { name: 'Done', exact: true }).click();
+    await admin.waitForTimeout(700);
+    check(
+      'clearing from inside the sheet removes the chips outside it',
+      !(await admin
+        .getByRole('button', { name: 'Remove the Urgent priority filter' })
+        .isVisible()
+        .catch(() => false)),
+    );
   }
 
   // ---- Assigned to --------------------------------------------------------
@@ -1577,6 +1608,21 @@ try {
       newest.length > 1 && JSON.stringify(newest) === JSON.stringify([...oldest].reverse()),
       `${newest.length} cards`,
     );
+
+    // Clearing FILTERS must not reorder the list. `hasActiveFilters` — the one
+    // condition the clear control appears on — deliberately ignores the sort,
+    // because reordering a list is not narrowing it; a clear that also put the
+    // order back would be doing something its name does not say, from a control
+    // that appeared for another reason entirely.
+    await pickInFilters('Priority', priorityChip('Urgent'));
+    await admin.getByRole('button', { name: 'Clear all filters' }).click();
+    await admin.waitForTimeout(700);
+    check(
+      'clearing the filters leaves the chosen order alone',
+      (await sort.inputValue()) === 'oldest',
+      `sort is ${await sort.inputValue()}`,
+    );
+
     // Back to the default, so nothing after this inherits an order.
     await sort.selectOption('best');
     await admin.waitForTimeout(500);

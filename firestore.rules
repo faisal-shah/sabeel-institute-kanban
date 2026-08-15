@@ -305,6 +305,76 @@ service cloud.firestore {
       function columnExists() {
         return newCard().columnId in destBoard().columnIds;
       }
+
+      /**
+       * The fields on a card that only a TRIGGER may move.
+       *
+       * One definition rather than a line per field, which is what the third one
+       * needed: `lastActivityAt` was added by copying `attachmentCount`'s pin,
+       * and `commentCount` — in the key list since the beginning — turned out
+       * never to have been pinned at all. Any active member could write it to
+       * whatever they liked, `onCommentWritten` only ever INCREMENTS, so a
+       * forged value never self-corrects, and unlike the stats counters there is
+       * no backfill script that would rebuild it. The card screen renders
+       * `Comments (N)` straight from the field.
+       *
+       * `.get(…, 0)` on both sides throughout: a card written before one of
+       * these fields existed carries no such key, and requiring it would make
+       * every one of them permanently uneditable. Rules do not apply to Admin
+       * SDK writes, which is how the triggers move what nothing else can.
+       */
+      function triggerOwnedAreZero() {
+        return newCard().get('commentCount', 0) == 0
+          && newCard().get('attachmentCount', 0) == 0
+          && newCard().get('lastActivityAt', 0) == 0;
+      }
+      function triggerOwnedUnchanged() {
+        return newCard().get('commentCount', 0) == oldCard().get('commentCount', 0)
+          && newCard().get('attachmentCount', 0) == oldCard().get('attachmentCount', 0)
+          && newCard().get('lastActivityAt', 0) == oldCard().get('lastActivityAt', 0);
+      }
+
+      /**
+       * A client-written millisecond stamp, bounded to "not in the future".
+       *
+       * Pinning `lastActivityAt` on its own secures NOTHING, because it is not
+       * the only input to the order it was pinned to protect: Search sorts by
+       * `lastActivityOf`, which is `max(lastActivityAt, updatedAt, createdAt)`,
+       * and `updatedAt` is client-written with its value constrained nowhere. A
+       * member could write `updatedAt: 9e15` on any card they may edit and pin it
+       * to the top of "Newest first" — and the bottom of "Oldest first" — for
+       * every colleague, permanently.
+       *
+       * Bounded rather than pinned, because an ordinary edit must move it. An
+       * hour of forward slack for a client clock, the same allowance the label
+       * rules already give.
+       *
+       * ONE-SIDED, and that is a decision rather than an omission. A floor would
+       * close the mirror of this — a card CREATED claiming epoch zero sits at the
+       * top of "Oldest first" — but the two are not the same size: the ceiling
+       * holds the top of the DEFAULT order in front of every colleague, while the
+       * floor holds the top of one they have to choose. Each bound is also
+       * another way an ordinary action fails outright for a clock nobody in this
+       * office controls, and `createdAt` is pinned across every update, so an
+       * existing card cannot be walked backwards.
+       */
+      function notFutureStamp(ms) {
+        return ms is number && ms <= request.time.toMillis() + 3600000;
+      }
+      /**
+       * On an UPDATE the test is on the CHANGE, not on the value.
+       *
+       * A card stamped from a badly-set clock before this rule existed would
+       * otherwise become permanently unwritable by the one path that does not
+       * restamp it — `subscribeToCard` deliberately leaves `updatedAt` alone, so
+       * following a conversation would start failing on a card nobody can fix.
+       * Carrying the stored value through is always allowed; CHOOSING a new one
+       * is what has to be in the past, which is the whole of the attack.
+       */
+      function stampNotMovedForward(field) {
+        return newCard().get(field, 0) == oldCard().get(field, 0)
+          || notFutureStamp(newCard().get(field, 0));
+      }
       function wellFormed() {
         // No unknown keys: a card may hold ONLY these fields (the CardDoc type in
         // @sabeel/shared). Without this an approved member could bloat a card with
@@ -370,13 +440,16 @@ service cloud.firestore {
         && newCard().createdBy == request.auth.uid
         && newCard().updatedBy == request.auth.uid
         && newCard().archived == false
-        // A card is born with no files. `.get(…, 0)` so omitting the field is
-        // also fine — what is refused is a client CLAIMING a count.
-        && newCard().get('attachmentCount', 0) == 0
-        // Nor any activity yet. Trigger-owned, like the count above: a client
-        // that could set it could pin its own card to the top of Search's
-        // newest-first order forever.
-        && newCard().get('lastActivityAt', 0) == 0;
+        // A card is born with no comments, no files and no activity. `.get(…, 0)`
+        // so omitting a field is fine — what is refused is a client CLAIMING a
+        // count, or claiming the activity clock that orders Search.
+        && triggerOwnedAreZero()
+        // Neither stamp may claim the future — see `notFutureStamp`, which
+        // explains what "Newest first" is worth without this. `createdAt` is
+        // pinned to the stored value on every update, so create is the ONE place
+        // a client gets to choose it at all.
+        && notFutureStamp(newCard().get('createdAt', 0))
+        && notFutureStamp(newCard().get('updatedAt', 0));
 
       // Edit AND move. A move mutates `boardId`; require membership of BOTH the
       // board the card is on now and the destination, validating column and
@@ -389,17 +462,12 @@ service cloud.firestore {
         && newCard().createdBy == oldCard().createdBy
         && newCard().createdAt == oldCard().createdAt
         && newCard().updatedBy == request.auth.uid
-        // Trigger-owned, like activeCardCount on a board: only the attachment
-        // callables move it, so a client edit must carry it through unchanged.
-        // `.get(…, 0)` on BOTH sides is load-bearing — every card written before
-        // this field existed would otherwise become permanently uneditable.
-        && newCard().get('attachmentCount', 0) == oldCard().get('attachmentCount', 0)
-        // Same shape, same reason: the comment and attachment triggers own
-        // `lastActivityAt`, so a client edit carries it through unchanged. Rules
-        // do not apply to Admin SDK writes, which is why the triggers can move
-        // it while nothing else can. `.get(…, 0)` on BOTH sides keeps every card
-        // written before the field existed editable.
-        && newCard().get('lastActivityAt', 0) == oldCard().get('lastActivityAt', 0);
+        // Trigger-owned, like activeCardCount on a board: the comment and
+        // attachment paths move these, so a client edit carries all three
+        // through unchanged.
+        && triggerOwnedUnchanged()
+        // And the other input to the order those pins protect.
+        && stampNotMovedForward('updatedAt');
 
       // Members archive (an update setting archived=true); permanent deletion is
       // managers/admins only. A move is an update, so it is NOT gated here.

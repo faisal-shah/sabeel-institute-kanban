@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import type { Priority } from '@sabeel/shared';
 import {
   EMPTY_SEARCH_FILTERS,
   chipsForIds,
@@ -16,7 +17,10 @@ import {
  * These cover the two things that can go wrong in a store like this: losing a
  * change, and losing the ability to reset.
  */
-beforeEach(() => clearSearchFilters());
+// NOT `clearSearchFilters`, which deliberately keeps the chosen order — so it
+// would carry one test's `sort` into the next. The store is module state; the
+// reset between tests has to put back every field.
+beforeEach(() => setSearchFilters(EMPTY_SEARCH_FILTERS));
 
 describe('setSearchFilters', () => {
   it('merges rather than replacing', () => {
@@ -72,23 +76,38 @@ describe('toggleIn', () => {
 });
 
 describe('clearSearchFilters', () => {
-  it('resets everything, which is what the clear control promises', () => {
-    // Every field, deliberately: this asserts the WHOLE object below, so a
-    // field added to `SearchFilters` and forgotten here fails loudly rather
+  const everything = {
+    text: 'x',
+    archivedOnly: true,
+    overdueOnly: true,
+    priorities: ['urgent', 'none'] as Priority[],
+    labelIds: ['l1'],
+    boardId: 'b1',
+    assigneeUid: 'u1',
+  };
+
+  it('clears every narrowing filter, which is what the control promises', () => {
+    // Every narrowing field, deliberately: this asserts the WHOLE object below,
+    // so a field added to `SearchFilters` and forgotten here fails loudly rather
     // than surviving a clear.
-    setSearchFilters({
-      text: 'x',
-      archivedOnly: true,
-      overdueOnly: true,
-      priorities: ['urgent', 'none'],
-      labelIds: ['l1'],
-      boardId: 'b1',
-      assigneeUid: 'u1',
-      sort: 'oldest',
-    });
+    setSearchFilters({ ...everything, sort: 'best' });
     clearSearchFilters();
-    const seen = getSearchFilters();
-    expect(seen).toEqual(EMPTY_SEARCH_FILTERS);
+    expect(getSearchFilters()).toEqual(EMPTY_SEARCH_FILTERS);
+  });
+
+  /**
+   * Sort is NOT a filter, and the clear control is not a reset button.
+   *
+   * `hasActiveFilters` — the one condition the control even appears on — ignores
+   * `sort`, because reordering a list is not narrowing it. A clear that put the
+   * order back would fire from a control that appeared for another reason
+   * entirely, and flip the list from `Oldest first` to `Best match` with nothing
+   * on screen to explain it.
+   */
+  it('leaves the chosen order alone', () => {
+    setSearchFilters({ ...everything, sort: 'oldest' });
+    clearSearchFilters();
+    expect(getSearchFilters()).toEqual({ ...EMPTY_SEARCH_FILTERS, sort: 'oldest' });
   });
 });
 

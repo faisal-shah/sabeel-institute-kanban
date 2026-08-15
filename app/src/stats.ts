@@ -102,29 +102,31 @@ export function useStoredTotals(): LiveState<StatsRootDoc> {
  * save a round trip on a manager-only screen with under twenty boards is not a
  * trade worth making.
  *
- * Reports `failed` rather than rejecting: one unreadable scope must not blank a
+ * SETTLES rather than rejecting: one unreadable scope must not blank a
  * breakdown that is otherwise correct, and a SHORT list rendered as if complete
- * is exactly the kind of quiet wrong this screen has been bitten by before.
+ * is exactly the kind of quiet wrong this screen has been bitten by before. A
+ * scope that failed is simply absent from the result — and since a scope that
+ * SUCCEEDS always yields one document per month, an absent scope is exactly a
+ * failed one, which is how the caller counts them without a tally riding along
+ * that could disagree with the documents beside it.
  */
 export async function fetchStatsMonths(
   scopes: readonly string[],
   months: readonly string[],
   /** Today's ORG-timezone day key, so the live month is never cached. */
   today: string,
-): Promise<{ docs: StatsMonthDoc[]; failed: number }> {
-  if (scopes.length === 0 || months.length === 0) return { docs: [], failed: 0 };
+): Promise<StatsMonthDoc[]> {
+  if (scopes.length === 0 || months.length === 0) return [];
 
   const settled = await Promise.allSettled(
     scopes.map((scope) => fetchOneScope(scope, months, today)),
   );
 
   const docs: StatsMonthDoc[] = [];
-  let failed = 0;
   for (const r of settled) {
     if (r.status === 'fulfilled') docs.push(...r.value);
-    else failed += 1;
   }
-  return { docs, failed };
+  return docs;
 }
 
 async function fetchOneScope(
@@ -133,18 +135,26 @@ async function fetchOneScope(
   today: string,
 ): Promise<StatsMonthDoc[]> {
   const wanted = [...months].sort();
-  const missing = wanted.filter((m) => monthCache.get(cacheKey(scope, m)) === undefined);
+
   /**
-   * What THIS call read, kept separately from the cache.
+   * Everything this call will answer with, resolved as it is learned.
    *
-   * Load-bearing, not a convenience: `remember` deliberately refuses to store
-   * the month in progress, so a result path that read back only from the cache
-   * threw away the very documents it had just fetched — and every breakdown of
-   * a bar in the current month came back empty. Caught by a 320px screenshot,
-   * where the panel's own unattributed row reported the whole bar as
-   * unaccounted for rather than showing a plausible empty list.
+   * Owned here rather than read back out of the cache at the end, and that is
+   * load-bearing twice over. `remember` deliberately refuses to store the month
+   * in progress, so a result path that read back only from the cache threw away
+   * the very documents it had just fetched — and every breakdown of a bar in
+   * the current month came back empty. And the cache is SHARED and evicting:
+   * every scope fans out at once, so a hit tested before the `await` can have
+   * been evicted by a sibling scope's `remember` by the time it is read after
+   * it, silently contributing a zero for a board that was not quiet.
    */
-  const fresh = new Map<string, StatsMonthDoc>();
+  const have = new Map<string, StatsMonthDoc>();
+  const missing: string[] = [];
+  for (const m of wanted) {
+    const hit = monthCache.get(cacheKey(scope, m));
+    if (hit === undefined) missing.push(m);
+    else have.set(m, hit);
+  }
 
   if (missing.length > 0) {
     // The same document-id range `useStatsMonths` uses, so no index is needed
@@ -157,26 +167,31 @@ async function fetchOneScope(
         where(documentId(), '<=', missing[missing.length - 1]),
       ),
     );
-    const found = new Map(snap.docs.map((d) => [d.id, d.data()]));
-    for (const month of missing) {
-      const data = found.get(month);
+    // EVERY document the range returned, not only the months that were missing.
+    // When the gaps are not contiguous the range spans months already held, and
+    // those documents are read and paid for either way — dropping them on the
+    // floor is the one outcome with no upside.
+    for (const d of snap.docs) {
       const doc: StatsMonthDoc = {
         scope,
-        month,
-        // An ABSENT document is a real answer — that board did nothing that
-        // month — and caching it is what stops every quiet board being re-read
-        // on every tap.
-        days: (data?.days as StatsMonthDoc['days']) ?? {},
+        month: d.id,
+        days: (d.data().days as StatsMonthDoc['days']) ?? {},
       };
-      fresh.set(month, doc);
+      have.set(d.id, doc);
+      remember(scope, d.id, today, doc);
+    }
+    for (const month of missing) {
+      if (have.has(month)) continue;
+      // An ABSENT document is a real answer — that board did nothing that month
+      // — and caching it is what stops every quiet board being re-read on every
+      // tap.
+      const doc: StatsMonthDoc = { scope, month, days: {} };
+      have.set(month, doc);
       remember(scope, month, today, doc);
     }
   }
 
-  return wanted.map(
-    (m) =>
-      fresh.get(m) ?? monthCache.get(cacheKey(scope, m)) ?? { scope, month: m, days: {} },
-  );
+  return wanted.map((m) => have.get(m) ?? { scope, month: m, days: {} });
 }
 
 /**

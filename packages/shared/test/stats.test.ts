@@ -276,12 +276,23 @@ describe('actorsBetween / valueBetween', () => {
    * The property the board breakdown rests on: a bucket's rows are computed by
    * this function over the bucket's own range, so they must agree with the bar
    * the chart drew for it — including a WEEK that spans two month documents.
+   *
+   * It is also what pins `aggregate`'s shape. It hands each bucket only its OWN
+   * days rather than re-scanning the series per bucket, which is what took the
+   * default daily view from 0.99 to 0.06 ms/call; the two are equivalent because
+   * `valueBetween` filters to `[start..end]` either way, and this is the
+   * assertion that says so. Every bucketing, because the grouping is per
+   * bucketing.
    */
   it('agrees with aggregate over each bucket, across a month boundary', () => {
     const wide = toDailySeries(months, '2026-07-20', '2026-08-05');
-    for (const metric of ['cardsCreated', 'comments', 'activePeople'] as const) {
-      for (const point of aggregate(wide, 'week', metric)) {
-        expect(valueBetween(wide, point.start, point.end, metric)).toBe(point.value);
+    for (const bucketing of ['day', 'week', 'month'] as const) {
+      for (const metric of ['cardsCreated', 'comments', 'activePeople'] as const) {
+        const points = aggregate(wide, bucketing, metric);
+        expect(points.length).toBeGreaterThan(0);
+        for (const point of points) {
+          expect(valueBetween(wide, point.start, point.end, metric)).toBe(point.value);
+        }
       }
     }
   });

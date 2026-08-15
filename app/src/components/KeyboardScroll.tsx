@@ -47,9 +47,12 @@ export function KeyboardScroll({
   scrollRef?: Ref<Scroller>;
 }) {
   const inner = useRef<KeyboardAwareScrollViewRef>(null);
+  // `[]`, because the handle closes over a REF and so has nothing that can go
+  // stale. Without it React rebuilds the object on every render of every screen
+  // this wraps, which is all of them.
   useImperativeHandle(scrollRef, () => ({
     scrollTo: (options) => inner.current?.scrollTo(options),
-  }));
+  }), []);
 
   return (
     <KeyboardAwareScrollView

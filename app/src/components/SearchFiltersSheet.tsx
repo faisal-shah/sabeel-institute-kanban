@@ -4,11 +4,16 @@
  * An ACCORDION rather than four independent collapsibles, and the geometry is
  * what decides it. `Sheet` bounds itself to 80% of the viewport; on a 320x568
  * phone that is ~454pt, and once padding, the title, the gaps and the footer
- * button are taken out the body is about 334pt. One open section — a field at
- * 44 plus `PickerList` capped at 220 — is about 290. So exactly one fits. Two
- * open would put a capped scroller inside a capped scroller, and on iOS the
- * inner one takes the gesture and does not chain, so a drag in the middle of
- * the sheet would do nothing once the inner list hit its end.
+ * button are taken out the body is about 342pt. The four section HEADERS spend
+ * 200 of that before anything is open, so one expanded section — a field, its
+ * rows and a hint — already asks the sheet to scroll, and a second would double
+ * what has to be scrolled past to reach the sections below it. One at a time is
+ * what keeps the sheet a page rather than a stack of pages.
+ *
+ * The rows inside a section therefore do NOT scroll themselves
+ * (`bounded={false}`): the sheet body is already a bounded scroller, and two
+ * same-axis scrollers nested is a trap on iOS, where the inner one takes the pan
+ * and does not chain — see `NarrowList`.
  *
  * Every section is CLOSED on open, and its state is in its own header rather
  * than behind it — `Board: Fundraising 2026`, `Labels (2)` — the shape the
@@ -119,13 +124,18 @@ function Sections({
         open={open === 'board'}
         onToggle={() => toggle('board')}
       >
+        {/* The `Anything` row is prepended only when there is something to
+            narrow FROM. Prepended unconditionally it made `empty` unreachable —
+            a list of one row saying "All boards", where the sentence explaining
+            why there is nothing to pick would have been the useful thing. */}
         <NarrowList
-          items={[{ id: ANY, name: 'All boards' }, ...boards]}
+          items={boards.length > 0 ? [{ id: ANY, name: 'All boards' }, ...boards] : []}
           selectedIds={[boardId ?? ANY]}
           onPick={(id) => onPickBoard(id === ANY ? undefined : id)}
           placeholder="Filter boards"
           actionVerb="Filter to"
           empty="You are not on any board yet."
+          bounded={false}
         />
         {/* Archived BOARDS are a different thing from archived CARDS, and the
             chip outside this sheet is about the latter. Say so rather than let
@@ -146,6 +156,7 @@ function Sections({
           placeholder="Filter labels"
           actionVerb="Filter by"
           empty="No labels have been created yet."
+          bounded={false}
         />
         <Hint>A card matches any of the labels you pick.</Hint>
       </Section>
@@ -157,19 +168,28 @@ function Sections({
         onToggle={() => toggle('assignee')}
       >
         <NarrowList
-          items={[{ id: ANY, name: 'Anyone' }, ...people]}
+          items={people.length > 0 ? [{ id: ANY, name: 'Anyone' }, ...people] : []}
           selectedIds={[assigneeUid ?? ANY]}
           onPick={(uid) => onPickAssignee(uid === ANY ? undefined : uid)}
           placeholder="Filter people"
           actionVerb="Filter to"
           empty="Nobody is on a board with you."
+          bounded={false}
         />
       </Section>
 
       {/* The screen's own clear control is BEHIND this modal, so without one
-          here the sheet is a place you can filter from but not un-filter from. */}
+          here the sheet is a place you can filter from but not un-filter from.
+
+          `Clear all`, NOT `Clear all filters` — which is the word on the screen's
+          own control, and that one is still in the tree while this modal is up.
+          Two controls answering to one name is the exact collision `FilterChip`
+          gained its `name` prop to avoid: a screen reader reads one name twice,
+          and `getByRole('button', { name: 'Clear all filters' })` becomes
+          ambiguous rather than failing honestly. Inside a sheet titled `Filters`
+          the shorter word says the same thing. */}
       {onClearAll ? (
-        <Button label="Clear all filters" variant="secondary" onPress={onClearAll} />
+        <Button label="Clear all" variant="secondary" onPress={onClearAll} />
       ) : null}
     </>
   );

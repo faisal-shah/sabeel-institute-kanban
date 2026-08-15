@@ -505,6 +505,77 @@ try {
   await page.waitForTimeout(500);
   await page.screenshot({ path: join(SHOTS, 'stats-drilldown-320.png'), fullPage: true });
 
+  /**
+   * EVERY selection brings the panel into view, not just the first.
+   *
+   * At 320x568 the chart already reaches the fold, so the breakdown appended
+   * below it is entirely off-screen and the screen has to scroll to it. Driven
+   * by `onLayout` alone that works exactly ONCE: the event fires on mount and on
+   * layout CHANGE, so a second bar whose panel comes out the same shape — the
+   * same three board rows, which is the ordinary case rather than a corner —
+   * never fires it, and the tap looks like it did nothing at all.
+   *
+   * So two bars are tapped, from a scroll position reset in between, and the
+   * pair is chosen to have the SAME value where the fixture offers one: equal
+   * bars give equal-length lists, which is precisely the case a layout-driven
+   * scroll cannot see.
+   */
+  {
+    await page.getByRole('button', { name: 'Cards created filter, off' }).click();
+    await page.waitForTimeout(600);
+
+    const bars = page.getByLabel(/^[1-9]\d* cards created, /);
+    const labels = await bars.evaluateAll((els) =>
+      els.map((e) => e.getAttribute('aria-label') ?? ''),
+    );
+    const valueAt = (i) => Number(labels[i].match(/^(\d+)/)?.[1] ?? 0);
+    // Prefer a pair of equal bars; fall back to the last two, which still tests
+    // the second selection even if it cannot guarantee identical geometry.
+    let pair = [labels.length - 2, labels.length - 1];
+    const seen = new Map();
+    for (let i = 0; i < labels.length; i++) {
+      const v = valueAt(i);
+      if (seen.has(v)) {
+        pair = [seen.get(v), i];
+        break;
+      }
+      seen.set(v, i);
+    }
+
+    // The scroller is a react-native-web ScrollView — a div with its own
+    // overflow — so `window.scrollY` is always 0 here and the container has to
+    // be found by which element actually moved.
+    // `reduce`, not `Math.max(...array)`: spreading a node list into a call is
+    // bounded by the engine's argument limit, and a page that grew past it would
+    // fail as a RangeError from a helper rather than as the check it serves.
+    const scrolled = () =>
+      page.evaluate(() => {
+        let top = 0;
+        for (const e of document.querySelectorAll('*')) top = Math.max(top, e.scrollTop);
+        return top;
+      });
+    const toTop = () =>
+      page.evaluate(() => {
+        for (const e of document.querySelectorAll('*')) if (e.scrollTop > 0) e.scrollTop = 0;
+      });
+
+    const revealed = [];
+    for (const idx of labels.length >= 2 ? pair : []) {
+      await toTop();
+      await page.waitForTimeout(300);
+      await bars.nth(idx).click();
+      await page.waitForTimeout(1500);
+      revealed.push(await scrolled());
+    }
+    check(
+      'every bar selection scrolls the breakdown into view, not only the first',
+      revealed.length === 2 && revealed.every((y) => y > 0),
+      `${revealed.join(', ')} px (bars ${pair.join(' then ')}, values ${pair
+        .map(valueAt)
+        .join('/')})`,
+    );
+  }
+
   await ctx.close();
 } finally {
   await browser.close();

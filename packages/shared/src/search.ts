@@ -85,12 +85,18 @@ export function orderCards(
 ): SearchableCard[] {
   if (sort === 'best' && text.trim()) return rankMatches(cards, text);
   const dir = sort === 'oldest' ? -1 : 1;
-  // Title as the tie-break so the order is stable: two cards written in the same
-  // millisecond are common after an import, and a list that reshuffles between
-  // renders looks like it is losing rows.
   return [...cards].sort((a, b) => {
     const d = (lastActivityOf(b) - lastActivityOf(a)) * dir;
-    return d !== 0 ? d : a.title.localeCompare(b.title);
+    // Title as the tie-break so the order is STABLE: two cards stamped in the
+    // same millisecond are common after an import or a bulk copy (one
+    // `Date.now()` across the whole batch), and a list that reshuffles between
+    // renders looks like it is losing rows.
+    //
+    // It turns with the direction, so `oldest` is the exact reverse of `newest`
+    // — which is what the manual promises and what the browser suite asserts.
+    // An unflipped tie-break makes both of those false the moment two cards
+    // share a timestamp, and quietly, in only the tied rows.
+    return d !== 0 ? d : a.title.localeCompare(b.title) * dir;
   });
 }
 

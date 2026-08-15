@@ -26,6 +26,8 @@ import {
   ATTACHMENT_NAME_MAX,
   attachmentKind,
   formatBytes,
+  joinAttachmentName,
+  sanitizeAttachmentName,
   splitAttachmentName,
 } from '@sabeel/shared';
 import { Sheet } from './Sheet';
@@ -65,13 +67,30 @@ function AttachFields({
   sizeBytes: number;
   onConfirm: (name: string) => void;
 }) {
-  const { base, ext } = splitAttachmentName(name);
+  /**
+   * Seeded from the SANITIZED name, so the field shows what will actually be
+   * stored.
+   *
+   * `maxLength` bounds typing, not a pre-filled value: on react-native-web it
+   * becomes the DOM `maxlength` attribute, which browsers do not apply to a
+   * value set programmatically, so a 300-character picked name rendered in
+   * full, uploaded, and was then truncated server-side — the row landing under
+   * a different name than the sheet had just shown. Android diverged the other
+   * way, truncating the display while the draft kept all 300. Cleaning and
+   * capping the seed removes the divergence at its source rather than papering
+   * over either surface.
+   */
+  const full = sanitizeAttachmentName(name);
+  const { base, ext } = splitAttachmentName(full);
   const [draft, setDraft] = useState(base);
 
   const tooBig = sizeBytes > ATTACHMENT_MAX_BYTES;
   const ok = draft.trim().length > 0 && !tooBig;
+  // `joinAttachmentName`, never a hand-built template: it is the one join that
+  // sanitises and caps, and it round-trips with the split above, so an untouched
+  // field confirms the name the sheet is displaying.
   const confirm = () => {
-    if (ok) onConfirm(`${draft.trim()}${ext}`);
+    if (ok) onConfirm(joinAttachmentName(draft, ext));
   };
 
   return (
@@ -99,7 +118,7 @@ function AttachFields({
       </Row>
 
       <Hint>
-        {attachmentKind(name)} · {formatBytes(sizeBytes)}
+        {attachmentKind(full)} · {formatBytes(sizeBytes)}
       </Hint>
 
       {tooBig ? (

@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { attachmentKind, formatBytes } from '@sabeel/shared';
@@ -140,7 +140,44 @@ export function Attachments({
     resolve?.(name);
   };
 
+  /**
+   * Settle a pending naming promise on the way out.
+   *
+   * Without it the `run` callback awaiting `askName` never resumes when this
+   * panel unmounts with the sheet open — which browser Back does, since `nav.ts`
+   * is wired to `onPopState`. Nothing after the `await` runs: `timed`'s and
+   * `useAction`'s `finally` never fire, and the suspended closure pins
+   * `picked.blob` — the whole file, up to 10 MB — for the life of the JS
+   * context, silently.
+   *
+   * Refs only, deliberately: `settleName` also calls `setNaming`, which is a
+   * no-op on an unmounted component and pointless work to schedule.
+   */
+  useEffect(
+    () => () => {
+      const resolve = namingResolve.current;
+      namingResolve.current = null;
+      resolve?.(null);
+    },
+    [],
+  );
+
+  /**
+   * Claims the attach slot synchronously, released when the whole attach ends.
+   *
+   * `busy` is state, so two taps inside one frame both read "idle" — the same
+   * structural gap `beginOpen` above exists for. Here the consequence is worse
+   * than a duplicate upload: the second `start` would replace the naming sheet's
+   * resolver without the first ever settling, and because `naming` never passes
+   * through null the sheet is not remounted — so the field would still hold file
+   * A's stem while the extension, the kind, the size and the bytes were all file
+   * B's, and Upload would send B under A's name.
+   */
+  const attaching = useRef(false);
+
   const start = (source: PickSource) => {
+    if (attaching.current) return;
+    attaching.current = true;
     setPicking(false);
     let started: string | null = null;
     void run(async (untimed) => {
@@ -184,7 +221,9 @@ export function Attachments({
           });
         }
       }
-    }, 'uploadAttachment');
+    }, 'uploadAttachment').finally(() => {
+      attaching.current = false;
+    });
   };
 
   const attach = () => {

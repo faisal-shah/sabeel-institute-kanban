@@ -68,7 +68,22 @@ export const getSearchFilters = store.get;
  */
 export const setSearchFilters = store.set;
 
-export const clearSearchFilters = store.reset;
+/**
+ * Clear everything that NARROWS, and leave the order alone.
+ *
+ * Deliberately not `store.reset`. `EMPTY_SEARCH_FILTERS` carries `sort: 'best'`,
+ * so resetting also put the order back — and `hasActiveFilters`, the one
+ * condition the clear control even appears on, was taught to ignore `sort` for
+ * the reason that reordering a list is not narrowing it. A control that appears
+ * because of the filters and silently changes the order too is doing something
+ * its name does not say, and nothing on screen would explain the list flipping
+ * from `Oldest first` back to `Best match`.
+ *
+ * Sign-out still uses `store.reset` through `resetAllViewStores`, which is
+ * right: there the whole point IS to leave nothing of the last person behind.
+ */
+export const clearSearchFilters = (): void =>
+  store.set((f) => ({ ...EMPTY_SEARCH_FILTERS, sort: f.sort }));
 
 export const useSearchFilters = store.use;
 
