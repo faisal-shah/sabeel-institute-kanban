@@ -196,6 +196,25 @@ by `getAttachmentUrl` after it re-checks board membership. Any active board
 member may remove one, through `deleteAttachment` — which also deletes the
 bytes, since a client cannot.
 
+**A file is named before it uploads, never after** (added 2026-08-15). Picking a
+file opens a sheet with its name in a field, its size and kind beside it, and an
+Upload button. The timing is not a preference: the document IS the
+authorization, and clients may never update it, so the gap between the pick and
+the `setDoc` is the only place a name can be chosen at all. Renaming an
+already-uploaded file would need a new callable, an object-metadata rewrite and
+an activity type, and was declined.
+
+**The extension is shown but not editable.** It is what the row reports as the
+file's kind, what the browser downloads the file as, what `attachmentCacheName`
+writes to disk on Android, and what `ACTION_VIEW` and the share sheet read to
+choose a viewer — editing it away produces an unopenable file that still looks
+right in the list. `splitAttachmentName` in `@sabeel/shared` is the single
+definition of where a name ends and its suffix begins, shared with the kind
+badge and with the truncation inside `sanitizeAttachmentName`; two definitions
+would silently disagree. The sheet also owns the 10 MB check, which used to fire
+*after* the pick as an error and now states a fact about the file before
+anything is written.
+
 **Why cards are a TOP-LEVEL collection (a `boardId` field, not a subcollection of
 the board):** it makes a cross-board MOVE a single `boardId` update — comments and
 activity ride along under the same card doc — instead of delete-from-A +
@@ -384,18 +403,61 @@ belong to**:
 every card you can see, newest first. It used to show nothing until you typed,
 which made the filters unreachable without inventing a query first.
 
-**The filter set**, and why it is split across two rows: the binary toggles
-(Archived, Overdue, Urgent, High) stay one tap each; the two *unbounded lists* —
-board and label — live behind a single `Filters` control rather than becoming
-two more dropdowns stacked above the results. Whatever they pick returns as a
-chip in the same row, removable by the same gesture as everything else, so "what
-am I filtering by?" is answered by one readable row. A clear-all icon appears
-only when something is active.
+**The filter set**, and why it is split across two rows: the *binary toggles* —
+Archived and Overdue — stay one tap each, and everything with a LIST of values
+lives behind a single `Filters` control rather than becoming four dropdowns
+stacked above the results. Whatever is picked returns as a chip in the row
+below, removable by the same gesture as everything else, so "what am I filtering
+by?" is answered by one readable row. A clear-all icon appears only when
+something is active — and the sheet carries its own copy of that control,
+because the row is behind the modal while the sheet is open.
+
+Inside the sheet the four sections are an **accordion, all closed on open, one
+open at a time**, and the geometry decides that rather than taste: the sheet is
+bounded to 80% of the viewport, which on a 320x568 phone leaves a body of about
+334pt, and one open section — a narrowing field plus a capped list — is about
+290. Exactly one fits. Two open would put a capped scroller inside a capped
+scroller, and on iOS the inner one takes the gesture and does not chain. Each
+header carries its own state (`Board: Fundraising 2026`, `Labels (2)`), so the
+sheet says what is filtering without being expanded.
+
+- **Priority is multi-select and offers all five values, `'none'` included.** It
+  shipped as two chips, Urgent and High, which turned each other off — so "the
+  things that matter" could not be asked for at all. `'none'` is a value (a card
+  with no priority set), not the absence of a filter.
+- **Board is single**, because a card carries exactly one and the question people
+  ask is "just this board".
+- **Labels are multi**, matching ANY.
+- **Assigned to is single**, and its candidates are the union of the boards'
+  `memberProfiles` — never `users/*`, which only admins may list, while Search is
+  for everyone.
+
+**Sorting is Best match / Newest first / Oldest first**, defaulting to Best
+match, which is what Search has always done: rank by relevance when there is a
+query, by recency when there is not. With an empty box Best match and Newest
+first therefore agree exactly — correct, not a duplicate option; they diverge
+only when there is something to be relevant to. Ordering happens in memory over
+a set already fetched whole, so no index and no query change was involved, and
+the 200-row render cap slices *after* the sort — "Oldest first" shows the 200
+oldest rather than 200 arbitrary cards put in order.
+
+"Last activity" means `max(lastActivityAt, updatedAt, createdAt)`.
+`updatedAt` is client-written on a card EDIT and never moves for a comment or a
+file, so **`lastActivityAt` is a trigger-owned field** bumped by the comment
+trigger and the two attachment paths — all three already wrote to the card
+document, so it is one more field in a write that was happening anyway. Rules
+pin it exactly as `attachmentCount` is pinned. There was no backfill and no
+index: a card without the field falls back, and `createdAt` is the floor so a
+card missing both does not pin to an extreme of either direction. Editing a
+comment is the one thing that does not move it — that path returns before the
+trigger's write.
 
 **Filters live in `app/src/viewState.ts`, not in the screen.** `App.tsx` renders
 one screen per route, so opening a result unmounts Search; held in `useState`,
 the whole search died on the way to a card and Back returned a blank screen.
-Session-only, deliberately — a reload forgets.
+Session-only, deliberately — a reload forgets, and so does signing out: every
+view store registers itself so the next person on a shared device inherits
+nothing.
 
 **The keyboard is a width question, not a platform one.** Autofocus is
 `Platform.OS === 'web' && isWide`. Keying it off the platform alone opened the
@@ -736,6 +798,39 @@ day (the live triggers own it), so on the day counting first starts, events
 before the deploy are recorded by neither. Re-running on any later day rebuilds
 it from source. This cannot recur: from the following midnight the triggers cover
 every day in full, so "skip today" costs nothing thereafter.
+
+**Selecting a bar breaks it down** (added 2026-08-15), and only while one is
+selected — with nothing selected the same panel would have to cover the whole
+loaded year, a different question and a fan-out of reads nobody asked for. It
+answers one of two questions depending on the metric:
+
+- **Active people answers WHO.** `actors` is a uid array rather than a count, so
+  the people are already in hand and the panel costs no read at all. Names come
+  from the boards' `memberProfiles`, because only admins may list `users/*` and
+  this screen is open to managers — which means it misses routinely rather than
+  exceptionally (a manager acting on a board they are not a member of, anyone
+  removed from a board since) and falls back to a placeholder rather than
+  pretending.
+- **Everything else answers WHERE** — boards ranked by that metric, biggest
+  first, each a way through to the board. Every event already writes both the
+  board scope and `_all` in one batch, so the rows sum to the bar by
+  construction, and a shortfall means a board this reader cannot see or name.
+  That is shown as an explicit unattributed row rather than quietly dropped.
+
+The reads are one document per board per month the bucket spans (about 36 for a
+day bucket across eighteen boards), cached by scope and month, and **none at all
+when the screen is already scoped to one board** — that scope is subscribed
+already. The month in progress is never cached, because the chart is live
+specifically so today's bar moves, and a frozen breakdown under a moving bar is
+the worst kind of wrong. A `collectionGroup` query would be one round trip
+instead of N, and `scope`/`month` are denormalised for exactly that shape, but
+the rules nest `months` inside `stats/{scope}` and would need a recursive
+wildcard — not a rule worth widening at this size.
+
+The same change fixed a real defect the panel exposed: the period figure was
+`points.reduce((s, p) => s + p.value, 0)`, right for every counter and wrong for
+active people, where it summed sixty daily DISTINCT counts. It is now the same
+`valueBetween` each bar uses, so it unions.
 
 **Imports do NOT show as spikes, and this was checked rather than assumed.** The
 first version of this screen carried a caveat saying they did, on the strength of

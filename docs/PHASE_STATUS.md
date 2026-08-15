@@ -42,7 +42,8 @@ Every phase is complete and the app is **live and in daily use** at
 - Cards with **plain-text** descriptions and comments (markdown was removed
   2026-07-20 — the renderer and parser were deleted, not disabled), assignees,
   all-day due dates, priority, labels, subtasks, and **file attachments**
-  (10 MB each, any type, downloaded through short-lived signed URLs).
+  (10 MB each, any type, named before they upload, downloaded through
+  short-lived signed URLs).
 - Archive and (manager-only) delete; boards archive and never hard-delete.
 - Web: multi-column board with real drag-and-drop. Android: swipe-paged single
   column with a "Move to…" sheet.
@@ -53,11 +54,12 @@ Every phase is complete and the app is **live and in daily use** at
 - Notifications: in-app inbox with unread badge, per-event preferences,
   per-board mute, and a daily due-soon sweep.
 - My Work across every board, and search across the boards you belong to, with
-  filters for archived, overdue, priority, label and board that survive
-  navigating away.
+  filters for archived, overdue, priority, label, board and assignee that
+  survive navigating away, and a sort by last activity in either direction.
 - **Stats** (managers/admins): cards created and archived, comments, active
   people and file counts by day, calendar week or calendar month, server-counted
-  and stored so the screen opens instantly.
+  and stored so the screen opens instantly. Selecting a bar breaks it down —
+  which boards, or which people.
 - Sabeel brand palette (Option 1) and logo; single light theme, no dark mode.
 
 **Tests: 371 unit + 193 emulator integration + 494 browser e2e checks**, the last
@@ -364,6 +366,123 @@ the team.
 ---
 
 ## Deploy log
+
+### 2026-08-15 — Naming a file, drilling into a bar, and a search that sorts — v0.8.0
+
+Four features, independent of one another. **Server, rules and index changes are
+in this one** — the first three releases since v0.7.5 were client-only.
+
+**1. A file is named before it uploads.** Picking a file now opens a sheet with
+its name in a field, its size and kind beside it, and an Upload button. The
+timing is structural, not a preference: the attachment document IS the upload's
+authorization, and clients may never update it, so the gap between the pick and
+the `setDoc` is the only place a name can be chosen. Renaming afterwards would
+need a new callable, an object-metadata rewrite and an activity type; declined.
+
+The extension is shown and not editable, because it is load-bearing in four
+places — the kind badge, the browser's download filename, the on-disk cache name
+on Android, and what `ACTION_VIEW` and the share sheet read to pick a viewer.
+`splitAttachmentName` is now the ONE definition of where a name ends and its
+suffix begins, shared with the badge and with the truncation inside
+`sanitizeAttachmentName`, which had its own copy of the arithmetic. The sheet
+also took over the 10 MB check, which used to fire after the pick as an error
+and now states a fact about the file before anything is written.
+
+Verified end to end on the emulator: a file renamed in the sheet lands under the
+new name, the original is gone from the row, the **activity log** shows the new
+name (written server-side from the stored document, so this proves the rename
+reached the document rather than just the screen), and the kind badge still
+reads PNG. The suite's hostile-name case was moved to type THROUGH the field
+rather than through the picker — the field is a new route for a bad name to
+reach the document and has to be cleaned by the same code.
+
+**2. Selecting a bar in Stats breaks it down.** Only while one is selected: with
+nothing selected the panel would have to cover the whole loaded year, a
+different question and a fan-out nobody asked for. Active people answers WHO
+(the uids are already in hand, so it costs no read); every other metric answers
+WHERE — boards ranked biggest first, each a way through to the board.
+
+No schema change: every event already writes the board scope and `_all` in one
+batch, so the rows sum to the bar by construction, and the panel shows any
+shortfall as an explicit unattributed row rather than dropping it. Reads are one
+document per board per month the bucket spans, cached by scope and month, and
+**none at all** when the screen is scoped to a single board. The month in
+progress is never cached, because the chart is live so today's bar moves and a
+frozen breakdown under a moving bar is the worst kind of wrong.
+
+Three things had to move for this. `aggregate` now derives each bucket from
+`valueBetween` over that bucket's own day range, so the chart and the breakdown
+run the same function over the same days rather than agreeing by coincidence.
+Scope, period, metric and the selected bar moved into a view store, because
+tapping a board unmounts the screen. And the bucket range is clamped to the
+loaded window — a week bucket at the left edge starts on its Sunday, up to six
+days before anything loaded, so an unclamped query would count days the bar did
+not.
+
+**A bug this exposed, fixed here.** The period figure was
+`points.reduce((s, p) => s + p.value, 0)` — right for every counter, and for
+`activePeople` the exact distinct-count error `aggregate`'s own docblock warns
+about. It summed sixty daily distinct counts, so "23 people active in this
+period" was reachable in an organisation of thirteen. It now unions.
+
+**3. Search sorts by last activity.** Best match (the default, and exactly the
+old behaviour) / Newest first / Oldest first. With an empty box the first two
+agree — correct, not a duplicate; they diverge only when there is a query.
+
+"Last activity" needed a new field. `updatedAt` is client-written on a card EDIT
+and never moved for a comment or a file, so a card with ten new comments sat
+where it was. **`lastActivityAt` is trigger-owned**, bumped by the comment
+trigger and by `bumpAttachmentCount` — both already wrote to the card document,
+so it is one more field in a write that was happening anyway, and it inherits
+their best-effort posture. Rules pin it across a client update exactly as
+`attachmentCount` is pinned, with `.get(…, 0)` on both sides so cards predating
+it stay editable. **No backfill and no index**: the sort key is
+`max(lastActivityAt, updatedAt, createdAt)`, so an old card falls back, and
+`createdAt` is the floor — without it a card missing both would read as epoch
+zero and pin to the TOP of "Oldest", looking like an answer. Editing a comment
+is the one thing that does not move it; that path returns before the trigger's
+write.
+
+**4. Search's filters were reorganised.** `Filters` absorbed priority and gained
+Assigned to. Priority is now **multi-select across all five values including
+None** — it shipped as two chips, Urgent and High, that turned each other off,
+so "the things that matter" could not be asked for. Assigned to needed no shared
+work at all: `CardFilters.assigneeUid` has been implemented and tested since
+Phase 11 and had simply never been wired to a control. Its candidates come from
+the boards' `memberProfiles`, since only admins may list `users/*`.
+
+The sections are an **accordion, closed on open, one open at a time**, and the
+geometry decides that rather than taste: the sheet is bounded to 80% of the
+viewport, which at 320x568 leaves a body of ~334pt against ~290 for one open
+section. Exactly one fits, and two would put a capped scroller inside a capped
+scroller — on iOS the inner one takes the gesture and does not chain. Each
+header carries its own state (`Board: Fundraising 2026`, `Labels (2)`), the
+shape the boards screen's archived section already uses; four headers reading
+just `Board`, `Labels`, `Priority` would show nothing about what is filtering.
+No new `Collapsible` primitive: a secondary `Button` plus a conditional render.
+
+Picks apply immediately and the sheet stays open, which cost two things that had
+to be handled rather than discovered — the footer now says `Done` (a `Sheet`
+prop defaulting to `Cancel`, because ten e2e steps across four scripts click a
+button named exactly `Cancel`), and the sheet carries its own clear-all, since
+the row's is behind the modal.
+
+**Found while reviewing, fixed here.** Signing out cleared the live-query cache
+but not the view stores, so search filters survived a user switch on a shared
+device. Stores now register themselves, so the next one added is covered without
+anyone remembering.
+
+**Verification.** 461 unit tests (up from 430), 198 rules + 99 function tests on
+the emulator (three new rules tests for the `lastActivityAt` pin, three trigger
+tests proving a comment actually moves it). `scripts/attachments-e2e.mjs` 21/21.
+Every e2e helper that the reorganisation broke was fixed in the same batch —
+notably `pickInFilters`, which needed to expand a section AND close the sheet:
+without the close, three later assertions would have matched the sheet's own row
+and **passed while proving nothing**. `stats-e2e.mjs` seeded only the `_all`
+scope, so its new drill-down assertions would have been vacuous; it now seeds
+three board scopes with an exact split, and asserts the rows add up to the bar.
+The screen sweep gained a Filters-sheet capture and a stats-with-a-bar-selected
+capture, since a structural check cannot see a panel that is never opened.
 
 ### 2026-08-13 — The slow writes that were really a file picker — v0.7.8
 

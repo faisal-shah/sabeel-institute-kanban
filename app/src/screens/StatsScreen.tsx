@@ -1,22 +1,34 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import {
   STATS_ALL_SCOPE,
   STATS_METRICS,
+  actorsBetween,
   aggregate,
   formatBytes,
+  monthKeysBetween,
   monthsBack,
   startOfWeek,
   todayInOrgTz,
   toDailySeries,
+  valueBetween,
   type StatsBucketing,
+  type StatsDayEntry,
   type StatsMetric,
+  type StatsMonthDoc,
   type StatsPoint,
 } from '@sabeel/shared';
 import { useMyBoards, useArchivedBoards } from '../boards';
-import { STATS_MONTHS_BACK, useStatsMonths, useStoredTotals } from '../stats';
+import {
+  STATS_MONTHS_BACK,
+  fetchStatsMonths,
+  useStatsMonths,
+  useStoredTotals,
+} from '../stats';
+import { setStatsControl, setStatsView, useStatsView } from '../statsView';
 import type { SessionUser } from '../session';
 import { Sheet, SheetOption } from '../components/Sheet';
+import type { Scroller } from '../components/KeyboardScroll';
 import { useNav } from '../nav';
 import {
   Body,
@@ -71,10 +83,30 @@ export function StatsScreen({ user }: { user: SessionUser }) {
   const today = todayInOrgTz();
   const from = monthsBack(today, STATS_MONTHS_BACK - 1);
 
-  const [scope, setScope] = useState<string>(STATS_ALL_SCOPE);
-  const [bucketing, setBucketing] = useState<StatsBucketing>('day');
-  const [metric, setMetric] = useState<StatsMetric>('cardsCreated');
+  /**
+   * Held OUTSIDE the component (see `../statsView`). A row in the breakdown
+   * below navigates to its board, which unmounts this screen — so scope, period,
+   * metric and the selected bar all have to survive that, or Back returns you to
+   * the default view with the thing you were reading gone.
+   */
+  const { scope, bucketing, metric, selectedStart } = useStatsView();
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  /**
+   * Bringing the breakdown into view when a bar is selected.
+   *
+   * Not a flourish: measured at 320x568, the chart panel's bottom is already at
+   * the fold, so a panel appended below it is entirely off-screen and tapping a
+   * bar looks like it did nothing at all. The chart itself must NOT move — that
+   * is why the readout above it is fixed-height — so the answer is to move the
+   * VIEW rather than the content.
+   *
+   * Once per selection, tracked here rather than driven by the panel's layout
+   * alone: `onLayout` fires again when the fetched rows arrive, and scrolling a
+   * second time would yank the page under someone already reading it.
+   */
+  const scroller = useRef<Scroller>(null);
+  const scrolledFor = useRef<string | null>(null);
 
   const active = useMyBoards(user);
   const archived = useArchivedBoards(user);
@@ -96,11 +128,73 @@ export function StatsScreen({ user }: { user: SessionUser }) {
     [active.data, archived.data],
   );
 
+  /** Both lists resolve to `data: undefined` on error exactly as they do while
+   *  loading, so a failed read would otherwise pass for an org with no boards. */
+  const boardsIncomplete = active.status !== 'ready' || archived.status !== 'ready';
+
+  /**
+   * uid → name, from the boards' own member profiles.
+   *
+   * NOT `users/*`: only ADMINS may list that collection (firestore.rules), and
+   * this screen is open to managers. `memberProfiles` is denormalised onto each
+   * board for exactly this kind of question.
+   *
+   * It misses routinely rather than exceptionally, which is why the panel has a
+   * fallback rather than an assertion: a manager may act on a board they are not
+   * a member of, and anyone removed from a board stays in that board's history
+   * for good.
+   */
+  const nameByUid = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of [...(active.data ?? []), ...(archived.data ?? [])]) {
+      for (const p of b.members) if (!m.has(p.uid)) m.set(p.uid, p.displayName);
+    }
+    return m;
+  }, [active.data, archived.data]);
+
+  /**
+   * The scope's own daily series, kept beside `points` because the breakdown
+   * needs the DAYS, not the buckets: "who was active in this week" is a union
+   * over its days, and the bucket only carries the size of one.
+   */
+  const series = useMemo(
+    () => (months.data ? toDailySeries(months.data, from, today) : []),
+    [months.data, from, today],
+  );
+
   const points = useMemo(() => {
-    if (!months.data) return [];
-    const all = aggregate(toDailySeries(months.data, from, today), bucketing, metric);
+    const all = aggregate(series, bucketing, metric);
     return all.slice(-WINDOW[bucketing]);
-  }, [months.data, from, today, bucketing, metric]);
+  }, [series, bucketing, metric]);
+
+  /**
+   * The selected bucket, or null — never a stale key.
+   *
+   * Driven by a LOOKUP rather than by trusting `selectedStart`, so a key that no
+   * longer matches a bar simply shows nothing. `setStatsControl` already clears
+   * the selection whenever a control changes, but this also covers the case
+   * nothing can clear: `today` and `from` are recomputed every render, so at
+   * org-midnight the window slides one bucket along and the oldest start date
+   * stops existing under someone's finger.
+   */
+  const chosen = points.find((p) => p.start === selectedStart) ?? null;
+
+  /**
+   * The figure for the whole visible period.
+   *
+   * Computed with the same `valueBetween` every bar uses, over the visible
+   * buckets' own day range, so it means the same thing they do — a SUM for a
+   * counter and a UNION for active people. Summing the bars instead double-
+   * counts anyone who worked on more than one day.
+   *
+   * The lower bound is clamped to the window: a week bucket at the left edge
+   * starts on its Sunday, which can be up to six days before anything loaded.
+   */
+  const total = useMemo(() => {
+    if (points.length === 0) return 0;
+    const lo = points[0].start < from ? from : points[0].start;
+    return valueBetween(series, lo, points[points.length - 1].end, metric);
+  }, [series, points, from, metric]);
 
   if (months.status === 'error') {
     return (
@@ -120,7 +214,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
       : (boards.find((b) => b.id === scope)?.name ?? 'That board');
 
   return (
-    <Screen>
+    <Screen scrollRef={scroller}>
       <Row style={styles.between}>
         <Title>Stats</Title>
         <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
@@ -168,7 +262,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
         <SegmentedIcons
           options={BUCKETINGS}
           value={bucketing}
-          onChange={setBucketing}
+          onChange={(b) => setStatsControl({ bucketing: b })}
         />
 
         {/* One metric at a time. Six small charts stacked would each get about
@@ -180,7 +274,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
               key={m.key}
               label={m.label}
               active={metric === m.key}
-              onPress={() => setMetric(m.key)}
+              onPress={() => setStatsControl({ metric: m.key })}
             />
           ))}
         </View>
@@ -189,7 +283,53 @@ export function StatsScreen({ user }: { user: SessionUser }) {
       {months.status === 'loading' ? (
         <Spinner label="Loading stats…" />
       ) : (
-        <Chart points={points} metric={metric} bucketing={bucketing} today={today} />
+        // Chart and breakdown render TOGETHER, inside the one ready branch. As
+        // siblings of the loading check, switching board would leave the
+        // previous scope's breakdown sitting under a spinner — query A's data
+        // beneath query B's inputs, the invariant `liveQuery` holds one level
+        // down and this would have re-created one level up.
+        <>
+          <Chart
+            points={points}
+            metric={metric}
+            bucketing={bucketing}
+            today={today}
+            total={total}
+            selected={selectedStart}
+            onSelect={(start) => {
+              scrolledFor.current = null;
+              setStatsView({ selectedStart: start });
+            }}
+          />
+          {chosen ? (
+            <View
+              onLayout={(e) => {
+                if (scrolledFor.current === chosen.start) return;
+                scrolledFor.current = chosen.start;
+                // A little above the panel, so the bar that was tapped stays on
+                // screen rather than the page jumping to a heading with no
+                // context above it.
+                const y = Math.max(0, e.nativeEvent.layout.y - 120);
+                scroller.current?.scrollTo({ y, animated: true });
+              }}
+            >
+              <StatsDetail
+                point={chosen}
+                metric={metric}
+                bucketing={bucketing}
+                scope={scope}
+                scopeName={scopeName}
+                series={series}
+                windowFrom={from}
+                today={today}
+                boards={boards}
+                boardsIncomplete={boardsIncomplete}
+                nameByUid={nameByUid}
+                onOpenBoard={(boardId) => nav.push({ name: 'board', boardId })}
+              />
+            </View>
+          ) : null}
+        </>
       )}
 
       <Panel>
@@ -220,7 +360,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
           label="All boards"
           selected={scope === STATS_ALL_SCOPE}
           onPress={() => {
-            setScope(STATS_ALL_SCOPE);
+            setStatsControl({ scope: STATS_ALL_SCOPE });
             setPickerOpen(false);
           }}
         />
@@ -231,7 +371,7 @@ export function StatsScreen({ user }: { user: SessionUser }) {
             detail={b.archived ? 'Archived' : undefined}
             selected={scope === b.id}
             onPress={() => {
-              setScope(b.id);
+              setStatsControl({ scope: b.id });
               setPickerOpen(false);
             }}
           />
@@ -310,20 +450,38 @@ function Chart({
   metric,
   bucketing,
   today,
+  selected,
+  onSelect,
+  total,
 }: {
   points: StatsPoint[];
   metric: StatsMetric;
   bucketing: StatsBucketing;
   today: string;
+  /**
+   * Which bucket is selected. Owned by the SCREEN rather than here, because the
+   * breakdown it drives sits below this chart and because tapping a board in
+   * that breakdown unmounts everything — see `../statsView`.
+   */
+  selected: string | null;
+  onSelect: (start: string | null) => void;
+  /**
+   * The figure for the whole visible period, computed by the screen.
+   *
+   * NOT `points.reduce((s, p) => s + p.value, 0)`, which is what it used to be
+   * and which is right for every counter and wrong for `activePeople`: that
+   * summed sixty daily DISTINCT counts, so "23 people active in this period"
+   * was reachable in an organisation of thirteen. It is the exact error
+   * `aggregate`'s own docblock warns about, committed one level up from the
+   * function that avoids it.
+   */
+  total: number;
 }) {
   const t = useTheme();
   const scroller = useRef<ScrollView>(null);
   const [width, setWidth] = useState(0);
   const [scrollX, setScrollX] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
   const spec = STATS_METRICS.find((m) => m.key === metric)!;
-
-  const total = points.reduce((s, p) => s + p.value, 0);
   const peak = Math.max(...points.map((p) => p.value), 0);
   const max = niceMax(peak);
 
@@ -448,7 +606,7 @@ function Chart({
             accessibilityLabel={`${p.value} ${spec.noun}, ${describeBucket(p, bucketing)}${
               inProgress ? ', still in progress' : ''
             }`}
-            onPress={() => setSelected(isSel ? null : p.start)}
+            onPress={() => onSelect(isSel ? null : p.start)}
             // The whole column is the target, not just the bar — a zero day is
             // still worth being able to tap, and a 2px bar is not a target.
             style={[styles.column, { width: barW }]}
@@ -772,7 +930,275 @@ function describeBucket(p: StatsPoint, bucketing: StatsBucketing): string {
 
 const AXIS_LABEL_H = 16;
 
+// ---- The breakdown under a selected bar ------------------------------------
+
+/**
+ * What is behind one bar.
+ *
+ * Only ever rendered while a bar is SELECTED, and that bound is the design
+ * rather than a shortcut: with nothing selected the same panel would have to
+ * cover the whole loaded year, which is a different question and a fan-out of
+ * reads nobody asked for.
+ *
+ * It answers one of two questions depending on the metric. "Active people" is a
+ * set of uids already in hand, so it answers WHO, and needs no read at all.
+ * Every other metric is a count, so it answers WHERE — which boards, biggest
+ * first, each one a way through to the board.
+ */
+function StatsDetail({
+  point,
+  metric,
+  bucketing,
+  scope,
+  scopeName,
+  series,
+  windowFrom,
+  today,
+  boards,
+  boardsIncomplete,
+  nameByUid,
+  onOpenBoard,
+}: {
+  point: StatsPoint;
+  metric: StatsMetric;
+  bucketing: StatsBucketing;
+  scope: string;
+  scopeName: string;
+  /** The selected scope's own daily series, already loaded by the chart. */
+  series: StatsDayEntry[];
+  /** The first day loaded, so a bucket cannot be queried outside the window. */
+  windowFrom: string;
+  today: string;
+  boards: { id: string; name: string; archived: boolean }[];
+  boardsIncomplete: boolean;
+  nameByUid: Map<string, string>;
+  onOpenBoard: (boardId: string) => void;
+}) {
+  /**
+   * The bucket's day range, clamped to what is loaded.
+   *
+   * A week bucket at the left edge starts on its Sunday, which can be up to six
+   * days before `windowFrom` — and the bar's own value only counts the days from
+   * `windowFrom` on. Querying the unclamped range would count days the bar did
+   * not, and the rows would add up to more than the number above them.
+   */
+  const rangeFrom = point.start < windowFrom ? windowFrom : point.start;
+  const rangeTo = point.end;
+
+  const allBoards = scope === STATS_ALL_SCOPE;
+  const boardIds = useMemo(() => boards.map((b) => b.id).join(','), [boards]);
+
+  /**
+   * Raw month documents per board, fetched once per (scope, bucket).
+   *
+   * Deliberately NOT keyed on the metric: one month document answers every
+   * counter, so switching metric re-derives from what is already here and costs
+   * nothing — which also means a metric switch cannot race a fetch.
+   */
+  const [fetched, setFetched] = useState<
+    | { status: 'idle' | 'loading' }
+    | { status: 'ready'; docs: StatsMonthDoc[]; failed: number }
+    | { status: 'error' }
+  >({ status: 'idle' });
+
+  useEffect(() => {
+    if (!allBoards) return;
+    let cancelled = false;
+    setFetched({ status: 'loading' });
+    fetchStatsMonths(
+      boardIds ? boardIds.split(',') : [],
+      monthKeysBetween(rangeFrom, rangeTo),
+      today,
+    )
+      .then((r) => {
+        // Tapping bar A then bar B fans out twice, and A's reads can land after
+        // B's. The cleanup flag is what stops the older answer overwriting the
+        // newer one — the same guard Search uses around its own fetch.
+        if (!cancelled) setFetched({ status: 'ready', docs: r.docs, failed: r.failed });
+      })
+      .catch(() => {
+        if (!cancelled) setFetched({ status: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allBoards, boardIds, rangeFrom, rangeTo, today]);
+
+  const rows = useMemo(() => {
+    if (!allBoards) {
+      // One scope, already subscribed — no read, and the row is still a way
+      // through to the board it names.
+      return [
+        {
+          id: scope,
+          name: scopeName,
+          value: valueBetween(series, rangeFrom, rangeTo, metric),
+        },
+      ].filter((r) => r.value > 0);
+    }
+    if (fetched.status !== 'ready') return [];
+
+    const byScope = new Map<string, StatsMonthDoc[]>();
+    for (const d of fetched.docs) {
+      const list = byScope.get(d.scope) ?? [];
+      list.push(d);
+      byScope.set(d.scope, list);
+    }
+    return boards
+      .map((b) => ({
+        id: b.id,
+        name: b.archived ? `${b.name} (archived)` : b.name,
+        value: valueBetween(
+          toDailySeries(byScope.get(b.id) ?? [], rangeFrom, rangeTo),
+          rangeFrom,
+          rangeTo,
+          metric,
+        ),
+      }))
+      .filter((r) => r.value > 0)
+      // Ties are the common case — a lot of ones — and the fetch resolves in no
+      // particular order, so without the name the list would reshuffle between
+      // renders for no reason a reader could see.
+      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+  }, [allBoards, fetched, boards, scope, scopeName, series, rangeFrom, rangeTo, metric]);
+
+  const people = useMemo(
+    () =>
+      metric === 'activePeople'
+        ? actorsBetween(series, rangeFrom, rangeTo).map((uid) => ({
+            uid,
+            // Someone can act on a board and later be removed from it, and a
+            // manager can act on a board they were never a member of. Both are
+            // ordinary, so this is a fallback rather than an assertion — the
+            // same wording the assignee picker already uses for the same case.
+            name: nameByUid.get(uid) ?? 'Someone no longer on a board',
+          }))
+        : [],
+    [metric, series, rangeFrom, rangeTo, nameByUid],
+  );
+
+  /**
+   * What the rows do NOT account for.
+   *
+   * The per-board counters and the all-boards ones are written in the same batch
+   * from the same event, so they agree by construction — a shortfall means a
+   * board whose stats survive but whose document this reader cannot see or name.
+   * Shown only when it is non-zero, so it is a report of something wrong rather
+   * than a permanent disclaimer. Counters only: `activePeople` lists people
+   * rather than decomposing a number.
+   */
+  const attributed = rows.reduce((s, r) => s + r.value, 0);
+  /**
+   * Only once the rows are actually in. While the fan-out is in flight `rows`
+   * is empty, so an ungated subtraction reports the WHOLE bar as unaccounted
+   * for — beside the spinner that says it is still counting. Three states, not
+   * two, applies to a derived figure as much as to the list it comes from.
+   */
+  const rowsSettled = !allBoards || fetched.status === 'ready';
+  const unattributed =
+    metric === 'activePeople' || !rowsSettled
+      ? 0
+      : Math.max(0, point.value - attributed);
+
+  /**
+   * Says what the LIST is, not what the bar was.
+   *
+   * The readout directly above the chart already reads "4 people active ·
+   * Sep 2025", and repeating it here put the same sentence twice within a
+   * couple of centimetres. The bucket stays, because on a phone the readout can
+   * be scrolled off by the time this panel is on screen.
+   */
+  const heading = `${
+    metric === 'activePeople' ? 'Who was active' : 'By board'
+  } · ${describeBucket(point, bucketing)}`;
+
+  return (
+    <Panel>
+      <Heading>{heading}</Heading>
+
+      {metric === 'activePeople' ? (
+        people.length === 0 ? (
+          <Hint>Nobody was active.</Hint>
+        ) : (
+          // Not a touch target — there is no person screen to open — so these
+          // rows are sized to their text rather than to the 44pt a tappable row
+          // reserves. At a full team that is the difference between a list and
+          // a scroll.
+          people.map((p) => (
+            <Row key={p.uid} style={styles.personRow}>
+              <Body>{p.name}</Body>
+            </Row>
+          ))
+        )
+      ) : (
+        <>
+          {allBoards && fetched.status === 'loading' ? (
+            <Spinner label="Loading the breakdown…" />
+          ) : null}
+          {allBoards && fetched.status === 'error' ? (
+            <Hint>The per-board breakdown could not be loaded.</Hint>
+          ) : null}
+          {allBoards && fetched.status === 'ready' && fetched.failed > 0 ? (
+            <Hint>
+              {fetched.failed} board{fetched.failed === 1 ? '' : 's'} could not be read,
+              so this list is incomplete.
+            </Hint>
+          ) : null}
+          {/* Only when the list IS a list of boards. Scoped to one board the
+              rows come from the subscription above, and a warning about the
+              board list would be describing something this panel did not use. */}
+          {allBoards && boardsIncomplete ? (
+            <Hint>Boards could not all be loaded, so this list is incomplete.</Hint>
+          ) : null}
+
+          {/* Not while there is a shortfall to report: "no board activity" and
+              "6 not listed" are contradictory, and the residual row is the one
+              that says something true. */}
+          {rowsSettled && rows.length === 0 && unattributed === 0 ? (
+            <Hint>No board activity in this period.</Hint>
+          ) : null}
+
+          {rows.map((r) => (
+            <Pressable
+              key={r.id}
+              accessibilityRole="button"
+              // Deliberately NOT the bar's grammar ("3 comments, 26 Jul"): the
+              // stats e2e matches bar labels by that exact shape, and a row that
+              // also answered to it would make the locator ambiguous.
+              accessibilityLabel={`Open ${r.name}, ${r.value}`}
+              onPress={() => onOpenBoard(r.id)}
+              style={({ pressed }) => [styles.detailRow, pressed ? { opacity: 0.6 } : null]}
+            >
+              <Body numberOfLines={1}>{r.name}</Body>
+              <Body>{r.value}</Body>
+            </Pressable>
+          ))}
+
+          {unattributed > 0 ? (
+            <Row style={styles.detailRow}>
+              <Body>Boards not listed</Body>
+              <Body>{unattributed}</Body>
+            </Row>
+          ) : null}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 const styles = StyleSheet.create({
+  detailRow: {
+    // `flexDirection` explicitly, because this style is worn by a `Pressable`
+    // as well as by a `Row`: a bare View defaults to a COLUMN in Yoga, so the
+    // board rows stacked their name above their figure and centred both, while
+    // the residual row beside them (a real `Row`) laid out correctly.
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 44,
+  },
+  personRow: { paddingVertical: space.xs },
   between: { justifyContent: 'space-between' },
   picker: {
     flexDirection: 'row',

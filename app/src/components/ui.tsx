@@ -9,6 +9,7 @@ import {
   useContext,
   type ComponentProps,
   type ReactNode,
+  type Ref,
 } from 'react';
 import {
   ActivityIndicator,
@@ -23,10 +24,10 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { KeyboardScroll } from './KeyboardScroll';
+import { KeyboardScroll, type Scroller } from './KeyboardScroll';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
-import { readableInkOn, type Priority } from '@sabeel/shared';
+import { priorityLabel, readableInkOn, type Priority } from '@sabeel/shared';
 import { radius, space, type, useTheme } from '../theme';
 
 /** Any MaterialIcons glyph name, without re-listing them here. */
@@ -64,9 +65,17 @@ export function Screen({
   children,
   scroll = true,
   width = 'content',
+  scrollRef,
 }: {
   children: ReactNode;
   scroll?: boolean;
+  /**
+   * For a screen that has to move its own view — today only Stats, which brings
+   * a breakdown into view when a bar is selected, because on a phone the chart
+   * alone already reaches the fold and content appended below it would never be
+   * seen. Ignored when `scroll` is false.
+   */
+  scrollRef?: Ref<Scroller>;
   /**
    * How wide the content may grow on a WIDE screen (ignored on a phone, where the
    * column is the whole screen). Capping-and-centring is what stops a phone-first
@@ -151,6 +160,7 @@ export function Screen({
       {banner}
       {scroll ? (
         <KeyboardScroll
+          scrollRef={scrollRef}
           contentContainerStyle={styles.scrollContent}
           // Enough to clear the ACTION ROW under a field, not just the field
           // itself. At space.xxl the comment box scrolled clear while its
@@ -313,8 +323,7 @@ export function ColorBadge({ color, label }: { color: string; label: string }) {
 export function PriorityBadge({ priority }: { priority: Priority }) {
   const t = useTheme();
   if (priority === 'none') return null;
-  const label = priority[0].toUpperCase() + priority.slice(1);
-  return <ColorBadge color={t.priority[priority]} label={label} />;
+  return <ColorBadge color={t.priority[priority]} label={priorityLabel(priority)} />;
 }
 
 /**
@@ -398,6 +407,7 @@ export function Button({
   disabled,
   busy,
   block,
+  expanded,
 }: {
   label: string;
   onPress: () => void;
@@ -407,6 +417,12 @@ export function Button({
   /** Force full width even on wide screens. For the rare screen whose primary
    *  action should span its container — e.g. the sign-in screen. */
   block?: boolean;
+  /**
+   * Set when the button opens and closes something below it, so assistive tech
+   * announces the disclosure rather than a plain button. `Select` sets the same
+   * state for the same reason.
+   */
+  expanded?: boolean;
 }) {
   const t = useTheme();
   const { isWide } = useLayout();
@@ -423,6 +439,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
       onPress={onPress}
       disabled={disabled || busy}
       style={({ pressed }) => [
@@ -776,11 +793,22 @@ export function FilterChip({
   label,
   active,
   onPress,
+  name,
   accessibilityLabel,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  /**
+   * A distinct NAME for a chip whose visible text is not unique.
+   *
+   * Two chips can legitimately show the same word — "Urgent" inside the Filters
+   * sheet and "Urgent" as the active-filter chip behind it — which leaves a
+   * screen reader, and any test, with two controls answering to one name. This
+   * separates what is announced from what is drawn; the state suffix is still
+   * appended, so it stays a toggle.
+   */
+  name?: string;
   /**
    * Override for a chip that is NOT a toggle.
    *
@@ -791,12 +819,14 @@ export function FilterChip({
   accessibilityLabel?: string;
 }) {
   const t = useTheme();
+  const announced = name ?? label;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       accessibilityLabel={
-        accessibilityLabel ?? (active ? `${label} filter, on` : `${label} filter, off`)
+        accessibilityLabel ??
+        (active ? `${announced} filter, on` : `${announced} filter, off`)
       }
       // 36pt of ink, 44pt of target — the four points top and bottom close the
       // gap without moving a single pixel on screen.

@@ -27,11 +27,23 @@ export function Sheet({
   visible,
   title,
   onClose,
+  closeLabel = 'Cancel',
   children,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
+  /**
+   * The footer button's word. `Cancel` is right for a sheet whose picks only
+   * take effect when you confirm, and WRONG for one whose picks apply as you
+   * make them — there it reads as "undo", which it is not.
+   *
+   * Defaulted rather than required because most sheets here are the first kind,
+   * and because a dozen e2e steps across four scripts close a sheet by clicking
+   * a button named exactly `Cancel`. Only the sheet that changed behaviour
+   * should change its word.
+   */
+  closeLabel?: string;
   children: ReactNode;
 }) {
   const t = useTheme();
@@ -116,7 +128,7 @@ export function Sheet({
           >
             {children}
           </ScrollView>
-          <Button label="Cancel" variant="secondary" onPress={onClose} />
+          <Button label={closeLabel} variant="secondary" onPress={onClose} />
         </Pressable>
       </Pressable>
     </Modal>

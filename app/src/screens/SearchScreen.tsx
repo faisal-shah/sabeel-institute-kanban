@@ -4,12 +4,14 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import {
   filterCards,
   hasActiveFilters,
-  rankMatches,
+  orderCards,
+  priorityLabel,
   todayInOrgTz,
   toPlainText,
   sortLabels,
   type Label,
   type SearchableCard,
+  type SearchSort,
 } from '@sabeel/shared';
 import { db } from '../firebase';
 import { useLabels } from '../labels';
@@ -17,9 +19,10 @@ import { useMyBoards, type BoardListItem, type BoardMemberProfile } from '../boa
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
+  chipsForIds,
   clearSearchFilters,
-  labelChips,
   setSearchFilters,
+  toggleIn,
   useSearchFilters,
 } from '../searchFilters';
 import {
@@ -37,17 +40,27 @@ import {
   Title,
 } from '../components/ui';
 import { CardFace } from '../components/CardFace';
-import { Sheet, SheetOption } from '../components/Sheet';
+import { Select, type SelectOption } from '../components/Select';
+import { SearchFiltersSheet } from '../components/SearchFiltersSheet';
+import type { NarrowItem } from '../components/NarrowList';
 import { space } from '../theme';
 import { useLayout } from '../theme/layout';
 
-/** A quiet divider inside the Filters sheet — the shape AppNav's More menu uses. */
-function MenuSection({ label }: { label: string }) {
-  return <Hint>{label.toUpperCase()}</Hint>;
-}
-
 const NO_LABELS: Label[] = [];
 const NO_MEMBERS: BoardMemberProfile[] = [];
+
+/**
+ * `Best match` first because it is what Search has always done, and it is right
+ * far more often than a date order: it ranks by relevance once you have typed
+ * something and by recency when you have not. With an empty box it therefore
+ * agrees with `Newest first` exactly — correct, not a duplicate. The two only
+ * diverge when there is a query, which is the only state relevance exists in.
+ */
+const SORTS: readonly SelectOption[] = [
+  { value: 'best', label: 'Best match' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+];
 
 /**
  * Search across every board you belong to.
@@ -74,7 +87,7 @@ export function SearchScreen({ user }: { user: SessionUser }) {
    * gone by the time you pressed Back — the text, the chips, the labels. Back is
    * meant to return you to what you were looking at.
    */
-  const { text, archivedOnly, overdueOnly, priority, labelIds, boardId } =
+  const { text, archivedOnly, overdueOnly, priorities, labelIds, boardId, assigneeUid, sort } =
     useSearchFilters();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cards, setCards] = useState<SearchableCard[] | null>(null);
@@ -131,7 +144,11 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             priority: d.data().priority ?? 'none',
             dueDate: d.data().dueDate as string | undefined,
             archived: Boolean(d.data().archived),
+            // All three feed `lastActivityOf`, which takes the max — see its
+            // note in @sabeel/shared for why none of them is enough alone.
             updatedAt: (d.data().updatedAt as number) ?? 0,
+            lastActivityAt: (d.data().lastActivityAt as number) ?? 0,
+            createdAt: (d.data().createdAt as number) ?? 0,
           })),
         );
       }),
@@ -151,66 +168,95 @@ export function SearchScreen({ user }: { user: SessionUser }) {
     };
   }, [boardIds, archivedOnly]);
 
-  // Split the org-wide set into what is already filtering and what the picker
-  // can still offer. Sorted the way the rest of the app sorts labels, so an
-  // emoji-prefixed name files under its word rather than under the emoji.
-  /**
-   * A chip for every chosen label id — INCLUDING one whose label no longer
-   * exists.
-   *
-   * This used to filter the org-wide set down to the chosen ids, so an id that
-   * resolved to nothing produced no chip at all while still narrowing the
-   * results. `deleteLabel` makes that reachable: a manager deletes a label you
-   * are filtering by, and Search silently goes empty with no cause on screen and
-   * nothing to tap. The rule is that EVERY active filter is visible and
-   * removable, so an unresolvable one still gets a chip.
-   */
-  const chosenLabels = useMemo(
-    () => labelChips(labelIds, allLabels.data ?? NO_LABELS, sortLabels),
-    [allLabels.data, labelIds],
-  );
-  const offerableLabels = useMemo(
-    () => sortLabels((allLabels.data ?? []).filter((l) => !labelIds.includes(l.id))),
-    [allLabels.data, labelIds],
+  // Sorted the way the rest of the app sorts labels, so an emoji-prefixed name
+  // files under its word rather than under the emoji.
+  const labelList = useMemo<NarrowItem[]>(
+    () => sortLabels([...(allLabels.data ?? NO_LABELS)]).map((l) => ({ id: l.id, name: l.name })),
+    [allLabels.data],
   );
 
-  const boardList = useMemo(
-    () => [...(boards.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
+  const boardList = useMemo<NarrowItem[]>(
+    () =>
+      [...(boards.data ?? [])]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((b) => ({ id: b.id, name: b.name })),
     [boards.data],
   );
+
   /**
-   * Same rule for the board. A board can be ARCHIVED while it is selected, which
-   * drops it out of `useMyBoards` — and out of the fetch — so the filter would
-   * keep narrowing to a board whose chip had disappeared.
+   * Everyone who could be an assignee on a card you can see.
+   *
+   * The union of the boards' own member profiles, deduped — NOT `users/*`,
+   * which only admins may list (`firestore.rules`), while Search is for
+   * everyone. `memberProfiles` is denormalised onto each board for exactly this
+   * kind of question. Assignees are rules-constrained to board members, so this
+   * set is complete for anyone still assignable.
    */
-  const boardName = boardId
-    ? (boardById.get(boardId)?.name ?? 'Unavailable board')
-    : undefined;
+  const people = useMemo<NarrowItem[]>(() => {
+    const byUid = new Map<string, BoardMemberProfile>();
+    for (const b of boards.data ?? []) {
+      for (const m of b.members) if (!byUid.has(m.uid)) byUid.set(m.uid, m);
+    }
+    return [...byUid.values()]
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .map((m) => ({ id: m.uid, name: m.displayName, detail: m.email }));
+  }, [boards.data]);
+
+  /**
+   * A chip for every active pick — INCLUDING one whose subject no longer exists.
+   *
+   * Building chips by filtering a live list down to the chosen ids means a dead
+   * id produces no chip at all while it goes on narrowing the results: the
+   * screen empties with no cause shown and nothing to tap. All three id-shaped
+   * facets can genuinely go stale — `deleteLabel` removes a label mid-filter,
+   * archiving a board drops it out of `useMyBoards`, and `removeBoardMember`
+   * can take away the last board a chosen assignee shared with you — so all
+   * three go through the one tested helper rather than three inline copies.
+   */
+  const chosenLabels = useMemo(
+    () => chipsForIds(labelIds, labelList, 'Deleted label', sortLabels),
+    [labelList, labelIds],
+  );
+  const chosenBoard = chipsForIds(
+    boardId ? [boardId] : [],
+    boardList,
+    'Unavailable board',
+  );
+  const chosenPerson = chipsForIds(
+    assigneeUid ? [assigneeUid] : [],
+    people,
+    'Someone no longer on a board',
+  );
 
   /**
    * Whether anything is narrowing the results — the ONE condition the clear
    * control appears on. `hasActiveFilters` already answers this in
-   * `@sabeel/shared` and now counts the board too, so the button cannot drift
-   * out of step with what the filters actually do.
+   * `@sabeel/shared`, so the button cannot drift out of step with what the
+   * filters actually do. Note SORT is deliberately absent: reordering a list is
+   * not narrowing it, and a clear-all that silently reset the order would be
+   * doing something its name does not say.
    */
   const anyActive = hasActiveFilters({
     text,
     archivedOnly,
-    priority,
+    priorities,
     labelIds,
     boardId,
+    assigneeUid,
     due: overdueOnly ? 'overdue' : undefined,
   });
 
   // Search BROWSES by default: with no text and no chips it lists everything you
-  // can see, newest first. It used to show nothing until you typed, which meant
-  // the only route to an archived card was knowing its name — you cannot search
-  // for something you are trying to find.
+  // can see, most recently active first. It used to show nothing until you
+  // typed, which meant the only route to an archived card was knowing its name —
+  // you cannot search for something you are trying to find.
   //
-  // Everything is filtered in memory over the cards already fetched, reusing the
-  // filters in @sabeel/shared that were written and tested for this and never
-  // surfaced. Deliberately simple for the size this actually is (tens of cards):
-  // the honest limit is the CAP below, which says out loud when it is hiding
+  // Everything is filtered AND ordered in memory over the cards already fetched:
+  // the query carries no `orderBy` and no `limit`, so the whole visible set is
+  // here and a sort in either direction is complete rather than a sort of
+  // whatever happened to arrive. That is also why adding one needed no index.
+  // Deliberately simple for the size this actually is (tens of cards); the
+  // honest limit is the CAP below, which says out loud when it is hiding
   // something rather than silently truncating.
   const { results, total } = useMemo(() => {
     if (!cards) return { results: [], total: 0 };
@@ -220,20 +266,29 @@ export function SearchScreen({ user }: { user: SessionUser }) {
       {
         text,
         archivedOnly,
-        priority,
+        priorities,
         labelIds,
         boardId,
+        assigneeUid,
         due: overdueOnly ? 'overdue' : undefined,
       },
       today,
     );
-    // With a query, rank by relevance. Without one, the useful order is what
-    // changed most recently — "what has been happening across my boards".
-    const ordered = text.trim()
-      ? rankMatches(matched, text)
-      : [...matched].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    // The cap slices AFTER the ordering, which is what makes "Oldest first"
+    // honest: it shows the 200 oldest rather than 200 arbitrary cards sorted.
+    const ordered = orderCards(matched, sort, text);
     return { results: ordered.slice(0, RESULT_CAP), total: ordered.length };
-  }, [cards, text, archivedOnly, priority, overdueOnly, labelIds, boardId]);
+  }, [
+    cards,
+    text,
+    archivedOnly,
+    priorities,
+    overdueOnly,
+    labelIds,
+    boardId,
+    assigneeUid,
+    sort,
+  ]);
 
   return (
     <Screen width="list">
@@ -263,10 +318,14 @@ export function SearchScreen({ user }: { user: SessionUser }) {
 
         {/* Two rows, and the split is deliberate.
             The BINARY toggles stay one tap — Archived most of all, since Search
-            is the way to the archive. The two UNBOUNDED lists, board and label,
-            live behind one control instead of becoming two more dropdowns
-            stacked under the box; whatever they select comes back as a chip in
-            the same row, removable by the same gesture as everything else. */}
+            is the way to the archive — and the sort sits with them because it is
+            the other thing that changes what you are looking at without picking
+            a value. Everything with a LIST of values, however short, lives
+            behind the one Filters control; whatever it selects comes back as a
+            chip in the row below, removable by the same gesture as everything
+            else. Priority moved in there when it grew from two chips to five:
+            "Urgent or High" needs a multi-select, and five more chips in this
+            row would be most of a phone screen before any results. */}
         <Row style={styles.chips}>
           <FilterChip
             label="Archived"
@@ -278,16 +337,12 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             active={overdueOnly}
             onPress={() => setSearchFilters((f) => ({ overdueOnly: !f.overdueOnly }))}
           />
-          {(['urgent', 'high'] as const).map((p) => (
-            <FilterChip
-              key={p}
-              label={p === 'urgent' ? 'Urgent' : 'High'}
-              active={priority === p}
-              onPress={() =>
-                setSearchFilters((f) => ({ priority: f.priority === p ? undefined : p }))
-              }
-            />
-          ))}
+          <Select
+            label="Sort"
+            value={sort}
+            options={SORTS}
+            onChange={(v) => setSearchFilters({ sort: v as SearchSort })}
+          />
         </Row>
 
         <Row style={styles.chips}>
@@ -303,15 +358,34 @@ export function SearchScreen({ user }: { user: SessionUser }) {
             accessibilityLabel="Filters"
             onPress={() => setFiltersOpen(true)}
           />
-          {/* The board reads as a chip like the rest, so the answer to "what am
-              I filtering by?" is one row rather than scattered across controls. */}
-          {boardName ? (
+          {/* Every active pick reads as a chip, so the answer to "what am I
+              filtering by?" is one row rather than scattered across controls. */}
+          {priorities.map((p) => (
             <FilterChip
-              label={boardName}
+              key={p}
+              label={priorityLabel(p)}
+              active
+              onPress={() =>
+                setSearchFilters((f) => ({ priorities: toggleIn(f.priorities, p) }))
+              }
+            />
+          ))}
+          {chosenBoard.map((b) => (
+            <FilterChip
+              key={b.id}
+              label={b.name}
               active
               onPress={() => setSearchFilters({ boardId: undefined })}
             />
-          ) : null}
+          ))}
+          {chosenPerson.map((p) => (
+            <FilterChip
+              key={p.id}
+              label={p.name}
+              active
+              onPress={() => setSearchFilters({ assigneeUid: undefined })}
+            />
+          ))}
           {chosenLabels.map((l) => (
             <FilterChip
               key={l.id}
@@ -336,55 +410,30 @@ export function SearchScreen({ user }: { user: SessionUser }) {
         </Row>
       </View>
 
-      {/* One home for the two filters that are LISTS.
-          A board dropdown beside a label dropdown would have been five stacked
-          controls above the results and no single answer to "what am I
-          filtering by". Both live here; both answer in the chip row above. */}
-      <Sheet visible={filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
-        <MenuSection label="Board" />
-        <SheetOption
-          label="All boards"
-          selected={!boardId}
-          onPress={() => {
-            setSearchFilters({ boardId: undefined });
-            setFiltersOpen(false);
-          }}
-        />
-        {boardList.map((b) => (
-          <SheetOption
-            key={b.id}
-            label={b.name}
-            selected={boardId === b.id}
-            onPress={() => {
-              setSearchFilters({ boardId: b.id });
-              setFiltersOpen(false);
-            }}
-          />
-        ))}
-
-        <MenuSection label="Label" />
-        {/* Only ever offers what is NOT already chosen, so the list shrinks as
-            you go. A card matches ANY of them — requiring all would empty the
-            results on the second pick. */}
-        {offerableLabels.length === 0 ? (
-          <Hint>
-            {(allLabels.data ?? []).length === 0
-              ? 'No labels have been created yet.'
-              : 'Every label is already being filtered by.'}
-          </Hint>
-        ) : (
-          offerableLabels.map((l) => (
-            <SheetOption
-              key={l.id}
-              label={l.name}
-              onPress={() => {
-                setSearchFilters((f) => ({ labelIds: [...f.labelIds, l.id] }));
-                setFiltersOpen(false);
-              }}
-            />
-          ))
-        )}
-      </Sheet>
+      {/* One home for every filter that is a LIST of values.
+          Four dropdowns stacked above the results would be most of a phone
+          screen before a single card; they live here, and whatever they select
+          answers in the chip row above. */}
+      <SearchFiltersSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        priorities={priorities}
+        onTogglePriority={(p) =>
+          setSearchFilters((f) => ({ priorities: toggleIn(f.priorities, p) }))
+        }
+        boards={boardList}
+        boardId={boardId}
+        onPickBoard={(id) => setSearchFilters({ boardId: id })}
+        labels={labelList}
+        labelIds={labelIds}
+        onToggleLabel={(id) =>
+          setSearchFilters((f) => ({ labelIds: toggleIn(f.labelIds, id) }))
+        }
+        people={people}
+        assigneeUid={assigneeUid}
+        onPickAssignee={(uid) => setSearchFilters({ assigneeUid: uid })}
+        onClearAll={anyActive ? clearSearchFilters : null}
+      />
 
       {error ? (
         <Panel style={styles.searchBar}>

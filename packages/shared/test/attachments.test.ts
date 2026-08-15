@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   attachmentCacheName,
+  attachmentKind,
   attachmentStoragePath,
   contentDispositionFor,
   formatBytes,
   isInlineSafe,
+  joinAttachmentName,
   normalizeContentType,
   sanitizeAttachmentName,
+  splitAttachmentName,
 } from '../src/attachments';
 import { ATTACHMENT_NAME_MAX } from '../src/constants';
 
@@ -163,5 +166,95 @@ describe('attachmentCacheName', () => {
     expect(attachmentCacheName('id1', '../../etc/passwd')).not.toContain('/');
     expect(attachmentCacheName('id1', '')).toBe('id1-file');
     expect(attachmentCacheName('id1', 'ملف.pdf')).toMatch(/^id1-/);
+  });
+});
+
+describe('splitAttachmentName', () => {
+  it('splits on the last dot', () => {
+    expect(splitAttachmentName('budget.pdf')).toEqual({ base: 'budget', ext: '.pdf' });
+    expect(splitAttachmentName('report.final.v2.backup')).toEqual({
+      base: 'report.final.v2',
+      ext: '.backup',
+    });
+  });
+
+  it('finds no extension where there is none', () => {
+    expect(splitAttachmentName('README')).toEqual({ base: 'README', ext: '' });
+    expect(splitAttachmentName('')).toEqual({ base: '', ext: '' });
+    expect(splitAttachmentName(null)).toEqual({ base: '', ext: '' });
+  });
+
+  /** A leading dot is a whole NAME, not an extension. */
+  it('does not treat a dotfile as all extension', () => {
+    expect(splitAttachmentName('.gitignore')).toEqual({ base: '.gitignore', ext: '' });
+    expect(splitAttachmentName('.env.local')).toEqual({ base: '.env', ext: '.local' });
+  });
+
+  /** A long trailing dot-segment is a word, not a kind. */
+  it('refuses an implausibly long suffix', () => {
+    expect(splitAttachmentName('archive.verylongsuffix')).toEqual({
+      base: 'archive.verylongsuffix',
+      ext: '',
+    });
+    // Twelve including the dot is the boundary, so eleven characters still counts.
+    expect(splitAttachmentName('a.elevenchars')).toEqual({ base: 'a', ext: '.elevenchars' });
+  });
+});
+
+describe('joinAttachmentName', () => {
+  it('puts an edited base back with its suffix', () => {
+    expect(joinAttachmentName('Q3 budget draft', '.pdf')).toBe('Q3 budget draft.pdf');
+  });
+
+  it('sanitises, so a rename cannot smuggle past the cleaning', () => {
+    expect(joinAttachmentName('a"b;c', '.pdf')).toBe('a_b_c.pdf');
+    expect(joinAttachmentName('../etc/passwd', '.txt')).toBe('.._etc_passwd.txt');
+    expect(joinAttachmentName('x'.repeat(400), '.txt')).toHaveLength(ATTACHMENT_NAME_MAX);
+  });
+
+  it('never produces a bare dotfile from an emptied field', () => {
+    expect(joinAttachmentName('', '.pdf')).toBe('file.pdf');
+    expect(joinAttachmentName('   ', '.pdf')).toBe('file.pdf');
+    expect(joinAttachmentName('', '')).toBe('file');
+  });
+
+  /**
+   * The round trip is the real criterion, not the hand-written cases above: if
+   * splitting and rejoining ever disagreed with sanitising, a file would rename
+   * ITSELF the moment it was attached.
+   */
+  it('round-trips through sanitizeAttachmentName', () => {
+    const names = [
+      'budget.pdf',
+      'README',
+      '.gitignore',
+      '.env.local',
+      'report.final.v2.backup',
+      'archive.verylongsuffix',
+      'ملف.pdf',
+      'a"b;c.pdf',
+      '',
+      '   ',
+      `${'x'.repeat(400)}.txt`,
+    ];
+    for (const name of names) {
+      const { base, ext } = splitAttachmentName(name);
+      expect(joinAttachmentName(base, ext)).toBe(sanitizeAttachmentName(name));
+    }
+  });
+});
+
+describe('attachmentKind', () => {
+  it('reads the extension as a short badge', () => {
+    expect(attachmentKind('budget.pdf')).toBe('PDF');
+    expect(attachmentKind('photo.jpeg')).toBe('JPEG');
+    expect(attachmentKind('archive.tar.gz')).toBe('GZ');
+  });
+
+  it('falls back to FILE where there is no short extension', () => {
+    // Longer than a badge holds — a word, not a kind.
+    expect(attachmentKind('notes.backup')).toBe('FILE');
+    expect(attachmentKind('README')).toBe('FILE');
+    expect(attachmentKind('.gitignore')).toBe('FILE');
   });
 });

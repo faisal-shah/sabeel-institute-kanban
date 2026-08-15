@@ -34,9 +34,64 @@ export interface SearchableCard {
   priority: Priority;
   dueDate?: string;
   archived: boolean;
-  /** Only used to order the BROWSE view (newest first). Optional so callers that
-   *  only ever search by text need not carry it. */
+  /**
+   * Last EDIT to the card document. Optional so callers that only ever search
+   * by text need not carry it.
+   *
+   * Not the same thing as last activity, and the gap is why `lastActivityAt`
+   * exists beside it: this moves for a title change or a drag, and does not move
+   * for a comment, a file, or a subscription (`app/src/cards.ts` explains that
+   * last one). Read both through `lastActivityOf`, never either alone.
+   */
   updatedAt?: number;
+  /**
+   * Trigger-written: a comment posted or removed, a file attached or detached.
+   * Absent on every card written before the field existed, which is why
+   * `lastActivityOf` falls back rather than a backfill running.
+   */
+  lastActivityAt?: number;
+  /** The floor under both of the above, so a card missing them still sorts. */
+  createdAt?: number;
+}
+
+/**
+ * When this card last saw activity of any kind.
+ *
+ * A MAX rather than a preference order: `lastActivityAt` only ever moves for a
+ * comment or a file, so a card edited after its last comment would otherwise
+ * sort by the older of the two. `createdAt` is the floor — without it a card
+ * predating both fields reads as epoch zero, which pins it to the bottom of
+ * "Newest" and, worse, to the TOP of "Oldest", where it looks like an answer.
+ */
+export function lastActivityOf(card: SearchableCard): number {
+  return Math.max(card.lastActivityAt ?? 0, card.updatedAt ?? 0, card.createdAt ?? 0);
+}
+
+/**
+ * How the results are ordered.
+ *
+ * `best` is the default and is what Search has always done: rank by match
+ * quality when there is a query, and by recency when there is not. With an empty
+ * box it therefore agrees with `newest` exactly — correct, not a duplicate.
+ * The two diverge the moment you type, which is the only state in which
+ * relevance exists at all.
+ */
+export type SearchSort = 'best' | 'newest' | 'oldest';
+
+export function orderCards(
+  cards: readonly SearchableCard[],
+  sort: SearchSort,
+  text: string,
+): SearchableCard[] {
+  if (sort === 'best' && text.trim()) return rankMatches(cards, text);
+  const dir = sort === 'oldest' ? -1 : 1;
+  // Title as the tie-break so the order is stable: two cards written in the same
+  // millisecond are common after an import, and a list that reshuffles between
+  // renders looks like it is losing rows.
+  return [...cards].sort((a, b) => {
+    const d = (lastActivityOf(b) - lastActivityOf(a)) * dir;
+    return d !== 0 ? d : a.title.localeCompare(b.title);
+  });
 }
 
 export interface CardFilters {
@@ -54,7 +109,16 @@ export interface CardFilters {
    * almost always empty the list.
    */
   labelIds?: string[];
-  priority?: Priority;
+  /**
+   * Match a card carrying ANY of these priorities, the same shape as `labelIds`
+   * and for the same reason: "urgent or high" is a question people ask, and a
+   * single value made the two mutually exclusive.
+   *
+   * `'none'` is a real `Priority`, not the absence of a filter — a card with no
+   * priority set carries `'none'`. An EMPTY array means no priority filter;
+   * `Boolean([])` is `true`, so length is what must be tested, never truthiness.
+   */
+  priorities?: Priority[];
   /** `overdue` and `soon` need today's date to mean anything. */
   due?: 'any' | 'overdue' | 'today' | 'soon' | 'none';
   /**
@@ -125,7 +189,13 @@ export function filterCards(
     ) {
       return false;
     }
-    if (filters.priority && c.priority !== filters.priority) return false;
+    if (
+      filters.priorities &&
+      filters.priorities.length > 0 &&
+      !filters.priorities.includes(c.priority)
+    ) {
+      return false;
+    }
 
     switch (filters.due) {
       case 'overdue':
@@ -149,13 +219,20 @@ export function filterCards(
   });
 }
 
-/** True when any filter is actually narrowing the results. */
+/**
+ * True when any filter is actually narrowing the results.
+ *
+ * The two ARRAY facets are tested by length, not truthiness. `Boolean([])` is
+ * `true` in JavaScript, so a plain `|| filters.priorities` would report an
+ * active filter the moment the field exists — leaving the clear-all control lit
+ * permanently, a dead affordance beside a list nothing is filtering.
+ */
 export function hasActiveFilters(filters: CardFilters): boolean {
   return Boolean(
     (filters.text && filters.text.trim()) ||
       filters.assigneeUid ||
       (filters.labelIds && filters.labelIds.length > 0) ||
-      filters.priority ||
+      (filters.priorities && filters.priorities.length > 0) ||
       (filters.due && filters.due !== 'any') ||
       filters.archivedOnly ||
       filters.boardId,

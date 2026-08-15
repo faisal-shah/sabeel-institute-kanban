@@ -66,6 +66,63 @@ export function isInlineSafe(contentType: string): boolean {
 }
 
 /**
+ * The longest trailing dot-segment still treated as an extension, dot included.
+ *
+ * A bound is needed because `lastIndexOf('.')` alone would call `.verylongword`
+ * an extension, and something has to decide. Twelve covers everything real
+ * (`.jpeg`, `.docx`, `.tar.gz` → `.gz`) without swallowing a sentence.
+ */
+const MAX_EXT_LEN = 12;
+
+/**
+ * Split a filename into the part a person may edit and the suffix they may not.
+ *
+ * ONE definition of "the extension", shared by the rename field, the kind badge
+ * and the truncation inside `sanitizeAttachmentName`. Two definitions fail
+ * silently: a name shortened against one rule and displayed against another
+ * shows a kind the file does not have.
+ *
+ * A LEADING dot is not an extension — `.gitignore` is a whole name — which is
+ * what `dot > 0` says.
+ */
+export function splitAttachmentName(name: string | null | undefined): {
+  base: string;
+  ext: string;
+} {
+  const s = name ?? '';
+  const dot = s.lastIndexOf('.');
+  const hasExt = dot > 0 && s.length - dot <= MAX_EXT_LEN;
+  return hasExt ? { base: s.slice(0, dot), ext: s.slice(dot) } : { base: s, ext: '' };
+}
+
+/**
+ * Put an edited base back together with the suffix it kept.
+ *
+ * Sanitizes, so a rename field cannot become a way around the cleaning every
+ * other path gets. `joinAttachmentName(...splitAttachmentName(x))` equals
+ * `sanitizeAttachmentName(x)` for every `x`, which is asserted rather than
+ * assumed.
+ */
+export function joinAttachmentName(base: string, ext: string): string {
+  const trimmed = base.trim();
+  // An empty base would leave a bare `.pdf` — a hidden file, not what anyone
+  // renaming meant. Fall back to the word an empty name already falls back to.
+  return sanitizeAttachmentName(trimmed ? `${trimmed}${ext}` : `file${ext}`);
+}
+
+/**
+ * The extension, uppercased — what people actually recognise a file by.
+ *
+ * Two bounds, deliberately different: `splitAttachmentName` decides what the
+ * extension IS, and four characters decides what fits in a badge. Anything
+ * longer reads as a word rather than a kind, so it becomes `FILE`.
+ */
+export function attachmentKind(name: string): string {
+  const bare = splitAttachmentName(name).ext.slice(1);
+  return bare && bare.length <= 4 ? bare.toUpperCase() : 'FILE';
+}
+
+/**
  * Strip everything from a filename that would break a header or escape a path.
  *
  * The name reaches an HTTP `Content-Disposition`, so quotes, semicolons,
@@ -86,9 +143,9 @@ export function sanitizeAttachmentName(name: string | null | undefined): string 
   // off, and the extension is what the file row shows as the kind and what some
   // viewers sniff to decide how to open it — so a long name would arrive as an
   // unopenable, untyped blob. A long trailing dot-segment is not treated as an
-  // extension, because it is not one.
-  const dot = cleaned.lastIndexOf('.');
-  const ext = dot > 0 && cleaned.length - dot <= 12 ? cleaned.slice(dot) : '';
+  // extension, because it is not one — see `splitAttachmentName`, which is the
+  // single place that rule lives.
+  const { ext } = splitAttachmentName(cleaned);
   return cleaned.slice(0, ATTACHMENT_NAME_MAX - ext.length) + ext;
 }
 

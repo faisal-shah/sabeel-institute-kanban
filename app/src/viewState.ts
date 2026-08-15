@@ -37,6 +37,22 @@ export interface ViewStore<T> {
   use: () => T;
 }
 
+/**
+ * Every store made, so signing out can empty all of them at once.
+ *
+ * Registration rather than a hand-kept list in `session.ts`: these stores hold
+ * board ids and search terms, and on a SHARED device the next person to sign in
+ * must not inherit them. A list somebody has to remember to add to is a list
+ * that goes stale silently — the live-query cache beside it is cleared on
+ * sign-out for exactly this reason, and the view stores were simply missed.
+ */
+const allStores = new Set<() => void>();
+
+/** Empty every view store. Called on sign-out, beside `clearLiveResultCache`. */
+export function resetAllViewStores(): void {
+  allStores.forEach((reset) => reset());
+}
+
 export function createViewStore<T extends object>(initial: T): ViewStore<T> {
   let current = initial;
   const listeners = new Set<(v: T) => void>();
@@ -49,6 +65,12 @@ export function createViewStore<T extends object>(initial: T): ViewStore<T> {
     listeners.forEach((l) => l(snapshot));
   };
 
+  const reset = () => {
+    current = initial;
+    emit();
+  };
+  allStores.add(reset);
+
   return {
     get: () => current,
     set: (patch) => {
@@ -56,10 +78,7 @@ export function createViewStore<T extends object>(initial: T): ViewStore<T> {
       current = { ...current, ...next };
       emit();
     },
-    reset: () => {
-      current = initial;
-      emit();
-    },
+    reset,
     use: () => {
       const [v, setV] = useState<T>(current);
       useEffect(() => {

@@ -21,6 +21,8 @@ import { googleSignOut } from './auth/google';
 import { registerPush, unregisterPush } from './notify';
 import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { clearLiveResultCache } from './liveQuery';
+import { resetAllViewStores } from './viewState';
+import { clearStatsCache } from './stats';
 import { canAdministerUsers, canManageBoards, canUseApp } from '@sabeel/shared';
 import type { Role, UserStatus } from '@sabeel/shared';
 import { auth, db } from './firebase';
@@ -243,6 +245,8 @@ onAuthStateChanged(auth, (fbUser) => {
     // Drop any cached live-query results so a shared device does not flash the
     // previous user's board to whoever signs in next.
     clearLiveResultCache();
+    resetAllViewStores();
+    clearStatsCache();
     cachedFor = null;
     emit({ state: 'signed-out' });
     return;
@@ -250,6 +254,8 @@ onAuthStateChanged(auth, (fbUser) => {
   if (cachedFor !== null && cachedFor !== fbUser.uid) {
     stopWatchingUserDoc();
     clearLiveResultCache();
+    resetAllViewStores();
+    clearStatsCache();
   }
   cachedFor = fbUser.uid;
   emit({ state: 'provisioning', uid: fbUser.uid });

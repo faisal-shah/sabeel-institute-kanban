@@ -14,29 +14,47 @@
  * SESSION ONLY. Nothing is persisted: a filter you set last week is not a filter
  * you meant to still be looking through today, and the app reloading is the
  * natural moment to forget. Within a session it survives everything — a card, a
- * different tab, a rotation — until the clear control on the screen is used.
+ * different tab, a rotation — until the clear control on the screen is used, or
+ * until somebody signs out (see `session.ts`, which resets the view stores for
+ * the same reason it clears the live-query cache).
  */
-import type { Priority } from '@sabeel/shared';
+import type { Priority, SearchSort } from '@sabeel/shared';
 import { createViewStore } from './viewState';
 
 export interface SearchFilters {
   text: string;
   archivedOnly: boolean;
   overdueOnly: boolean;
-  priority: Priority | undefined;
+  /**
+   * Priorities to match ANY of — the same shape as `labelIds`.
+   *
+   * A single value made Urgent and High mutually exclusive, so "the things that
+   * matter" could not be asked for at all. `'none'` is one of the five values,
+   * not the absence of a filter.
+   */
+  priorities: Priority[];
   /** Labels to match ANY of. */
   labelIds: string[];
   /** One board, or undefined for every board you can see. */
   boardId: string | undefined;
+  /**
+   * One person, or undefined for anyone. Single rather than a list because
+   * `CardFilters.assigneeUid` in @sabeel/shared has always been singular, and
+   * "whose is this" is a question about one person.
+   */
+  assigneeUid: string | undefined;
+  sort: SearchSort;
 }
 
 export const EMPTY_SEARCH_FILTERS: SearchFilters = {
   text: '',
   archivedOnly: false,
   overdueOnly: false,
-  priority: undefined,
+  priorities: [],
   labelIds: [],
   boardId: undefined,
+  assigneeUid: undefined,
+  sort: 'best',
 };
 
 const store = createViewStore<SearchFilters>(EMPTY_SEARCH_FILTERS);
@@ -54,30 +72,43 @@ export const clearSearchFilters = store.reset;
 
 export const useSearchFilters = store.use;
 
+/** Add or remove one value from a multi-select facet, for `setSearchFilters`. */
+export function toggleIn<T>(list: readonly T[], value: T): T[] {
+  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
+}
+
 /**
- * Turn chosen label ids into chips, keeping ids that no longer resolve.
+ * Turn chosen ids into chips, keeping ids that no longer resolve.
  *
  * Pure, and separate from the screen so it can be tested: the case it exists for
- * is hard to stage in a browser and easy to get wrong. `deleteLabel` can remove
- * a label while someone is filtering by it, and the previous code built chips by
- * filtering the org-wide set down to the chosen ids — so a dead id produced NO
- * chip while still narrowing the results. Search went empty with no cause on
- * screen and nothing to tap.
+ * is hard to stage in a browser and easy to get wrong. Building chips by
+ * filtering a live list down to the chosen ids means a dead id produces NO chip
+ * while it goes on narrowing the results — the screen empties with no cause
+ * shown and nothing to tap.
  *
- * The rule: every active filter is visible and removable, even a broken one.
+ * The rule is that every active filter is visible and removable, even a broken
+ * one, and it applies to all three id-shaped facets, each of which can genuinely
+ * go stale: `deleteLabel` removes a label mid-filter, archiving a board drops it
+ * out of `useMyBoards`, and `removeBoardMember` can take away the last board a
+ * chosen assignee shared with you. One implementation rather than three, because
+ * the two written inline were already inconsistent — the board case had no test
+ * and the assignee case did not exist.
  */
-export function labelChips(
-  labelIds: readonly string[],
-  labels: readonly { id: string; name: string }[],
-  sort: <T extends { name: string }>(ls: T[]) => T[],
+export function chipsForIds(
+  ids: readonly string[],
+  known: readonly { id: string; name: string }[],
+  /** What an unresolvable id is called. Specific to the facet, so the chip still
+   *  says what kind of thing has gone. */
+  missingName: string,
+  sort: <T extends { name: string }>(ls: T[]) => T[] = (ls) => ls,
 ): { id: string; name: string }[] {
-  const byId = new Map(labels.map((l) => [l.id, l]));
-  const known = sort(
-    labelIds
+  const byId = new Map(known.map((l) => [l.id, l]));
+  const resolved = sort(
+    ids
       .map((id) => byId.get(id))
       .filter((l): l is { id: string; name: string } => l !== undefined)
       .map((l) => ({ id: l.id, name: l.name })),
   );
-  const missing = labelIds.filter((id) => !byId.has(id));
-  return [...known, ...missing.map((id) => ({ id, name: 'Deleted label' }))];
+  const missing = ids.filter((id) => !byId.has(id));
+  return [...resolved, ...missing.map((id) => ({ id, name: missingName }))];
 }

@@ -252,6 +252,30 @@ const SHOTS = {
     await nav(p, 'Search');
     await p.waitForTimeout(1200);
   },
+  // The filter menu is behind a control and its sections are collapsed, so the
+  // plain `search` shot shows neither. An image with no generator goes stale
+  // unnoticed, which is why every screen the manual describes gets one.
+  searchFilters: async (p) => {
+    await nav(p, 'Search');
+    await p.getByRole('button', { name: 'Filters', exact: true }).click();
+    await p.getByRole('button', { name: /^Labels(:| \(|$)/ }).first().click();
+    await p.waitForTimeout(900);
+  },
+  // Naming a file happens between picking it and the upload starting, so it
+  // cannot be photographed from a card at rest.
+  attach: async (p) => {
+    await openBoard(p);
+    await p.getByText(CARD).first().click();
+    const chooser = p.waitForEvent('filechooser', { timeout: 30000 });
+    await p.getByRole('button', { name: 'Attach a file' }).click();
+    await (await chooser).setFiles({
+      name: 'Signed lease 2026.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n% manual fixture\n%%EOF\n'),
+    });
+    await p.getByPlaceholder('File name').waitFor({ timeout: 20000 });
+    await p.waitForTimeout(700);
+  },
   alerts: async (p) => {
     await nav(p, 'Alerts');
     await p.waitForTimeout(1500);
@@ -275,6 +299,20 @@ const SHOTS = {
     // a spinner, which is not what the manual is describing.
     await p.getByText('in this period', { exact: false }).first().waitFor({ timeout: 30000 });
     await p.waitForTimeout(1200);
+  },
+  // The breakdown only exists while a bar is SELECTED, so it needs its own
+  // shot. The seed can leave a quiet chart with nothing to tap, in which case
+  // this photographs the chart alone rather than failing the whole run.
+  statsDetail: async (p) => {
+    await nav(p, 'Boards');
+    await p.getByRole('button', { name: 'More' }).click();
+    await p.getByRole('button', { name: 'Stats' }).click();
+    await p.getByText('in this period', { exact: false }).first().waitFor({ timeout: 30000 });
+    const bar = p.getByLabel(/^[1-9]\d* cards created, /).first();
+    if (await bar.isVisible().catch(() => false)) {
+      await bar.click();
+      await p.waitForTimeout(1200);
+    }
   },
 };
 

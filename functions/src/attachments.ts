@@ -140,6 +140,11 @@ async function bumpAttachmentCount(cardId: string, by: number): Promise<void> {
   try {
     await db().doc(`cards/${cardId}`).update({
       attachmentCount: FieldValue.increment(by),
+      // Attaching or removing a file is activity on the card, and `updatedAt`
+      // never sees it — that field is client-written on a card EDIT, and
+      // neither of these edits a card field. See `lastActivityOf` in
+      // @sabeel/shared, and the same line in the comment trigger.
+      lastActivityAt: Date.now(),
     });
   } catch (e) {
     logger.debug('attachmentCount update skipped', { cardId, error: String(e) });

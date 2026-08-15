@@ -2,6 +2,7 @@
  * Cross-surface constants. Anything both the app and functions must agree on
  * lives here — never duplicated on either side.
  */
+import type { Priority } from './types';
 
 /**
  * The only domain permitted to sign in.
@@ -152,3 +153,24 @@ export const COLLECTIONS = {
 } as const;
 
 export type CollectionName = keyof typeof COLLECTIONS;
+
+/**
+ * Every priority, weakest first — the order they are offered in.
+ *
+ * `'none'` is one of the five VALUES, not the absence of one: a card always
+ * carries a priority, and "None" is a thing you can filter to. Listed here
+ * rather than in each screen because the card editor and the search filter must
+ * offer the same set in the same order, and two literals drift.
+ */
+export const PRIORITIES: readonly Priority[] = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'urgent',
+];
+
+/** A priority as a person reads it: `urgent` → `Urgent`. */
+export function priorityLabel(priority: Priority): string {
+  return priority[0].toUpperCase() + priority.slice(1);
+}

@@ -1320,13 +1320,53 @@ try {
    * select still comes back as a removable chip, which is what the rest of this
    * section drives.
    */
-  const pickInFilters = async (name) => {
+  /**
+   * A section header, and ONLY that section header.
+   *
+   * The name is not fixed: a header carries its own state, so `Board` becomes
+   * `Board: Fundraising 2026` and `Labels` becomes `Labels (2)` once something
+   * is picked. A bare `/^Board/` therefore looks right and is not — it also
+   * matches the **Boards nav tab** in the rail behind the modal, which is what
+   * `.first()` then clicked, and the backdrop swallowed it. Anchoring on what
+   * can legitimately FOLLOW the name is what separates them.
+   */
+  const sectionHeader = (name) => new RegExp(`^${name}(:| \\(|$)`);
+
+  /**
+   * Open Filters, expand a section, pick a row, close again.
+   *
+   * Three steps rather than one, and each is load-bearing. Sections are
+   * COLLAPSED on open — one expanded section is all that fits inside the
+   * sheet's bounded height on a phone — so the row is not in the DOM until the
+   * header is clicked. And the sheet now STAYS OPEN across picks, because
+   * multi-select otherwise means reopening it once per value; that leaves a
+   * full-screen modal over the chip row, so every assertion after this one
+   * would either time out or, worse, match the sheet's own row and pass while
+   * proving nothing.
+   */
+  const pickInFilters = async (section, name) => {
     await admin.getByRole('button', { name: 'Filters', exact: true }).click();
-    await admin.getByRole('button', { name, exact: true }).click();
+    await admin.getByRole('button', { name: sectionHeader(section) }).first().click();
+    // A string is matched exactly; a RegExp is for the priority chips, whose
+    // accessible name carries their on/off state and so cannot be fixed.
+    await admin
+      .getByRole('button', typeof name === 'string' ? { name, exact: true } : { name })
+      .first()
+      .click();
+    await admin.getByRole('button', { name: 'Done', exact: true }).click();
     await admin.waitForTimeout(700);
   };
+
+  /**
+   * A priority chip INSIDE the sheet.
+   *
+   * Its announced name is deliberately not just the word: the same word appears
+   * as the active-filter chip behind the sheet, and two controls answering to
+   * one name is ambiguous for a screen reader and for this locator alike.
+   */
+  const priorityChip = (word) => new RegExp(`^${word} priority filter,`);
   // `cross-board` is the one actually applied to a card, further up.
-  await pickInFilters('cross-board');
+  await pickInFilters('Labels', 'Filter by cross-board');
   await admin.waitForTimeout(800);
   const oneLabel = await resultCount();
   check(
@@ -1338,7 +1378,7 @@ try {
   // `urgent-fix` is on NO card, which is what makes this discriminating: under
   // "any" the result is unchanged, under "all" it would collapse to zero. This
   // is the check that fails if the semantics are ever flipped.
-  await pickInFilters('urgent-fix');
+  await pickInFilters('Labels', 'Filter by urgent-fix');
   await admin.waitForTimeout(300);
   const twoLabels = await resultCount();
   check(
@@ -1367,9 +1407,7 @@ try {
   // earlier attempt combined text + Urgent + board and matched nothing, so the
   // click had no card to find — a test that fails for a reason unrelated to the
   // thing it is testing.
-  await admin.getByRole('button', { name: 'Filters', exact: true }).click();
-  await admin.getByRole('button', { name: 'Fundraising 2026', exact: true }).click();
-  await admin.waitForTimeout(800);
+  await pickInFilters('Board', 'Filter to Fundraising 2026');
   check(
     'search can be filtered to a single board',
     await admin.getByRole('button', { name: 'Fundraising 2026' }).first().isVisible(),
@@ -1426,6 +1464,123 @@ try {
       .isVisible()
       .catch(() => false)),
   );
+
+  // ---- Priority is a MULTI-select now, and it counts 'None' ---------------
+  // It used to be two chips, Urgent and High, which turned each other off — so
+  // "the things that matter" could not be asked for at all.
+  {
+    /**
+     * Give two cards a priority FIRST.
+     *
+     * Every fixture card is `none` until something sets one, and against that
+     * data every assertion below is vacuously true: "urgent or high widens the
+     * result" holds trivially when both are zero, and "None narrows" cannot
+     * hold at all when None is everything. A discriminating test needs cards on
+     * both sides of the filter.
+     */
+    // Taken from what is actually on screen rather than hardcoded: by this point
+    // in the run cards have been renamed, archived and moved between boards, and
+    // a fixed title is a test that fails for a reason unrelated to its subject.
+    const visible = await admin
+      .locator('[data-testid^="card-"]')
+      .evaluateAll((els) =>
+        els.map((e) => (e.getAttribute('data-testid') ?? '').replace(/^card-/, '')),
+      );
+    const setPriority = async (title, priority) => {
+      await admin.locator(`[data-testid="card-${title}"]`).first().click();
+      await admin.getByRole('button', { name: 'Share card' }).waitFor({ timeout: 20000 });
+      await admin.getByRole('button', { name: `Priority ${priority}` }).click();
+      await admin.waitForTimeout(600);
+      await admin.getByRole('button', { name: 'Back' }).first().click();
+      // Search re-fetches on mount, so give it the round trip before counting.
+      await admin.waitForTimeout(1500);
+    };
+    await setPriority(visible[0], 'urgent');
+    await setPriority(visible[1], 'high');
+    const total = await resultCount();
+
+    await pickInFilters('Priority', priorityChip('Urgent'));
+    const urgent = await resultCount();
+    check('one priority narrows the results', urgent > 0 && urgent < total, `${urgent} of ${total}`);
+
+    await pickInFilters('Priority', priorityChip('High'));
+    const urgentOrHigh = await resultCount();
+    check(
+      'a second priority WIDENS the result rather than replacing the first',
+      urgentOrHigh > urgent && urgentOrHigh < total,
+      `${urgent} urgent, ${urgentOrHigh} urgent-or-high, ${total} in all`,
+    );
+    // Both picks read back as their own removable chip.
+    const chips = await admin.getByRole('button', { name: /^(Urgent|High) filter, on$/ }).count();
+    check('each chosen priority is its own chip', chips === 2, `${chips} chips`);
+
+    await admin.getByRole('button', { name: 'Clear all filters' }).click();
+    await admin.waitForTimeout(600);
+    // 'None' is a VALUE — cards with no priority set — not the absence of a
+    // filter, so it must narrow like any other, and must EXCLUDE the two cards
+    // just given one.
+    await pickInFilters('Priority', priorityChip('None'));
+    const none = await resultCount();
+    check(
+      'None narrows to cards with no priority',
+      none > 0 && none === total - urgentOrHigh,
+      `${none} with no priority, ${total} in all, ${urgentOrHigh} prioritised`,
+    );
+    await admin.getByRole('button', { name: 'Clear all filters' }).click();
+    await admin.waitForTimeout(600);
+  }
+
+  // ---- Assigned to --------------------------------------------------------
+  // The filter has existed in @sabeel/shared since Phase 11 and had no control.
+  // The people offered come from the BOARDS' member profiles, not `users/*`,
+  // which only admins may list.
+  {
+    await admin.getByRole('button', { name: 'Filters', exact: true }).click();
+    await admin.getByRole('button', { name: sectionHeader('Assigned to') }).first().click();
+    const anyone = await admin
+      .getByRole('button', { name: 'Filter to Anyone' })
+      .isVisible()
+      .catch(() => false);
+    check('the assignee section offers a way back to everyone', anyone);
+    // Narrowing the list by typing is what makes it usable on a big board.
+    await admin.getByPlaceholder('Filter people').fill('zzz-nobody');
+    const noMatch = await admin
+      .getByText('Nothing matches.')
+      .isVisible()
+      .catch(() => false);
+    check('typing narrows the people list, and says when nothing matches', noMatch);
+    await admin.getByRole('button', { name: 'Done', exact: true }).click();
+    await admin.waitForTimeout(400);
+  }
+
+  // ---- Sorting by last activity -------------------------------------------
+  // Newest and oldest must be exact reverses of each other over the same set.
+  {
+    const titles = async () => {
+      const ids = await admin.locator('[data-testid^="card-"]').evaluateAll((els) =>
+        els.map((e) => e.getAttribute('data-testid')),
+      );
+      return ids;
+    };
+    // On web `Select` is a real <select> (Select.web.tsx), so this is
+    // selectOption rather than two clicks — and its accessible name is the
+    // control's label, not the current value.
+    const sort = admin.getByLabel('Sort');
+    await sort.selectOption('newest');
+    await admin.waitForTimeout(700);
+    const newest = await titles();
+    await sort.selectOption('oldest');
+    await admin.waitForTimeout(700);
+    const oldest = await titles();
+    check(
+      'oldest-first is the exact reverse of newest-first',
+      newest.length > 1 && JSON.stringify(newest) === JSON.stringify([...oldest].reverse()),
+      `${newest.length} cards`,
+    );
+    // Back to the default, so nothing after this inherits an order.
+    await sort.selectOption('best');
+    await admin.waitForTimeout(500);
+  }
 
   // ---- The label set is not scoped to a board -----------------------------
   // The whole claim of global labels, and the only way to prove it is a board

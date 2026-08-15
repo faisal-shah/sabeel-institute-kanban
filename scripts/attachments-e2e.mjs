@@ -42,6 +42,32 @@ function grantAdmin(email) {
   });
 }
 
+/**
+ * Pick a file, then confirm the naming sheet.
+ *
+ * Every upload goes through that sheet now, and the reason is structural: the
+ * attachment DOCUMENT is the upload's authorization, and clients can never
+ * update it once written — so the gap between picking the file and creating the
+ * document is the only place a name can be chosen at all.
+ *
+ * `rename` types a new BASE name. The extension is deliberately not in the
+ * field, so a rename cannot make a file unopenable.
+ */
+async function attach(page, file, { rename } = {}) {
+  const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
+  await page.getByRole('button', { name: 'Attach a file' }).click();
+  // setFiles from memory, so this needs no fixture on disk.
+  await (await chooser).setFiles(file);
+  const field = page.getByPlaceholder('File name');
+  await field.waitFor({ timeout: 20000 });
+  if (rename !== undefined) await field.fill(rename);
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  // Wait for the sheet to GO. It covers the whole screen while open, so every
+  // later assertion would otherwise race a modal sitting over the row it looks
+  // for — and Playwright reports that as a timeout on the wrong element.
+  await field.waitFor({ state: 'detached', timeout: 20000 });
+}
+
 await mkdir(SHOTS, { recursive: true });
 const browser = await chromium.launch();
 let page;
@@ -88,16 +114,11 @@ try {
   check('the card detail offers an attach control', true);
 
   // ---- Upload -------------------------------------------------------------
-  {
-    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
-    await page.getByRole('button', { name: 'Attach a file' }).click();
-    // setFiles from memory, so this needs no fixture on disk.
-    await (await chooser).setFiles({
-      name: 'budget.pdf',
-      mimeType: 'application/pdf',
-      buffer: Buffer.from('%PDF-1.4\n% e2e fixture\n%%EOF\n'),
-    });
-  }
+  await attach(page, {
+    name: 'budget.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n% e2e fixture\n%%EOF\n'),
+  });
   // Reaching a ready row means the bytes landed AND finalizeAttachment
   // confirmed them — the size shown is the one the server read off the object.
   await page.getByText(/PDF ·/).waitFor({ timeout: 40000 });
@@ -123,18 +144,14 @@ try {
   // Chromium ships no PDF viewer, so navigating to one triggers a DOWNLOAD and
   // leaves the tab sitting at about:blank. The navigation had happened; the
   // assertion was reading a browser limitation as a broken feature.
-  {
-    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
-    await page.getByRole('button', { name: 'Attach a file' }).click();
-    await (await chooser).setFiles({
-      name: 'diagram.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-        'base64',
-      ),
-    });
-  }
+  await attach(page, {
+    name: 'diagram.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+    ),
+  });
   await page.getByText(/PNG ·/).waitFor({ timeout: 40000 });
 
   {
@@ -229,15 +246,11 @@ try {
     await new Promise((res) => setTimeout(res, 6000));
     await r.continue();
   });
-  {
-    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
-    await page.getByRole('button', { name: 'Attach a file' }).click();
-    await (await chooser).setFiles({
-      name: 'slow.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from('watch the bar'),
-    });
-  }
+  await attach(page, {
+    name: 'slow.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('watch the bar'),
+  });
   // Wait for "Finishing…" specifically — that is fraction 1, i.e. a FULL bar.
   // "Preparing…" is fraction null and paints an empty track, which would prove
   // only that the track exists, not that the fill is visible. The fill is the
@@ -257,15 +270,11 @@ try {
   // instead — bytes land, finalize never does — which is a real failure mode
   // (bytes in Storage, no usable record) and fails fast.
   await page.route('**/finalizeAttachment', (r) => r.abort());
-  {
-    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
-    await page.getByRole('button', { name: 'Attach a file' }).click();
-    await (await chooser).setFiles({
-      name: 'doomed.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from('this upload never gets confirmed'),
-    });
-  }
+  await attach(page, {
+    name: 'doomed.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('this upload never gets confirmed'),
+  });
   await page.waitForTimeout(8000);
   await page.unroute('**/finalizeAttachment');
   // The client rolls back through deleteAttachment, so the half-made row must
@@ -279,25 +288,73 @@ try {
     await page.getByText(/PDF ·/).isVisible().catch(() => false),
   );
 
+  // ---- Renaming before the upload -----------------------------------------
+  // The rename must reach everything the name reaches: the row, the kind badge
+  // (which is read off the extension), and the ACTIVITY entry, which is written
+  // server-side from the stored document rather than from anything the client
+  // says at the time.
+  {
+    await attach(
+      page,
+      {
+        name: 'DSC_00184.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      },
+      { rename: 'Signed lease' },
+    );
+    check(
+      'a renamed file lands under its new name',
+      await page
+        .getByText('Signed lease.png')
+        .waitFor({ timeout: 40000 })
+        .then(() => true)
+        .catch(() => false),
+    );
+    check(
+      'the original name is gone from the row',
+      !(await page.getByText('DSC_00184').isVisible().catch(() => false)),
+    );
+    check(
+      'and the activity log records the new name',
+      await page
+        .getByText(/attached Signed lease\.png/)
+        .waitFor({ timeout: 20000 })
+        .then(() => true)
+        .catch(() => false),
+    );
+    // The extension is not editable, so it survives — which is what keeps the
+    // file openable: Android's ACTION_VIEW and the share sheet read it.
+    check(
+      'the extension is kept, so the kind badge still reads PNG',
+      await page.getByText(/PNG ·/).first().isVisible().catch(() => false),
+    );
+  }
+
   // ---- A filename the rules would refuse ----------------------------------
   // 300 characters plus a quote. The rules cap the name, so without the client
   // sanitising first this fails with a raw permission-denied on an ordinary
   // attachment; and because the server sanitises anyway, an unsanitised row
   // would visibly RENAME itself the instant the upload finished.
+  //
+  // Typed THROUGH the rename field, which is why this case is kept rather than
+  // replaced: the field is a NEW way for a hostile name to reach the document,
+  // and it has to be cleaned by the same code the picker's own name goes
+  // through. `joinAttachmentName` is that code.
   {
-    const nasty = `${'x'.repeat(300)}"quote.txt`;
-    const chooser = page.waitForEvent('filechooser', { timeout: 20000 });
-    await page.getByRole('button', { name: 'Attach a file' }).click();
-    await (await chooser).setFiles({
-      name: nasty,
-      mimeType: 'text/plain',
-      buffer: Buffer.from('long name'),
-    });
+    await attach(
+      page,
+      { name: 'plain.txt', mimeType: 'text/plain', buffer: Buffer.from('long name') },
+      { rename: `${'x'.repeat(300)}"quote` },
+    );
     await page.getByText(/TXT ·/).waitFor({ timeout: 40000 });
-    check('an over-long, quote-bearing filename still uploads', true);
+    check('an over-long, quote-bearing filename typed into the field still uploads', true);
     check(
       'and it is not left holding a quote',
-      !(await page.getByText(/"quote\.txt/).isVisible().catch(() => false)),
+      !(await page.getByText(/"quote/).isVisible().catch(() => false)),
     );
   }
 

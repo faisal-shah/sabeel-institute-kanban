@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  actorsBetween,
   aggregate,
   bucketStart,
   monthKeysBetween,
@@ -7,6 +8,7 @@ import {
   startOfMonth,
   startOfWeek,
   toDailySeries,
+  valueBetween,
   STATS_METRICS,
 } from '../src/stats';
 import type { StatsMonthDoc } from '../src/types';
@@ -240,5 +242,47 @@ describe('STATS_METRICS', () => {
       'filesAdded',
       'filesRemoved',
     ]);
+  });
+});
+
+describe('actorsBetween / valueBetween', () => {
+  const series = toDailySeries(months, '2026-07-26', '2026-08-01');
+
+  it('names the people active in a range, deduped and sorted', () => {
+    // Ann worked on the 26th and the 28th; she is one person, not two.
+    expect(actorsBetween(series, '2026-07-26', '2026-08-01')).toEqual(['ann', 'bo']);
+    expect(actorsBetween(series, '2026-07-26', '2026-07-26')).toEqual(['ann']);
+  });
+
+  it('is inclusive at both ends and excludes days outside the range', () => {
+    expect(actorsBetween(series, '2026-07-27', '2026-07-28')).toEqual(['ann', 'bo']);
+    expect(actorsBetween(series, '2026-07-29', '2026-08-01')).toEqual([]);
+  });
+
+  it('sums a counter and unions active people', () => {
+    expect(valueBetween(series, '2026-07-26', '2026-08-01', 'cardsCreated')).toBe(5);
+    expect(valueBetween(series, '2026-07-26', '2026-08-01', 'comments')).toBe(1);
+    // NOT 3 — the same person on two days is one active person.
+    expect(valueBetween(series, '2026-07-26', '2026-08-01', 'activePeople')).toBe(2);
+  });
+
+  it('returns zero for a range whose days are all absent', () => {
+    expect(valueBetween(series, '2026-07-29', '2026-08-01', 'cardsCreated')).toBe(0);
+    expect(valueBetween(series, '2026-07-29', '2026-08-01', 'activePeople')).toBe(0);
+    expect(valueBetween([], '2026-07-26', '2026-08-01', 'comments')).toBe(0);
+  });
+
+  /**
+   * The property the board breakdown rests on: a bucket's rows are computed by
+   * this function over the bucket's own range, so they must agree with the bar
+   * the chart drew for it — including a WEEK that spans two month documents.
+   */
+  it('agrees with aggregate over each bucket, across a month boundary', () => {
+    const wide = toDailySeries(months, '2026-07-20', '2026-08-05');
+    for (const metric of ['cardsCreated', 'comments', 'activePeople'] as const) {
+      for (const point of aggregate(wide, 'week', metric)) {
+        expect(valueBetween(wide, point.start, point.end, metric)).toBe(point.value);
+      }
+    }
   });
 });

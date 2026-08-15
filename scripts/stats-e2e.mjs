@@ -65,7 +65,26 @@ const today = new Intl.DateTimeFormat('en-CA', {
 }).format(new Date());
 
 const PEOPLE = ['ann', 'bo', 'cy', 'di', 'ed'];
+/** Everyone but `ed`, who exists only in the history — see the boards seed. */
+const NAMED = PEOPLE.slice(0, 4);
+/**
+ * Boards to split the org-wide numbers across.
+ *
+ * The suite used to seed the `_all` scope ALONE, which was enough while the
+ * screen only drew a chart and is not enough now: every bar drills down to a
+ * per-board breakdown, and with no board scopes seeded that breakdown is
+ * correctly empty — so the assertion would have been vacuous rather than
+ * failing. Real boards are created too, because the breakdown resolves names
+ * from board documents and navigates to them.
+ */
+const BOARDS = [
+  { id: 'stats_b1', name: 'Fundraising 2026', share: 0.5 },
+  { id: 'stats_b2', name: 'Operations', share: 0.3 },
+  { id: 'stats_b3', name: 'Outreach', share: 0.2 },
+];
 const months = new Map();
+/** Per-board month buckets, keyed `boardId`. */
+const boardMonths = new Map(BOARDS.map((b) => [b.id, new Map()]));
 let seededCards = 0;
 
 // A year back, with weekends quiet and one deliberate import-sized spike, so the
@@ -85,19 +104,85 @@ for (let i = 364; i >= 0; i--) {
   const key = day.slice(0, 7);
   const dd = day.slice(8, 10);
   if (!months.has(key)) months.set(key, {});
+  const archivedCount = Math.round(busy * 4);
+  const comments = Math.round(busy * 12);
+  const actors = PEOPLE.slice(0, 1 + Math.floor(busy * 4));
   months.get(key)[dd] = {
     cardsCreated: created,
-    cardsArchived: Math.round(busy * 4),
-    comments: Math.round(busy * 12),
+    cardsArchived: archivedCount,
+    comments,
     filesAdded: busy > 0.8 ? 1 : 0,
     filesRemoved: busy > 0.95 ? 1 : 0,
-    actors: PEOPLE.slice(0, 1 + Math.floor(busy * 4)),
+    actors,
   };
   seededCards += created;
+
+  /**
+   * The same day, split across the boards — and split EXACTLY, with the
+   * remainder going to the first board.
+   *
+   * The real triggers write both scopes from one event, so the per-board
+   * numbers sum to the org-wide one by construction. A fixture that only
+   * approximated that would make the breakdown's own "boards not listed"
+   * residual fire on every bar and prove nothing about the code.
+   */
+  let leftCreated = created;
+  let leftArchived = archivedCount;
+  let leftComments = comments;
+  BOARDS.forEach((b, idx) => {
+    const last = idx === BOARDS.length - 1;
+    const take = (total, left) => (last ? left : Math.min(left, Math.floor(total * b.share)));
+    const c = take(created, leftCreated);
+    const a = take(archivedCount, leftArchived);
+    const m = take(comments, leftComments);
+    leftCreated -= c;
+    leftArchived -= a;
+    leftComments -= m;
+    const bm = boardMonths.get(b.id);
+    if (!bm.has(key)) bm.set(key, {});
+    bm.get(key)[dd] = {
+      cardsCreated: c,
+      cardsArchived: a,
+      comments: m,
+      // Everyone active org-wide was active on the first board, so the union
+      // over boards still matches the org-wide set.
+      actors: idx === 0 ? actors : [],
+    };
+  });
 }
 
 for (const [month, days] of months) {
   await db.doc(`stats/_all/months/${month}`).set({ scope: '_all', month, days });
+}
+for (const b of BOARDS) {
+  for (const [month, days] of boardMonths.get(b.id)) {
+    await db.doc(`stats/${b.id}/months/${month}`).set({ scope: b.id, month, days });
+  }
+  // A real board document, so the breakdown can name it and navigate to it —
+  // and with member PROFILES, because that is the only place uid -> name comes
+  // from: only admins may list `users/*`, and Stats is open to managers.
+  //
+  // `ed` is deliberately left OUT of every board. Someone who acted and was
+  // later removed stays in the history for good, and a manager can act on a
+  // board they were never a member of, so the unresolvable case is ordinary
+  // rather than exotic and the fallback has to be exercised.
+  await db.doc(`boards/${b.id}`).set({
+    name: b.name,
+    description: '',
+    archived: false,
+    columns: [{ id: 'c1', name: 'To Do' }],
+    columnIds: ['c1'],
+    memberUids: NAMED,
+    memberProfiles: Object.fromEntries(
+      NAMED.map((uid) => [
+        uid,
+        { displayName: uid.toUpperCase(), email: `${uid}@oursabeel.com` },
+      ]),
+    ),
+    activeCardCount: 0,
+    createdAt: 1,
+    createdBy: 'seed',
+  });
 }
 await db.doc('stats/_all').set({ bytesStored: 3111887, filesStored: 4 }, { merge: true });
 console.log(`  seeded ${months.size} month documents, ${seededCards} cards created`);
@@ -306,6 +391,119 @@ try {
     'tapping a bar reads it out',
     await page.getByText(/^\d+ cards created · /).first().isVisible().catch(() => false),
   );
+
+  // ---- The breakdown under a selected bar ---------------------------------
+  // Only present WHILE a bar is selected: with nothing selected the same panel
+  // would have to cover the whole loaded year, which is a different question.
+  {
+    const boardRow = page.getByRole('button', { name: /^Open Fundraising 2026, \d+$/ });
+    check(
+      'a selected bar breaks down into boards',
+      await boardRow.first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false),
+    );
+
+    // Biggest first. Fundraising takes the largest share in the fixture, so it
+    // must lead — an unsorted list would put whichever read resolved first.
+    const rows = await page
+      .getByRole('button', { name: /^Open .+, \d+$/ })
+      .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+    const values = rows.map((r) => Number(r.match(/, (\d+)$/)?.[1] ?? 0));
+    check(
+      'boards are ranked biggest first',
+      values.length > 1 && values.every((v, i) => i === 0 || values[i - 1] >= v),
+      rows.join(' | '),
+    );
+
+    // The rows must ADD UP to the bar. The real triggers write the per-board
+    // and all-boards counters from one event, so a shortfall would mean the
+    // breakdown was reading something else — and the panel's own residual row
+    // would appear.
+    // The panel's own heading says what the LIST is ("By board · …"), not what
+    // the bar was, so this matches the readout above the chart and nothing else.
+    const readout = (await page.getByText(/^\d+ cards created · /).first().textContent()) ?? '';
+    const barValue = Number(readout.match(/^(\d+)/)?.[1] ?? -1);
+    const summed = values.reduce((a, b) => a + b, 0);
+    check(
+      'the board rows add up to the bar above them',
+      barValue > 0 && summed === barValue,
+      `${summed} of ${barValue}`,
+    );
+    check(
+      'so nothing is reported as unattributed',
+      !(await page.getByText('Boards not listed').isVisible().catch(() => false)),
+    );
+
+    /**
+     * The bar in the month that is STILL RUNNING.
+     *
+     * Its own case, because the current month is the one the cache refuses to
+     * store — the chart is live so today's bar moves, and a frozen breakdown
+     * under a moving bar would be the worst kind of wrong. A first version of
+     * that rule read its result back out of the cache it had just declined to
+     * write, so every breakdown of a current-month bar came back empty while
+     * looking perfectly plausible. Only the panel's unattributed row said
+     * otherwise.
+     */
+    await page.getByRole('radio', { name: 'Monthly' }).click();
+    await page.waitForTimeout(500);
+    const thisMonth = page.getByLabel(/^[1-9]\d* cards created, .*still in progress$/).first();
+    if (await thisMonth.isVisible().catch(() => false)) {
+      await thisMonth.click();
+      await page.waitForTimeout(1200);
+      const liveRows = await page
+        .getByRole('button', { name: /^Open .+, \d+$/ })
+        .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+      const liveValues = liveRows.map((r) => Number(r.match(/, (\d+)$/)?.[1] ?? 0));
+      const liveReadout =
+        (await page.getByText(/^\d+ cards created · /).first().textContent()) ?? '';
+      const liveBar = Number(liveReadout.match(/^(\d+)/)?.[1] ?? -1);
+      check(
+        'the month in progress breaks down too, and still adds up',
+        liveBar > 0 && liveValues.reduce((a, b) => a + b, 0) === liveBar,
+        `${liveValues.reduce((a, b) => a + b, 0)} of ${liveBar}`,
+      );
+    }
+    await page.getByRole('radio', { name: 'Daily' }).click();
+    await page.waitForTimeout(500);
+
+    // Active people answers WHO, from uids already in hand — no read at all.
+    await page.getByRole('button', { name: 'Active people filter, off' }).click();
+    await page.waitForTimeout(400);
+    check(
+      'switching metric clears the selection rather than describing a bar that is gone',
+      !(await page
+        .getByRole('button', { name: /^Open .+, \d+$/ })
+        .first()
+        .isVisible()
+        .catch(() => false)),
+    );
+    await page.getByLabel(/^[1-9]\d* people active, /).first().click();
+    await page.waitForTimeout(400);
+    check(
+      'active people names the people, not a count',
+      await page
+        .getByText('ANN')
+        .first()
+        .waitFor({ timeout: 20000 })
+        .then(() => true)
+        .catch(() => false),
+    );
+    // The names come from board member profiles, and that misses routinely:
+    // anyone removed from a board stays in its history, and a manager can act
+    // on a board they were never a member of. A uid is never shown raw.
+    check(
+      'a uid with no profile falls back to words rather than an id',
+      !(await page.getByText('ed', { exact: true }).isVisible().catch(() => false)),
+    );
+
+    await page.screenshot({ path: join(SHOTS, 'stats-drilldown.png'), fullPage: true });
+  }
+
+  // A phone width, where the panel is furthest below the fold and most likely
+  // to be the thing nobody sees.
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: join(SHOTS, 'stats-drilldown-320.png'), fullPage: true });
 
   await ctx.close();
 } finally {

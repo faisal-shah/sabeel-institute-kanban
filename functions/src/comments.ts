@@ -34,7 +34,20 @@ export const onCommentWritten = onDocumentWritten(
     const cardRef = getFirestore().doc(`cards/${cardId}`);
 
     try {
-      await cardRef.update({ commentCount: FieldValue.increment(created ? 1 : -1) });
+      await cardRef.update({
+        commentCount: FieldValue.increment(created ? 1 : -1),
+        // A comment IS activity on the card, and `updatedAt` never sees it —
+        // that field is written by the client on a card EDIT, and posting a
+        // comment edits no field of the card. Without this, Search's
+        // newest-first order would leave a card with ten new comments exactly
+        // where it was. See `lastActivityOf` in @sabeel/shared.
+        //
+        // Deliberately on a deletion too: the conversation changed either way,
+        // and unlike the `comments` counter below there is nothing to
+        // double-count. What it does NOT see is an EDIT to a comment, which
+        // returns above before reaching here.
+        lastActivityAt: Date.now(),
+      });
     } catch (e) {
       // The card may have been deleted along with its comments, in which case
       // there is nothing to keep in step and this is not an error worth alerting on.

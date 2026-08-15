@@ -421,7 +421,7 @@ const smallTargets = (page) =>
   ]);
 
 // ---- The tour --------------------------------------------------------------
-const SCREENS = 15;
+const SCREENS = 17;
 
 async function tour(page, tag, width) {
   /**
@@ -486,10 +486,43 @@ async function tour(page, tag, width) {
       `activeElement placeholder = ${focused}`,
     );
   }
+  /**
+   * The Filters sheet, OPEN with a section expanded.
+   *
+   * A structural check cannot see a dialog that is never opened, and this one
+   * is the shape most likely to break narrow: an accordion, a narrowing field
+   * and a capped scrolling list, all inside a modal bounded to 80% of the
+   * viewport. At 320x568 that leaves room for exactly one open section, which
+   * is why it is an accordion rather than four independent collapsibles — and
+   * this is the check that would catch it if that stopped being true.
+   */
+  await visit('search-filters', async () => {
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await page.getByRole('button', { name: /^Labels(:| \(|$)/ }).first().click();
+  });
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.waitForTimeout(400);
+
   await visit('alerts', () => nav('Alerts'));
   await visit('stats', async () => {
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('button', { name: 'Stats' }).click();
+  });
+  /**
+   * Stats with a bar SELECTED, which is the only state the breakdown exists in.
+   *
+   * On a phone the chart already reaches the fold, so the panel this appends
+   * lands entirely off-screen — the one failure mode reading the code cannot
+   * show, and the reason the screen scrolls it into view. The seed may leave a
+   * quiet chart with no bar to tap, so this falls back to the plain stats
+   * screen rather than failing for a reason that is not about layout.
+   */
+  await visit('stats-detail', async () => {
+    const bar = page.getByLabel(/^[1-9]\d* cards created, /).first();
+    if (await bar.isVisible().catch(() => false)) {
+      await bar.click();
+      await page.waitForTimeout(500);
+    }
   });
   await visit('people', async () => {
     await nav('Boards');

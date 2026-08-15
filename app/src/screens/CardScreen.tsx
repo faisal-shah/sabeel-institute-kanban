@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { readableInkOn, todayInOrgTz, type Priority } from '@sabeel/shared';
+import { PRIORITIES, priorityLabel, readableInkOn, todayInOrgTz } from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -48,8 +48,6 @@ import {
 } from '../components/ui';
 import { radius, space, type, useTheme } from '../theme';
 import { useAction } from '../useAction';
-
-const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
 /** Stable empty, so Subtasks' memos don't churn while the board loads. */
 const NO_CARDS: Card[] = [];
@@ -386,7 +384,7 @@ export function CardScreen({
         <Row style={styles.wrap}>
           {PRIORITIES.map((p) => {
             const selected = c.priority === p;
-            const label = p[0].toUpperCase() + p.slice(1);
+            const label = priorityLabel(p);
             // Selected looks like the card-face badge: filled color + readable ink.
             // `none` has no badge color, so it fills a neutral chip. Unselected is
             // an outline tinted with the priority color as a hint.

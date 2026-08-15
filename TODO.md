@@ -346,7 +346,7 @@ Two things worth reusing next time:
 4. **Bump `expo.ios.buildNumber` before every re-upload.** Apple requires it to
    increase even for the same version; unlike Android's versionCode it does not
    derive itself. Shipped so far: **v0.7.7 build 1**, **v0.7.8 build 2** (both
-   2026-08-13). It is `3` now, which the next upload will take — bump again
+   2026-08-13). It is `4` now, which the v0.8.0 upload will take — bump again
    before the one after that. The number need only rise *within* a version, so
    carrying it across versions is simply the cheapest way never to collide.
 5. **First thing on a real device: confirm a push arrives.** The only proof the

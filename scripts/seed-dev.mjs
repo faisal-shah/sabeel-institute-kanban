@@ -231,6 +231,12 @@ try {
     mimeType: 'application/pdf',
     buffer: Buffer.from('%PDF-1.4\n% seeded for the manual\n%%EOF\n'),
   });
+  // Picking a file opens the naming sheet — the document is the upload's
+  // authorization and cannot be updated afterwards, so the name is chosen here
+  // or not at all. Accept what the picker gave.
+  const nameField = admin.getByPlaceholder('File name');
+  await nameField.waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: 'Upload', exact: true }).click();
   await admin.getByText(/PDF ·/).waitFor({ timeout: 40000 });
   await admin.getByRole('button', { name: 'Back' }).first().click();
   await admin.getByText('To Do').first().waitFor({ timeout: 25000 });

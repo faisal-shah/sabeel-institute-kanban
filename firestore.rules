@@ -316,7 +316,7 @@ service cloud.firestore {
             'subscriberUids',
             'dueDate', 'priority', 'labelIds', 'archived', 'archivedAt',
             'commentCount', 'attachmentCount', 'parentId', 'createdAt',
-            'createdBy', 'updatedAt', 'updatedBy', 'sourceId',
+            'createdBy', 'updatedAt', 'updatedBy', 'lastActivityAt', 'sourceId',
           ])
           && newCard().boardId is string
           && newCard().title is string
@@ -372,7 +372,11 @@ service cloud.firestore {
         && newCard().archived == false
         // A card is born with no files. `.get(…, 0)` so omitting the field is
         // also fine — what is refused is a client CLAIMING a count.
-        && newCard().get('attachmentCount', 0) == 0;
+        && newCard().get('attachmentCount', 0) == 0
+        // Nor any activity yet. Trigger-owned, like the count above: a client
+        // that could set it could pin its own card to the top of Search's
+        // newest-first order forever.
+        && newCard().get('lastActivityAt', 0) == 0;
 
       // Edit AND move. A move mutates `boardId`; require membership of BOTH the
       // board the card is on now and the destination, validating column and
@@ -389,7 +393,13 @@ service cloud.firestore {
         // callables move it, so a client edit must carry it through unchanged.
         // `.get(…, 0)` on BOTH sides is load-bearing — every card written before
         // this field existed would otherwise become permanently uneditable.
-        && newCard().get('attachmentCount', 0) == oldCard().get('attachmentCount', 0);
+        && newCard().get('attachmentCount', 0) == oldCard().get('attachmentCount', 0)
+        // Same shape, same reason: the comment and attachment triggers own
+        // `lastActivityAt`, so a client edit carries it through unchanged. Rules
+        // do not apply to Admin SDK writes, which is why the triggers can move
+        // it while nothing else can. `.get(…, 0)` on BOTH sides keeps every card
+        // written before the field existed editable.
+        && newCard().get('lastActivityAt', 0) == oldCard().get('lastActivityAt', 0);
 
       // Members archive (an update setting archived=true); permanent deletion is
       // managers/admins only. A move is an update, so it is NOT gated here.

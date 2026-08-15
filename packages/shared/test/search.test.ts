@@ -3,6 +3,8 @@ import {
   filterCards,
   hasActiveFilters,
   matchesText,
+  lastActivityOf,
+  orderCards,
   rankMatches,
   type SearchableCard,
 } from '../src/search';
@@ -69,7 +71,7 @@ describe('filterCards', () => {
       card({ id: 'z', boardId: 'b1', title: 'Budget', priority: 'high' }),
     ];
     expect(
-      filterCards(mixed, { boardId: 'b2', text: 'budget', priority: 'high' }, TODAY).map(
+      filterCards(mixed, { boardId: 'b2', text: 'budget', priorities: ['high'] }, TODAY).map(
         (c) => c.id,
       ),
     ).toEqual(['x']);
@@ -134,9 +136,34 @@ describe('filterCards', () => {
   });
 
   it('filters by priority', () => {
-    expect(filterCards(cards, { priority: 'high' }, TODAY).map((c) => c.id)).toEqual([
+    expect(filterCards(cards, { priorities: ['high'] }, TODAY).map((c) => c.id)).toEqual([
       'a',
     ]);
+  });
+
+  /** ANY, like labels — "urgent or high" was impossible while it was one value. */
+  it('matches ANY of several priorities', () => {
+    const mixed = [
+      card({ id: 'u', title: 'U', priority: 'urgent' }),
+      card({ id: 'h', title: 'H', priority: 'high' }),
+      card({ id: 'm', title: 'M', priority: 'medium' }),
+    ];
+    expect(
+      filterCards(mixed, { priorities: ['urgent', 'high'] }, TODAY).map((c) => c.id),
+    ).toEqual(['u', 'h']);
+  });
+
+  /** `'none'` is a VALUE, not the absence of a filter. */
+  it('can filter to cards with no priority set', () => {
+    expect(filterCards(cards, { priorities: ['none'] }, TODAY).map((c) => c.id)).toEqual([
+      'b',
+      'c',
+      'e',
+    ]);
+  });
+
+  it('an empty priority list filters nothing', () => {
+    expect(filterCards(cards, { priorities: [] }, TODAY)).toHaveLength(4);
   });
 
   it('filters overdue', () => {
@@ -155,10 +182,10 @@ describe('filterCards', () => {
 
   it('combines filters', () => {
     expect(
-      filterCards(cards, { text: 'alpha', priority: 'high' }, TODAY).map((c) => c.id),
+      filterCards(cards, { text: 'alpha', priorities: ['high'] }, TODAY).map((c) => c.id),
     ).toEqual(['a']);
     expect(
-      filterCards(cards, { text: 'alpha', priority: 'low' }, TODAY),
+      filterCards(cards, { text: 'alpha', priorities: ['low'] }, TODAY),
     ).toHaveLength(0);
   });
 
@@ -171,9 +198,12 @@ describe('hasActiveFilters', () => {
   it('is false for an empty filter set', () => {
     expect(hasActiveFilters({})).toBe(false);
     expect(hasActiveFilters({ text: '   ', due: 'any' })).toBe(false);
-    // An EMPTY label list is not a filter — otherwise clearing the last chip
-    // would leave the screen insisting something is still narrowing.
+    // An EMPTY list is not a filter — otherwise clearing the last chip would
+    // leave the screen insisting something is still narrowing. `Boolean([])` is
+    // `true`, so this is the trap a truthiness test walks straight into, for
+    // BOTH array facets.
     expect(hasActiveFilters({ labelIds: [] })).toBe(false);
+    expect(hasActiveFilters({ priorities: [] })).toBe(false);
   });
 
   it('is true when anything narrows', () => {
@@ -182,6 +212,9 @@ describe('hasActiveFilters', () => {
     expect(hasActiveFilters({ due: 'overdue' })).toBe(true);
     expect(hasActiveFilters({ archivedOnly: true })).toBe(true);
     expect(hasActiveFilters({ labelIds: ['l1'] })).toBe(true);
+    expect(hasActiveFilters({ priorities: ['urgent'] })).toBe(true);
+    // `'none'` narrows to cards with no priority — a real filter, not an absent one.
+    expect(hasActiveFilters({ priorities: ['none'] })).toBe(true);
   });
 });
 
@@ -217,5 +250,77 @@ describe('rankMatches', () => {
   it('leaves order alone for an empty query', () => {
     const cards = [card({ id: 'x' }), card({ id: 'y' })];
     expect(rankMatches(cards, '').map((c) => c.id)).toEqual(['x', 'y']);
+  });
+});
+
+describe('lastActivityOf', () => {
+  it('takes the latest of the three, not a preference order', () => {
+    // A card edited AFTER its last comment must sort by the edit. A preference
+    // order that read `lastActivityAt` first would file it under the comment.
+    expect(lastActivityOf(card({ lastActivityAt: 100, updatedAt: 500, createdAt: 1 }))).toBe(500);
+    expect(lastActivityOf(card({ lastActivityAt: 900, updatedAt: 500, createdAt: 1 }))).toBe(900);
+  });
+
+  /**
+   * The floor is what stops an old card reading as epoch zero — which pins it to
+   * the bottom of "Newest" and, worse, to the TOP of "Oldest", where it looks
+   * like an answer rather than a card with no timestamps.
+   */
+  it('falls back to createdAt when neither timestamp exists', () => {
+    expect(lastActivityOf(card({ createdAt: 42 }))).toBe(42);
+    expect(lastActivityOf(card())).toBe(0);
+  });
+});
+
+describe('orderCards', () => {
+  const cards = [
+    card({ id: 'mid', title: 'Mid signup', createdAt: 200 }),
+    card({ id: 'new', title: 'New signup', createdAt: 1, lastActivityAt: 300 }),
+    card({ id: 'old', title: 'Old signup', createdAt: 1, updatedAt: 100 }),
+  ];
+
+  it('newest first puts the most recent activity at the top', () => {
+    expect(orderCards(cards, 'newest', '').map((c) => c.id)).toEqual(['new', 'mid', 'old']);
+  });
+
+  it('oldest first is the exact reverse', () => {
+    expect(orderCards(cards, 'oldest', '').map((c) => c.id)).toEqual(['old', 'mid', 'new']);
+  });
+
+  /**
+   * With an empty box `best` IS `newest` — correct, not a duplicate option. The
+   * two diverge only when there is a query, which is the only state in which
+   * relevance exists.
+   */
+  it('best matches newest while the box is empty', () => {
+    expect(orderCards(cards, 'best', '  ').map((c) => c.id)).toEqual(
+      orderCards(cards, 'newest', '').map((c) => c.id),
+    );
+  });
+
+  it('best ranks by relevance once there is a query', () => {
+    const byTitle = [
+      card({ id: 'desc', title: 'Zebra', description: 'about signup', createdAt: 900 }),
+      card({ id: 'prefix', title: 'signup broken', createdAt: 1 }),
+    ];
+    // Relevance wins over recency: the newest card is the description-only match.
+    expect(orderCards(byTitle, 'best', 'signup').map((c) => c.id)).toEqual(['prefix', 'desc']);
+    // And a chosen date order overrides relevance rather than being ignored.
+    expect(orderCards(byTitle, 'newest', 'signup').map((c) => c.id)).toEqual(['desc', 'prefix']);
+  });
+
+  it('breaks ties by title so the order does not reshuffle between renders', () => {
+    const tied = [
+      card({ id: 'b', title: 'Beta', createdAt: 5 }),
+      card({ id: 'a', title: 'Alpha', createdAt: 5 }),
+    ];
+    expect(orderCards(tied, 'newest', '').map((c) => c.id)).toEqual(['a', 'b']);
+    expect(orderCards(tied, 'oldest', '').map((c) => c.id)).toEqual(['a', 'b']);
+  });
+
+  it('does not mutate its input', () => {
+    const before = cards.map((c) => c.id);
+    orderCards(cards, 'oldest', '');
+    expect(cards.map((c) => c.id)).toEqual(before);
   });
 });

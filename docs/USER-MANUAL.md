@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.7.5 · August 2026*
+*For app version 0.8.0 · August 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -214,6 +214,24 @@ Tap the **paperclip** beside the *Attachments* heading.
 from: **Choose a file**, **Photo library**, or **Take a photo** — so a receipt or
 a whiteboard can go straight onto the card without saving it anywhere first.
 
+<div class="pair">
+  <figure><img class="wide" src="manual/img/attach-wide.png" alt="Naming a file before it uploads"><figcaption>Naming a file before it uploads</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/attach-phone.png" alt="Naming a file before it uploads, on a phone"><figcaption>On a phone</figcaption></figure>
+</div>
+
+**Then you get to name it.** Before the upload starts, a box shows the file's
+name, size and kind. Change the name if you want to — `IMG_20260815_113244`
+means nothing to anyone next week, `Signed lease` does — and press **Upload**.
+Leave it alone and press Upload to keep the name it came with.
+
+The bit after the dot (`.pdf`, `.png`) isn't editable, and that's deliberate:
+it's how your phone or computer knows what to open the file with. If the file is
+over 10 MB the box says so and won't let you upload it, rather than letting you
+wait and then failing.
+
+You can only name a file at this point — **not afterwards**. If you get it
+wrong, remove the file and attach it again.
+
 - **Up to 10 MB per file**, any type, as many as you like on one card.
 - Each file shows its **name, kind and size**. Tap it to **open it** — a PDF in
   your PDF reader, a photo in your gallery, everything else in whatever app you
@@ -332,25 +350,58 @@ you can browse and filter without it covering half the results. Typing narrows b
 title and description; it matches whole words and parts of words, but not
 misspellings.
 
-Above the results are **filter chips**. The first row is one tap each:
+Above the results are **filter chips**. The first row is one tap each, plus the
+sort control:
 
 - **Archived** — shows **only** archived cards, and hides the live ones. This is
   the other way to find something you archived, alongside a board's own archive.
 - **Overdue** — only cards past their due date.
-- **Urgent** / **High** — only cards at that priority.
+- **Sort** — see below.
 
-The second row starts with **Filters**, which opens a panel holding the two
-filters that are *lists* rather than switches:
+<div class="pair">
+  <figure><img class="wide" src="manual/img/searchFilters-wide.png" alt="The Filters panel in a browser"><figcaption>The Filters panel</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/searchFilters-phone.png" alt="The Filters panel on a phone"><figcaption>On a phone</figcaption></figure>
+</div>
 
+The second row starts with **Filters**, which opens a panel holding everything
+that is a *list of choices* rather than a switch. The sections start closed; tap
+one to open it, and it closes whatever was open before — so the panel stays
+readable on a phone. Each heading tells you what it is doing without being
+opened (`Board: Fundraising 2026`, `Labels (2)`):
+
+- **Priority** — pick any number of them: **Urgent**, **High**, **Medium**,
+  **Low** and **None**. Picking two gives you cards at either. **None** means
+  cards with no priority set — it is a choice, not "no filter".
 - **Board** — narrow to a single board.
-- **Label** — pick one or several; you get cards carrying **any** of them.
+- **Labels** — pick one or several; you get cards carrying **any** of them.
+- **Assigned to** — narrow to one person's cards, or back to **Anyone**.
+
+Board, Labels and Assigned to each have a **box to type in** at the top, which
+narrows the list as you type — quicker than scrolling once there are a lot of
+boards or people.
+
+Picks take effect straight away and the panel **stays open**, so you can set
+several without reopening it. **Done** closes it.
 
 Whatever you pick comes back as **its own chip** in that second row, so the
 answer to "what am I filtering by?" is always one row you can read at a glance —
 and tapping a chip removes that filter, the same gesture as everything else. When
 anything is active, a **clear-filters** icon appears at the end of the row and
 switches everything off at once. It is only there when there is something to
-clear.
+clear, and the panel carries the same control so you can clear from inside it.
+
+### Sorting — what's new, and what's old
+
+The **Sort** control has three settings:
+
+- **Best match** (the default) — with something typed, the closest matches come
+  first; with the box empty, the most recently active cards do.
+- **Newest first** — most recently active at the top, whatever you've typed.
+- **Oldest first** — the reverse, which is how you find the things nobody has
+  touched in months.
+
+"Active" means someone **edited the card, commented on it, or attached or removed
+a file**. Just opening a card doesn't count, and neither does subscribing to it.
 
 **Your search survives leaving it.** Open a result, then come back, and the text,
 the chips and the board and label picks are all as you left them — you don't have
@@ -518,6 +569,28 @@ today isn't finished yet — a half-day next to whole ones would read as a decli
 that hasn't happened. Below it, **Files stored** gives the total size held across
 all attachments.
 
+### Tap a bar to see what is behind it
+
+<div class="pair">
+  <figure><img class="wide" src="manual/img/statsDetail-wide.png" alt="A selected bar broken down by board"><figcaption>In a browser</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/statsDetail-phone.png" alt="A selected bar broken down by board on a phone"><figcaption>On a phone</figcaption></figure>
+</div>
+
+Selecting a bar adds a panel underneath it, and what the panel shows depends on
+what you are measuring:
+
+- **Active people** lists **who** — the actual people who did something in that
+  day, week or month.
+- **Everything else** lists **which boards**, largest first. **Tap a board to go
+  straight to it.**
+
+Tap the same bar again to put the panel away. There is no panel until you select
+something, on purpose: without a bar chosen it would have to cover the whole
+year, which is a different question.
+
+Come back from a board and Stats is exactly as you left it — same board filter,
+same period, same measure, same bar selected.
+
 History goes back **twelve months** and is kept indefinitely. Figures for past
 days are counted once and stored, so the screen opens instantly however much
 history there is; only the current day is worked out live.
@@ -617,20 +690,44 @@ Open it → the **bell** in the header. It appears under **My work → Subscribe
 and you'll hear about new comments.
 
 **…find every card with a particular label?**
-**Search → Filters → Label**, and pick one. Pick more than one and you get cards
+**Search → Filters → Labels**, and pick one. Pick more than one and you get cards
 carrying **any** of them. Each pick becomes a chip; tap it to drop it.
 
 **…search within one board only?**
 **Search → Filters → Board**. It becomes a chip like everything else — tap the
 chip to go back to searching everywhere.
 
+**…find everything urgent *or* high?**
+**Search → Filters → Priority**, and tap both. Priority takes as many as you
+want, unlike the other sections.
+
+**…find cards nobody has given a priority?**
+**Search → Filters → Priority → None.**
+
+**…see what someone else is working on?**
+**Search → Filters → Assigned to**, and pick them. Type in the box at the top of
+the list to find them quickly.
+
+**…see what's changed lately — or what has gone stale?**
+**Search → Sort → Newest first** for the first, **Oldest first** for the second.
+"Active" counts edits, comments and files.
+
+**…give a file a sensible name?**
+Rename it in the box that appears when you pick it, **before** it uploads. You
+cannot rename it afterwards — remove it and attach it again.
+
 **…clear every filter at once?**
-The **clear-filters** icon at the end of the chip row. It only appears when
-something is actually filtering.
+The **clear-filters** icon at the end of the chip row, or **Clear all filters**
+inside the Filters panel. It only appears when something is actually filtering.
 
 **…see how much the boards are being used?** *(managers/admins)*
 **More → Stats** — cards created and archived, comments, how many different
 people were active, and files, by day, week or month.
+
+**…see which boards those numbers came from?** *(managers/admins)*
+**Tap a bar.** The panel underneath lists the boards behind it, largest first,
+and tapping one opens that board. On **Active people** it lists the people
+instead.
 
 **…add someone to a board?** *(managers)*
 Board **settings → Members** → add them. (They must be an approved account first.)

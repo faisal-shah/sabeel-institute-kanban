@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   EMPTY_SEARCH_FILTERS,
+  chipsForIds,
   clearSearchFilters,
   getSearchFilters,
-  labelChips,
   setSearchFilters,
+  toggleIn,
 } from './searchFilters';
 
 /**
@@ -48,17 +49,42 @@ describe('setSearchFilters', () => {
     expect(seen.labelIds).toEqual(['l2']);
   });
 
+  it('accumulates priorities the same way labels do', () => {
+    setSearchFilters((f) => ({ priorities: toggleIn(f.priorities, 'urgent') }));
+    setSearchFilters((f) => ({ priorities: toggleIn(f.priorities, 'high') }));
+    expect(getSearchFilters().priorities).toEqual(['urgent', 'high']);
+    setSearchFilters((f) => ({ priorities: toggleIn(f.priorities, 'urgent') }));
+    expect(getSearchFilters().priorities).toEqual(['high']);
+  });
+});
+
+describe('toggleIn', () => {
+  it('adds what is absent and removes what is present', () => {
+    expect(toggleIn([], 'urgent')).toEqual(['urgent']);
+    expect(toggleIn(['urgent', 'high'], 'urgent')).toEqual(['high']);
+  });
+
+  it('does not mutate its input', () => {
+    const before = ['urgent'];
+    toggleIn(before, 'high');
+    expect(before).toEqual(['urgent']);
+  });
 });
 
 describe('clearSearchFilters', () => {
   it('resets everything, which is what the clear control promises', () => {
+    // Every field, deliberately: this asserts the WHOLE object below, so a
+    // field added to `SearchFilters` and forgotten here fails loudly rather
+    // than surviving a clear.
     setSearchFilters({
       text: 'x',
       archivedOnly: true,
       overdueOnly: true,
-      priority: 'urgent',
+      priorities: ['urgent', 'none'],
       labelIds: ['l1'],
       boardId: 'b1',
+      assigneeUid: 'u1',
+      sort: 'oldest',
     });
     clearSearchFilters();
     const seen = getSearchFilters();
@@ -66,7 +92,7 @@ describe('clearSearchFilters', () => {
   });
 });
 
-describe('labelChips', () => {
+describe('chipsForIds', () => {
   const byName = <T extends { name: string }>(ls: T[]) =>
     [...ls].sort((a, b) => a.name.localeCompare(b.name));
   const labels = [
@@ -75,7 +101,7 @@ describe('labelChips', () => {
   ];
 
   it('resolves chosen ids to names, sorted', () => {
-    expect(labelChips(['l1', 'l2'], labels, byName)).toEqual([
+    expect(chipsForIds(['l1', 'l2'], labels, 'Deleted label', byName)).toEqual([
       { id: 'l2', name: 'Admin' },
       { id: 'l1', name: 'Finance' },
     ]);
@@ -86,18 +112,44 @@ describe('labelChips', () => {
     // building chips by filtering the org-wide set down to the chosen ids meant
     // a dead id produced no chip while still narrowing the results — Search went
     // empty with no cause on screen and nothing to tap.
-    const chips = labelChips(['l1', 'gone'], labels, byName);
+    const chips = chipsForIds(['l1', 'gone'], labels, 'Deleted label', byName);
     expect(chips).toHaveLength(2);
     expect(chips.map((c) => c.id)).toContain('gone');
   });
 
   it('keeps the dead id itself, so tapping the chip can remove it', () => {
     // A chip that cannot identify its own filter is decoration, not an escape.
-    const [chip] = labelChips(['gone'], labels, byName);
+    const [chip] = chipsForIds(['gone'], labels, 'Deleted label', byName);
     expect(chip).toEqual({ id: 'gone', name: 'Deleted label' });
   });
 
   it('is empty when nothing is chosen', () => {
-    expect(labelChips([], labels, byName)).toEqual([]);
+    expect(chipsForIds([], labels, 'Deleted label', byName)).toEqual([]);
+  });
+
+  /**
+   * The same rule now covers the board and the assignee, which is why this is
+   * one function rather than three inline copies. A board can be ARCHIVED while
+   * it is selected, and `removeBoardMember` can take away the last board a
+   * chosen assignee shared with you — both leave an id pointing at nothing.
+   */
+  it('names each facet\'s missing case in its own words', () => {
+    const boards = [{ id: 'b1', name: 'Fundraising 2026' }];
+    expect(chipsForIds(['b1'], boards, 'Unavailable board')).toEqual([
+      { id: 'b1', name: 'Fundraising 2026' },
+    ]);
+    expect(chipsForIds(['b9'], boards, 'Unavailable board')).toEqual([
+      { id: 'b9', name: 'Unavailable board' },
+    ]);
+    expect(chipsForIds(['u9'], [], 'Someone no longer on a board')).toEqual([
+      { id: 'u9', name: 'Someone no longer on a board' },
+    ]);
+  });
+
+  it('leaves order alone when no sort is given', () => {
+    expect(chipsForIds(['l1', 'l2'], labels, 'Deleted label').map((c) => c.name)).toEqual([
+      'Finance',
+      'Admin',
+    ]);
   });
 });

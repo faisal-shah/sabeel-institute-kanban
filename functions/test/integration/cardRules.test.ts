@@ -624,6 +624,41 @@ describe('attachmentCount is trigger-owned', () => {
   });
 });
 
+describe('lastActivityAt is trigger-owned', () => {
+  it('refuses a card created claiming activity', async () => {
+    // A client that could set this would pin its own card to the top of
+    // Search's newest-first order for as long as it liked.
+    await assertFails(
+      setDoc(
+        doc(ctx('member1', 'member'), 'cards/forged2'),
+        card({ lastActivityAt: 9_999_999_999 }),
+      ),
+    );
+  });
+
+  it('refuses a client moving it on an existing card', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        lastActivityAt: 9_999_999_999,
+        updatedBy: 'member1',
+        updatedAt: 2,
+      }),
+    );
+  });
+
+  it('still lets a card written BEFORE the field existed be edited', async () => {
+    // Same trap as attachmentCount above: plain field access instead of
+    // .get(…, 0) makes every pre-existing card permanently uneditable.
+    await assertSucceeds(
+      updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
+        title: 'edited fine, no activity field',
+        updatedBy: 'member1',
+        updatedAt: 3,
+      }),
+    );
+  });
+});
+
 describe('deleting cards', () => {
   it('a plain member CANNOT delete — they archive instead', async () => {
     await assertFails(deleteDoc(doc(ctx('member1', 'member'), 'cards/card1')));

@@ -197,6 +197,20 @@ export interface CardDoc {
   createdBy: string;
   updatedAt: number;
   updatedBy: string;
+  /**
+   * When a comment or a file last moved on this card. TRIGGER-OWNED — rules pin
+   * it across a client update, exactly as `attachmentCount` is pinned.
+   *
+   * It exists because `updatedAt` cannot answer "what has been happening":
+   * that field is client-written on a card EDIT, and neither posting a comment
+   * nor attaching a file edits a card field. Neither timestamp is the whole
+   * answer alone, so read them through `lastActivityOf` in `search.ts` — which
+   * takes the MAX of the two plus `createdAt`, never either on its own.
+   *
+   * Optional because cards written before it existed do not carry it, which is
+   * also why there was no backfill: the fallback IS the old value.
+   */
+  lastActivityAt?: number;
   /** Stable id from a ClickUp import, making re-runs idempotent. */
   sourceId?: string;
 }

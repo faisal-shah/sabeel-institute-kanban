@@ -1,13 +1,14 @@
 import { useRef, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ATTACHMENT_MAX_BYTES, formatBytes } from '@sabeel/shared';
+import { attachmentKind, formatBytes } from '@sabeel/shared';
 import {
   attachmentUrl,
   removeAttachment,
   uploadAttachment,
   useAttachments,
   type Attachment,
+  type PickedFile,
 } from '../attachments';
 import { PICK_SOURCES, pickAttachment, type PickSource } from '../filePicker';
 import { openAttachment } from '../openAttachment';
@@ -28,6 +29,7 @@ import {
   Spinner,
 } from './ui';
 import { Sheet, SheetOption } from './Sheet';
+import { AttachSheet } from './AttachSheet';
 
 type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -41,12 +43,6 @@ function glyphFor(contentType: string): MaterialIconName {
   if (/sheet|excel|csv/.test(contentType)) return 'table-chart';
   if (/word|document|text\//.test(contentType)) return 'description';
   return 'insert-drive-file';
-}
-
-/** The extension, which is what people actually recognise a file by. */
-function kindOf(name: string): string {
-  const ext = name.includes('.') ? (name.split('.').pop() ?? '') : '';
-  return ext && ext.length <= 4 ? ext.toUpperCase() : 'FILE';
 }
 
 const SOURCE_LABELS: Record<PickSource, { label: string; detail: string }> = {
@@ -79,7 +75,7 @@ export function Attachments({
 }) {
   const t = useTheme();
   const list = useAttachments(cardId);
-  const { run, busy, error, setError } = useAction('attachments');
+  const { run, busy, error } = useAction('attachments');
   const [progress, setProgress] = useState<Record<string, number | null>>({});
   const [picking, setPicking] = useState(false);
 
@@ -116,6 +112,34 @@ export function Attachments({
     setOpening(null);
   };
 
+  /**
+   * The naming step, as a promise the sheet settles.
+   *
+   * Shaped this way so the whole attach stays ONE `run` call: `busy` must span
+   * the pick, the naming and the upload, or the attach control takes a second
+   * tap while a sheet is already open. `confirmAction` hands a boolean back into
+   * a `run` callback the same way — this is that, with a string.
+   *
+   * The resolver is a ref rather than state because it must be readable by the
+   * handler that settles it without waiting for a render.
+   */
+  const [naming, setNaming] = useState<{ name: string; sizeBytes: number } | null>(null);
+  const namingResolve = useRef<((name: string | null) => void) | null>(null);
+
+  const askName = (picked: PickedFile) =>
+    new Promise<string | null>((resolve) => {
+      namingResolve.current = resolve;
+      setNaming({ name: picked.name, sizeBytes: picked.blob.size });
+    });
+
+  /** Null is a cancel — the backdrop, Escape, and Android Back all land here. */
+  const settleName = (name: string | null) => {
+    const resolve = namingResolve.current;
+    namingResolve.current = null;
+    setNaming(null);
+    resolve?.(name);
+  };
+
   const start = (source: PickSource) => {
     setPicking(false);
     let started: string | null = null;
@@ -129,17 +153,17 @@ export function Attachments({
       // for a write that never happened.
       const picked = await untimed(() => pickAttachment(source));
       if (!picked) return;
-      // Checked here as well as in the rules, so the ordinary mistake of
-      // grabbing a huge file fails with a sentence instead of a raw
-      // permission-denied from Storage.
-      if (picked.blob.size > ATTACHMENT_MAX_BYTES) {
-        setError(`Files must be under ${formatBytes(ATTACHMENT_MAX_BYTES)}.`);
-        return;
-      }
+      // UNTIMED for the same reason the pick above is: a person deciding what to
+      // call a file is not this app being slow, and charging it would refile the
+      // very bug v0.7.8 fixed. The sheet also owns the size limit — it refuses
+      // an over-large file before a single byte or document is written, where it
+      // reads as a fact about the file rather than as something going wrong.
+      const name = await untimed(() => askName(picked));
+      if (name === null) return;
       try {
         await uploadAttachment({
           cardId,
-          picked,
+          picked: { ...picked, name },
           user,
           untimed,
           onStart: (id) => {
@@ -291,7 +315,7 @@ export function Attachments({
                     <Hint>Opening…</Hint>
                   ) : ready ? (
                     <Caption>
-                      {kindOf(a.name)}
+                      {attachmentKind(a.name)}
                       {a.sizeBytes ? ` · ${formatBytes(a.sizeBytes)}` : ''}
                     </Caption>
                   ) : (
@@ -311,7 +335,7 @@ export function Attachments({
         })}
       </Panel>
 
-      <Sheet visible={picking} title="Attach a file" onClose={() => setPicking(false)}>
+      <Sheet visible={picking} title="Where from?" onClose={() => setPicking(false)}>
         {PICK_SOURCES.map((s) => (
           <SheetOption
             key={s}
@@ -321,6 +345,13 @@ export function Attachments({
           />
         ))}
       </Sheet>
+
+      <AttachSheet
+        name={naming?.name ?? null}
+        sizeBytes={naming?.sizeBytes ?? 0}
+        onCancel={() => settleName(null)}
+        onConfirm={settleName}
+      />
     </>
   );
 }

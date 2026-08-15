@@ -125,6 +125,50 @@ export function toDailySeries(
   return out;
 }
 
+/**
+ * The uids active in `[from..to]` — the set `aggregate` computes and discards.
+ *
+ * Exists because "3 people were active" and "which three" are the same
+ * question asked twice, and only the second one can be answered from a count.
+ * Sorted, so a caller rendering it gets a stable order without asking.
+ */
+export function actorsBetween(
+  series: readonly StatsDayEntry[],
+  from: string,
+  to: string,
+): string[] {
+  const set = new Set<string>();
+  for (const entry of series) {
+    if (entry.day < from || entry.day > to) continue;
+    for (const uid of entry.stats.actors ?? []) set.add(uid);
+  }
+  return [...set].sort();
+}
+
+/**
+ * One metric's value over `[from..to]`, inclusive.
+ *
+ * Counters sum; `activePeople` is the size of a union, for the reason
+ * `aggregate` states below. Both live here so there is one implementation of
+ * that split rather than one per caller — a board ranking that summed distinct
+ * daily counts would be wrong in exactly the way this package already knows
+ * about.
+ */
+export function valueBetween(
+  series: readonly StatsDayEntry[],
+  from: string,
+  to: string,
+  metric: StatsMetric,
+): number {
+  if (metric === 'activePeople') return actorsBetween(series, from, to).length;
+  let sum = 0;
+  for (const entry of series) {
+    if (entry.day < from || entry.day > to) continue;
+    sum += entry.stats[metric] ?? 0;
+  }
+  return sum;
+}
+
 export interface StatsPoint {
   /** First day of the bucket — `YYYY-MM-DD`, whatever the bucketing. */
   start: string;
@@ -147,28 +191,25 @@ export function aggregate(
   metric: StatsMetric,
 ): StatsPoint[] {
   const order: string[] = [];
-  const sums = new Map<string, number>();
-  const unions = new Map<string, Set<string>>();
   const ends = new Map<string, string>();
 
   for (const entry of series) {
     const start = bucketStart(entry.day, bucketing);
-    if (!sums.has(start) && !unions.has(start)) order.push(start);
+    if (!ends.has(start)) order.push(start);
     // The series is ascending, so the last day seen for a bucket is its end.
+    // That also keeps a partial trailing bucket from claiming to end in the
+    // future, which is what makes `[start, end]` a range you can re-query.
     ends.set(start, entry.day);
-
-    if (metric === 'activePeople') {
-      const set = unions.get(start) ?? new Set<string>();
-      for (const uid of entry.stats.actors ?? []) set.add(uid);
-      unions.set(start, set);
-    } else {
-      sums.set(start, (sums.get(start) ?? 0) + (entry.stats[metric] ?? 0));
-    }
   }
 
-  return order.map((start) => ({
-    start,
-    end: ends.get(start) ?? start,
-    value: metric === 'activePeople' ? (unions.get(start)?.size ?? 0) : (sums.get(start) ?? 0),
-  }));
+  // Each bucket's value comes from `valueBetween` over its own day range rather
+  // than from a second accumulator here. That is what lets a per-board
+  // breakdown of a selected bucket be computed by the SAME function over the
+  // SAME range — so the rows add up to the bar by construction rather than by
+  // two implementations agreeing. Quadratic in bucket count, which at a year of
+  // daily buckets is a few hundred thousand comparisons and unmeasurable.
+  return order.map((start) => {
+    const end = ends.get(start) ?? start;
+    return { start, end, value: valueBetween(series, start, end, metric) };
+  });
 }
