@@ -15,7 +15,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.sabeelinstitute.kanban",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "supportsTablet": false,
       "googleServicesFile": "./GoogleService-Info.plist",
       "config": {

@@ -620,6 +620,14 @@ export of the same release bundle shows `IS_DEV = false` and
 `USE_EMULATORS = false`, independently, which is what the two-condition gate in
 `devSignIn.ts` was written for.
 
+**Build 4 is on TestFlight**, from commit `644173d`, confirmed `VALID` by asking
+the App Store Connect API rather than by reading `Upload succeeded` off the
+build. Apple's own symbol upload rejected three dSYMs — `React.framework`,
+`ReactNativeDependencies.framework`, `hermesvm.framework` — which is expected and
+not worth chasing: those are Expo 57's **precompiled** React Native binaries and
+ship without DWARF. It costs nothing here, because crash reporting goes to
+Sentry, and Sentry's upload of the app's own dSYM succeeded in the same build.
+
 **A TODO item deleted rather than done.** "Export the iOS distribution
 certificate as a `.p12`" assumed the Android keystore rule — a private key on
 one machine and nowhere else. `security find-identity` on the Mac that has

@@ -362,17 +362,21 @@ Two things worth reusing next time:
 4. **Bump `expo.ios.buildNumber` before every re-upload.** Apple requires it to
    increase even for the same version; unlike Android's versionCode it does not
    derive itself. Shipped so far: **v0.7.7 build 1**, **v0.7.8 build 2** (both
-   2026-08-13). It is `4` now, which the v0.8.0 upload will take — bump again
-   before the one after that. The number need only rise *within* a version, so
-   carrying it across versions is simply the cheapest way never to collide.
+   2026-08-13) and **v0.8.0 build 4** (2026-08-15). Build 3 was never uploaded —
+   it was bumped to twice — which cost nothing, and is the point: the number need
+   only rise *within* a version, so carrying it across versions is simply the
+   cheapest way never to collide. It is `5` now, unused, ready for the next
+   upload.
 5. **First thing on a real device: confirm a push arrives.** The only proof the
    APNs key was uploaded correctly — nothing on this side distinguishes
    "uploaded" from "uploaded wrong", and a simulator cannot test it because it
    gets no real APNs token.
-6. **Export the iOS distribution certificate as a `.p12`** to Drive once it
-   exists. Its private key lives only in that Mac's keychain, and Apple caps how
-   many distribution certificates an account may hold. This is also what a
-   GitHub Actions build would need, so it stops being merely a backup.
+6. ~~Export the iOS distribution certificate as a `.p12`.~~ **Dropped
+   2026-08-15 — there is no such certificate on the build Mac.** Signing is
+   cloud-managed: the certificate is minted through the App Store Connect API key
+   at export and discarded, so after three shipped builds `security
+   find-identity` finds four *development* certificates and no distribution one.
+   A GitHub Actions build would need the same Admin `.p8`, not a `.p12`.
 7. **When it is stable:** create and approve the review account, submit to App
    Review, then request unlisted distribution — against a release build, not a
    TestFlight one.
