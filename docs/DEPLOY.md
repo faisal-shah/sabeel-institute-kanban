@@ -494,6 +494,17 @@ releases advertising 31 MB and, until v0.7.5, still announced the move to Google
 Play beside a live download button. Write it in
 `../faisal-shah.github.io/sabeel-kanban/index.html` before publishing.
 
+**The rolling GitHub release is script-owned too**, from the same three values.
+Its title and body used to be hand-written: the body said "Current build:
+v0.1.10" for four months while the asset under it was replaced eleven times, and
+GitHub shows the tag's July creation date beside it, so the page read as an
+artefact from another era. Nobody is meant to land there — the download button
+links straight to the asset URL — but it is public. The script now writes both
+and asserts the result, and **refuses to publish if `kanban-latest` carries any
+asset other than the one APK**: it had quietly accumulated a
+`sabeel-kanban-0.7.4.aab`, and a release page offering two files while naming
+the wrong one is worse than one offering none.
+
 Before sharing any build:
 
 1. **Install it and screenshot the sign-in screen** — the dev sign-in row must be

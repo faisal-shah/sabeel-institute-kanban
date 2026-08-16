@@ -101,6 +101,25 @@ case "$signer_dn" in
 esac
 echo "signature ok (${signer_dn})"
 
+# The rolling tag must carry EXACTLY the asset it advertises, and nothing else.
+#
+# It quietly accumulated a `sabeel-kanban-0.7.4.aab` for twelve days. An AAB is
+# not installable, and its filename names a version four releases old, so the
+# release page offered a reader two files and named the wrong one. A GATE rather
+# than a silent cleanup: deleting somebody's artifact is a judgement, and this
+# script's job is to refuse to publish beside something it does not understand.
+if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+  strays="$(gh release view "$TAG" --repo "$REPO" --json assets \
+    --jq "[.assets[].name | select(. != \"$ASSET\")] | join(\", \")")"
+  if [ -n "$strays" ]; then
+    echo "REFUSING TO PUBLISH: $TAG carries assets that are not $ASSET:" >&2
+    echo "  $strays" >&2
+    echo "The rolling tag is one file, replaced each build. Remove them:" >&2
+    for s in ${strays//,/ }; do echo "  gh release delete-asset $TAG $s --repo $REPO --yes" >&2; done
+    exit 1
+  fi
+fi
+
 # --check runs every gate above and stops before anything leaves this machine.
 #
 # It exists because there was no way to ask "would this publish?" without
@@ -134,6 +153,10 @@ echo "Uploaded $ASSET to $REPO ($TAG)"
 # download pages on the shared site read the same way. Both are pinned; do not
 # "simplify" either back to a bare `date`.
 PUBLISHED="$(TZ=America/Chicago date '+%-d %B %Y, %-I:%M %p %Z')"
+# Computed ONCE, above the page block, because the release notes in step 2b use
+# the same three values. Two places deriving "which build is this" separately is
+# how they come to disagree.
+SIZE_MB="$(( ( $(stat -c %s "$APK") + 524288 ) / 1048576 ))"
 if [ -d "$PAGES_DIR/.git" ]; then
   sed -i -E "s#(Current build: <strong>)v[0-9][^<]*#\\1v${VERSION}#" \
     "$PAGES_DIR/sabeel-kanban/index.html"
@@ -150,7 +173,6 @@ if [ -d "$PAGES_DIR/.git" ]; then
   # The SIZE on the button, which drifted silently for four releases: the page
   # advertised 31 MB while the asset had grown to 37. Nobody edits a number they
   # are not looking at, so the script owns it now.
-  SIZE_MB="$(( ( $(stat -c %s "$APK") + 524288 ) / 1048576 ))"
   sed -i -E "s#(Download for Android \()[0-9]+(&nbsp;MB\))#\1${SIZE_MB}\2#" \
     "$PAGES_DIR/sabeel-kanban/index.html"
   grep -q "Download for Android (${SIZE_MB}&nbsp;MB)" \
@@ -164,6 +186,40 @@ if [ -d "$PAGES_DIR/.git" ]; then
 else
   echo "NOTE: pages repo not at $PAGES_DIR — set SK_PAGES_DIR to update the version label." >&2
 fi
+
+# 2b) The same three values onto the ROLLING RELEASE itself.
+#
+# The tag never moves and its creation date is therefore the date it was first
+# made — July, and GitHub shows that prominently. Its body was hand-written once
+# and said "Current build: v0.1.10" for four months while the asset under it was
+# replaced eleven times. Nobody is meant to land there (the download page links
+# straight to the asset URL) but it is public, and it read as a build from
+# another era.
+#
+# So the script owns this text exactly as it owns the page's, from the same
+# variables, and asserts the result — the page's own labels were added for this
+# reason and this surface was simply missed.
+notes="$(cat <<EOF
+Current build: **v${VERSION}** (${SIZE_MB} MB), published ${PUBLISHED}.
+
+This is a **rolling** release: the APK asset is replaced on every build, so the
+download link on the site never changes. The tag itself does not move — the
+creation date GitHub shows below is not the build date, the line above is.
+
+Most people should install from **Google Play**, where updates arrive on their
+own. This build is the developer's pre-release route, published before a release
+reaches Play. An APK from here is signed with the upload key and a Play install
+with Google's app signing key, so **neither can install over the other** —
+uninstall first. Nothing is lost; all state is online.
+EOF
+)"
+gh release edit "$TAG" --repo "$REPO" \
+  --title "Sabeel Kanban v${VERSION} — latest Android build" \
+  --notes "$notes"
+gh release view "$TAG" --repo "$REPO" --json body --jq .body \
+  | grep -q "v${VERSION}" \
+  || { echo "FAILED to update the rolling release notes to v${VERSION}" >&2; exit 1; }
+echo "Rolling release labelled v${VERSION}, ${SIZE_MB} MB"
 
 # 3) GUARDRAIL: the pages repo must never hold an apk blob. This is the check
 #    that was missing when binaries piled up — verify the RESULT, not the action.
