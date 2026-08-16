@@ -245,13 +245,29 @@ creation**.
       Enterprise Program (requires 100+ employees). Reasoning in
       `docs/IOS-BUILD.md`.
 
-- [ ] **Export the iOS distribution certificate as a `.p12`** into Drive beside
-      the two `.p8` keys. Its private key lives in the build Mac's **keychain**
-      and nowhere else; if that Mac is rebuilt or lost, the certificate cannot be
-      recovered, only re-created — and Apple caps how many distribution
-      certificates an account may hold. This is the same rule as the Android
-      keystore: back up what cannot be recreated. Not urgent until the first
-      build exists, but easy to forget once it does.
+- [x] **DROPPED (2026-08-15): there is no distribution certificate on this Mac to
+      export.** This item assumed the iOS rule matched the Android keystore — a
+      private key living on one machine and nowhere else. It does not. Signing
+      here is **cloud-managed**: `-allowProvisioningUpdates` mints the
+      distribution certificate through the App Store Connect API key at export
+      time and discards it afterwards, so nothing persists locally. Checked after
+      three successful uploads:
+
+      ```
+      security find-identity -v -p codesigning
+        4 valid identities found   # all "Apple Development: Created via API"
+      security find-certificate -a -c "Apple Distribution"   # nothing
+      ```
+
+      Four development certificates from the old non-Admin key, and **not one
+      distribution certificate**, on the machine that has shipped every build.
+      There is nothing to put in a `.p12`.
+
+      The thing that genuinely cannot be recreated is the **Admin `.p8` App Store
+      Connect key**, which downloads exactly once and is already in Drive. Apple's
+      cap on distribution certificates still exists, but the certificates are now
+      Apple's to manage rather than this Mac's to lose. If a future build machine
+      ever signs with a keychain identity instead, this item comes back.
 - [ ] **Create the review account — needed for the UNLISTED submission**, not for
       internal TestFlight. A pre-approved `appreview@oursabeel.com` (or similar)
       that Apple's reviewer can actually sign in with, since sign-in is

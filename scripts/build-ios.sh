@@ -89,7 +89,22 @@ if [ -n "$missing_sentry" ]; then
   echo "so iOS crashes will report raw addresses. See docs/SECRETS.md. Building anyway." >&2
 fi
 
-# 6. Upload credentials, checked NOW rather than after a twenty-minute archive.
+# 6. The App Store Connect API key. ASC_KEY_PATH is OPTIONAL: default to the
+#    directory Apple's own tooling searches, so placing the file is the only step
+#    and nothing has to be edited. `~` is expanded here because a dotenv value is
+#    a literal string — the loader does not run a shell over it, deliberately.
+#
+#    Resolved for EVERY build, not only an uploading one. The key is not merely
+#    an upload credential: `-allowProvisioningUpdates` MINTS AND DOWNLOADS THE
+#    DISTRIBUTION SIGNING ASSETS THROUGH IT, so the archive needs it just as much
+#    as the upload does. This lived inside the `--upload` branch, which left
+#    --no-upload archiving with no credentials at all.
+if [ -n "${ASC_KEY_ID:-}" ]; then
+  : "${ASC_KEY_PATH:=${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
+  ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"
+fi
+
+# 7. Upload credentials, checked NOW rather than after a twenty-minute archive.
 #    An App Store Connect API key is what makes this browserless; it is a
 #    different .p8 from the APNs key.
 if [ "$UPLOAD" = true ]; then
@@ -99,13 +114,6 @@ Connect -> Users and Access -> Integrations -> App Store Connect API. It is NOT
 the APNs key. Use --no-upload to skip uploading."
   [ -n "${ASC_ISSUER_ID:-}" ] || die "ASC_ISSUER_ID is not set (the Issuer ID above the key list; a UUID).
 An APNs key has no Issuer ID — if yours does not, it is the wrong .p8."
-
-  # ASC_KEY_PATH is OPTIONAL: default to the directory Apple's own tooling
-  # searches, so placing the file is the only step and nothing has to be edited.
-  # `~` is expanded here because a dotenv value is a literal string — the loader
-  # does not run a shell over it, deliberately.
-  : "${ASC_KEY_PATH:=${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
-  ASC_KEY_PATH="${ASC_KEY_PATH/#\~/$HOME}"
   [ -f "${ASC_KEY_PATH}" ] || die "No App Store Connect key at:
   ${ASC_KEY_PATH}
 Put AuthKey_${ASC_KEY_ID}.p8 there (mkdir -p ~/.appstoreconnect/private_keys),
@@ -129,12 +137,12 @@ fi
 
 # ---------------------------------------------------------------- build
 
-# 7. Stamp the running commit onto the sign-in screen. Immediately before the
+# 8. Stamp the running commit onto the sign-in screen. Immediately before the
 #    build, never earlier: it records the commit at the moment it runs, and a
 #    stale stamp is how a device check reads the wrong version off a correct build.
 node scripts/gen-build-info.mjs
 
-# 8. Regenerate ios/. ALWAYS --platform ios: a bare prebuild is clean by default
+# 9. Regenerate ios/. ALWAYS --platform ios: a bare prebuild is clean by default
 #    and would delete the committed android/, silently dropping minSdkVersion 33.
 (cd app && npx expo prebuild --platform ios)
 (cd app/ios && pod install)
@@ -167,16 +175,25 @@ EXPORT_DIR="build/ios/export"
 rm -rf "$ARCHIVE" "$EXPORT_DIR"
 mkdir -p build/ios
 
-# All three or none: a partially-set key is how `set -u` turns a config mistake
-# into an unbound-variable error twenty minutes into a build.
+# All four or none: a partially-set key is how `set -u` turns a config mistake
+# into an unbound-variable error twenty minutes into a build. The FILE has to be
+# there too — a path alone gets as far as xcodebuild before it means anything.
 AUTH=()
-if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ] && [ -n "${ASC_KEY_PATH:-}" ]; then
+if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ] &&
+  [ -n "${ASC_KEY_PATH:-}" ] && [ -f "${ASC_KEY_PATH}" ]; then
   AUTH=(-authenticationKeyPath "${ASC_KEY_PATH}"
         -authenticationKeyID "${ASC_KEY_ID}"
         -authenticationKeyIssuerID "${ASC_ISSUER_ID}")
 fi
 
-# 9. Archive. `-allowProvisioningUpdates` lets Xcode create and download the
+# Both xcodebuild calls below expand AUTH as `${AUTH[@]+"${AUTH[@]}"}` rather
+# than the obvious `"${AUTH[@]}"`. macOS ships bash 3.2, where expanding an EMPTY
+# array under `set -u` counts as UNBOUND: the script dies with `AUTH[@]: unbound
+# variable`, naming a variable that is right there, correctly declared, four
+# lines up. Bash 4.4 and later expand it to nothing as intended — so the bug
+# cannot be reproduced in any shell newer than the one every Mac actually runs.
+
+# 10. Archive. `-allowProvisioningUpdates` lets Xcode create and download the
 #    signing assets itself, which is what removes the last reason to open the UI.
 xcodebuild -workspace "$WORKSPACE" \
   -scheme "$SCHEME" \
@@ -184,7 +201,7 @@ xcodebuild -workspace "$WORKSPACE" \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
-  "${AUTH[@]}" \
+  ${AUTH[@]+"${AUTH[@]}"} \
   DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
   archive
 
@@ -197,7 +214,7 @@ xcodebuild -workspace "$WORKSPACE" \
 [ -d "$ARCHIVE/Products/Applications" ] || die \
   "archive at $ARCHIVE contains no app — scheme '$SCHEME' is not the app's."
 
-# 10. Export, and upload in the same step when asked. `destination: upload` in the
+# 11. Export, and upload in the same step when asked. `destination: upload` in the
 #     options plist is what sends it to App Store Connect without Xcode Organizer
 #     or Transporter.
 PLIST="build/ios/ExportOptions.plist"
@@ -222,7 +239,7 @@ xcodebuild -exportArchive \
   -exportPath "$EXPORT_DIR" \
   -exportOptionsPlist "$PLIST" \
   -allowProvisioningUpdates \
-  "${AUTH[@]}"
+  ${AUTH[@]+"${AUTH[@]}"}
 
 echo
 if [ "$UPLOAD" = true ]; then

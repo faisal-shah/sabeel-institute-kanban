@@ -83,7 +83,17 @@ route, that file is the reasoning.
 > sanitised environment and cannot see `SENTRY_AUTH_TOKEN`, so a GUI archive
 > uploads no debug symbols and says nothing about it.
 >
-> If you need the `.ipa` without shipping it, `npm run build:ios -- --no-upload`.
+> **Commit everything first, then build.** `gen-build-info.mjs` stamps a trailing
+> `+` on the commit when the tree is dirty, and a build stamped `4356b20+` maps
+> to no commit at all. Fixing a build script and rerunning earns that `+` even
+> though nothing about the app changed.
+>
+> `npm run build:ios -- --no-upload` stops at the `.ipa`. Worth doing when
+> anything about signing, entitlements or the bundle has moved: it exports the
+> same artifact the uploading run would send, so three of the device checks below
+> can be made *before* a build number is spent. `docs/IOS-BUILD.md` § What the
+> `.ipa` can tell you before you upload has the commands — including the two
+> Hermes traps that make the obvious `grep` lie to you.
 >
 > ### 5. What to verify, and what you cannot
 >
@@ -110,11 +120,12 @@ route, that file is the reasoning.
 >    until a push lands on a physical device. Do not let a green simulator run
 >    stand in for it.
 >
-> Push notifications need the Push Notifications capability and the
-> `aps-environment` entitlement. Because `ios/` is regenerated, **check whether
-> automatic signing re-added them after the prebuild.** If it did not, add it to
-> `app/app.json` under `ios.entitlements` — not by clicking in Xcode — and record
-> the answer in `docs/IOS-BUILD.md`, which currently says this is unknown.
+> **Settled 2026-08-15 — do not re-investigate.** `expo-notifications` applies
+> its own config plugin automatically and writes `aps-environment` on every
+> prebuild, so the capability always survives; and the export re-signs it from
+> `development` to `production`. Nothing belongs under `ios.entitlements`, and
+> setting `production` there by hand would break the simulator and be overwritten
+> anyway. `docs/IOS-BUILD.md` has the evidence.
 >
 > ### 6. If the upload is rejected or the build is bad
 >
@@ -131,7 +142,6 @@ route, that file is the reasoning.
 >   sign-in screen as read off the device.
 > - Whether push arrived on a physical iPhone — and if you could not test it,
 >   say so plainly rather than omitting it.
-> - Whether the prebuild preserved the Push Notifications capability.
 > - Anything you had to change in `app/app.json`, as a commit.
 > - Do **not** submit for App Store review. TestFlight only.
 

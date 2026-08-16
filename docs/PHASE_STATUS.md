@@ -582,6 +582,52 @@ counts the controls answering to `Clear all filters` with the sheet open, and
 asserts that clearing the filters leaves the chosen sort alone. Browser totals:
 web 116, stats 280, screens 202, attachments 21.
 
+**iOS: build 4, and a dry run that had never been dry.** The iOS surface ships
+from the cloud Mac on its own runbook, after the other three. Cutting this one
+cost two bugs in `scripts/build-ios.sh`, both on the `--no-upload` path, which
+meant **the only way to build this app for iOS was to publish it**:
+
+- The App Store Connect key was resolved inside the `if [ "$UPLOAD" = true ]`
+  branch, as its name suggests it should be. But `-allowProvisioningUpdates`
+  *mints the distribution signing assets through that key*, so the archive needs
+  it as much as the upload does. Resolved for every build now; only the
+  issuer-id and key-file checks stay behind the upload flag.
+- `"${AUTH[@]}"` on an empty array dies under `set -u` — macOS ships **bash
+  3.2**, where expanding an empty array counts as unbound. The script exits
+  quoting `AUTH[@]: unbound variable`, naming a variable declared four lines up,
+  and the bug is unreproducible in any newer shell. Now `${AUTH[@]+"${AUTH[@]}"}`,
+  proven by running both forms rather than by reading them.
+
+This is the `publish-apk.sh --check` lesson again, from the other end: a gate
+worth writing has to be free to exercise, and a route nobody takes is a route
+that can be broken from the day it was written.
+
+**What the `.ipa` proved, which nothing had checked before.** `aps-environment`
+is `development` in the entitlements file and in the archive, and
+**`production`** in the exported `.ipa` — the export re-signs against the App
+Store profile and substitutes it, with `get-task-allow` going `true` → `false`
+in the same step. So the long-open question of whether a prebuild preserves the
+Push Notifications capability was the wrong question: `expo-notifications`
+applies its own config plugin automatically and writes the entitlement on every
+prebuild, and `ios.entitlements` in `app.json` neither is nor should be
+involved. `docs/IOS-BUILD.md` records both halves.
+
+The dev sign-in row was confirmed absent the only way that actually works. The
+JS bundle is Hermes bytecode and `strings` finds `Dev sign-in (emulator only)`
+in a perfectly good release build — Metro does not fold constants across module
+boundaries, so the JSX compiles in and is never reached. A `--no-bytecode`
+export of the same release bundle shows `IS_DEV = false` and
+`USE_EMULATORS = false`, independently, which is what the two-condition gate in
+`devSignIn.ts` was written for.
+
+**A TODO item deleted rather than done.** "Export the iOS distribution
+certificate as a `.p12`" assumed the Android keystore rule — a private key on
+one machine and nowhere else. `security find-identity` on the Mac that has
+shipped every iOS build finds four *development* certificates and **no
+distribution certificate at all**: signing is cloud-managed, minted at export
+and discarded. There was never anything to back up. The credential that cannot
+be recreated is the Admin `.p8`, already in Drive.
+
 ### 2026-08-13 — The slow writes that were really a file picker — v0.7.8
 
 **Client only.** No `functions/src`, `packages/shared/src`, `firestore.rules`,

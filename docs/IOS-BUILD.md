@@ -294,12 +294,102 @@ prove it. Push cannot be proved there — see below.
 cd app && npx expo run:ios      # simulator, debug
 ```
 
-**Push notifications need the Push Notifications capability**, and the app does
-use push (`app/src/notify.ts`, `expo-notifications` + FCM). Because `ios/` is
-regenerated, confirm on the first build whether Xcode's automatic signing
-re-adds the capability and the `aps-environment` entitlement after a prebuild. If
-it does not, express it in `app/app.json` under `ios.entitlements` rather than
-re-clicking it in Xcode — see rule 2. Record the answer here once it is known.
+### The push entitlement survives the prebuild, and it is not Xcode that does it
+
+This was open until 2026-08-15 and is now answered, because the answer is not
+what the question assumed. **Nothing in Xcode is involved, and nothing needs to
+go under `ios.entitlements`.**
+
+`expo-notifications` ships an `app.plugin.js`, so its config plugin is applied
+**automatically** — which is why it appears nowhere in `expo.plugins` in
+`app/app.json` and still runs. On every prebuild it writes the entitlement
+itself:
+
+```js
+// node_modules/expo-notifications/plugin/src/withNotificationsIOS.ts
+if (!config.modResults['aps-environment']) {
+  config.modResults['aps-environment'] = mode;   // mode defaults to 'development'
+}
+```
+
+So a regenerated `ios/` always carries it. Verified by deleting `ios/`,
+prebuilding, and reading the file back:
+
+```console
+$ cat app/ios/SabeelKanban/SabeelKanban.entitlements
+    <key>aps-environment</key>
+    <string>development</string>
+```
+
+**`development` is correct, and must not be "fixed" to `production`.** The value
+in the source entitlements is what a *debug* build signs with, and a development
+build signed `production` will not install. The distribution value is applied
+later, by the export: `xcodebuild -exportArchive` re-signs against the App Store
+provisioning profile and takes the entitlements from it. Reading the same app at
+both stages of one build shows the substitution:
+
+| | `aps-environment` | `get-task-allow` |
+|---|---|---|
+| in the `.xcarchive` | `development` | `true` |
+| in the exported `.ipa` | **`production`** | `false` |
+
+Setting `production` by hand in `app.json` would therefore fix nothing, break the
+simulator, and be silently overwritten anyway.
+
+The corollary is the useful part: **the entitlement a device enforces exists only
+after the export**, so it cannot be checked by reading `app.json`, the
+entitlements file, or the archive. Check the `.ipa`:
+
+```bash
+npm run build:ios -- --no-upload
+unzip -q build/ios/export/SabeelKanban.ipa -d /tmp/ipa
+codesign -d --entitlements :- /tmp/ipa/Payload/SabeelKanban.app
+```
+
+This says nothing about whether push is *delivered* — see below. It only proves
+the build is entitled to receive it, which is the half that can be checked
+without a phone, and the half that had never been checked.
+
+### What the `.ipa` can tell you before you upload
+
+`--no-upload` exports the same artifact the uploading run would send, so three of
+the device checks can be done here instead — and earlier, which is better, since
+a build number cannot be reused once Apple has seen it.
+
+```bash
+unzip -q build/ios/export/SabeelKanban.ipa -d /tmp/ipa
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/ipa/Payload/SabeelKanban.app/Info.plist
+```
+
+Two of these are traps, both because the JS bundle is **Hermes bytecode**:
+
+- **Do not grep the bundle for the dev sign-in row.** `strings main.jsbundle`
+  finds `Dev sign-in (emulator only)` in a perfectly good release build. Hermes
+  keeps a string table, and Metro does not constant-fold across module
+  boundaries — `devSignInAvailable = IS_DEV && USE_EMULATORS` imports both
+  operands, so the JSX is compiled in and never reached. Within one module the
+  folding does happen, which is the tell: `10.0.2.2` is absent from an iOS bundle
+  while `127.0.0.1` is present, because `Platform.OS` folds inside `env.ts`.
+  What to check instead is the compiled *value* of each gate, from a readable
+  export of the same release bundle:
+
+  ```console
+  $ cd app && npx expo export --platform ios --no-bytecode --no-minify --output-dir /tmp/js
+  $ grep -oE '(IS_DEV|USE_EMULATORS) = [a-z]+' /tmp/js/_expo/static/js/ios/index-*.js
+  IS_DEV = false
+  USE_EMULATORS = false
+  ```
+
+  Both false independently, so the row cannot render. `EXPO_PUBLIC_USE_EMULATORS`
+  is absent from `app/.env.local` by design — that is the second gate, and it is
+  the one that survives someone getting `__DEV__` wrong.
+
+- **Read the build stamp for a trailing `+`.** `gen-build-info.mjs` appends it
+  when the tree is dirty, so `4356b20+` means the build cannot be mapped to any
+  commit. It is easy to earn without noticing: fix something in a build script,
+  rerun the build, and the artifact is stamped `+` even though the change never
+  touched the app. **Commit first, then build** — the same rule the deploy doc
+  states for web and Android, and it applies here for the same reason.
 
 ### What the simulator cannot tell you
 
