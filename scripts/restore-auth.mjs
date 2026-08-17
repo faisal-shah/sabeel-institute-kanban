@@ -36,7 +36,8 @@
 // claims are re-asserted to match the doc.
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { isRole, isUserStatus, NEW_USER_ACCESS } from '@sabeel/shared';
 
 const apply = process.argv.includes('--apply');
 const projectId = process.env.GCLOUD_PROJECT;
@@ -81,8 +82,25 @@ for (const doc of snap.docs) {
   // Claims are what the rules actually read. Mirror the defaults the auth
   // trigger uses so a doc missing them cannot silently produce a privileged
   // account: least privilege, and an admin can re-approve from the People screen.
-  const role = typeof d.role === 'string' ? d.role : 'member';
-  const status = typeof d.status === 'string' ? d.status : 'pending';
+  //
+  // VALIDATED against the current role set, not merely typechecked as a string.
+  // A restore from a backup predating the board-ownership migration carries the
+  // retired `manager` role, and nothing in the app matches it any more: the
+  // account would sign in, be shown a member's app, and have a claim no rule
+  // mentions. Narrowing it to `member` makes that state one the app can express,
+  // and an admin re-promotes from the People screen.
+  //
+  // The two fields are narrowed INDEPENDENTLY. An unrecognised role says nothing
+  // about whether the account was approved, so a valid `active` survives — this
+  // does not lock out everyone whose backup happens to predate a rename.
+  const role = isRole(d.role) ? d.role : NEW_USER_ACCESS.role;
+  const status = isUserStatus(d.status) ? d.status : NEW_USER_ACCESS.status;
+  if (d.role !== undefined && !isRole(d.role)) {
+    console.log(
+      `  NOTE  ${uid} — the doc says role "${d.role}", which no rule matches. ` +
+        `Restoring as ${role}/${status}; an admin re-approves.`,
+    );
+  }
 
   if (!email) {
     console.log(`  SKIP ${uid} — no email on the user doc, cannot create an account`);
@@ -118,6 +136,17 @@ for (const doc of snap.docs) {
   }
   await auth.setCustomUserClaims(uid, { role, status });
   claimsSet++;
+
+  // Write the NARROWED values back, and move `claimsUpdatedAt`. Two reasons:
+  // the mirror is what a future run of this script reads, so leaving an
+  // unmatched role in it would make the next restore repeat the same repair;
+  // and `session.ts` force-refreshes the ID token when the field moves, so
+  // anyone who was already signed in picks the restored claims up in about a
+  // second rather than sitting on a stale token for an hour.
+  await db.doc(`users/${uid}`).set(
+    { role, status, claimsUpdatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
 }
 
 console.log(
