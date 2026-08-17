@@ -53,6 +53,8 @@ REPO="faisal-shah/faisal-shah.github.io"
 APP_REPO="faisal-shah/sabeel-institute-kanban"
 TAG="kanban-latest"
 ASSET="sabeel-kanban-arm64-v8a.apk"
+MANUAL_PDF="docs/USER-MANUAL.pdf"
+MANUAL_ASSET="USER-MANUAL.pdf"
 # Pull --check out of the arguments FIRST, so it is never mistaken for the APK
 # path. Order matters: the APK default is assigned from $1 below.
 CHECK_ONLY="${SK_CHECK:-0}"
@@ -101,7 +103,7 @@ case "$signer_dn" in
 esac
 echo "signature ok (${signer_dn})"
 
-# The rolling tag must carry EXACTLY the asset it advertises, and nothing else.
+# The rolling tag must carry EXACTLY the assets it advertises, and nothing else.
 #
 # It quietly accumulated a `sabeel-kanban-0.7.4.aab` for twelve days. An AAB is
 # not installable, and its filename names a version four releases old, so the
@@ -110,11 +112,11 @@ echo "signature ok (${signer_dn})"
 # script's job is to refuse to publish beside something it does not understand.
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   strays="$(gh release view "$TAG" --repo "$REPO" --json assets \
-    --jq "[.assets[].name | select(. != \"$ASSET\")] | join(\", \")")"
+    --jq "[.assets[].name | select(. != \"$ASSET\" and . != \"$MANUAL_ASSET\")] | join(\", \")")"
   if [ -n "$strays" ]; then
-    echo "REFUSING TO PUBLISH: $TAG carries assets that are not $ASSET:" >&2
+    echo "REFUSING TO PUBLISH: $TAG carries assets beyond $ASSET and $MANUAL_ASSET:" >&2
     echo "  $strays" >&2
-    echo "The rolling tag is one file, replaced each build. Remove them:" >&2
+    echo "The rolling tag is those two files, replaced each build. Remove the rest:" >&2
     for s in ${strays//,/ }; do echo "  gh release delete-asset $TAG $s --repo $REPO --yes" >&2; done
     exit 1
   fi
@@ -136,6 +138,34 @@ fi
 tmp="$(mktemp -d)/$ASSET"; cp "$APK" "$tmp"
 gh release upload "$TAG" "$tmp" --clobber --repo "$REPO"
 echo "Uploaded $ASSET to $REPO ($TAG)"
+
+# 1b) THE MANUAL SHIPS WITH THE BUILD, as a release asset for the same reason the
+# APK is one. The page has always linked to a manual PDF and nothing ever
+# published it, so the one people downloaded sat nineteen days and several
+# releases behind the app while docs/USER-MANUAL.pdf was current in the repo.
+# Invisible from either side: both files existed and neither was wrong alone.
+#
+# NOT copied into the pages repo, though that is where it used to live and where
+# fifteen copies of it already sit — about 30 MB of that repo's history. Same
+# mistake as the APKs, just slower, and the rule is the whole repo not just
+# `*.apk`. An asset keeps the URL constant and the history clean.
+#
+# Refuse a render older than what it was rendered FROM. Publishing a stale PDF
+# would replace a manual that is visibly old with one that merely looks current,
+# which is worse than not publishing at all.
+[ -f "$MANUAL_PDF" ] || { echo "No $MANUAL_PDF — run python3 docs/render-manual.py" >&2; exit 1; }
+stale=""
+for src in docs/USER-MANUAL.md docs/manual/img/*.png; do
+  [ "$src" -nt "$MANUAL_PDF" ] && stale="$stale $src"
+done
+if [ -n "$stale" ]; then
+  echo "The PDF is older than its source —$stale" >&2
+  echo "Run: python3 docs/render-manual.py" >&2
+  exit 1
+fi
+gh release upload "$TAG" "$MANUAL_PDF" --clobber --repo "$REPO"
+MANUAL_MB="$(( ( $(stat -c %s "$MANUAL_PDF") + 524288 ) / 1048576 ))"
+echo "Uploaded USER-MANUAL.pdf to $REPO ($TAG), ${MANUAL_MB} MB"
 
 # 2) Bump the version label and the published time — TEXT ONLY, no binary.
 #
@@ -221,14 +251,27 @@ gh release view "$TAG" --repo "$REPO" --json body --jq .body \
   || { echo "FAILED to update the rolling release notes to v${VERSION}" >&2; exit 1; }
 echo "Rolling release labelled v${VERSION}, ${SIZE_MB} MB"
 
-# 3) GUARDRAIL: the pages repo must never hold an apk blob. This is the check
-#    that was missing when binaries piled up — verify the RESULT, not the action.
+# 3) GUARDRAIL: the pages repo must never hold a binary. Verify the RESULT, not
+#    the action — this is the check that was missing when binaries piled up.
+#
+#    TWO checks, because the two binaries are in different states. No apk has
+#    ever survived in that history (they were rewritten out), so apks can be
+#    asserted against ALL of history. The manual pdf cannot: fifteen copies are
+#    already in there, roughly 30 MB, and rewriting a public pages history to
+#    reclaim it is more disruption than the space is worth. So the pdf is
+#    asserted against the WORKING TREE — no new copy is ever added, and the ones
+#    behind us stay behind us. An accepted residual, not an oversight.
 if [ -d "$PAGES_DIR/.git" ]; then
   n="$(git -C "$PAGES_DIR" rev-list --all --objects | grep -c '\.apk$' || true)"
   [ "$n" -eq 0 ] || {
     echo "GUARDRAIL FAILED: $n apk blob(s) in pages history — a binary was committed." >&2
     exit 1
   }
+  if git -C "$PAGES_DIR" ls-files --error-unmatch "sabeel-kanban/$MANUAL_ASSET" >/dev/null 2>&1; then
+    echo "GUARDRAIL FAILED: sabeel-kanban/$MANUAL_ASSET is tracked again." >&2
+    echo "The manual is a release asset now. Remove it: git -C $PAGES_DIR rm --cached sabeel-kanban/$MANUAL_ASSET" >&2
+    exit 1
+  fi
 fi
 
 # 4) Cut the versioned Release on the APP repo (per-version changelog + archived

@@ -311,6 +311,19 @@ const SHOTS = {
     await p.getByText('in this period', { exact: false }).first().waitFor({ timeout: 30000 });
     await p.waitForTimeout(1200);
   },
+  // The Members section of settings, as an OWNER — the Owner switch beside each
+  // row, which is the whole of what this release added and what `settings`
+  // cannot show: that shot is the top of the same screen, and Members is below
+  // the fold at both capture sizes. Scrolled to the heading rather than to a
+  // pixel offset, so it survives a column being added to the seed.
+  owners: async (p) => {
+    await openBoard(p);
+    await p.getByRole('button', { name: 'Board settings' }).click();
+    const members = p.getByText(/^Members \(/).first();
+    await members.waitFor({ timeout: 30000 });
+    await members.scrollIntoViewIfNeeded();
+    await p.waitForTimeout(900);
+  },
   // The member list as somebody who does NOT own the board: owners marked, and
   // no controls at all. Taken as `omar` — see SIGN_IN_AS.
   roster: async (p) => {

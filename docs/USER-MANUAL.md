@@ -550,21 +550,35 @@ From here:
 
   Somebody removed while they have the board open is told they no longer have
   access to it, rather than being left looking at a screen that will not load.
-- **Owners** — each member's row carries an **Owner** switch. Turn it on and that
-  person can run the board exactly as you can; turn it off and they go back to
-  being an ordinary member, keeping the board and everything on it. **Both
-  directions ask first** and spell out what changes, so a stray tap grants
-  nothing.
-
-  The person who **created** the board is marked *created this board*, and their
-  switch is locked: **only an admin** can take ownership away from them — even
-  when it is you and you want to hand the board on. Ask an admin.
-
-  A board can end up with **nobody** owning it — its creator left it, or an admin
-  took the last owner off. Nothing is lost, but only an admin can change that
-  board until somebody is made an owner again.
+- **Owners** — each member's row carries an **Owner** switch. See below.
 - **Archive** — hides the board from everyone's list. Boards are never deleted
   outright.
+
+### Letting somebody else run the board
+
+<div class="pair">
+  <figure><img class="wide" src="manual/img/owners-wide.png" alt="The Members section of Board settings, with an Owner switch on each row"><figcaption>In a browser — the Owner switch sits on each member's row</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/owners-phone.png" alt="The same Members section on a phone"><figcaption>On a phone</figcaption></figure>
+</div>
+
+Turn a member's **Owner** switch on and they can run the board exactly as you
+can; turn it off and they go back to being an ordinary member, keeping the board
+and everything on it. **Both directions ask first** and spell out what changes,
+so a stray tap grants nothing.
+
+Unless you created the board, you can step down the same way — your own switch
+works like anyone else's. The confirmation is worth reading: **you cannot undo
+it.** You stay on the board and keep using it, but another owner or an admin has
+to give ownership back. Step down as the last owner and only an admin can change
+the board at all.
+
+The person who **created** the board is marked *created this board*, and their
+switch is locked: **only an admin** can take ownership away from them — even when
+it is you and you want to hand the board on. Ask an admin.
+
+A board can end up with **nobody** owning it — its creator left it, or an admin
+took the last owner off. Nothing is lost, but only an admin can change that board
+until somebody is made an owner again.
 
 **Renaming a column without opening Settings.** Column names are editable from
 the board itself too — tap the **pencil** beside the column name (on a phone, in
