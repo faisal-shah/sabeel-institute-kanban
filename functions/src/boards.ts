@@ -230,6 +230,11 @@ export const boardsSolelyOwnedBy = onCall({ secrets: [sentryDsn] }, guarded(asyn
 
   const sole = owned.docs
     .filter((d) => ((d.data().boardOwnerUids as string[]) ?? []).length === 1)
+    // ARCHIVED boards are left out on purpose. The warning's job is "these
+    // boards will have nobody able to run them", and an archived board has
+    // nobody running it either way — an admin restores it if it is ever wanted.
+    // Listing them would pad a confirmation dialog with boards the answer does
+    // not depend on, which is how a dialog stops being read.
     .filter((d) => d.data().archived !== true)
     .map((d) => ({ id: d.id, name: (d.data().name as string) ?? '(untitled)' }));
 

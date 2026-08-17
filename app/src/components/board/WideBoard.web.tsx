@@ -502,7 +502,8 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       ) : null}
       {/* Destructive and irreversible, so it gets a labelled button and a
           sentence — not an icon you can brush past. */}
-      {pendingDelete ? (
+      {/* Gated with the icon that opens it — see the native sibling. */}
+      {canManage && pendingDelete ? (
         <div style={banner(t)}>
           Delete the column “{pendingDelete.name}”? It is empty, but this cannot be
           undone.{' '}

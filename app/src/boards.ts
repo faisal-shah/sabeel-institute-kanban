@@ -12,6 +12,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import {
   MAX_RECENT_BOARDS,
+  canSeeEveryBoard,
   newBoard,
   pushRecent,
   type BoardColumn,
@@ -99,7 +100,7 @@ function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
  * refuse that query, so their Boards screen errors until they update.
  */
 export function useMyBoards(user: SessionUser) {
-  const seesAll = user.role === 'admin';
+  const seesAll = canSeeEveryBoard(user);
   return useLiveQuery<BoardListItem[]>(
     'boards',
     () =>
@@ -113,7 +114,7 @@ export function useMyBoards(user: SessionUser) {
 
 /** Archived boards — everyone's own, and every one of them for an admin. */
 export function useArchivedBoards(user: SessionUser) {
-  const seesAll = user.role === 'admin';
+  const seesAll = canSeeEveryBoard(user);
   return useLiveQuery<BoardListItem[]>(
     'archived-boards',
     () =>

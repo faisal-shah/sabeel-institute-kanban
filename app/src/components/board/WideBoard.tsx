@@ -215,8 +215,10 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       ) : null}
 
       {/* Destructive and irreversible, so it gets a labelled button and a
-          sentence — not an icon you can brush past. */}
-      {pendingDelete ? (
+          sentence — not an icon you can brush past. Gated with the icon that
+          opens it: another owner revoking yours while this is on screen would
+          otherwise leave a confirmation whose button the server now refuses. */}
+      {canManage && pendingDelete ? (
         <Panel>
           <Body>
             Delete the column “{pendingDelete.name}”? It is empty, but this cannot

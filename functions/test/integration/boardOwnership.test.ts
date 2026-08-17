@@ -257,6 +257,32 @@ describe('boardsSolelyOwnedBy', () => {
     expect(names).not.toContain('Shared');
   });
 
+  /**
+   * ARCHIVED boards are left out, deliberately.
+   *
+   * The warning's job is "these boards will have nobody able to run them", and
+   * an archived board has nobody running it either way. Listing them would pad
+   * the confirmation with boards the admin's answer does not depend on, which is
+   * how a dialog stops being read — so the omission is a product decision and
+   * needs an assertion, or a future tidy-up will silently reverse it.
+   */
+  it('leaves out a board they solely own but which is archived', async () => {
+    await adminDb()
+      .doc('boards/bo_sole_archived')
+      .set(board({ name: 'Put away', archived: true }));
+
+    const res = await callFunction(
+      'boardsSolelyOwnedBy',
+      { uid: OWNER },
+      await idTokenFor(ADMIN),
+    );
+    const names = (res.body.result as { boards: { name: string }[] }).boards.map((b) => b.name);
+    expect(names).not.toContain('Put away');
+    // The positive control: the same person's LIVE sole-owned board is listed,
+    // so this is the archived flag doing the work and not an empty answer.
+    expect(names).toContain('Solely mine');
+  });
+
   it('says nothing about someone who owns nothing alone', async () => {
     const res = await callFunction(
       'boardsSolelyOwnedBy',

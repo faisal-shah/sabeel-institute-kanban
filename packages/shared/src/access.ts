@@ -56,6 +56,21 @@ export function canCreateBoards(actor: { role: Role; status: UserStatus }): bool
 }
 
 /**
+ * Who sees a board they were NOT added to — the row `docs/PERMISSIONS.md` states
+ * as "See a board you were not added to: admin only".
+ *
+ * It decides the SHAPE of the boards query, not just an affordance: an admin may
+ * ask for the whole collection, and everyone else must carry
+ * `where('memberUids','array-contains', uid)` or Firestore rejects the query
+ * outright rather than filtering it. So this has to agree with the `isAdmin()`
+ * arm of the board read rule exactly — including its ACTIVE half, which the two
+ * inline `role === 'admin'` checks it replaces quietly omitted.
+ */
+export function canSeeEveryBoard(actor: { role: Role; status: UserStatus }): boolean {
+  return actor.status === 'active' && actor.role === 'admin';
+}
+
+/**
  * Who may ADMINISTER one particular board.
  *
  * The client mirror of `ownsBoard()` in firestore.rules, and the predicate the

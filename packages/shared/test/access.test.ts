@@ -8,6 +8,7 @@ import {
   canCreateBoards,
   canCurateLabels,
   canManageBoard,
+  canSeeEveryBoard,
   canUnseatCreator,
   canUseApp,
   canViewStats,
@@ -147,6 +148,26 @@ describe('canManageBoard', () => {
   it('status gates it, as everywhere else', () => {
     for (const status of USER_STATUSES.filter((s) => s !== 'active')) {
       expect(canManageBoard({ uid: 'owner1', role: 'admin', status }, board)).toBe(false);
+    }
+  });
+});
+
+/**
+ * The row PERMISSIONS.md states as "See a board you were not added to: admin
+ * only" — and the one predicate here that decides a QUERY SHAPE rather than an
+ * affordance, since everyone else's boards query must carry an array-contains
+ * constraint or Firestore rejects it outright.
+ */
+describe('canSeeEveryBoard', () => {
+  it('is an admin and nobody else', () => {
+    expect(canSeeEveryBoard({ role: 'admin', status: 'active' })).toBe(true);
+    expect(canSeeEveryBoard({ role: 'organizer', status: 'active' })).toBe(false);
+    expect(canSeeEveryBoard({ role: 'member', status: 'active' })).toBe(false);
+  });
+
+  it('checks status too, which the inline checks it replaced did not', () => {
+    for (const status of USER_STATUSES.filter((s) => s !== 'active')) {
+      expect(canSeeEveryBoard({ role: 'admin', status })).toBe(false);
     }
   });
 });

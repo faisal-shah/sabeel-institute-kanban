@@ -42,7 +42,8 @@ is looking at a card, it is cheap, and it is reversible by an admin.
 A board carries `boardOwnerUids`. Being in it — **and** being a member of the
 board — is what lets you:
 
-- change the board's name and description
+- change the board's name — `description` exists on the document and the ClickUp
+  importer sets it, but no screen edits one, so nothing here grants that
 - add, rename, reorder and delete columns
 - add and remove members
 - make another member an owner, or take it away
