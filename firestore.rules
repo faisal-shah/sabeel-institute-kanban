@@ -125,13 +125,42 @@ service cloud.firestore {
       // `where('memberUids', 'array-contains', uid)` to satisfy the second arm.
       allow get, list: if isActive() && (isManager() || amMember(existing()));
 
+      /**
+       * COMPATIBILITY STEP for the board-ownership migration (2026-08-16).
+       *
+       * `boardOwnerUids` is admitted to both key lists here, and PINNED, ahead of
+       * the backfill that writes it. The order is forced: `hasOnly` validates the
+       * whole merged document, so the moment a board CARRIES a field the rules do
+       * not list, every client write to that board is rejected — which is exactly
+       * how the `labels` migration broke board editing (docs/DEPLOY.md § Restoring
+       * across the label migration). The Admin SDK bypasses rules, so the backfill
+       * itself is never blocked; the breakage lands on ordinary people editing
+       * boards.
+       *
+       * ADMITTED BUT PINNED, not merely admitted. A bare `hasOnly` entry would let
+       * any manager write `boardOwnerUids: [theirUid]` onto every board for the
+       * whole window between this deploy and the authority change, and inherit all
+       * of them the moment ownership starts meaning something. The admin exemption
+       * on update is what lets owners be assigned deliberately in the meantime.
+       *
+       * This is still strictly MORE permissive than before: today any write
+       * carrying the key is refused outright, and after this one carrying it
+       * unchanged is accepted — which is precisely the read-modify-write shape
+       * `updateBoard` and `addBoardMember` already produce.
+       *
+       * DELETE THIS NOTE when the authority rules land; the pin is replaced by
+       * `ownsBoard()` and `keepsCreator()`.
+       */
+
       // Only managers/admins create boards. The creator must be honest about
       // authorship and must include themselves, so a board can never be born
       // orphaned with no one able to see it.
       allow create: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
-            'columnIds', 'memberUids', 'memberProfiles', 'activeCardCount',
-            'createdAt', 'createdBy'])
+            'columnIds', 'memberUids', 'memberProfiles', 'boardOwnerUids',
+            'activeCardCount', 'createdAt', 'createdBy'])
+        && (!('boardOwnerUids' in incoming())
+            || incoming().boardOwnerUids == [request.auth.uid])
         && incoming().createdBy == request.auth.uid
         && incoming().archived == false
         && incoming().memberUids is list
@@ -159,8 +188,13 @@ service cloud.firestore {
       // being prevented.
       allow update: if isManager()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
-            'columnIds', 'memberUids', 'memberProfiles', 'activeCardCount',
-            'createdAt', 'createdBy'])
+            'columnIds', 'memberUids', 'memberProfiles', 'boardOwnerUids',
+            'activeCardCount', 'createdAt', 'createdBy'])
+        // Pinned for the compatibility window — see the note above `create`.
+        // Admins are exempt so ownership can be assigned before it starts
+        // meaning anything.
+        && (isAdmin()
+            || incoming().get('boardOwnerUids', []) == existing().get('boardOwnerUids', []))
         && incoming().createdBy == existing().createdBy
         // History, not state. Neither is the client's to rewrite.
         && incoming().get('createdAt', 0) == existing().get('createdAt', 0)

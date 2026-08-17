@@ -306,6 +306,84 @@ describe('updating a board', () => {
   });
 });
 
+/**
+ * The compatibility step of the board-ownership migration (2026-08-16).
+ *
+ * `boardOwnerUids` is admitted to the key lists BEFORE the backfill writes it,
+ * because `hasOnly` validates the whole merged document — the moment a board
+ * carries a field the rules do not list, every client write to that board is
+ * refused. That is how the `labels` migration broke board editing.
+ *
+ * It is admitted PINNED, and these are the tests for the pin. Without it, any
+ * manager could quietly write themselves into `boardOwnerUids` on every board
+ * during the window and inherit all of them the moment ownership starts meaning
+ * something. Replaced by `ownsBoard()` when the authority rules land.
+ */
+describe('boardOwnerUids during the compatibility window', () => {
+  it('accepts a board write that carries the new field unchanged', async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(
+        doc(c.firestore(), 'boards/b_owned'),
+        baseBoard({ boardOwnerUids: ['manager1'] }),
+      );
+    });
+    // The ordinary read-modify-write shape: the merged document carries the key,
+    // and that must no longer be grounds for refusal.
+    await assertSucceeds(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_owned'), { name: 'Renamed' }),
+    );
+  });
+
+  it('refuses a manager granting themselves ownership', async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(
+        doc(c.firestore(), 'boards/b_grab'),
+        baseBoard({ boardOwnerUids: ['someone_else'] }),
+      );
+    });
+    await assertFails(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_grab'), {
+        boardOwnerUids: ['manager1'],
+      }),
+    );
+    // Only the ownership change was in the way — the same write without it passes.
+    await assertSucceeds(
+      updateDoc(doc(ctx('manager1', 'manager'), 'boards/b_grab'), { name: 'Fine' }),
+    );
+  });
+
+  it('lets an admin assign ownership, so it can be set up before the flip', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('admin1', 'admin'), 'boards/b_member'), {
+        boardOwnerUids: ['member1'],
+      }),
+    );
+  });
+
+  it('a new board may only name its creator as owner', async () => {
+    await assertFails(
+      setDoc(
+        doc(ctx('manager1', 'manager'), 'boards/new8'),
+        baseBoard({
+          createdBy: 'manager1',
+          memberUids: ['manager1'],
+          boardOwnerUids: ['admin1'],
+        }),
+      ),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(ctx('manager1', 'manager'), 'boards/new9'),
+        baseBoard({
+          createdBy: 'manager1',
+          memberUids: ['manager1'],
+          boardOwnerUids: ['manager1'],
+        }),
+      ),
+    );
+  });
+});
+
 describe('deleting a board', () => {
   it('is impossible for everyone, including admins', async () => {
     // Boards archive, never hard-delete: too much accumulated work to expose a
