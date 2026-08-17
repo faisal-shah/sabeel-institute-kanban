@@ -117,6 +117,24 @@ check('the editor mounts', await editor.isVisible().catch(() => false));
 
 await editor.click();
 await page.keyboard.type('hello world and 2 * 3 * 4');
+/*
+ * WAIT FOR THE MODEL, not for a sleep.
+ *
+ * Lexical reconciles asynchronously, and everything below navigates by CARET —
+ * Home, then a count of ArrowRights to land on one word. Issued before the
+ * editor state has caught up, those keystrokes move a selection over content
+ * that is not there yet, and the mark lands on the wrong word: observed once on
+ * a loaded machine as `hello` followed by a bullet reading `**first** and 2 \* 3
+ * \* 4`, with `world` gone entirely. Nothing about the app was wrong; the test
+ * had assumed a synchronous editor.
+ */
+await page.waitForFunction(
+  (want) =>
+    document.querySelector('[contenteditable="true"]')?.innerText.replace(/\s+/g, ' ').trim() ===
+    want,
+  'hello world and 2 * 3 * 4',
+  { timeout: 15000 },
+);
 await page.keyboard.press('Home');
 for (let i = 0; i < 6; i += 1) await page.keyboard.press('ArrowRight');
 await page.keyboard.down('Shift');
@@ -167,6 +185,13 @@ check('and the app body size', fonts.size === '15px', fonts.size);
 await page.keyboard.press('End');
 await page.keyboard.press('Enter');
 await page.getByRole('button', { name: 'Bullet list', exact: true }).first().click();
+// Same reason as above: the list transform rewrites the block, so wait for the
+// editor to hold a second line before typing into it.
+await page.waitForFunction(
+  () => (document.querySelector('[contenteditable="true"]')?.innerText ?? '').includes('\n'),
+  undefined,
+  { timeout: 15000 },
+);
 await page.keyboard.type('first');
 await page.getByRole('button', { name: 'Save' }).first().click();
 await page.waitForTimeout(1500);

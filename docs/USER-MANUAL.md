@@ -514,26 +514,31 @@ and nothing else.
 
 From here:
 
+- **Name** — rename the board. This screen is the only place that does it, which
+  is why a member who cannot open it cannot rename a board either.
 - **Columns** — add, rename, and reorder. Tap the **pencil** beside a column's
   name to rename it; drag the handle to reorder. A column can only be deleted
   once it's **empty**, so no cards vanish with it, and deleting one **asks first**
   because it cannot be undone. To clear a column quickly, select its cards and
   move or archive them in one go.
-- **Labels** — one vocabulary shared by **every board**, not just this one.
-  Adding, renaming or deleting a label here changes it everywhere, and the panel
-  says so. Use the **pencil** to rename, the **palette** to cycle its colour, and
-  the **bin** to delete — deleting asks first and tells you how many cards carry
-  it, because it comes off all of them.
+- **Labels** — one vocabulary shared by **every board**, not just this one, so
+  anything you do to a label here changes it everywhere. The panel says so.
+
+  **Anyone can add one**: open any card and press **+** beside its labels, and it
+  joins the shared set and lands on that card at the same time. **Only an admin
+  renames, recolours or deletes one** — a label is shared, so changing it reaches
+  cards on boards you may not even be able to open, and that is an organisation-
+  wide decision rather than a board one. If you own a board but are not an admin
+  you will see the labels listed with no controls beside them.
+
+  Admins get a **pencil** to rename, a **palette** to cycle the colour and a
+  **bin** to delete. Deleting asks first and tells you how many cards carry it,
+  because it comes off all of them.
 
   Colours come from a fixed palette so they stay readable on the app's warm
   surfaces. Names are short by design, and two labels can't share a name even in
   different capitals — a card face shows the name and nothing else, so "Urgent"
   and "urgent" would be impossible to tell apart.
-
-  **Anyone can add a label**: open any card and press **+** beside its labels. It
-  joins the shared set and is applied to that card at the same time. **Only an
-  admin renames, recolours or deletes one** — because a label is shared, so
-  changing it reaches cards on boards you may not even be able to open.
 - **Members** — who can see the board. Tap the **add-person** icon beside the
   *Members* heading to see who else can be added, and tap a name to add them.
   Removing someone (the **remove-person** icon on their row) also **unassigns them
@@ -737,6 +742,9 @@ they're a member of its board).
 **…create a board?** *(organizers and admins)*
 **Boards → New board** → name it. You own the board you create.
 
+**…rename a board?** *(the board's owners)*
+Open the board → **settings** → Name. That screen is the only place that does it.
+
 **…rename or add columns?** *(the board's owners)*
 Open the board → **settings** → Columns.
 
@@ -801,9 +809,10 @@ Board **settings → Members** → add them. (They must be an approved account f
 Board **settings → Members** → turn on **Owner** on their row → confirm.
 
 **…find out who runs a board I'm on?** *(anyone)*
-Open the board → **Board members**. Owners are marked.
+Open the board → **Board members** — or **Board settings**, if you are one of
+them. Same screen; owners are marked on it either way.
 
-**…hand a board on when I created it?** *(admins)*
+**…hand a board on when I created it?** *(needs an admin)*
 Ask an admin. Only they can take ownership off whoever created a board — the
 creator cannot even do it themselves.
 
