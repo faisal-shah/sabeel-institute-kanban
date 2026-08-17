@@ -52,7 +52,7 @@ beforeAll(async () => {
   await makeUser({
     uid: MGR,
     email: `${MGR}@oursabeel.com`,
-    role: 'manager',
+    role: 'organizer',
     status: 'active',
   });
   await adminDb().doc(`boards/${B1}`).set(board());

@@ -186,7 +186,7 @@ describe('a valid admin change', () => {
   it('records who made the change', async () => {
     await callFunction(
       'setUserAccess',
-      { uid: 'pending1', role: 'manager', status: 'active' },
+      { uid: 'pending1', role: 'organizer', status: 'active' },
       await idTokenFor('admin1'),
     );
     const snap = await adminDb().doc('users/pending1').get();
@@ -206,30 +206,6 @@ describe('a valid admin change', () => {
     }
   });
 
-  /**
-   * The kill switch has to survive the rename.
-   *
-   * Disabling, rejecting and restoring all go through here, and the People screen
-   * sends role and status TOGETHER. An app build too old to know the new name
-   * keeps sending `manager` for as long as Play takes to reach everyone — and
-   * without this, every account still holding the old role would have been
-   * un-disableable for that whole window.
-   *
-   * Accepted as INPUT, stored as `organizer`. Nothing writes the old value again.
-   */
-  it('accepts the retired role from an old client, and stores the new one', async () => {
-    const r = await callFunction(
-      'setUserAccess',
-      { uid: 'member1', role: 'manager', status: 'disabled' },
-      await idTokenFor('admin1'),
-    );
-    expect(r.body.error).toBeUndefined();
-    const u = await adminAuth().getUser('member1');
-    expect(u.customClaims?.role).toBe('organizer');
-    expect(u.customClaims?.status).toBe('disabled');
-    const snap = await adminDb().doc('users/member1').get();
-    expect(snap.data()?.role).toBe('organizer');
-  });
 
   // A user who has never had tokens revoked has NO tokensValidAfterTime at all,
   // so "before" is undefined rather than an earlier time — treat it as epoch 0.

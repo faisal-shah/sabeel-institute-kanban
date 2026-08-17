@@ -127,13 +127,14 @@ export function canCurateLabels(actor: { role: Role; status: UserStatus }): bool
  * May this actor see and act on things belonging to a board?
  *
  * The exact predicate `firestore.rules` repeats as `onBoard()` for every card
- * subcollection: active, and either a manager — who may join any board — or a
- * listed member.
+ * subcollection: active, and either an ADMIN or a listed member. There is no
+ * third case — an organizer has no more sight of a board they are not on than
+ * anyone else does.
  *
  * It exists as shared code because the attachment callables have to make the
  * same judgement in TypeScript. Cloud Storage rules cannot read Firestore, so
  * downloading, finalizing and removing an attachment are authorized in a
- * function rather than in a rule; if that copy drifted, a manager would see a
+ * function rather than in a rule; if that copy drifted, someone would see a
  * remove button and be told permission denied, or worse, the inverse.
  */
 export function canAccessBoard(
@@ -174,8 +175,7 @@ export function checkAccessChange(params: {
 }):
   | { ok: true; role: Role; status: UserStatus }
   | { ok: false; reason: AccessChangeRejection } {
-  const { actor, targetUid, nextStatus } = params;
-  const nextRole = coerceLegacyRole(params.nextRole);
+  const { actor, targetUid, nextRole, nextStatus } = params;
 
   if (!canAdministerUsers(actor)) return { ok: false, reason: 'not-admin' };
   if (actor.uid === targetUid) return { ok: false, reason: 'self-change' };
@@ -188,27 +188,6 @@ export function checkAccessChange(params: {
   return { ok: true, role: nextRole, status: nextStatus };
 }
 
-/**
- * `manager` → `organizer`, for ONE release.
- *
- * Not a dual-role model — `ROLES` offers only the three current values, and
- * nothing ever stores `manager` again. This accepts it as INPUT, and it exists
- * to close a specific window during the rename.
- *
- * `setUserAccess` is the kill switch: disabling, rejecting and restoring an
- * account all go through it, and the People screen sends role and status
- * TOGETHER. So between deploying this code and migrating the claims, every
- * account still holding `manager` would have been un-disableable — the one
- * control you would reach for if the migration were going wrong is the one that
- * would have stopped working. An old client build sends the same stale value for
- * as long as it takes Play to reach everyone.
- *
- * DELETE THIS once no claim and no `users/*` mirror carries `manager` — see the
- * board-ownership migration in docs/DEPLOY.md.
- */
-export function coerceLegacyRole(value: unknown): unknown {
-  return value === 'manager' ? 'organizer' : value;
-}
 
 /** Human-readable reason, shared by the callable's error and the UI's message. */
 export const ACCESS_CHANGE_MESSAGES: Record<AccessChangeRejection, string> = {

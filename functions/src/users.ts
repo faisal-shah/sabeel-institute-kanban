@@ -56,10 +56,8 @@ export const setUserAccess = onCall({ secrets: [sentryDsn] }, guarded(async (req
   }
 
   // The NARROWED values come back with the verdict, and this writes those rather
-  // than the raw input. It used to re-narrow `nextRole` here instead, which was
-  // fine while the two were identical — and would silently have discarded the
-  // legacy-role coercion `checkAccessChange` now applies, putting `manager`
-  // straight back into the claims it had just been translated out of.
+  // than re-narrowing the raw input here. One place decides what a valid role and
+  // status are; this writes what that place approved.
   const { role: nextRoleChecked, status: nextStatusChecked } = verdict;
 
   const db = getFirestore();

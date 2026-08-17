@@ -18,7 +18,7 @@ import {
 
 let env: RulesTestEnvironment;
 
-const ROLES = ['member', 'manager', 'admin'] as const;
+const ROLES = ['member', 'organizer', 'admin'] as const;
 const STATUSES = ['pending', 'active', 'rejected', 'disabled'] as const;
 
 function ctx(uid: string, role: string, status: string) {
@@ -61,7 +61,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users/manager1'), {
       displayName: 'Manager One',
       email: 'manager1@oursabeel.com',
-      role: 'manager',
+      role: 'organizer',
       status: 'active',
     });
     await setDoc(doc(db, 'users/member1'), {
@@ -157,7 +157,7 @@ describe('writes to user docs are impossible from any client', () => {
     // The attack this whole design exists to prevent.
     const db = ctx('member1', 'member', 'active');
     await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'admin' }));
-    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'manager' }));
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'organizer' }));
     // A real status change is blocked too. (Writing a field to the value it
     // ALREADY has is a no-op: `diff().affectedKeys()` reports only keys whose
     // values differ, so such a write changes nothing and is harmless. The rule
@@ -172,14 +172,14 @@ describe('writes to user docs are impossible from any client', () => {
 
   it('blocks a manager promoting someone', async () => {
     const db = ctx('manager1', 'manager', 'active');
-    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'manager' }));
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'organizer' }));
   });
 
   it('blocks an ADMIN writing user docs directly — it must go through the callable', async () => {
     // Admins are authorised to change access, but not by writing Firestore.
     // Claims and the mirror would drift apart, and claims are what rules trust.
     const db = ctx('admin1', 'admin', 'active');
-    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'manager' }));
+    await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'organizer' }));
     await assertFails(setDoc(doc(db, 'users/newperson'), { role: 'member' }));
     await assertFails(deleteDoc(doc(db, 'users/member1')));
   });
@@ -356,7 +356,7 @@ describe('operator state (meta/*)', () => {
     await env.withSecurityRulesDisabled(async (c) => {
       await setDoc(doc(c.firestore(), 'meta/health'), { counts: { cards: 1 } });
     });
-    for (const role of ['member', 'manager', 'admin']) {
+    for (const role of ['member', 'organizer', 'admin']) {
       const db = ctx(`${role}1`, role, 'active');
       await assertFails(getDoc(doc(db, 'meta/health')));
       await assertFails(setDoc(doc(db, 'meta/health'), { counts: { cards: 0 } }));

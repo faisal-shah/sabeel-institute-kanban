@@ -57,7 +57,7 @@ const waitForActivity = (after: number) =>
   });
 
 beforeAll(async () => {
-  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'manager', status: 'active' });
+  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'organizer', status: 'active' });
   await adminDb().doc(`boards/${B1}`).set(board());
   await adminDb().doc(`cards/${CARD}`).set(card());
 });

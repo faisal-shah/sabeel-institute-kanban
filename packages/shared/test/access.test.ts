@@ -11,7 +11,6 @@ import {
   canUseApp,
   canViewStats,
   checkAccessChange,
-  coerceLegacyRole,
   isRole,
   isUserStatus,
 } from '../src/access';
@@ -287,26 +286,6 @@ describe('checkAccessChange', () => {
       ).toBe(false);
     }
   });
-
-  /**
-   * The kill switch must survive the rename.
-   *
-   * Disabling, rejecting and restoring all go through `setUserAccess`, and the
-   * People screen sends role and status TOGETHER. Without this, every account
-   * still holding `manager` would be un-disableable between the deploy and the
-   * claims migration — and an old app build keeps sending it for as long as Play
-   * takes to reach everyone.
-   */
-  it('accepts the legacy role as input, and stores the new one', () => {
-    expect(
-      checkAccessChange({
-        actor: admin,
-        targetUid: 'u2',
-        nextRole: 'manager',
-        nextStatus: 'disabled',
-      }),
-    ).toEqual({ ok: true, role: 'organizer', status: 'disabled' });
-  });
 });
 
 describe('type guards', () => {
@@ -322,14 +301,11 @@ describe('type guards', () => {
   });
 
   /**
-   * `manager` is not a role any more, and nothing may store it again. It is
-   * accepted only as INPUT, by `coerceLegacyRole`, and only for one release —
-   * the two are deliberately different questions.
+   * `manager` is not a role any more, and nothing accepts it — not as a stored
+   * value and not as input. A clean cut: an account still carrying the old claim
+   * gets nothing from it, and the claims migration is what puts that right.
    */
   it('does not recognise the retired role', () => {
     expect(isRole('manager')).toBe(false);
-    expect(coerceLegacyRole('manager')).toBe('organizer');
-    expect(coerceLegacyRole('member')).toBe('member');
-    expect(coerceLegacyRole('nonsense')).toBe('nonsense');
   });
 });
