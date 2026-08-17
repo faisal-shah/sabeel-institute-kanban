@@ -52,6 +52,28 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
     );
   }
 
+  /**
+   * CREATOR PROTECTION, repeated here because THIS is the boundary.
+   *
+   * `firestore.rules` refuses a board update that takes `createdBy` out of
+   * `boardOwnerUids`, and removing them from the board would do exactly that —
+   * but this callable is an Admin SDK batch and rules do not see it at all. The
+   * screen disables the row, and a disabled control is an affordance, not a
+   * security control: without this check, any owner could unseat the person who
+   * created the board by "removing" them, which is the one thing the rule exists
+   * to prevent.
+   *
+   * It also covers the creator LEAVING, deliberately: they cannot step down
+   * unaided. One sentence, no exceptions to remember, at the price of an admin
+   * request on the rare handover.
+   */
+  if (uid === board.data()?.createdBy && actor.role !== 'admin') {
+    throw new HttpsError(
+      'permission-denied',
+      'Only an admin can take the person who created this board off it.',
+    );
+  }
+
   // Cards assigned to the person being removed. Batched with the membership
   // change so there is no window in which they are unassigned but still a
   // member, or removed but still assigned.

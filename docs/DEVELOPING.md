@@ -245,7 +245,7 @@ produces the images `docs/USER-MANUAL.md` embeds, at the two sizes
 
 ```sh
 scripts/dev.sh web              # emulators + web + seed, and WAIT for the seed
-node scripts/manual-shots.mjs   # all 21 → docs/manual/img/
+node scripts/manual-shots.mjs   # every image → docs/manual/img/
 node scripts/manual-shots.mjs stats search   # or just the ones that changed
 python3 docs/render-manual.py   # rebuild docs/USER-MANUAL.pdf
 ```

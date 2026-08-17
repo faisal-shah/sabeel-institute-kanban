@@ -138,6 +138,16 @@ const probes = [
       db.collection('cards').where('subscriberUids', 'array-contains', ANY).limit(1).get(),
   },
   {
+    name: 'sole board ownership (boardOwnerUids array-contains)',
+    used_by:
+      'the boardsSolelyOwnedBy callable, which warns an admin before disabling ' +
+      'someone who is the only owner of a board. A single-field auto index at ' +
+      'collection scope, so no composite definition — probed because a silent ' +
+      'failure here would drop the warning and the admin would never know.',
+    run: () =>
+      db.collection('boards').where('boardOwnerUids', 'array-contains', ANY).limit(1).get(),
+  },
+  {
     name: 'label usage (labelIds array-contains)',
     used_by: 'the countLabelUsage and deleteLabel callables',
     // A single-field auto index at COLLECTION scope, which cards get for free —

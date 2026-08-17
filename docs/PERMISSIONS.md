@@ -69,6 +69,12 @@ The rule is phrased on the CHANGE, not on the value: it refuses an update that
 the creator stays perfectly editable, which a value-shaped rule ("the creator
 must always be an owner") would have made permanently uneditable instead.
 
+**`removeBoardMember` repeats the check, and that repetition is the real
+boundary.** Removing the creator from the board would drop them from
+`boardOwnerUids` too, so it is the same act by another route — but that callable
+is an Admin SDK batch and rules do not see it at all. The screen disables the
+row; a disabled control is an affordance, not a security control.
+
 ### Ownership is checked alongside membership, never alone
 
 Every check is "in `memberUids` AND in `boardOwnerUids`". A leftover ownership
@@ -105,7 +111,8 @@ One definition per rule, mirrored rather than duplicated:
 | Decision | Server (the authority) | Client (affordance only) |
 |---|---|---|
 | Create a board | `canCreateBoards()` in `firestore.rules` | `sessionCan.createBoards` |
-| Administer a board | `ownsBoard()` in `firestore.rules` | `canManageBoard(user, board)` |
+| Administer a board | `ownsBoard()` in `firestore.rules`, `canManageBoard` in `removeBoardMember` / `countMemberAssignments` | `canManageBoard(user, board)` |
+| Take the creator off a board | `keepsCreator()` in `firestore.rules`, repeated in `removeBoardMember` | the creator's row is disabled |
 | See a board's contents | `onBoard()` in `firestore.rules` | `canAccessBoard(user, board)` |
 | Curate labels | `isAdmin()` in `firestore.rules`, `canCurateLabels` in `deleteLabel` | `canCurateLabels` |
 | Stats | `isAdmin()` in `firestore.rules` | `canViewStats` |

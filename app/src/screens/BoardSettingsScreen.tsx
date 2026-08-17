@@ -505,13 +505,22 @@ export function BoardSettingsScreen({
                     disabled={busy || (isCreator && user.role !== 'admin')}
                     label={`Owner of this board: ${m.displayName}`}
                     onValueChange={async (next) => {
+                      // Stepping DOWN yourself is the one move you cannot take
+                      // back: the moment it lands, this screen becomes the
+                      // read-only roster. Say so, rather than letting someone
+                      // find out by looking for the control they just used.
+                      const self = m.uid === user.uid && !next;
                       const ok = await confirmAction(
                         next
                           ? `Make ${m.displayName} an owner?`
-                          : `Remove ${m.displayName} as an owner?`,
+                          : self
+                            ? 'Step down as an owner?'
+                            : `Remove ${m.displayName} as an owner?`,
                         next
                           ? `${m.displayName} will be able to change this board's settings and columns, add and remove people, promote other owners, archive it, and permanently delete its cards. It grants nothing on any other board.`
-                          : `${m.displayName} will stay on the board and keep using it, but will no longer be able to change it or manage who is on it.`,
+                          : self
+                            ? 'You will stay on the board and keep using it, but will no longer be able to change it or manage who is on it — including undoing this. Another owner or an admin would have to give it back.'
+                            : `${m.displayName} will stay on the board and keep using it, but will no longer be able to change it or manage who is on it.`,
                       );
                       if (ok) void run(() => setBoardOwner(boardId, m.uid, next));
                     }}

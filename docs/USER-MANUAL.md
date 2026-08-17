@@ -504,8 +504,15 @@ and only an admin can change that.
 
 Open a board and tap its **settings** (the gear — along the bottom on a phone,
 in the header in a browser). If you don't own the board the icon is a **group of
-people** instead and says **Board members**: same screen, member list only. From
-here:
+people** instead and says **Board members**: the same screen with the member list
+and nothing else.
+
+<div class="pair">
+  <figure><img class="wide" src="manual/img/roster-wide.png" alt="The member list as somebody who does not own the board, in a browser"><figcaption>Not an owner, in a browser — owners marked, no controls</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/roster-phone.png" alt="The member list as somebody who does not own the board, on a phone"><figcaption>The same on a phone</figcaption></figure>
+</div>
+
+From here:
 
 - **Columns** — add, rename, and reorder. Tap the **pencil** beside a column's
   name to rename it; drag the handle to reorder. A column can only be deleted

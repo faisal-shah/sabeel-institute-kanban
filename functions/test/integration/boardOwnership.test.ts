@@ -118,6 +118,71 @@ describe('removeBoardMember and ownership', () => {
     );
     expect(res.body.error).toBeUndefined();
   });
+
+  /**
+   * CREATOR PROTECTION, ON THE PATH THAT ACTUALLY DECIDES IT.
+   *
+   * `firestore.rules` refuses a board update that drops `createdBy` from
+   * `boardOwnerUids`. Removing them from the board does exactly that — and this
+   * callable is an Admin SDK batch, so no rule sees it. Without the check inside
+   * the callable, any owner could unseat the person who made the board by
+   * "removing" them, and the only thing standing in the way would be a disabled
+   * button.
+   */
+  it('refuses another owner removing the CREATOR', async () => {
+    await adminDb()
+      .doc('boards/bo_creator')
+      .set(board({ boardOwnerUids: [OWNER, SECOND] }));
+
+    const res = await callFunction(
+      'removeBoardMember',
+      { boardId: 'bo_creator', uid: OWNER },
+      await idTokenFor(SECOND),
+    );
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+
+    // Only the creator's protection was in the way: the same caller removes
+    // anyone else on the same board without trouble.
+    const ok = await callFunction(
+      'removeBoardMember',
+      { boardId: 'bo_creator', uid: MEM },
+      await idTokenFor(SECOND),
+    );
+    expect(ok.body.error).toBeUndefined();
+
+    const after = (await adminDb().doc('boards/bo_creator').get()).data();
+    expect(after?.memberUids).toContain(OWNER);
+    expect(after?.boardOwnerUids).toContain(OWNER);
+  });
+
+  it('refuses the creator LEAVING their own board', async () => {
+    // Deliberate, and the same sentence as the rule: they cannot step down
+    // unaided. One rule with no exceptions, at the price of an admin request.
+    await adminDb().doc('boards/bo_leave').set(board());
+    const res = await callFunction(
+      'removeBoardMember',
+      { boardId: 'bo_leave', uid: OWNER },
+      await idTokenFor(OWNER),
+    );
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+  });
+
+  it('an admin can remove the creator', async () => {
+    await adminDb().doc('boards/bo_creator_admin').set(board());
+    const res = await callFunction(
+      'removeBoardMember',
+      { boardId: 'bo_creator_admin', uid: OWNER },
+      await idTokenFor(ADMIN),
+    );
+    expect(res.body.error).toBeUndefined();
+
+    const after = (await adminDb().doc('boards/bo_creator_admin').get()).data();
+    expect(after?.memberUids).not.toContain(OWNER);
+    expect(after?.boardOwnerUids).not.toContain(OWNER);
+    // And the board is left with nobody able to run it — visible, not silent:
+    // the callable logs a warning, and Board settings shows no owner.
+    expect(after?.boardOwnerUids).toEqual([]);
+  });
 });
 
 /**

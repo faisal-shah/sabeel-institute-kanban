@@ -160,7 +160,18 @@ await enrich();
 const browser = await chromium.launch();
 await mkdir(OUT, { recursive: true });
 
-async function fresh(w, h, { signIn = true } = {}) {
+/**
+ * Who a shot is taken AS.
+ *
+ * Everything is the admin's view unless it is listed here, because that is the
+ * view the manual mostly describes. The roster is the exception and has to be:
+ * an admin owns every board, so the read-only member list the manual describes
+ * for everybody else renders for nobody the admin tour can reach. `omar` is a
+ * plain member of the seeded board and an owner of nothing.
+ */
+const SIGN_IN_AS = { roster: 'omar' };
+
+async function fresh(w, h, { signIn = true, who = 'faisal' } = {}) {
   const p = await browser.newPage({ viewport: { width: w, height: h } });
   // Confirmations are accepted, and LOGGED — a dialog firing here means a click
   // landed somewhere it should not have.
@@ -171,7 +182,7 @@ async function fresh(w, h, { signIn = true } = {}) {
   p.on('pageerror', (e) => console.log('  PAGEERROR:', e.message.slice(0, 90)));
   await p.goto(BASE, { waitUntil: 'networkidle' });
   if (!signIn) return p;
-  await p.getByRole('button', { name: 'faisal', exact: true }).click();
+  await p.getByRole('button', { name: who, exact: true }).click();
   await p.getByRole('button', { name: 'More' }).waitFor({ timeout: 90000 });
   return p;
 }
@@ -300,6 +311,15 @@ const SHOTS = {
     await p.getByText('in this period', { exact: false }).first().waitFor({ timeout: 30000 });
     await p.waitForTimeout(1200);
   },
+  // The member list as somebody who does NOT own the board: owners marked, and
+  // no controls at all. Taken as `omar` — see SIGN_IN_AS.
+  roster: async (p) => {
+    await nav(p, 'Boards');
+    await p.getByText(BOARD).first().click();
+    await p.getByRole('button', { name: 'Board members' }).click();
+    await p.getByText(/^Members \(/).first().waitFor({ timeout: 30000 });
+    await p.waitForTimeout(900);
+  },
   // The breakdown only exists while a bar is SELECTED, so it needs its own
   // shot. The seed can leave a quiet chart with nothing to tap, in which case
   // this photographs the chart alone rather than failing the whole run.
@@ -322,7 +342,7 @@ for (const [tag, w, h] of VIEWPORTS) {
     if (!wanted(name)) continue;
     // A fresh page per shot. Reusing one made a failed step poison every image
     // after it, and the cost is a few seconds.
-    const p = await fresh(w, h);
+    const p = await fresh(w, h, { who: SIGN_IN_AS[name] });
     try {
       await drive(p, tag);
       await p.waitForTimeout(600);
