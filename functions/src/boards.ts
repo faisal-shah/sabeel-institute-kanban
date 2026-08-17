@@ -3,8 +3,8 @@ import { onCall, HttpsError, type CallableRequest } from 'firebase-functions/v2/
 import { guarded, sentryDsn } from './sentry';
 import { logger } from 'firebase-functions/v2';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import type { Role, UserStatus } from '@sabeel/shared';
-import { canManageBoards } from '@sabeel/shared';
+import type { BoardDoc, Role, UserStatus } from '@sabeel/shared';
+import { canAdministerUsers, canManageBoard } from '@sabeel/shared';
 
 /**
  * Removing someone from a board is a CALLABLE, not a plain client write.
@@ -23,15 +23,10 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
 
   const actor = {
+    uid: auth.uid,
     role: (auth.token.role ?? 'member') as Role,
     status: (auth.token.status ?? 'pending') as UserStatus,
   };
-  if (!canManageBoards(actor)) {
-    throw new HttpsError(
-      'permission-denied',
-      'Only managers and admins can change who is on a board.',
-    );
-  }
 
   const boardId = request.data?.boardId;
   const uid = request.data?.uid;
@@ -46,6 +41,16 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
   const boardRef = db.doc(`boards/${boardId}`);
   const board = await boardRef.get();
   if (!board.exists) throw new HttpsError('not-found', 'No such board.');
+
+  // Authorised AFTER the board is read, because authority is now per-board: this
+  // is `ownsBoard()` from firestore.rules, in TypeScript. The board had to be
+  // fetched anyway, so the reorder costs nothing.
+  if (!canManageBoard(actor, board.data() as BoardDoc)) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only an owner of this board, or an admin, can change who is on it.',
+    );
+  }
 
   // Cards assigned to the person being removed. Batched with the membership
   // change so there is no window in which they are unassigned but still a
@@ -72,6 +77,13 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
     // The denormalised profile goes with the membership — leaving it behind
     // would keep a departed colleague in every assignee picker.
     [`memberProfiles.${uid}`]: FieldValue.delete(),
+    // …and so does OWNERSHIP. Authority is `member AND owner`, so a leftover
+    // entry grants nothing today — but `addBoardMember` only writes
+    // `memberUids`, so re-adding this person later would silently hand their
+    // ownership back, with no confirmation and nothing in the activity log. The
+    // rules cannot catch it either: this batch is an Admin SDK write and bypasses
+    // them, which is exactly why there is no subset rule to lean on.
+    boardOwnerUids: FieldValue.arrayRemove(uid),
   });
   for (const card of assigned.docs) {
     batch.update(card.ref, {
@@ -92,10 +104,20 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
 
   await batch.commit();
 
+  // Worth a line of its own: a board with no owners left is administrable only by
+  // an admin, and nothing else in the system says so out loud.
+  const ownersLeft = ((board.data()?.boardOwnerUids as string[]) ?? []).filter(
+    (u) => u !== uid,
+  ).length;
+  if (ownersLeft === 0) {
+    logger.warn('Board left with no owners', { boardId, removedUid: uid, actorUid: auth.uid });
+  }
+
   logger.info('Removed board member', {
     boardId,
     uid,
     actorUid: auth.uid,
+    ownersLeft,
     unassignedCards: assigned.size,
     unsubscribedCards: subscribed.size,
   });
@@ -113,12 +135,10 @@ export const countMemberAssignments = onCall({ secrets: [sentryDsn] }, guarded(a
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
 
   const actor = {
+    uid: auth.uid,
     role: (auth.token.role ?? 'member') as Role,
     status: (auth.token.status ?? 'pending') as UserStatus,
   };
-  if (!canManageBoards(actor)) {
-    throw new HttpsError('permission-denied', 'Managers and admins only.');
-  }
 
   const boardId = request.data?.boardId;
   const uid = request.data?.uid;
@@ -126,7 +146,17 @@ export const countMemberAssignments = onCall({ secrets: [sentryDsn] }, guarded(a
     throw new HttpsError('invalid-argument', 'boardId and uid are required.');
   }
 
-  const assigned = await getFirestore()
+  const db = getFirestore();
+  // Costs a read the old org-role gate did not, and it is not optional: the
+  // question "may you administer this board" cannot be answered without the
+  // board. Same gate as the removal this figure is shown before.
+  const board = await db.doc(`boards/${boardId}`).get();
+  if (!board.exists) throw new HttpsError('not-found', 'No such board.');
+  if (!canManageBoard(actor, board.data() as BoardDoc)) {
+    throw new HttpsError('permission-denied', 'Owners of this board, and admins, only.');
+  }
+
+  const assigned = await db
     .collection('cards')
     .where('boardId', '==', boardId)
     .where('assigneeUids', 'array-contains', uid)
@@ -134,4 +164,52 @@ export const countMemberAssignments = onCall({ secrets: [sentryDsn] }, guarded(a
     .get();
 
   return { count: assigned.data().count };
+}));
+
+/**
+ * Boards this person is the ONLY owner of.
+ *
+ * Disabling an account does not touch `boardOwnerUids` — the board keeps its
+ * owner, that owner just cannot act — so there is nothing structurally broken to
+ * prevent, only a situation to point at. The admin is told and proceeds; the
+ * alternative, blocking, would mean not being able to disable a departing
+ * colleague until every board they touched had been reassigned.
+ *
+ * Shaped like `countMemberAssignments`: a read-only question the UI asks BEFORE
+ * it acts, so the answer appears in the confirmation rather than as a surprise
+ * afterwards.
+ *
+ * `array-contains` on a single field is served by the automatic index — no entry
+ * in firestore.indexes.json and no index deploy.
+ */
+export const boardsSolelyOwnedBy = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ uid?: unknown }>) => {
+  const auth = request.auth;
+  if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+
+  const actor = {
+    role: (auth.token.role ?? 'member') as Role,
+    status: (auth.token.status ?? 'pending') as UserStatus,
+  };
+  // Admin-only because it is asked from the People screen, and because it lists
+  // boards the caller may well not be on.
+  if (!canAdministerUsers(actor)) {
+    throw new HttpsError('permission-denied', 'Admins only.');
+  }
+
+  const uid = request.data?.uid;
+  if (typeof uid !== 'string' || !uid) {
+    throw new HttpsError('invalid-argument', 'A uid is required.');
+  }
+
+  const owned = await getFirestore()
+    .collection('boards')
+    .where('boardOwnerUids', 'array-contains', uid)
+    .get();
+
+  const sole = owned.docs
+    .filter((d) => ((d.data().boardOwnerUids as string[]) ?? []).length === 1)
+    .filter((d) => d.data().archived !== true)
+    .map((d) => ({ id: d.id, name: (d.data().name as string) ?? '(untitled)' }));
+
+  return { boards: sole };
 }));

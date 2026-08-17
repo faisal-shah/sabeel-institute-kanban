@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { deleteCard, restoreCard, useArchivedBoardCards } from '../cards';
+import { canManageBoard } from '@sabeel/shared';
 import { useBoard } from '../boards';
 import { useLabels } from '../labels';
 import { confirmAction } from '../confirm';
-import { sessionCan, type SessionUser } from '../session';
+import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import { CardFace } from '../components/CardFace';
 import {
@@ -46,6 +47,8 @@ export function BoardArchiveScreen({
 }) {
   const nav = useNav();
   const board = useBoard(boardId);
+  // Permanent deletion is this board's owners and admins — not a rank.
+  const canManage = canManageBoard(user, board.data);
   const cards = useArchivedBoardCards(boardId);
   const allLabels = useLabels();
   const { run, busy, error } = useAction('boardArchive');
@@ -153,7 +156,7 @@ export function BoardArchiveScreen({
                 card itself — the archive is not a back door around that.
                 It ASKS FIRST: this shipped as a bare button that deleted on the
                 first tap, one row away from Restore, with no undo behind it. */}
-            {sessionCan.manageBoards(user) ? (
+            {canManage ? (
               <IconAction
                 icon="delete-outline"
                 danger

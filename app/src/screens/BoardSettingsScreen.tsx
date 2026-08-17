@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
   LABEL_COLORS,
+  canManageBoard,
   LABEL_NAME_MAX,
   columnsPatch,
   describeLabelUsage,
@@ -17,6 +18,7 @@ import {
   addBoardMember,
   countMemberAssignments,
   removeBoardMember,
+  setBoardOwner,
   updateBoard,
   useBoard,
 } from '../boards';
@@ -44,7 +46,9 @@ import {
   Spinner,
   TextField,
   Title,
+  Toggle,
 } from '../components/ui';
+import { confirmAction } from '../confirm';
 import { ColumnNameEditor } from '../components/ColumnNameEditor';
 import { ReorderList } from '../components/ReorderList';
 import { radius, space, useTheme } from '../theme';
@@ -243,16 +247,22 @@ export function BoardSettingsScreen({
   // Current members come from the board — everyone can see them. (The ADD
   // picker's candidates are derived above, where the hooks live.)
   const members = b.members;
-  // You reach this screen only as a manager/admin, and may be viewing a board
-  // you have not joined. Join/Leave touch only your OWN uid, so they need no
-  // directory read — a manager can join any board without admin rights to list
-  // users, and anyone can step out of a board they no longer work.
   const isMember = b.memberUids.includes(user.uid);
+
+  /**
+   * Whether this person ADMINISTERS the board, as opposed to merely being on it.
+   *
+   * Everything on this screen except the roster is gated on it. A non-owner
+   * reaches the screen deliberately — the roster answers "who do I ask to add
+   * someone?", which used to be a question you could only put to an admin — and
+   * sees no controls at all.
+   */
+  const canManage = canManageBoard(user, b);
 
   return (
     <Screen width="read">
       <Row style={styles.between}>
-        <Title>Board settings</Title>
+        <Title>{canManage ? 'Board settings' : 'Board members'}</Title>
         <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
 
@@ -262,6 +272,11 @@ export function BoardSettingsScreen({
         </Card>
       ) : null}
 
+      {/* Everything from here to the members roster is OWNER work. A non-owner
+          gets the roster and nothing else — not a screen full of disabled
+          controls, which reads as something being broken. */}
+      {canManage ? (
+        <>
       <Heading>Name</Heading>
       <Card>
         <BoardNameEditor initial={b.name} onSave={renameBoard} />
@@ -417,12 +432,15 @@ export function BoardSettingsScreen({
       ) : null}
 
 
+        </>
+      ) : null}
+
       {/* Adding rides on the heading, and the candidate list opens on demand.
           It used to be a permanent second panel with a labelled Add per person,
           which grew with the directory and pushed Archive off the screen. */}
       <Heading
         action={
-          nonMembers.length > 0 && !adding ? (
+          canManage && nonMembers.length > 0 && !adding ? (
             <IconAction
               icon="person-add"
               label={`Add someone (${nonMembers.length} available)`}
@@ -457,30 +475,67 @@ export function BoardSettingsScreen({
         </Card>
       ) : null}
       <Card>
-        {members.map((m) => (
-          <Row key={m.uid} style={styles.between}>
-            <View style={styles.grow}>
-              <Body>{m.displayName}</Body>
-              <Hint>{m.email}</Hint>
-            </View>
-            <Row>
-              {/* The board knows who its members are, not what org role they
-                  hold — that lives in users/*, which only admins may read. Your
-                  own row offers Leave (a door you walk out of); everyone else,
-                  Remove. Both confirm before anything happens. */}
-              <IconAction
-                icon={m.uid === user.uid ? 'logout' : 'person-remove'}
-                label={
-                  m.uid === user.uid
-                    ? 'Leave this board'
-                    : `Remove ${m.displayName} from this board`
-                }
-                disabled={busy}
-                onPress={() => ask(m.uid)}
-              />
+        {members.map((m) => {
+          const isOwner = b.boardOwnerUids.includes(m.uid);
+          const isCreator = m.uid === b.createdBy;
+          return (
+            <Row key={m.uid} style={styles.between}>
+              <View style={styles.grow}>
+                <Body>{m.displayName}</Body>
+                <Hint>{m.email}</Hint>
+                {/* A Hint, not a Caption: this explains why the control beside
+                    it is disabled, so it carries meaning and has to be legible.
+                    It is also the only thing on screen that accounts for two
+                    rows both saying Owner behaving differently. */}
+                {isCreator ? <Hint>created this board</Hint> : null}
+              </View>
+              {canManage ? (
+                <Row>
+                  {/* A state editor, not a verb button — the same shape the
+                      People screen uses for access. The row SHOWS whether this
+                      person owns the board, and changing it asks first. A
+                      mistap is then a visible flip you decline, rather than a
+                      grant nobody is told about. */}
+                  <Toggle
+                    value={isOwner}
+                    disabled={busy || (isCreator && user.role !== 'admin')}
+                    label={`Owner of this board: ${m.displayName}`}
+                    onValueChange={async (next) => {
+                      const ok = await confirmAction(
+                        next
+                          ? `Make ${m.displayName} an owner?`
+                          : `Remove ${m.displayName} as an owner?`,
+                        next
+                          ? `${m.displayName} will be able to change this board's settings and columns, add and remove people, promote other owners, archive it, and permanently delete its cards. It grants nothing on any other board.`
+                          : `${m.displayName} will stay on the board and keep using it, but will no longer be able to change it or manage who is on it.`,
+                      );
+                      if (ok) void run(() => setBoardOwner(boardId, m.uid, next));
+                    }}
+                  />
+                  {/* The board knows who its members are, not what org role they
+                      hold — that lives in users/*, which only admins may read.
+                      Your own row offers Leave (a door you walk out of);
+                      everyone else, Remove. Both confirm before anything
+                      happens. */}
+                  <IconAction
+                    icon={m.uid === user.uid ? 'logout' : 'person-remove'}
+                    label={
+                      m.uid === user.uid
+                        ? 'Leave this board'
+                        : `Remove ${m.displayName} from this board`
+                    }
+                    disabled={busy || (isCreator && user.role !== 'admin')}
+                    onPress={() => ask(m.uid)}
+                  />
+                </Row>
+              ) : isOwner ? (
+                /* Read-only for everyone else, and it answers the question the
+                   roster exists to answer: who do I ask to add someone? */
+                <Hint>Owner</Hint>
+              ) : null}
             </Row>
-          </Row>
-        ))}
+          );
+        })}
         {allUsers.status === 'error' ? (
           <Hint>
             Only admins can browse the full directory. Ask an admin to add
@@ -584,6 +639,8 @@ export function BoardSettingsScreen({
         </Card>
       ) : null}
 
+      {canManage ? (
+        <>
       <Heading>Archive</Heading>
       <Card>
         <Body>
@@ -602,6 +659,8 @@ export function BoardSettingsScreen({
           }
         />
       </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }

@@ -85,6 +85,9 @@ beforeEach(async () => {
       columns: [{ id: colId, name: 'To Do' }],
       columnIds: [colId],
       memberUids,
+      // The board's first member owns it. Attachment access follows membership,
+      // but the surrounding rules now need the field to exist.
+      boardOwnerUids: memberUids.slice(0, 1),
       createdAt: 1,
       createdBy: 'manager1',
     });
@@ -122,8 +125,13 @@ describe('reading attachments', () => {
     await assertSucceeds(getDoc(doc(fs('member1', 'member'), `${attachments(CARD)}/existing`)));
   });
 
-  it('a manager can read without being a member — they may join any board', async () => {
-    await assertSucceeds(getDocs(collection(fs('manager1', 'manager'), attachments(CARD))));
+  it('an ORGANIZER cannot read without being a member', async () => {
+    // This used to succeed on the strength of the role alone. It is the same
+    // boundary `canAccessBoard` enforces for the download callable, and the two
+    // must agree — that predicate IS the download authorization, because
+    // storage.rules denies reads outright.
+    await assertFails(getDocs(collection(fs('org1', 'organizer'), attachments(CARD))));
+    await assertSucceeds(getDocs(collection(fs('admin1', 'admin'), attachments(CARD))));
   });
 
   it('someone on a DIFFERENT board cannot read', async () => {

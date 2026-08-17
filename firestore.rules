@@ -20,13 +20,48 @@ service cloud.firestore {
     function role() {
       return request.auth.token.get('role', 'member');
     }
-    // Managers create boards and may see/join any board.
-    function isManager() {
-      return isActive() && role() in ['manager', 'admin'];
+    /**
+     * ORGANIZERS start boards. That is the whole of what the role grants.
+     *
+     * It was `manager`, and it meant three unrelated things at once — authority
+     * over any board, sight of every board, and authority over org-wide config.
+     * All three have moved: board authority is per-board (`ownsBoard` below),
+     * and seeing everything, curating labels and reading Stats are `isAdmin`.
+     * This helper survives at exactly ONE site, board create.
+     */
+    function canCreateBoards() {
+      return isActive() && role() in ['organizer', 'admin'];
     }
-    // Admins alone approve accounts and change roles.
+    // Admins alone approve accounts, change roles, and see the whole org.
     function isAdmin() {
       return isActive() && role() == 'admin';
+    }
+
+    /**
+     * Who may ADMINISTER the board whose data is `b` — settings, columns,
+     * membership, ownership, archiving, permanently deleting a card, moderating
+     * a comment.
+     *
+     * MEMBERSHIP AND OWNERSHIP, never ownership alone. That pairing is what makes
+     * a leftover owner entry inert, and it is why there is deliberately no rule
+     * requiring `boardOwnerUids` to be a subset of `memberUids`: such a rule
+     * would be broken routinely by `removeBoardMember`, an Admin SDK batch that
+     * bypasses rules entirely, turning an ordinary member removal into a board
+     * that silently stops accepting edits on the next write. The invariant is
+     * held in that writer instead.
+     *
+     * `.get('boardOwnerUids', [])`, never plain access. On a board that lacks the
+     * field — an aborted backfill, a restore from before the migration — plain
+     * access ERRORS, and an erroring rule denies. That would make exactly the
+     * boards most in need of repair the ones nobody could repair. Same guard the
+     * board's own `createdAt` and `activeCardCount` already carry, and `isAdmin()`
+     * short-circuits first so an admin can always fix a board of any shape.
+     */
+    function ownsBoard(b) {
+      return isAdmin()
+        || (isActive()
+            && request.auth.uid in b.memberUids
+            && request.auth.uid in b.get('boardOwnerUids', []));
     }
 
     // ---- Users ----
@@ -103,10 +138,17 @@ service cloud.firestore {
     }
 
     // ---- Boards ----
-    // Access is MEMBERSHIP, not a per-board role: what you may DO comes from your
-    // org role. Managers and admins see and administer every board; members see
-    // only boards they have been added to, and cannot add anyone (themselves
-    // included).
+    // Two separate questions, and they were one until 2026-08-16.
+    //
+    // SEEING a board is membership: you are on it, or you are an admin. Nobody
+    // else, no exceptions — an organizer has no more sight of a board they are
+    // not on than a member does.
+    //
+    // ADMINISTERING one is `boardOwnerUids` — a per-board grant, orthogonal to
+    // the org role, so a plain member can run a board without gaining anything
+    // anywhere else. A member who is not an owner cannot edit the board they are
+    // on, including removing themselves: that would look like leaving and would
+    // strand their card assignments (see the removeBoardMember callable).
     match /boards/{boardId} {
 
       function existing() {
@@ -119,48 +161,54 @@ service cloud.firestore {
         return request.auth.uid in data.memberUids;
       }
 
-      // Managers/admins may read any board; members only their own. For a LIST
-      // query, `isManager()` does not depend on document data, so a manager's
-      // unconstrained query is provably safe; a member's query must carry
-      // `where('memberUids', 'array-contains', uid)` to satisfy the second arm.
-      allow get, list: if isActive() && (isManager() || amMember(existing()));
-
       /**
-       * COMPATIBILITY STEP for the board-ownership migration (2026-08-16).
+       * The creator cannot be unseated by someone they delegated to.
        *
-       * `boardOwnerUids` is admitted to both key lists here, and PINNED, ahead of
-       * the backfill that writes it. The order is forced: `hasOnly` validates the
-       * whole merged document, so the moment a board CARRIES a field the rules do
-       * not list, every client write to that board is rejected — which is exactly
-       * how the `labels` migration broke board editing (docs/DEPLOY.md § Restoring
-       * across the label migration). The Admin SDK bypasses rules, so the backfill
-       * itself is never blocked; the breakage lands on ordinary people editing
-       * boards.
+       * Phrased on the CHANGE, not the value. A value-shaped invariant — "the
+       * creator must be in `boardOwnerUids`" — would brick every board an admin
+       * had legitimately taken them off, because thereafter no write could
+       * satisfy it. Testing the change means an already-demoted creator's board
+       * simply stays editable by whoever is left.
        *
-       * ADMITTED BUT PINNED, not merely admitted. A bare `hasOnly` entry would let
-       * any manager write `boardOwnerUids: [theirUid]` onto every board for the
-       * whole window between this deploy and the authority change, and inherit all
-       * of them the moment ownership starts meaning something. The admin exemption
-       * on update is what lets owners be assigned deliberately in the meantime.
+       * Because `ownsBoard` requires MEMBERSHIP as well as ownership, this one
+       * clause also covers removal from the board: dropping the creator from
+       * `memberUids` forces dropping them from `boardOwnerUids` to keep the
+       * document coherent, and that is the thing refused here. No second clause,
+       * no back door.
        *
-       * This is still strictly MORE permissive than before: today any write
-       * carrying the key is refused outright, and after this one carrying it
-       * unchanged is accepted — which is precisely the read-modify-write shape
-       * `updateBoard` and `addBoardMember` already produce.
-       *
-       * DELETE THIS NOTE when the authority rules land; the pin is replaced by
-       * `ownsBoard()` and `keepsCreator()`.
+       * Only an admin lifts it — including for the creator themselves, who
+       * therefore cannot step down unaided. That was chosen deliberately: one
+       * sentence with no exceptions to remember, at the price of an admin request
+       * on the rare handover.
        */
+      function keepsCreator() {
+        return isAdmin()
+          || !(existing().createdBy in existing().get('boardOwnerUids', []))
+          || existing().createdBy in incoming().get('boardOwnerUids', []);
+      }
 
-      // Only managers/admins create boards. The creator must be honest about
+      // Admins see every board; everyone else sees only boards they are on. For
+      // a LIST query, `isAdmin()` does not depend on document data, so an admin's
+      // unconstrained query is provably safe; everyone else's must carry
+      // `where('memberUids', 'array-contains', uid)` to satisfy the second arm.
+      allow get, list: if isActive() && (isAdmin() || amMember(existing()));
+
+      // Only organizers/admins create boards. The creator must be honest about
       // authorship and must include themselves, so a board can never be born
       // orphaned with no one able to see it.
-      allow create: if isManager()
+      //
+      // `boardOwnerUids == [creator]` is REQUIRED, not merely permitted, and that
+      // is load-bearing rather than tidy. An app build too old to know about
+      // ownership emits no such field, and the board it made would be
+      // administrable by nobody but an admin — silently, permanently, and only
+      // discovered by its author failing to rename it. Requiring the field turns
+      // that into a refusal at creation, which reads as "your app is out of
+      // date" and is the only acceptable failure mode here.
+      allow create: if canCreateBoards()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
             'columnIds', 'memberUids', 'memberProfiles', 'boardOwnerUids',
             'activeCardCount', 'createdAt', 'createdBy'])
-        && (!('boardOwnerUids' in incoming())
-            || incoming().boardOwnerUids == [request.auth.uid])
+        && incoming().get('boardOwnerUids', []) == [request.auth.uid]
         && incoming().createdBy == request.auth.uid
         && incoming().archived == false
         && incoming().memberUids is list
@@ -171,11 +219,12 @@ service cloud.firestore {
         && incoming().name.size() > 0
         && incoming().name.size() <= 120;
 
-      // Settings, columns and membership are all manager/admin work. Labels are
-      // NOT here any more: they are org-wide documents (see match /labels).
-      // Members deliberately cannot edit the board they are on — including
-      // removing themselves, which would look like leaving but would strand
-      // their card assignments (see the removeBoardMember callable).
+      // Settings, columns, membership and OWNERSHIP are the board owner's work —
+      // an admin, or a member the board's owners have promoted. Labels are NOT
+      // here any more: they are org-wide documents (see match /labels).
+      // A member who is not an owner deliberately cannot edit the board they are
+      // on — including removing themselves, which would look like leaving but
+      // would strand their card assignments (see the removeBoardMember callable).
       // Everything `create` validates, validated again here. An update rule that
       // is laxer than its create rule means the shape is only guaranteed for a
       // document's first write — which is not a guarantee at all, and is exactly
@@ -186,15 +235,12 @@ service cloud.firestore {
       // board written before one of them existed would otherwise become
       // permanently uneditable, which is a far worse failure than the drift
       // being prevented.
-      allow update: if isManager()
+      allow update: if ownsBoard(existing())
+        && keepsCreator()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
             'columnIds', 'memberUids', 'memberProfiles', 'boardOwnerUids',
             'activeCardCount', 'createdAt', 'createdBy'])
-        // Pinned for the compatibility window — see the note above `create`.
-        // Admins are exempt so ownership can be assigned before it starts
-        // meaning anything.
-        && (isAdmin()
-            || incoming().get('boardOwnerUids', []) == existing().get('boardOwnerUids', []))
+        && incoming().get('boardOwnerUids', []) is list
         && incoming().createdBy == existing().createdBy
         // History, not state. Neither is the client's to rewrite.
         && incoming().get('createdAt', 0) == existing().get('createdAt', 0)
@@ -267,7 +313,11 @@ service cloud.firestore {
       // old-document guard the board and card blocks carry: a label written
       // before one of these fields existed would otherwise be permanently
       // uneditable, which is a worse failure than the drift being prevented.
-      allow update: if isManager()
+      // ADMIN-only. A label is org-wide: renaming or recolouring one changes it
+      // on every card on every board, including boards the editor is not on. That
+      // is an org-wide effect, so it takes an org-wide authority — owning a board
+      // grants no part of it.
+      allow update: if isAdmin()
         && label().keys().hasOnly(['name', 'color', 'createdAt', 'createdBy'])
         && label().name is string
         && label().name.size() > 0
@@ -302,9 +352,11 @@ service cloud.firestore {
       function boardById(id) {
         return get(/databases/$(database)/documents/boards/$(id)).data;
       }
-      // Membership of a board. The manager/admin arm short-circuits with no read.
+      // Membership of a board. The ADMIN arm short-circuits without consulting
+      // the document; it used to be the manager arm, which is what let every
+      // manager read and write cards on boards they were not on.
       function memberOf(boardData) {
-        return isManager() || request.auth.uid in boardData.memberUids;
+        return isAdmin() || request.auth.uid in boardData.memberUids;
       }
       function newCard() { return request.resource.data; }
       function oldCard() { return resource.data; }
@@ -504,8 +556,10 @@ service cloud.firestore {
         && stampNotMovedForward('updatedAt');
 
       // Members archive (an update setting archived=true); permanent deletion is
-      // managers/admins only. A move is an update, so it is NOT gated here.
-      allow delete: if isActive() && isManager();
+      // for this board's OWNERS and admins. A move is an update, so it is NOT
+      // gated here. Costs a board read the org-role check did not — destroying a
+      // card is rare, and the question cannot be answered without the board.
+      allow delete: if ownsBoard(boardById(resource.data.boardId));
     }
 
     // ---- Comments ----
@@ -521,7 +575,7 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/boards/$(cardBoardId())).data;
       }
       function onBoard() {
-        return isActive() && (isManager() || request.auth.uid in board().memberUids);
+        return isActive() && (isAdmin() || request.auth.uid in board().memberUids);
       }
       function comment() {
         return request.resource.data;
@@ -561,10 +615,11 @@ service cloud.firestore {
         && comment().mentionUids is list
         && comment().mentionUids.hasOnly(board().memberUids);
 
-      // Authors delete their own; managers and admins can remove anything, which
-      // is the moderation path.
+      // Authors delete their own; this board's owners and admins can remove
+      // anything, which is the moderation path. Moderation is a property of the
+      // board, not of a rank in the organisation.
       allow delete: if onBoard()
-        && (resource.data.authorUid == request.auth.uid || isManager());
+        && (resource.data.authorUid == request.auth.uid || ownsBoard(board()));
     }
 
     // ---- Attachments ----
@@ -587,7 +642,7 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/boards/$(cardBoardId())).data;
       }
       function onBoard() {
-        return isActive() && (isManager() || request.auth.uid in board().memberUids);
+        return isActive() && (isAdmin() || request.auth.uid in board().memberUids);
       }
       function attachment() {
         return request.resource.data;
@@ -661,7 +716,7 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/boards/$(cardBoardId())).data;
       }
       allow get, list: if isActive()
-        && (isManager() || request.auth.uid in board().memberUids);
+        && (isAdmin() || request.auth.uid in board().memberUids);
       allow create, update, delete: if false;
     }
 
@@ -675,20 +730,20 @@ service cloud.firestore {
     // notifications. A client that could write these could lie about them, and
     // rules have no way to check a count against reality.
     //
-    // Managers and admins, deliberately. They can already open every board, so a
-    // per-board count tells them nothing they could not sit and tally by hand;
-    // members get no Stats screen at all, the way People is hidden from
-    // non-admins. `isManager()` already implies `isActive()`.
+    // ADMINS only. It used to be managers, which was safe only because a manager
+    // could already open every board — once that stopped being true, this rule
+    // became a way to read any board's activity by id without being on it, and
+    // without the UI ever showing it. `isAdmin()` already implies `isActive()`.
     //
     // `{scope}` is a boardId or the org-wide `_all` roll-up. Both are covered by
     // the same rule on purpose: an org-wide total is strictly less revealing
     // than the per-board numbers it is made of.
     match /stats/{scope} {
-      allow get, list: if isManager();
+      allow get, list: if isAdmin();
       allow create, update, delete: if false;
 
       match /months/{month} {
-        allow get, list: if isManager();
+        allow get, list: if isAdmin();
         allow create, update, delete: if false;
       }
     }

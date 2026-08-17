@@ -4,12 +4,7 @@ import { guarded, sentryDsn } from './sentry';
 import { logger } from 'firebase-functions/v2';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import {
-  ACCESS_CHANGE_MESSAGES,
-  checkAccessChange,
-  isRole,
-  isUserStatus,
-} from '@sabeel/shared';
+import { ACCESS_CHANGE_MESSAGES, checkAccessChange } from '@sabeel/shared';
 import type { Role, UserStatus } from '@sabeel/shared';
 
 /**
@@ -60,11 +55,12 @@ export const setUserAccess = onCall({ secrets: [sentryDsn] }, guarded(async (req
     throw new HttpsError(code, ACCESS_CHANGE_MESSAGES[verdict.reason]);
   }
 
-  // Narrowed by checkAccessChange, but re-narrowed here so TypeScript agrees and
-  // so this function is safe if the checks are ever reordered.
-  if (!isRole(nextRole) || !isUserStatus(nextStatus)) {
-    throw new HttpsError('invalid-argument', 'Unknown role or status.');
-  }
+  // The NARROWED values come back with the verdict, and this writes those rather
+  // than the raw input. It used to re-narrow `nextRole` here instead, which was
+  // fine while the two were identical — and would silently have discarded the
+  // legacy-role coercion `checkAccessChange` now applies, putting `manager`
+  // straight back into the claims it had just been translated out of.
+  const { role: nextRoleChecked, status: nextStatusChecked } = verdict;
 
   const db = getFirestore();
   const userRef = db.doc(`users/${targetUid}`);
@@ -74,8 +70,8 @@ export const setUserAccess = onCall({ secrets: [sentryDsn] }, guarded(async (req
   }
 
   await getAuth().setCustomUserClaims(targetUid, {
-    role: nextRole,
-    status: nextStatus,
+    role: nextRoleChecked,
+    status: nextStatusChecked,
   });
 
   // `claimsUpdatedAt` is what the client watches to know it must force-refresh
@@ -83,24 +79,24 @@ export const setUserAccess = onCall({ secrets: [sentryDsn] }, guarded(async (req
   // token until it expired (up to an hour) or they signed out and in —
   // which reads as "the admin approved me and nothing happened".
   await userRef.update({
-    role: nextRole,
-    status: nextStatus,
+    role: nextRoleChecked,
+    status: nextStatusChecked,
     claimsUpdatedAt: FieldValue.serverTimestamp(),
     accessChangedBy: actor.uid,
   });
 
   // Revoking refresh tokens on the way OUT is what makes disabling immediate:
   // otherwise a disabled user keeps a valid token until it expires.
-  if (nextStatus === 'disabled' || nextStatus === 'rejected') {
+  if (nextStatusChecked === 'disabled' || nextStatusChecked === 'rejected') {
     await getAuth().revokeRefreshTokens(targetUid);
   }
 
   logger.info('Access changed', {
     actorUid: actor.uid,
     targetUid,
-    role: nextRole,
-    status: nextStatus,
+    role: nextRoleChecked,
+    status: nextStatusChecked,
   });
 
-  return { ok: true, uid: targetUid, role: nextRole, status: nextStatus };
+  return { ok: true, uid: targetUid, role: nextRoleChecked, status: nextStatusChecked };
 }));

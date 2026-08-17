@@ -3,10 +3,15 @@ import {
   ROLES,
   USER_STATUSES,
   NEW_USER_ACCESS,
+  canAccessBoard,
   canAdministerUsers,
-  canManageBoards,
+  canCreateBoards,
+  canCurateLabels,
+  canManageBoard,
   canUseApp,
+  canViewStats,
   checkAccessChange,
+  coerceLegacyRole,
   isRole,
   isUserStatus,
 } from '../src/access';
@@ -26,21 +31,24 @@ describe('capability checks across the full role x status matrix', () => {
     role: Role;
     status: UserStatus;
     useApp: boolean;
-    boards: boolean;
+    create: boolean;
+    labels: boolean;
+    stats: boolean;
     admin: boolean;
   }> = [
-    { role: 'member', status: 'pending', useApp: false, boards: false, admin: false },
-    { role: 'member', status: 'active', useApp: true, boards: false, admin: false },
-    { role: 'member', status: 'rejected', useApp: false, boards: false, admin: false },
-    { role: 'member', status: 'disabled', useApp: false, boards: false, admin: false },
-    { role: 'manager', status: 'pending', useApp: false, boards: false, admin: false },
-    { role: 'manager', status: 'active', useApp: true, boards: true, admin: false },
-    { role: 'manager', status: 'rejected', useApp: false, boards: false, admin: false },
-    { role: 'manager', status: 'disabled', useApp: false, boards: false, admin: false },
-    { role: 'admin', status: 'pending', useApp: false, boards: false, admin: false },
-    { role: 'admin', status: 'active', useApp: true, boards: true, admin: true },
-    { role: 'admin', status: 'rejected', useApp: false, boards: false, admin: false },
-    { role: 'admin', status: 'disabled', useApp: false, boards: false, admin: false },
+    { role: 'member', status: 'pending', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'member', status: 'active', useApp: true, create: false, labels: false, stats: false, admin: false },
+    { role: 'member', status: 'rejected', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'member', status: 'disabled', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'organizer', status: 'pending', useApp: false, create: false, labels: false, stats: false, admin: false },
+    // The whole of what `organizer` grants: creating boards. Nothing else.
+    { role: 'organizer', status: 'active', useApp: true, create: true, labels: false, stats: false, admin: false },
+    { role: 'organizer', status: 'rejected', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'organizer', status: 'disabled', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'admin', status: 'pending', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'admin', status: 'active', useApp: true, create: true, labels: true, stats: true, admin: true },
+    { role: 'admin', status: 'rejected', useApp: false, create: false, labels: false, stats: false, admin: false },
+    { role: 'admin', status: 'disabled', useApp: false, create: false, labels: false, stats: false, admin: false },
   ];
 
   it('covers every combination', () => {
@@ -50,7 +58,9 @@ describe('capability checks across the full role x status matrix', () => {
   for (const c of cases) {
     it(`${c.role}/${c.status}`, () => {
       expect(canUseApp(c)).toBe(c.useApp);
-      expect(canManageBoards(c)).toBe(c.boards);
+      expect(canCreateBoards(c)).toBe(c.create);
+      expect(canCurateLabels(c)).toBe(c.labels);
+      expect(canViewStats(c)).toBe(c.stats);
       expect(canAdministerUsers(c)).toBe(c.admin);
     });
   }
@@ -59,8 +69,117 @@ describe('capability checks across the full role x status matrix', () => {
     // Disabling an admin must actually disable them — role alone grants nothing.
     for (const status of USER_STATUSES.filter((s) => s !== 'active')) {
       expect(canAdministerUsers({ role: 'admin', status })).toBe(false);
-      expect(canManageBoards({ role: 'admin', status })).toBe(false);
+      expect(canCreateBoards({ role: 'admin', status })).toBe(false);
+      expect(canCurateLabels({ role: 'admin', status })).toBe(false);
+      expect(canViewStats({ role: 'admin', status })).toBe(false);
     }
+  });
+
+  /**
+   * Curating labels is ADMIN-only, and this is the assertion that keeps it so.
+   *
+   * `canCurateLabels` was `return canManageBoards(actor)` — an alias under a
+   * docblock arguing it should not be one. Had it stayed, a member promoted to
+   * own a single board would have inherited the power to strip a label off every
+   * card in the organisation.
+   */
+  it('label curation does not follow board authority', () => {
+    expect(canCurateLabels({ role: 'organizer', status: 'active' })).toBe(false);
+    expect(canCreateBoards({ role: 'organizer', status: 'active' })).toBe(true);
+  });
+});
+
+/**
+ * The client mirror of `ownsBoard()` in firestore.rules. If the two disagree,
+ * someone is shown a control that then fails — or, worse, the inverse.
+ */
+describe('canManageBoard', () => {
+  const board = { memberUids: ['owner1', 'member1'], boardOwnerUids: ['owner1'] };
+  const active = (uid: string, role: Role) => ({ uid, role, status: 'active' as UserStatus });
+
+  it('an owner who is a member administers it', () => {
+    expect(canManageBoard(active('owner1', 'member'), board)).toBe(true);
+  });
+
+  it('a member who is not an owner does not', () => {
+    expect(canManageBoard(active('member1', 'member'), board)).toBe(false);
+  });
+
+  it('ownership is orthogonal to org role — a plain member can own', () => {
+    // The whole point of the model: owning one board grants nothing elsewhere,
+    // and needs nothing elsewhere.
+    expect(canManageBoard(active('owner1', 'member'), board)).toBe(true);
+    expect(canCreateBoards(active('owner1', 'member'))).toBe(false);
+  });
+
+  it('an organizer who is not on the board does not administer it', () => {
+    expect(canManageBoard(active('outsider', 'organizer'), board)).toBe(false);
+  });
+
+  it('an admin administers a board they are not even a member of', () => {
+    expect(canManageBoard(active('outsider', 'admin'), board)).toBe(true);
+  });
+
+  /**
+   * Membership AND ownership, never ownership alone. A leftover entry — one
+   * `removeBoardMember` failed to clear — must be inert, because that is what
+   * lets the rules skip a subset check that would otherwise make an ordinary
+   * member removal brick the board.
+   */
+  it('an owner entry for a non-member grants nothing', () => {
+    expect(
+      canManageBoard(active('ghost', 'member'), {
+        memberUids: ['member1'],
+        boardOwnerUids: ['ghost'],
+      }),
+    ).toBe(false);
+  });
+
+  it('a board with no owner list is admin-only, not everyone-only', () => {
+    // Boards written before this field existed, and any restore from before the
+    // migration. Nobody inherits them; an admin repairs them.
+    expect(canManageBoard(active('member1', 'organizer'), { memberUids: ['member1'] })).toBe(
+      false,
+    );
+    expect(canManageBoard(active('a1', 'admin'), { memberUids: [] })).toBe(true);
+  });
+
+  it('status gates it, as everywhere else', () => {
+    for (const status of USER_STATUSES.filter((s) => s !== 'active')) {
+      expect(canManageBoard({ uid: 'owner1', role: 'admin', status }, board)).toBe(false);
+    }
+  });
+});
+
+/**
+ * The ONLY gate on downloading an attachment — `storage.rules` denies reads
+ * outright, so this decides it in TypeScript. It must match the board read rule
+ * exactly.
+ */
+describe('canAccessBoard', () => {
+  const board = { memberUids: ['member1'] };
+
+  it('a member sees it; an admin sees it', () => {
+    expect(canAccessBoard({ uid: 'member1', role: 'member', status: 'active' }, board)).toBe(
+      true,
+    );
+    expect(canAccessBoard({ uid: 'nobody', role: 'admin', status: 'active' }, board)).toBe(
+      true,
+    );
+  });
+
+  it('an organizer who is not a member does NOT', () => {
+    // This short-circuited on the board-creation predicate, which would have let
+    // every organizer mint a signed URL for any file on any board.
+    expect(
+      canAccessBoard({ uid: 'org1', role: 'organizer', status: 'active' }, board),
+    ).toBe(false);
+  });
+
+  it('status gates it', () => {
+    expect(
+      canAccessBoard({ uid: 'member1', role: 'member', status: 'disabled' }, board),
+    ).toBe(false);
   });
 });
 
@@ -75,7 +194,7 @@ describe('checkAccessChange', () => {
         nextRole: 'member',
         nextStatus: 'active',
       }),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: true, role: 'member', status: 'active' });
   });
 
   it('lets an admin promote someone else to admin', () => {
@@ -100,11 +219,11 @@ describe('checkAccessChange', () => {
     ).toEqual({ ok: false, reason: 'not-admin' });
   });
 
-  it('refuses a manager administering users', () => {
-    // Managers run boards; only admins decide who is in the org.
+  it('refuses an organizer administering users', () => {
+    // Organizers start boards; only admins decide who is in the org.
     expect(
       checkAccessChange({
-        actor: { uid: 'm1', role: 'manager', status: 'active' },
+        actor: { uid: 'o1', role: 'organizer', status: 'active' },
         targetUid: 'u2',
         nextRole: 'member',
         nextStatus: 'active',
@@ -168,6 +287,26 @@ describe('checkAccessChange', () => {
       ).toBe(false);
     }
   });
+
+  /**
+   * The kill switch must survive the rename.
+   *
+   * Disabling, rejecting and restoring all go through `setUserAccess`, and the
+   * People screen sends role and status TOGETHER. Without this, every account
+   * still holding `manager` would be un-disableable between the deploy and the
+   * claims migration — and an old app build keeps sending it for as long as Play
+   * takes to reach everyone.
+   */
+  it('accepts the legacy role as input, and stores the new one', () => {
+    expect(
+      checkAccessChange({
+        actor: admin,
+        targetUid: 'u2',
+        nextRole: 'manager',
+        nextStatus: 'disabled',
+      }),
+    ).toEqual({ ok: true, role: 'organizer', status: 'disabled' });
+  });
 });
 
 describe('type guards', () => {
@@ -180,5 +319,17 @@ describe('type guards', () => {
     expect(isRole('owner')).toBe(false);
     expect(isUserStatus('approved')).toBe(false);
     expect(isRole(undefined)).toBe(false);
+  });
+
+  /**
+   * `manager` is not a role any more, and nothing may store it again. It is
+   * accepted only as INPUT, by `coerceLegacyRole`, and only for one release —
+   * the two are deliberately different questions.
+   */
+  it('does not recognise the retired role', () => {
+    expect(isRole('manager')).toBe(false);
+    expect(coerceLegacyRole('manager')).toBe('organizer');
+    expect(coerceLegacyRole('member')).toBe('member');
+    expect(coerceLegacyRole('nonsense')).toBe('nonsense');
   });
 });

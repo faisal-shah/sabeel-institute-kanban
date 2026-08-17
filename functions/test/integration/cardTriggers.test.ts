@@ -47,7 +47,9 @@ const card = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeAll(async () => {
-  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'manager', status: 'active' });
+  // Removing a board member takes board authority now. An admin has it on every
+  // board, which keeps this test about ATTRIBUTION rather than about ownership.
+  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'admin', status: 'active' });
   await makeUser({ uid: MEM, email: `${MEM}@oursabeel.com`, role: 'member', status: 'active' });
   await adminDb().doc('boards/ct_b1').set(board());
 });
@@ -136,7 +138,7 @@ describe('onCardDeleted unlinks subtasks', () => {
 });
 
 describe('removeBoardMember activity attribution', () => {
-  it('attributes the unassignment to the manager who removed the member', async () => {
+  it('attributes the unassignment to the admin who removed the member', async () => {
     // A card assigned to MEM, last touched by MEM — so the ONLY way the activity
     // entry can name MGR is if removeBoardMember stamps updatedBy correctly.
     await adminDb()

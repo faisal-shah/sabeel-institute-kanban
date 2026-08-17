@@ -194,7 +194,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           screen keeps only its own title and the create-board control. */}
       <Title>Boards</Title>
 
-      {sessionCan.manageBoards(user) ? (
+      {sessionCan.createBoards(user) ? (
         creating ? (
           <NewBoardForm busy={busy} onCreate={create} onCancel={() => setCreating(false)} />
         ) : (
@@ -229,9 +229,9 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
       {!hasAny ? (
         <Card style={styles.form}>
           <Body>
-            {sessionCan.manageBoards(user)
+            {sessionCan.createBoards(user)
               ? 'No boards yet. Create one to get started.'
-              : 'You are not on any boards yet. A manager can add you to one.'}
+              : 'You are not on any boards yet. Someone who owns a board can add you to it.'}
           </Body>
         </Card>
       ) : null}
@@ -300,9 +300,12 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           Collapsed by default: the point of archiving is to get a board out of
           the way, and a flat list of active and archived boards together would
           undo that. */}
-      {sessionCan.manageBoards(user) ? (
-        <ArchivedBoards user={user} onOpen={open} />
-      ) : null}
+      {/* No role gate: `useArchivedBoards` returns YOUR archived boards (and every
+          one of them for an admin), so anyone with an archived board has one to
+          look at. It used to be manager-gated, which meant a member who archived
+          nothing still could not find a board they were on that someone else
+          archived. */}
+      <ArchivedBoards user={user} onOpen={open} />
     </Screen>
   );
 }

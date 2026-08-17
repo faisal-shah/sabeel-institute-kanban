@@ -11,7 +11,7 @@ import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { KeyboardHost } from './src/components/KeyboardHost';
 import { SafeAreaProvider, type Edge } from 'react-native-safe-area-context';
-import { useSession, type SessionUser } from './src/session';
+import { sessionCan, useSession, type SessionUser } from './src/session';
 import { initErrorReporting, setErrorUser } from './src/sentry';
 import { useNav, useHardwareBack, type Route } from './src/nav';
 import { useDeepLinks } from './src/useDeepLinks';
@@ -36,7 +36,34 @@ import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { UsersScreen } from './src/screens/UsersScreen';
 import { StatsScreen } from './src/screens/StatsScreen';
-import { NavClaimedEdgesContext, Screen, Spinner } from './src/components/ui';
+import {
+  Body,
+  Card,
+  Hint,
+  IconAction,
+  NavClaimedEdgesContext,
+  Row,
+  Screen,
+  Spinner,
+  Title,
+} from './src/components/ui';
+
+/** What an admin-only route shows anyone else. Says whose it is, and offers a way out. */
+function NotForYou({ what }: { what: string }) {
+  const nav = useNav();
+  return (
+    <Screen width="read">
+      <Row style={styles.notForYou}>
+        <Title>{what}</Title>
+        <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+      </Row>
+      <Card>
+        <Body>{what} is for administrators.</Body>
+        <Hint>If you need something from it, ask an admin.</Hint>
+      </Card>
+    </Screen>
+  );
+}
 
 function renderScreen(route: Route, user: SessionUser) {
   switch (route.name) {
@@ -68,10 +95,24 @@ function renderScreen(route: Route, user: SessionUser) {
       return <NotificationsScreen user={user} />;
     case 'search':
       return <SearchScreen user={user} />;
+    // Both admin-only, and gated HERE as well as in the More menu. The menu is
+    // an affordance; a route is reachable by a deep link, a restored history
+    // entry and the back button. The server is the real boundary either way —
+    // `users/*` and `stats/*` are admin-only in firestore.rules — but a screen
+    // that renders and then fills with permission errors is a worse answer than
+    // one that says what is going on.
     case 'users':
-      return <UsersScreen actor={user} />;
+      return sessionCan.administerUsers(user) ? (
+        <UsersScreen actor={user} />
+      ) : (
+        <NotForYou what="Managing people" />
+      );
     case 'stats':
-      return <StatsScreen user={user} />;
+      return sessionCan.viewStats(user) ? (
+        <StatsScreen user={user} />
+      ) : (
+        <NotForYou what="Stats" />
+      );
     default:
       return <BoardsScreen user={user} />;
   }
@@ -194,4 +235,5 @@ export default function App() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flex: 1, flexDirection: 'row' },
+  notForYou: { justifyContent: 'space-between' },
 });

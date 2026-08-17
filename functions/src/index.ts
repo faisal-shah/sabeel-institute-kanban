@@ -6,7 +6,7 @@
  */
 export { onUserCreate } from './auth';
 export { setUserAccess } from './users';
-export { removeBoardMember, countMemberAssignments } from './boards';
+export { removeBoardMember, countMemberAssignments, boardsSolelyOwnedBy } from './boards';
 export { countLabelUsage, deleteLabel } from './labels';
 export { onCommentWritten } from './comments';
 export { onCardWritten } from './activity';

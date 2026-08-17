@@ -35,10 +35,14 @@ function requireCurator(request: CallableRequest<unknown>): { uid: string } {
     role: (auth.token.role ?? 'member') as Role,
     status: (auth.token.status ?? 'pending') as UserStatus,
   };
+  // ADMIN-only since board authority became per-board. Deleting a label strips
+  // it from every card on every board, including boards the deleter is not on —
+  // an org-wide effect, so an org-wide authority. Owning a board grants no part
+  // of it.
   if (!canCurateLabels(actor)) {
     throw new HttpsError(
       'permission-denied',
-      'Only managers and admins can change or delete a label.',
+      'Only an admin can change or delete a label.',
     );
   }
   return { uid: auth.uid };

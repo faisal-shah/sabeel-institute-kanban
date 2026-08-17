@@ -23,7 +23,12 @@ import { doc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { clearLiveResultCache } from './liveQuery';
 import { resetAllViewStores } from './viewState';
 import { clearStatsCache } from './stats';
-import { canAdministerUsers, canManageBoards, canUseApp } from '@sabeel/shared';
+import {
+  canAdministerUsers,
+  canCreateBoards,
+  canUseApp,
+  canViewStats,
+} from '@sabeel/shared';
 import type { Role, UserStatus } from '@sabeel/shared';
 import { auth, db } from './firebase';
 import { IS_DEV } from './env';
@@ -290,9 +295,18 @@ export async function signOut(): Promise<void> {
   await fbSignOut(auth);
 }
 
-/** Capability helpers, delegating to the shared logic the server enforces. */
+/**
+ * Capability helpers, delegating to the shared logic the server enforces.
+ *
+ * ORG-WIDE questions only. `manageBoards` used to live here and answered three
+ * different ones at once; board authority is per-board now and cannot be
+ * answered without a board, so it is `canManageBoard(user, board)` from
+ * @sabeel/shared, called at the point of use. A helper here that took no board
+ * would be a button that always fails.
+ */
 export const sessionCan = {
   useApp: (u: SessionUser) => canUseApp(u),
-  manageBoards: (u: SessionUser) => canManageBoards(u),
+  createBoards: (u: SessionUser) => canCreateBoards(u),
+  viewStats: (u: SessionUser) => canViewStats(u),
   administerUsers: (u: SessionUser) => canAdministerUsers(u),
 };

@@ -79,6 +79,7 @@ beforeEach(async () => {
       ],
       columnIds: ['c1', 'c2'],
       memberUids: ['member1', 'member2'],
+      boardOwnerUids: ['member1'],
       createdAt: 1,
       createdBy: 'manager1',
     });
@@ -89,6 +90,7 @@ beforeEach(async () => {
       columns: [{ id: 'x1', name: 'To Do' }],
       columnIds: ['x1'],
       memberUids: ['outsider'],
+      boardOwnerUids: ['outsider'],
       createdAt: 1,
       createdBy: 'manager1',
     });
@@ -100,6 +102,7 @@ beforeEach(async () => {
       columns: [{ id: 'd1', name: 'To Do' }],
       columnIds: ['d1'],
       memberUids: ['member1'],
+      boardOwnerUids: ['member1'],
       createdAt: 1,
       createdBy: 'manager1',
     });
@@ -129,8 +132,12 @@ describe('reading cards', () => {
     await assertSucceeds(getDoc(doc(ctx('member1', 'member'), 'cards/card1')));
   });
 
-  it('a manager reads cards on any board', async () => {
-    await assertSucceeds(getDoc(doc(ctx('manager1', 'manager'), 'cards/foreign2')));
+  it('an ORGANIZER cannot read cards on a board they are not on', async () => {
+    // This used to succeed: the role carried sight of every board, and with it
+    // every card on every board.
+    await assertFails(getDoc(doc(ctx('org1', 'organizer'), 'cards/foreign2')));
+    // An admin still can, and that is the only remaining way to see everything.
+    await assertSucceeds(getDoc(doc(ctx('admin1', 'admin'), 'cards/foreign2')));
   });
 
   it('a non-member cannot read cards on a board they are not on', async () => {
@@ -789,20 +796,28 @@ describe('the stamps Search orders by cannot be set to the future', () => {
 
 describe('deleting cards', () => {
   it('a plain member CANNOT delete — they archive instead', async () => {
-    await assertFails(deleteDoc(doc(ctx('member1', 'member'), 'cards/card1')));
+    // member2 is on b1 and does NOT own it; member1 does. Being on the board is
+    // not the thing that grants this.
+    await assertFails(deleteDoc(doc(ctx('member2', 'member'), 'cards/card1')));
   });
 
-  it('a manager can delete', async () => {
-    await assertSucceeds(deleteDoc(doc(ctx('manager1', 'manager'), 'cards/card1')));
+  it('an OWNER of the card’s board can delete', async () => {
+    // member1 owns b1. Permanent deletion is board authority now, not a rank —
+    // and note the actor holds the plain `member` role.
+    await assertSucceeds(deleteDoc(doc(ctx('member1', 'member'), 'cards/card1')));
+  });
+
+  it('an ORGANIZER who does not own the board cannot delete', async () => {
+    await assertFails(deleteDoc(doc(ctx('org1', 'organizer'), 'cards/card1')));
   });
 
   it('an admin can delete', async () => {
     await assertSucceeds(deleteDoc(doc(ctx('admin1', 'admin'), 'cards/card1')));
   });
 
-  it('a disabled manager cannot delete', async () => {
+  it('a disabled owner cannot delete', async () => {
     await assertFails(
-      deleteDoc(doc(ctx('manager1', 'manager', 'disabled'), 'cards/card1')),
+      deleteDoc(doc(ctx('member1', 'member', 'disabled'), 'cards/card1')),
     );
   });
 });

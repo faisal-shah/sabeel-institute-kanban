@@ -104,7 +104,9 @@ export function AppNav({
     />
   );
 
-  const canSeeStats = sessionCan.manageBoards(user);
+  // Admin-only since the org role stopped carrying sight of every board: a
+  // per-board breakdown describes boards the reader may not be on.
+  const canSeeStats = sessionCan.viewStats(user);
   const canSeePeople = sessionCan.administerUsers(user);
 
   const menu = (

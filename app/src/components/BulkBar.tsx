@@ -13,7 +13,7 @@ import {
 } from '../cards';
 import { Select } from './Select';
 import type { Selection } from '../useSelection';
-import { sessionCan, type SessionUser } from '../session';
+import type { SessionUser } from '../session';
 import { useMyBoards, type BoardMemberProfile } from '../boards';
 import { Body, Button, Caption, Hint, IconAction, Row } from './ui';
 import { radius, space, useTheme } from '../theme';
@@ -33,6 +33,7 @@ export function BulkBar({
   allCards,
   selection,
   members,
+  canManage,
   user,
   onError,
 }: {
@@ -41,6 +42,12 @@ export function BulkBar({
   allCards: readonly Card[];
   selection: Selection;
   members: readonly BoardMemberProfile[];
+  /**
+   * Whether this person may permanently delete cards on THIS board. A prop for
+   * the same reason `Comments` takes one: destroying a card is board authority,
+   * and the board surfaces above already know the answer.
+   */
+  canManage: boolean;
   user: SessionUser;
   onError: (message: string) => void;
 }) {
@@ -134,7 +141,7 @@ export function BulkBar({
                 onPress={() => run(() => bulkArchive(chosen, user))}
               />
               {/* Members archive; only managers and admins destroy. */}
-              {sessionCan.manageBoards(user) ? (
+              {canManage ? (
                 <IconAction
                   icon="delete-outline"
                   label="Delete selected cards"

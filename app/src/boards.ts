@@ -1,5 +1,6 @@
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -39,6 +40,17 @@ export interface BoardListItem {
    * this to assign a card or @mention someone.
    */
   members: BoardMemberProfile[];
+  /**
+   * Who may administer this board. Read together with `memberUids` — see
+   * `canManageBoard` in @sabeel/shared, which every gate on this screen uses.
+   */
+  boardOwnerUids: string[];
+  /**
+   * Who made it. Carried because the members list badges that row and disables
+   * its Owner toggle for everyone but an admin: the creator cannot be unseated by
+   * someone they delegated to.
+   */
+  createdBy: string;
   columns: BoardColumn[];
   /** Non-archived cards on the board (server-maintained; shown in the Boards list). */
   activeCardCount: number;
@@ -64,6 +76,11 @@ function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
         email: profiles[uid]?.email ?? '',
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+    // `?? []` on purpose: a board written before ownership existed has no field,
+    // and the right reading of that is "nobody owns it" — an admin repairs it.
+    // Every consumer goes through `canManageBoard`, which treats it that way.
+    boardOwnerUids: (data.boardOwnerUids as string[]) ?? [],
+    createdBy: (data.createdBy as string) ?? '',
     columns: (data.columns as BoardColumn[]) ?? [],
     activeCardCount: (data.activeCardCount as number) ?? 0,
   };
@@ -72,35 +89,39 @@ function toBoard(id: string, data: Record<string, unknown>): BoardListItem {
 /**
  * The boards you can see.
  *
- * Managers and admins query unconstrained (rules allow it because `isManager()`
- * does not depend on document data). Members MUST carry the array-contains
- * constraint — without it Firestore rejects the whole query rather than
- * filtering, since it cannot prove the result set is readable.
+ * ADMINS query unconstrained (rules allow it because `isAdmin()` does not depend
+ * on document data). Everyone else MUST carry the array-contains constraint —
+ * without it Firestore rejects the whole query rather than filtering, since it
+ * cannot prove the result set is readable.
+ *
+ * It used to be managers who queried unconstrained, and an app build that still
+ * does is the one thing the ownership migration visibly breaks: the new rules
+ * refuse that query, so their Boards screen errors until they update.
  */
 export function useMyBoards(user: SessionUser) {
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const seesAll = user.role === 'admin';
   return useLiveQuery<BoardListItem[]>(
     'boards',
     () =>
-      isManager
+      seesAll
         ? collection(db, 'boards')
         : query(collection(db, 'boards'), where('memberUids', 'array-contains', user.uid)),
     (docs) => docs.map((d) => toBoard(d.id, d.data)).filter((b) => !b.archived),
-    [user.uid, isManager],
+    [user.uid, seesAll],
   );
 }
 
-/** Archived boards, for the manager-facing archive view. */
+/** Archived boards — everyone's own, and every one of them for an admin. */
 export function useArchivedBoards(user: SessionUser) {
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const seesAll = user.role === 'admin';
   return useLiveQuery<BoardListItem[]>(
     'archived-boards',
     () =>
-      isManager
+      seesAll
         ? collection(db, 'boards')
         : query(collection(db, 'boards'), where('memberUids', 'array-contains', user.uid)),
     (docs) => docs.map((d) => toBoard(d.id, d.data)).filter((b) => b.archived),
-    [user.uid, isManager],
+    [user.uid, seesAll],
   );
 }
 
@@ -162,6 +183,51 @@ export async function addBoardMember(
     },
     createdBy: snap.data()?.createdBy,
   });
+}
+
+/**
+ * Promote or demote a board owner.
+ *
+ * A plain board write, not a callable: `boardOwnerUids` is a field on a document
+ * the rules already guard, and `ownsBoard()` decides this exactly as it decides a
+ * rename. A callable would be a second place for the same check to live, and the
+ * two would eventually disagree.
+ *
+ * `arrayUnion`/`arrayRemove` rather than writing the whole list, so two people
+ * promoting at the same moment cannot lose each other's change. `createdBy` is
+ * echoed back for the reason `updateBoard` explains.
+ *
+ * The rules refuse to let anyone but an admin take the CREATOR out of this list —
+ * including the creator themselves — so a failure here on that row is the
+ * protection working, not a bug.
+ */
+export async function setBoardOwner(
+  boardId: string,
+  uid: string,
+  isOwner: boolean,
+): Promise<void> {
+  const snap = await getDoc(doc(db, 'boards', boardId));
+  await updateDoc(doc(db, 'boards', boardId), {
+    boardOwnerUids: isOwner ? arrayUnion(uid) : arrayRemove(uid),
+    createdBy: snap.data()?.createdBy,
+  });
+}
+
+const solelyOwnedFn = httpsCallable<
+  { uid: string },
+  { boards: { id: string; name: string }[] }
+>(functions, 'boardsSolelyOwnedBy');
+
+/**
+ * Boards this person is the only owner of — asked BEFORE disabling them, so the
+ * consequence appears in the confirmation rather than as a surprise afterwards.
+ * Same shape as `countMemberAssignments`.
+ */
+export async function boardsSolelyOwnedBy(
+  uid: string,
+): Promise<{ id: string; name: string }[]> {
+  const res = await solelyOwnedFn({ uid });
+  return res.data.boards;
 }
 
 /**

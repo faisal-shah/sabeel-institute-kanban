@@ -63,7 +63,9 @@ async function putCard(
 }
 
 beforeAll(async () => {
-  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'manager', status: 'active' });
+  // Curating labels is ADMIN work now: the effect is org-wide, so it takes an
+  // org-wide authority. Owning a board grants no part of it.
+  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'admin', status: 'active' });
   await makeUser({ uid: MEM, email: `${MEM}@oursabeel.com`, role: 'member', status: 'active' });
   [mgrToken, memToken] = await Promise.all([idTokenFor(MGR), idTokenFor(MEM)]);
 
@@ -165,7 +167,7 @@ describe('deleteLabel', () => {
     expect((await labelRef('lb_keep').get()).exists).toBe(true);
   });
 
-  it('names the manager who deleted it in each card’s activity', async () => {
+  it('names the admin who deleted it in each card’s activity', async () => {
     await putLabel('lb_logged');
     await putCard('lb_log_1', BOARD_A, ['lb_logged']);
 

@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ROLES, type Role, type UserStatus } from '@sabeel/shared';
 import { setUserAccess, useAllUsers, type AdminUserRow } from '../users';
+import { boardsSolelyOwnedBy } from '../boards';
 import { confirmAction } from '../confirm';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -199,10 +200,10 @@ function UserCard({
                     ? `Make ${user.displayName} an admin?`
                     : `Change role to ${next}?`,
                   next === 'admin'
-                    ? `This is full control. ${user.displayName} will be able to approve, reject and disable ANY account including yours, promote others to admin, and see every board. Only grant this to someone you fully trust.`
-                    : next === 'manager'
-                      ? `${user.displayName} will be able to create boards, see and join every board, edit board settings, and permanently delete cards.`
-                      : `${user.displayName} will only see boards they are added to, and will no longer create boards or delete cards.`,
+                    ? `This is full control. ${user.displayName} will be able to approve, reject and disable ANY account including yours, promote others to admin, rename and delete labels, read Stats, and see and run every board. Only grant this to someone you fully trust.`
+                    : next === 'organizer'
+                      ? `${user.displayName} will be able to create new boards, and will own the ones they create. It grants nothing on any other board — they still see only boards they are added to.`
+                      : `${user.displayName} will no longer be able to create boards. They keep whatever boards they already own, and still see only boards they are added to.`,
                 );
                 if (ok) onChange(user.uid, next, user.status);
               }}
@@ -215,11 +216,35 @@ function UserCard({
               disabled={busy}
               label={`Account access for ${user.displayName}`}
               onValueChange={async (next) => {
+                /**
+                 * Disabling does NOT touch board ownership — the board keeps its
+                 * owner, that owner just cannot act. So there is nothing broken
+                 * to prevent, only a situation to point at: name the boards that
+                 * will be left with nobody able to run them, then proceed.
+                 * Blocking would mean not being able to disable a departing
+                 * colleague until every board they touched had been reassigned.
+                 *
+                 * Asked BEFORE the dialog, so the consequence is IN it rather
+                 * than a surprise afterwards — the shape countMemberAssignments
+                 * already uses on the board settings screen.
+                 */
+                let orphaned: { id: string; name: string }[] = [];
+                if (!next) {
+                  orphaned = await boardsSolelyOwnedBy(user.uid).catch(() => []);
+                }
+                const stranded =
+                  orphaned.length > 0
+                    ? ` They are the only owner of ${orphaned
+                        .map((b) => `“${b.name}”`)
+                        .join(', ')} — nobody but an admin will be able to change ${
+                        orphaned.length === 1 ? 'it' : 'them'
+                      } until you give someone else ownership.`
+                    : '';
                 const ok = await confirmAction(
                   next ? 'Restore access?' : `Disable ${user.displayName}?`,
                   next
                     ? `${user.displayName} will be able to sign in again. Any cards still assigned to them stay assigned.`
-                    : `${user.displayName} will be signed out immediately and unable to sign back in. Their card assignments are KEPT, so nothing loses its owner — managers can reassign them.`,
+                    : `${user.displayName} will be signed out immediately and unable to sign back in. Their card assignments are KEPT, so nothing loses its owner — a board owner can reassign them.${stranded}`,
                 );
                 if (ok) onChange(user.uid, user.role, next ? 'active' : 'disabled');
               }}

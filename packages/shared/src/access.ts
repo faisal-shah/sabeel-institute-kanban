@@ -9,7 +9,7 @@ import type { Role, UserStatus } from './types';
  * client copy is only for affordance.
  */
 
-export const ROLES: readonly Role[] = ['member', 'manager', 'admin'];
+export const ROLES: readonly Role[] = ['member', 'organizer', 'admin'];
 export const USER_STATUSES: readonly UserStatus[] = [
   'pending',
   'active',
@@ -41,9 +41,60 @@ export function canAdministerUsers(actor: {
   return actor.status === 'active' && actor.role === 'admin';
 }
 
-/** Managers and admins may create boards and see/join every board. */
-export function canManageBoards(actor: { role: Role; status: UserStatus }): boolean {
-  return actor.status === 'active' && (actor.role === 'manager' || actor.role === 'admin');
+/**
+ * Who may START a board. The whole of what `organizer` grants.
+ *
+ * RENAMED from `canManageBoards`, deliberately, rather than quietly narrowed.
+ * That name meant three things at once — create a board, administer any board,
+ * see every board — and two of them have moved. Renaming forces every one of its
+ * call sites to be looked at instead of silently inheriting a changed meaning,
+ * which is exactly how `canCurateLabels` below came to say something nobody
+ * intended.
+ */
+export function canCreateBoards(actor: { role: Role; status: UserStatus }): boolean {
+  return actor.status === 'active' && (actor.role === 'organizer' || actor.role === 'admin');
+}
+
+/**
+ * Who may ADMINISTER one particular board.
+ *
+ * The client mirror of `ownsBoard()` in firestore.rules, and the predicate the
+ * attachment callables need in TypeScript because Cloud Storage rules cannot
+ * read Firestore. If the two drift, someone sees a control that then fails — or,
+ * worse, the inverse.
+ *
+ * Membership AND ownership, never ownership alone. `removeBoardMember` clears
+ * both, but the pairing is what makes a leftover entry inert rather than a
+ * standing grant, and it is what lets the rules skip a subset check that would
+ * otherwise make an ordinary member removal brick the board.
+ */
+export function canManageBoard(
+  actor: { uid: string; role: Role; status: UserStatus },
+  /** Nullable so a screen can ask while its board is still loading. */
+  board:
+    | { memberUids?: readonly string[]; boardOwnerUids?: readonly string[] }
+    | null
+    | undefined,
+): boolean {
+  if (actor.status !== 'active') return false;
+  if (actor.role === 'admin') return true;
+  return (
+    (board?.memberUids ?? []).includes(actor.uid) &&
+    (board?.boardOwnerUids ?? []).includes(actor.uid)
+  );
+}
+
+/**
+ * Who may read the org-wide usage counters.
+ *
+ * Its OWN body rather than an alias of `canAdministerUsers`, even though the two
+ * agree today. They answer different questions — "may you see how the whole
+ * organisation is working" and "may you change who has access" — and an alias
+ * makes one of them move silently when the other is edited. Three identical
+ * bodies in this file is the point, not an oversight; see `canCurateLabels`.
+ */
+export function canViewStats(actor: { role: Role; status: UserStatus }): boolean {
+  return actor.status === 'active' && actor.role === 'admin';
 }
 
 /** Only an approved account may use the app at all. */
@@ -57,12 +108,19 @@ export function canUseApp(actor: { status: UserStatus }): boolean {
  * Creating a label is deliberately not gated beyond `canUseApp`: it happens
  * while someone is looking at a card, and it is cheap and reversible. Deleting
  * is neither, because it strips the label off every card on every board — often
- * boards the deleter is not even a member of. Hence the asymmetry, and hence
- * this being its own predicate rather than a bare `canManageBoards` call at the
- * two places that need it.
+ * boards the deleter is not even a member of. Hence the asymmetry.
+ *
+ * THIS BODY IS THE POINT OF THE FUNCTION, and it used to be
+ * `return canManageBoards(actor)` — an alias, sitting under a docblock arguing
+ * at length that it should not be one. The name was separated and the
+ * implementation was not, so the moment board authority became per-board it
+ * would have followed it: a plain member promoted to run one board would have
+ * inherited the power to delete a label off every card in the organisation,
+ * with nobody having written a line about labels. Never point this at another
+ * predicate, however identical they look on the day.
  */
 export function canCurateLabels(actor: { role: Role; status: UserStatus }): boolean {
-  return canManageBoards(actor);
+  return actor.status === 'active' && actor.role === 'admin';
 }
 
 /**
@@ -83,7 +141,14 @@ export function canAccessBoard(
   board: { memberUids?: readonly string[] },
 ): boolean {
   if (actor.status !== 'active') return false;
-  if (canManageBoards(actor)) return true;
+  // ADMIN, not `canCreateBoards`. This short-circuit used to be
+  // `canManageBoards(actor)`, and it is the ONLY gate on `getAttachmentUrl` and
+  // `deleteAttachment` — `storage.rules` denies reads outright, so this function
+  // IS the download authorization. Left pointing at the board-creation
+  // predicate, every organizer could mint a signed URL for any file on any
+  // board, including boards Firestore itself now refuses them, with nothing
+  // anywhere contradicting it.
+  if (actor.role === 'admin') return true;
   return (board.memberUids ?? []).includes(actor.uid);
 }
 
@@ -106,15 +171,43 @@ export function checkAccessChange(params: {
   targetUid: string;
   nextRole: unknown;
   nextStatus: unknown;
-}): { ok: true } | { ok: false; reason: AccessChangeRejection } {
-  const { actor, targetUid, nextRole, nextStatus } = params;
+}):
+  | { ok: true; role: Role; status: UserStatus }
+  | { ok: false; reason: AccessChangeRejection } {
+  const { actor, targetUid, nextStatus } = params;
+  const nextRole = coerceLegacyRole(params.nextRole);
 
   if (!canAdministerUsers(actor)) return { ok: false, reason: 'not-admin' };
   if (actor.uid === targetUid) return { ok: false, reason: 'self-change' };
   if (!isRole(nextRole)) return { ok: false, reason: 'invalid-role' };
   if (!isUserStatus(nextStatus)) return { ok: false, reason: 'invalid-status' };
 
-  return { ok: true };
+  // The NARROWED values come back with the verdict, so the caller writes what was
+  // actually checked. `setUserAccess` used to re-narrow `nextRole` itself, which
+  // meant the coercion above could be validated here and then discarded there.
+  return { ok: true, role: nextRole, status: nextStatus };
+}
+
+/**
+ * `manager` → `organizer`, for ONE release.
+ *
+ * Not a dual-role model — `ROLES` offers only the three current values, and
+ * nothing ever stores `manager` again. This accepts it as INPUT, and it exists
+ * to close a specific window during the rename.
+ *
+ * `setUserAccess` is the kill switch: disabling, rejecting and restoring an
+ * account all go through it, and the People screen sends role and status
+ * TOGETHER. So between deploying this code and migrating the claims, every
+ * account still holding `manager` would have been un-disableable — the one
+ * control you would reach for if the migration were going wrong is the one that
+ * would have stopped working. An old client build sends the same stale value for
+ * as long as it takes Play to reach everyone.
+ *
+ * DELETE THIS once no claim and no `users/*` mirror carries `manager` — see the
+ * board-ownership migration in docs/DEPLOY.md.
+ */
+export function coerceLegacyRole(value: unknown): unknown {
+  return value === 'manager' ? 'organizer' : value;
 }
 
 /** Human-readable reason, shared by the callable's error and the UI's message. */

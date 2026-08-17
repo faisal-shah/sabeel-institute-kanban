@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
+  canManageBoard,
   columnDeleteBlocked,
   columnsPatch,
   subtaskCounts,
@@ -20,7 +21,7 @@ import { CardFace } from '../CardFace';
 import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
-import { sessionCan, type SessionUser } from '../../session';
+import type { SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import {
   Body,
@@ -61,6 +62,9 @@ const NO_LABELS: Label[] = [];
 export function WideBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
   const board = useBoard(boardId);
+  // Board authority, computed once. It is per-board now, so it cannot come from
+  // `sessionCan` — a helper taking no board would be a button that always fails.
+  const canManage = canManageBoard(user, board.data);
   const cards = useBoardCards(boardId);
   const t = useTheme();
 
@@ -185,13 +189,16 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
             label="Archived cards"
             onPress={() => nav.push({ name: 'boardArchive', boardId })}
           />
-          {sessionCan.manageBoards(user) ? (
+          {/* Always present, because a non-owner now has something to open: the
+              roster, read-only, which answers "who do I ask to add someone?" without
+              a trip to an admin. The NAME changes with what it opens — calling it
+              Board settings for someone who gets only the member list would be a
+              control that does not say what it does. */}
             <IconAction
-              icon="settings"
-              label="Board settings"
+              icon={canManage ? 'settings' : 'group'}
+              label={canManage ? 'Board settings' : 'Board members'}
               onPress={() => nav.push({ name: 'boardSettings', boardId })}
             />
-          ) : null}
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
       </Row>
@@ -228,6 +235,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
       ) : null}
 
       <BulkBar
+       canManage={canManage}
         currentBoardId={boardId}
         columns={columns}
         allCards={cards.data ?? []}
@@ -258,7 +266,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 <ColumnNameEditor
                   column={col}
                   columns={columns}
-                  canEdit={sessionCan.manageBoards(user)}
+                  canEdit={canManage}
                   suffix={` (${colCards.length})`}
                   bold
                   busy={busy}
@@ -267,7 +275,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   run={run}
                   onEditingChange={(on) => setRenamingCol(on ? col.id : null)}
                 />
-                {sessionCan.manageBoards(user) && renamingCol !== col.id ? (
+                {canManage && renamingCol !== col.id ? (
                   <IconAction
                     icon="delete-outline"
                     label={`Delete column ${col.name}`}

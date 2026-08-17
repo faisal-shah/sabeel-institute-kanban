@@ -27,6 +27,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import {
+  canManageBoard,
   columnDeleteBlocked,
   columnsPatch,
   subtaskCounts,
@@ -45,7 +46,7 @@ import { ColumnNameEditor } from '../ColumnNameEditor';
 import { useSelection } from '../../useSelection';
 import { BulkBar } from '../BulkBar';
 import { confirmAction } from '../../confirm';
-import { sessionCan, type SessionUser } from '../../session';
+import type { SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import {
   Body,
@@ -137,6 +138,9 @@ const lastPageByBoard = new Map<string, number>();
 export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
   const board = useBoard(boardId);
+  // Board authority, computed once. It is per-board now, so it cannot come from
+  // `sessionCan` — a helper taking no board would be a button that always fails.
+  const canManage = canManageBoard(user, board.data);
   const cards = useBoardCards(boardId);
 
   // Remembered PER BOARD, outside the component. The pager's position was
@@ -361,13 +365,16 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         label="Archived cards"
         onPress={() => nav.push({ name: 'boardArchive', boardId })}
       />
-      {sessionCan.manageBoards(user) ? (
+      {/* Always present, because a non-owner now has something to open: the
+          roster, read-only, which answers "who do I ask to add someone?" without
+          a trip to an admin. The NAME changes with what it opens — calling it
+          Board settings for someone who gets only the member list would be a
+          control that does not say what it does. */}
         <IconAction
-          icon="settings"
-          label="Board settings"
+          icon={canManage ? 'settings' : 'group'}
+          label={canManage ? 'Board settings' : 'Board members'}
           onPress={() => nav.push({ name: 'boardSettings', boardId })}
         />
-      ) : null}
     </>
   );
 
@@ -406,7 +413,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
             <ColumnNameEditor
               column={current}
               columns={columns}
-              canEdit={sessionCan.manageBoards(user)}
+              canEdit={canManage}
               center
               // Two lines here and nowhere else: the pager squeezes the name
               // between Prev and Next, and there is nothing above or below it
@@ -447,7 +454,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
         <Panel>
           <Body>This board has no columns yet.</Body>
           <Hint>
-            {sessionCan.manageBoards(user)
+            {canManage
               ? 'Cards live in columns — add the first one in Board settings.'
               : 'Cards live in columns. A manager can add the first one.'}
           </Hint>
@@ -456,6 +463,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
       ) : null}
 
       <BulkBar
+       canManage={canManage}
         currentBoardId={boardId}
         columns={columns}
         allCards={cards.data ?? []}
@@ -634,7 +642,7 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
                   <View style={styles.grow}>
                     <Button label="+ Add card" onPress={() => setAdding(true)} />
                   </View>
-                  {sessionCan.manageBoards(user) ? (
+                  {canManage ? (
                     <IconAction
                       icon="delete-outline"
                       danger

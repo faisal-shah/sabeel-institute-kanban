@@ -32,13 +32,14 @@ import { BulkBar } from '../BulkBar';
 import { IconAction, LoadError } from '../ui';
 import {
   CARD_TITLE_MAX,
+  canManageBoard,
   columnDeleteBlocked,
   columnsPatch,
   subtaskCounts,
   type BoardColumn,
   type Label,
 } from '@sabeel/shared';
-import { sessionCan, type SessionUser } from '../../session';
+import type { SessionUser } from '../../session';
 import { useNav } from '../../nav';
 import { useListenerError } from '../../liveQuery';
 import { useLabels } from '../../labels';
@@ -223,6 +224,9 @@ function WebAddCardForm({
 export function WideBoard({ boardId, user }: { boardId: string; user: SessionUser }) {
   const nav = useNav();
   const board = useBoard(boardId);
+  // Board authority, computed once. It is per-board now, so it cannot come from
+  // `sessionCan` — a helper taking no board would be a button that always fails.
+  const canManage = canManageBoard(user, board.data);
   const cards = useBoardCards(boardId);
   const listenerError = useListenerError();
   const t = useWebTheme();
@@ -269,7 +273,6 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
   const labels = allLabels.data ?? NO_LABELS;
 
   const canEdit = true; // any board member may edit cards
-  const isManager = sessionCan.manageBoards(user);
 
   // Derived, not stored — the board already holds every card it needs.
   const subtasksBy = useMemo(() => subtaskCounts(cards.data ?? EMPTY_CARDS), [cards.data]);
@@ -465,19 +468,23 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
             label="Archived cards"
             onPress={() => nav.push({ name: 'boardArchive', boardId })}
           />
-          {isManager ? (
+          {/* Always present, because a non-owner now has something to open: the
+              roster, read-only, which answers "who do I ask to add someone?" without
+              a trip to an admin. The NAME changes with what it opens — calling it
+              Board settings for someone who gets only the member list would be a
+              control that does not say what it does. */}
             <IconAction
-              icon="settings"
-              label="Board settings"
+              icon={canManage ? 'settings' : 'group'}
+              label={canManage ? 'Board settings' : 'Board members'}
               onPress={() => nav.push({ name: 'boardSettings', boardId })}
             />
-          ) : null}
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </div>
       </div>
 
       {selection.active ? (
         <BulkBar
+         canManage={canManage}
           currentBoardId={boardId}
           columns={b.columns}
           allCards={cards.data ?? []}
@@ -588,7 +595,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                 <ColumnNameEditor
                   column={col}
                   columns={b.columns}
-                  canEdit={isManager}
+                  canEdit={canManage}
                   suffix={` (${colCards.length})`}
                   bold
                   onError={setError}
@@ -596,7 +603,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
                   run={runReporting}
                   onEditingChange={(on) => setRenamingCol(on ? col.id : null)}
                 />
-                {isManager && renamingCol !== col.id ? (
+                {canManage && renamingCol !== col.id ? (
                   <button
                     onClick={() => askRemoveColumn(col)}
                     aria-label={`Delete column ${col.name}`}

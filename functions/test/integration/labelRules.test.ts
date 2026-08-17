@@ -22,7 +22,7 @@ import { EMULATOR_PROJECT_ID, LABEL_COLORS, LABEL_NAME_MAX } from '@sabeel/share
  *
  * The asymmetry is the point and is what these tests exist to pin: ANY active
  * member may create a label, because coining one is cheap and happens while
- * looking at a card — but only a manager may rename, recolour or delete one,
+ * looking at a card — but only an ADMIN may rename, recolour or delete one,
  * because those change what everybody else already sees.
  *
  * `assertFails` passes when an operation fails for ANY reason, so every denial
@@ -167,13 +167,24 @@ describe('creating a label', () => {
 });
 
 describe('renaming and recolouring', () => {
-  it('is manager work, not member work', async () => {
+  /**
+   * ADMIN work, not organizer work and not member work.
+   *
+   * A label is org-wide: renaming one changes it on every card on every board,
+   * including boards the editor is not on. That is an org-wide effect, so it
+   * takes an org-wide authority — and owning a board grants no part of it, which
+   * is precisely what a member promoted to run one board must NOT inherit.
+   */
+  it('is admin work, not organizer or member work', async () => {
     await assertFails(
       updateDoc(doc(fs('member1', 'member'), 'labels/existing'), { name: 'Renamed' }),
     );
+    await assertFails(
+      updateDoc(doc(fs('org1', 'organizer'), 'labels/existing'), { name: 'Renamed' }),
+    );
     // Only the role was in the way.
     await assertSucceeds(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/existing'), { name: 'Renamed' }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/existing'), { name: 'Renamed' }),
     );
   });
 
@@ -183,24 +194,24 @@ describe('renaming and recolouring', () => {
     );
   });
 
-  it('will not let a manager rewrite the label’s history', async () => {
+  it('will not let an admin rewrite the label’s history', async () => {
     await assertFails(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/existing'), { createdBy: 'manager1' }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/existing'), { createdBy: 'admin1' }),
     );
     await assertFails(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/existing'), { createdAt: 99999 }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/existing'), { createdAt: 99999 }),
     );
     await assertSucceeds(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/existing'), { name: 'Still fine' }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/existing'), { name: 'Still fine' }),
     );
   });
 
-  it('will not let a manager smuggle in a new field or a bad colour', async () => {
+  it('will not let an admin smuggle in a new field or a bad colour', async () => {
     await assertFails(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/existing'), { boardId: 'b1' }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/existing'), { boardId: 'b1' }),
     );
     await assertFails(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/existing'), { color: 'goldenrod' }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/existing'), { color: 'goldenrod' }),
     );
   });
 
@@ -212,7 +223,7 @@ describe('renaming and recolouring', () => {
       await setDoc(doc(c.firestore(), 'labels/legacy'), { name: 'Old', color: '#83114F' });
     });
     await assertSucceeds(
-      updateDoc(doc(fs('manager1', 'manager'), 'labels/legacy'), { name: 'Old renamed' }),
+      updateDoc(doc(fs('admin1', 'admin'), 'labels/legacy'), { name: 'Old renamed' }),
     );
   });
 });
@@ -223,7 +234,7 @@ describe('deleting a label', () => {
     // carries it, and no client write can do that completely or record who did
     // it. The deleteLabel callable owns this. Same shape as attachments.
     await assertFails(deleteDoc(doc(fs('member1', 'member'), 'labels/existing')));
-    await assertFails(deleteDoc(doc(fs('manager1', 'manager'), 'labels/existing')));
+    await assertFails(deleteDoc(doc(fs('org1', 'organizer'), 'labels/existing')));
     await assertFails(deleteDoc(doc(fs('admin1', 'admin'), 'labels/existing')));
   });
 });
@@ -237,14 +248,15 @@ describe('the board document', () => {
         archived: false,
         columns: [{ id: 'c1', name: 'To Do' }],
         columnIds: ['c1'],
-        memberUids: ['manager1'],
+        memberUids: ['owner1'],
+        boardOwnerUids: ['owner1'],
         memberProfiles: {},
         activeCardCount: 0,
         createdAt: 1,
-        createdBy: 'manager1',
+        createdBy: 'owner1',
       });
     });
-    const board = doc(fs('manager1', 'manager'), 'boards/b1');
+    const board = doc(fs('owner1', 'member'), 'boards/b1');
     await assertFails(updateDoc(board, { labels: [{ id: 'l1', name: 'X', color: '#83114F' }] }));
     // The same write without the stale field goes through, so it is the field
     // being refused and not the update.

@@ -31,7 +31,7 @@ beforeEach(async () => {
   await makeUser({
     uid: 'manager1',
     email: 'manager1@oursabeel.com',
-    role: 'manager',
+    role: 'organizer',
     status: 'active',
   });
   await makeUser({
@@ -66,7 +66,7 @@ describe('authorisation', () => {
     expect(r.body.error?.status).toBe('PERMISSION_DENIED');
   });
 
-  it('rejects a manager — boards are theirs, accounts are not', async () => {
+  it('rejects an organizer — boards are theirs, accounts are not', async () => {
     const r = await callFunction(
       'setUserAccess',
       { uid: 'pending1', role: 'member', status: 'active' },
@@ -193,8 +193,8 @@ describe('a valid admin change', () => {
     expect(snap.data()?.accessChangedBy).toBe('admin1');
   });
 
-  it('promotes to manager and to admin', async () => {
-    for (const role of ['manager', 'admin']) {
+  it('promotes to organizer and to admin', async () => {
+    for (const role of ['organizer', 'admin']) {
       const r = await callFunction(
         'setUserAccess',
         { uid: 'member1', role, status: 'active' },
@@ -204,6 +204,31 @@ describe('a valid admin change', () => {
       const u = await adminAuth().getUser('member1');
       expect(u.customClaims?.role).toBe(role);
     }
+  });
+
+  /**
+   * The kill switch has to survive the rename.
+   *
+   * Disabling, rejecting and restoring all go through here, and the People screen
+   * sends role and status TOGETHER. An app build too old to know the new name
+   * keeps sending `manager` for as long as Play takes to reach everyone — and
+   * without this, every account still holding the old role would have been
+   * un-disableable for that whole window.
+   *
+   * Accepted as INPUT, stored as `organizer`. Nothing writes the old value again.
+   */
+  it('accepts the retired role from an old client, and stores the new one', async () => {
+    const r = await callFunction(
+      'setUserAccess',
+      { uid: 'member1', role: 'manager', status: 'disabled' },
+      await idTokenFor('admin1'),
+    );
+    expect(r.body.error).toBeUndefined();
+    const u = await adminAuth().getUser('member1');
+    expect(u.customClaims?.role).toBe('organizer');
+    expect(u.customClaims?.status).toBe('disabled');
+    const snap = await adminDb().doc('users/member1').get();
+    expect(snap.data()?.role).toBe('organizer');
   });
 
   // A user who has never had tokens revoked has NO tokensValidAfterTime at all,

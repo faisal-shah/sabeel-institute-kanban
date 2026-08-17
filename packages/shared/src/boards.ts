@@ -55,6 +55,12 @@ export function newBoard(params: {
     memberProfiles: params.createdByProfile
       ? { [params.createdBy]: params.createdByProfile }
       : {},
+    // …and always its first OWNER, for the same reason one step further: a board
+    // nobody can administer is a support ticket too, and the create rule refuses
+    // one without this. That refusal is deliberate — it is what turns "an app too
+    // old to know about ownership made a board only an admin can ever manage"
+    // from a silent, permanent condition into a visible failure at creation.
+    boardOwnerUids: [params.createdBy],
     // A fresh board has no cards; the onCardBoardCount trigger takes it from here.
     activeCardCount: 0,
     createdAt: params.now,

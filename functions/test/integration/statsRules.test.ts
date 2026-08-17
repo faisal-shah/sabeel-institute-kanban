@@ -12,10 +12,13 @@ import { EMULATOR_PROJECT_ID, STATS_ALL_SCOPE } from '@sabeel/shared';
 /**
  * Rules for the server-written `stats` collection.
  *
- * Two things to pin. Reading is MANAGER-AND-ABOVE, because a member has no
- * Stats screen and per-board counts describe boards they may not be on. And
- * writing is closed to everyone without exception — a client that could write a
- * counter could lie about it, and rules cannot check a count against reality.
+ * Two things to pin. Reading is ADMIN-ONLY: a per-board bucket is addressed by
+ * board id, so while this was open to managers it was a way to read any board's
+ * activity without being on it and without any screen offering it — which stops
+ * being tolerable the moment the org role no longer carries sight of every
+ * board. And writing is closed to everyone without exception — a client that
+ * could write a counter could lie about it, and rules cannot check a count
+ * against reality.
  *
  * `assertFails` passes when an operation fails for ANY reason, so every denial
  * is paired with a positive control: the same operation succeeding once the one
@@ -72,17 +75,31 @@ beforeEach(async () => {
 });
 
 describe('reading stats', () => {
-  it('lets a manager read the roll-up and a board bucket', async () => {
-    await assertSucceeds(
-      getDoc(doc(fs('mgr', 'manager'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
-    );
-    await assertSucceeds(getDoc(doc(fs('mgr', 'manager'), `stats/board1/months/${MONTH}`)));
-    await assertSucceeds(getDoc(doc(fs('mgr', 'manager'), `stats/${STATS_ALL_SCOPE}`)));
-  });
-
-  it('lets an admin read', async () => {
+  it('lets an admin read the roll-up and a board bucket', async () => {
     await assertSucceeds(
       getDoc(doc(fs('boss', 'admin'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
+    );
+    await assertSucceeds(getDoc(doc(fs('boss', 'admin'), `stats/board1/months/${MONTH}`)));
+    await assertSucceeds(getDoc(doc(fs('boss', 'admin'), `stats/${STATS_ALL_SCOPE}`)));
+  });
+
+  /**
+   * ADMIN-ONLY since board authority became per-board.
+   *
+   * A per-board bucket is addressed by board id, so while this was open to
+   * managers it was a way to read any board's activity WITHOUT being on it and
+   * without the UI ever offering it — the exact sight of the whole organisation
+   * the new model takes away. The screen moved with the rule.
+   */
+  it('refuses an ORGANIZER, who can no longer see every board', async () => {
+    await assertFails(
+      getDoc(doc(fs('org', 'organizer'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
+    );
+    // Reading a single board's bucket by id is the sharper case: no UI offers it.
+    await assertFails(getDoc(doc(fs('org', 'organizer'), `stats/board1/months/${MONTH}`)));
+    // Same document, same path, same active status: only the role differs.
+    await assertSucceeds(
+      getDoc(doc(fs('org', 'admin'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
     );
   });
 
@@ -92,18 +109,18 @@ describe('reading stats', () => {
       getDoc(doc(fs('mem', 'member'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
     );
     await assertSucceeds(
-      getDoc(doc(fs('mem', 'manager'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
+      getDoc(doc(fs('mem', 'admin'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
     );
   });
 
-  it('refuses a manager whose account is not active yet', async () => {
-    // A pending account carrying the manager role must still be inert — the
+  it('refuses an admin whose account is not active yet', async () => {
+    // A pending account carrying the admin role must still be inert — the
     // domain check is not the approval.
     await assertFails(
-      getDoc(doc(fs('new', 'manager', 'pending'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
+      getDoc(doc(fs('new', 'admin', 'pending'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
     );
     await assertSucceeds(
-      getDoc(doc(fs('new', 'manager', 'active'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
+      getDoc(doc(fs('new', 'admin', 'active'), `stats/${STATS_ALL_SCOPE}/months/${MONTH}`)),
     );
   });
 
@@ -118,7 +135,7 @@ describe('reading stats', () => {
     // and not just `get` — a rule granting only `get` would pass every test
     // above and still leave the chart empty.
     const snap = await assertSucceeds(
-      getDocs(collection(fs('mgr', 'manager'), `stats/${STATS_ALL_SCOPE}/months`)),
+      getDocs(collection(fs('boss', 'admin'), `stats/${STATS_ALL_SCOPE}/months`)),
     );
     expect(snap.docs).toHaveLength(1);
   });
@@ -141,9 +158,9 @@ describe('writing stats', () => {
     });
   });
 
-  it('refuses a manager inventing a brand-new scope', async () => {
+  it('refuses an admin inventing a brand-new scope', async () => {
     await assertFails(
-      setDoc(doc(fs('mgr', 'manager'), `stats/invented/months/${MONTH}`), bucket()),
+      setDoc(doc(fs('boss', 'admin'), `stats/invented/months/${MONTH}`), bucket()),
     );
   });
 });

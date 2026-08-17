@@ -110,7 +110,9 @@ const activityFor = async (cardId = CARD) =>
   );
 
 beforeAll(async () => {
-  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'manager', status: 'active' });
+  // An ADMIN, because the org role no longer carries access to a board you are
+  // not on — `canAccessBoard` is the download authorization and moved with it.
+  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'admin', status: 'active' });
   await makeUser({ uid: MEM, email: `${MEM}@oursabeel.com`, role: 'member', status: 'active' });
   await makeUser({
     uid: OUTSIDER,
@@ -261,7 +263,11 @@ describe('finalizeAttachment', () => {
     expect(bad.body.error?.status).toBe('INVALID_ARGUMENT');
   });
 
-  it('lets a manager act without being a member — they may join any board', async () => {
+  it('lets an ADMIN act without being a member, and refuses an organizer', async () => {
+    // `canAccessBoard` in @sabeel/shared is the only gate here — storage.rules
+    // denies reads outright, so that predicate IS the download authorization.
+    // It used to short-circuit on the board-creation role, which would have let
+    // every organizer reach any file on any board.
     const id = 'at_mgr_ok';
     await uploaded(id);
     const res = await callFunction(
@@ -270,6 +276,21 @@ describe('finalizeAttachment', () => {
       mgrToken,
     );
     expect(res.status).toBe(200);
+
+    await makeUser({
+      uid: 'at_org',
+      email: 'at_org@oursabeel.com',
+      role: 'organizer',
+      status: 'active',
+    });
+    const id2 = 'at_org_no';
+    await uploaded(id2);
+    const denied = await callFunction(
+      'finalizeAttachment',
+      { cardId: CARD, attachmentId: id2 },
+      await idTokenFor('at_org'),
+    );
+    expect(denied.body.error?.status).toBe('PERMISSION_DENIED');
   });
 });
 
@@ -416,7 +437,7 @@ describe('concurrency — two people, or two taps, at the same moment', () => {
   it('finalize attributes the file to whoever UPLOADED it, not whoever confirmed it', async () => {
     const id = 'at_actor';
     await uploaded(id, { name: 'actor.pdf', uploadedBy: MEM });
-    // The manager confirms an upload the member made.
+    // The admin confirms an upload the member made.
     await callFunction('finalizeAttachment', { cardId: CARD, attachmentId: id }, mgrToken);
     const attached = (await activityFor()).filter((a) => a.type === 'attached' && a.to === 'actor.pdf');
     expect(attached).toHaveLength(1);

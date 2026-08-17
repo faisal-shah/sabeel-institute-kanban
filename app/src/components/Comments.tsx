@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { type MentionCandidate } from '@sabeel/shared';
 import { addComment, deleteComment, editComment, useComments } from '../comments';
-import { sessionCan, type SessionUser } from '../session';
+import type { SessionUser } from '../session';
 import type { BoardMemberProfile } from '../boards';
 import {
   Body,
@@ -202,6 +202,7 @@ export function Comments({
   cardId,
   members,
   prioritiseUids,
+  canModerate,
   user,
 }: {
   cardId: string;
@@ -209,6 +210,14 @@ export function Comments({
   /** The card's assignees, floated to the top of the mention list — the people
    *  a comment on this card is most likely to be addressed to. */
   prioritiseUids?: readonly string[];
+  /**
+   * Whether this person may delete SOMEONE ELSE'S comment — the moderation path.
+   *
+   * A prop rather than a `sessionCan` call, because it is a property of the
+   * BOARD now: its owners moderate it, and an org role grants no part of that.
+   * The card screen has the board; this component does not.
+   */
+  canModerate: boolean;
   user: SessionUser;
 }) {
   const comments = useComments(cardId);
@@ -245,7 +254,7 @@ export function Comments({
 
       {list.map((c) => {
         const mine = c.authorUid === user.uid;
-        const canDelete = mine || sessionCan.manageBoards(user);
+        const canDelete = mine || canModerate;
         return (
           <Panel key={c.id}>
             {/* Actions live ON the byline, not under the comment. Full-size

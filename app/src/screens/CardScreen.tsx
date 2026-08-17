@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { PRIORITIES, priorityLabel, readableInkOn, todayInOrgTz } from '@sabeel/shared';
+import {
+  PRIORITIES,
+  canManageBoard,
+  priorityLabel,
+  readableInkOn,
+  todayInOrgTz,
+} from '@sabeel/shared';
 import {
   archiveCard,
   cardsInColumn,
@@ -17,7 +23,7 @@ import {
 } from '../cards';
 import { useBoard } from '../boards';
 import { createLabel, useLabels } from '../labels';
-import { sessionCan, type SessionUser } from '../session';
+import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import { shareLink, WEB_ORIGIN } from '../share';
 import { cardPath } from '../links';
@@ -64,6 +70,9 @@ export function CardScreen({
   const nav = useNav();
   const card = useCard(cardId);
   const board = useBoard(boardId);
+  // Board authority: permanently deleting a card, and moderating a comment,
+  // belong to this board's owners rather than to a rank in the organisation.
+  const canManage = canManageBoard(user, board.data);
   // Org-wide. Every board offers the same labels, so this does not come from
   // the board document any more.
   const labels = useLabels();
@@ -569,6 +578,7 @@ export function CardScreen({
 
       <Heading>Comments ({c.commentCount})</Heading>
       <Comments
+        canModerate={canManage}
         cardId={cardId}
         members={assignable}
         prioritiseUids={c.assigneeUids}
@@ -616,7 +626,7 @@ export function CardScreen({
             }
           />
         )}
-        {sessionCan.manageBoards(user) ? (
+        {canManage ? (
           <>
             <Hint>
               Deleting is permanent and cannot be undone. Members can only

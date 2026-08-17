@@ -6,10 +6,21 @@
 // ---- Users -----------------------------------------------------------------
 
 /**
- * Org-wide role. There are deliberately NO per-board roles: board access is
- * membership (`Board.memberUids`), and what you may DO is decided by this.
+ * Org-wide role — and, since 2026-08-16, ONLY the org-wide part.
+ *
+ * `organizer` grants exactly one thing: creating boards. Everything else it used
+ * to carry has moved:
+ *
+ *  - Authority over a board is now PER BOARD (`Board.boardOwnerUids`), so a plain
+ *    member can run one board without gaining anything anywhere else.
+ *  - Seeing every board, curating the org-wide label set, and reading Stats are
+ *    all `admin` alone.
+ *
+ * The old `manager` value meant all three at once, which is why one predicate
+ * (`canManageBoards`) ended up aliased into three unrelated decisions — see the
+ * note on `canCurateLabels` in access.ts for what that cost.
  */
-export type Role = 'member' | 'manager' | 'admin';
+export type Role = 'member' | 'organizer' | 'admin';
 
 /** Every account lands `pending`; only an admin moves it on. */
 export type UserStatus = 'pending' | 'active' | 'rejected' | 'disabled';
@@ -96,6 +107,23 @@ export interface BoardDoc {
    * clears both.
    */
   memberProfiles: Record<string, { displayName: string; email: string }>;
+  /**
+   * Who may ADMINISTER this board — settings, columns, membership, archiving,
+   * permanently deleting a card, moderating a comment.
+   *
+   * Orthogonal to `Role`: a plain member can own a board, and owning it grants
+   * nothing anywhere else. Always read together with `memberUids` — authority is
+   * `admin || (member AND owner)`, so an entry here for someone who is no longer
+   * a member is inert rather than dangerous. `removeBoardMember` clears both, or
+   * re-adding that person would silently restore their ownership.
+   *
+   * OPTIONAL because boards written before 2026-08-16 do not carry it. Rules read
+   * it with `.get('boardOwnerUids', [])` throughout: plain access on a document
+   * that lacks the field ERRORS, which denies the write and makes the board
+   * permanently uneditable — the trap `createdAt` and `activeCardCount` already
+   * document above.
+   */
+  boardOwnerUids?: string[];
   /**
    * Number of non-archived cards on this board, denormalised so the Boards list
    * can show it without counting cards per board per render. Server-maintained

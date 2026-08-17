@@ -65,6 +65,7 @@ beforeEach(async () => {
       columns: [{ id: 'c1', name: 'To Do' }],
       columnIds: ['c1'],
       memberUids: ['member1', 'member2'],
+      boardOwnerUids: ['member1'],
       createdAt: 1,
       createdBy: 'manager1',
     });
@@ -77,6 +78,7 @@ beforeEach(async () => {
       columns: [{ id: 'x1', name: 'To Do' }],
       columnIds: ['x1'],
       memberUids: ['outsider'],
+      boardOwnerUids: ['outsider'],
       createdAt: 1,
       createdBy: 'manager1',
     });
@@ -122,9 +124,15 @@ describe('reading comments', () => {
     );
   });
 
-  it('a manager can, without being a member', async () => {
+  it('an ORGANIZER cannot, without being a member', async () => {
+    // Reading a thread follows the board, and the org role no longer carries
+    // sight of every board.
+    await assertFails(
+      getDocs(collection(ctx('org1', 'organizer'), `${CARD}/comments`)),
+    );
+    // An admin still can — the one remaining way to see everything.
     await assertSucceeds(
-      getDocs(collection(ctx('manager1', 'manager'), `${CARD}/comments`)),
+      getDocs(collection(ctx('admin1', 'admin'), `${CARD}/comments`)),
     );
   });
 
@@ -275,15 +283,27 @@ describe('deleting comments', () => {
     );
   });
 
-  it('a manager can delete anyone comment — the moderation path', async () => {
+  it('an OWNER of the board can delete anyone’s comment — the moderation path', async () => {
+    // Moderation is a property of the BOARD, not of a rank in the organisation.
+    // member1 owns b1 while holding the plain `member` role.
     await assertSucceeds(
-      deleteDoc(doc(ctx('manager1', 'manager'), `${CARD}/comments/existing`)),
+      deleteDoc(doc(ctx('member1', 'member'), `${CARD}/comments/existing`)),
     );
   });
 
   it('another member cannot', async () => {
     await assertFails(
       deleteDoc(doc(ctx('member2', 'member'), `${CARD}/comments/existing`)),
+    );
+  });
+
+  it('nor can an organizer who does not own the board', async () => {
+    await assertFails(
+      deleteDoc(doc(ctx('org1', 'organizer'), `${CARD}/comments/existing`)),
+    );
+    // Only board authority was in the way.
+    await assertSucceeds(
+      deleteDoc(doc(ctx('admin1', 'admin'), `${CARD}/comments/existing`)),
     );
   });
 });
