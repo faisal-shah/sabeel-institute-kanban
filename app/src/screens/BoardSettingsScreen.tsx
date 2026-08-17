@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import {
   BOARD_NAME_MAX,
   LABEL_COLORS,
+  canCurateLabels,
   canManageBoard,
   LABEL_NAME_MAX,
   columnsPatch,
@@ -76,6 +77,9 @@ export function BoardSettingsScreen({
    * loads and `canManageBoard` takes that, returning false until it knows.
    */
   const canManage = canManageBoard(user, board.data);
+  // Curating the shared label set is ORG-wide and admin-only, so it is a
+  // different question from running this board and has to be asked separately.
+  const canCurate = canCurateLabels(user);
   // ASKED FOR ONLY BY SOMEONE WHO COULD USE IT. Only admins may list all users;
   // a board owner who is not one gets the error and a note explaining it, which
   // is the honest answer to "who else could I add?". A non-owner has no add
@@ -324,8 +328,9 @@ export function BoardSettingsScreen({
                 the misreading to head off: someone deletes one expecting it to
                 affect their board alone. */}
             <Hint>
-              Labels are shared by every board. Adding, renaming or deleting one
-              changes it everywhere.
+              {canCurate
+                ? 'Labels are shared by every board. Adding, renaming or deleting one changes it everywhere.'
+                : 'Labels are shared by every board, so renaming and deleting them is an admin’s job. Anyone can add one.'}
             </Hint>
             {labels.status === 'loading' ? <Spinner label="Loading labels…" /> : null}
             {(labels.data ?? []).length === 0 && labels.status === 'ready' ? (
@@ -356,7 +361,15 @@ export function BoardSettingsScreen({
                     <View style={[styles.swatch, { backgroundColor: l.color }]} />
                     <Body numberOfLines={2}>{l.name}</Body>
                   </Row>
+                  {/* ADMIN-ONLY, and not board authority: renaming or deleting a
+                      label reaches cards on every board, including boards this
+                      owner cannot open. Adding one below is open to everyone,
+                      which is the asymmetry the Hint above states. Owning a
+                      board used to imply this, and the controls stayed behind
+                      after it stopped — buttons the rules refuse. */}
                   <Row style={styles.noShrink}>
+                    {!canCurate ? null : (
+                      <>
                     {/* Recolouring in place: the swatch row below belongs to the
                         NEW label being composed, so an existing one needs its own
                         way to change, and cycling the palette is one tap rather
@@ -395,6 +408,8 @@ export function BoardSettingsScreen({
                       disabled={busy}
                       onPress={() => askDeleteLabel(l)}
                     />
+                      </>
+                    )}
                   </Row>
                 </Row>
               ),

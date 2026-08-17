@@ -883,14 +883,30 @@ async function tour(page, tag, width) {
           toggles: vis('[role="switch"]').filter((e) => nm(e).startsWith('Owner of this board')).length,
           creatorLocked: creator ? creator.getAttribute('aria-disabled') === 'true' : null,
           ownerHints: (document.body.textContent || '').split('Owner').length - 1,
+          // Curating the shared labels is ADMIN work, not board authority. These
+          // controls sat inside the owner-gated Labels card and stayed there
+          // when curation narrowed — three buttons the rules refuse, on the
+          // screen of every board owner in the org.
+          labelEdits: vis('[role="button"]').filter((e) =>
+            /^(Rename|Delete label|Change colour of) /.test(nm(e)),
+          ).length,
+          canAddLabel: vis('[role="button"]').some((e) => nm(e) === 'Add label'),
           bleed: document.documentElement.scrollWidth - window.innerWidth,
         };
       });
       // An owner gets a toggle per member and cannot demote the creator; a
-      // member gets no toggle at all and reads who to ask instead.
+      // member gets no toggle at all and reads who to ask instead. NEITHER can
+      // rename or delete a shared label, and the owner can still add one.
       const rosterOk = wants.settings
-        ? roster.title === 'settings' && roster.toggles === 3 && roster.creatorLocked === true
-        : roster.title === 'members' && roster.toggles === 0 && roster.ownerHints >= 2;
+        ? roster.title === 'settings' &&
+          roster.toggles === 3 &&
+          roster.creatorLocked === true &&
+          roster.labelEdits === 0 &&
+          roster.canAddLabel
+        : roster.title === 'members' &&
+          roster.toggles === 0 &&
+          roster.ownerHints >= 2 &&
+          roster.labelEdits === 0;
       check(
         `${tag} / the roster as ${role === 'owner' ? 'an owner' : 'a member'}`,
         rosterOk && roster.bleed <= 1,
