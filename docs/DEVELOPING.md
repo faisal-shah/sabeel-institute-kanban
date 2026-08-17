@@ -237,6 +237,29 @@ firebase emulators:exec --project demo-sabeel-kanban --only firestore,auth \
 CI runs it on every push. `docs/DEPLOY.md` § Restoring across the board-ownership
 migration says when to reach for the scripts themselves.
 
+**And against the shape of the real database.** The fixtures above contain every
+awkward case deliberately, which makes them the harder test and also an invented
+one: production may hold a case nobody thought of, or none of them. So the same
+harness can replay the structure that actually exists —
+
+```sh
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/dump-migration-shape.mjs
+firebase emulators:exec --project demo-sabeel-kanban --only firestore,auth \
+  "node scripts/migration-e2e.mjs --shape migration/shape-sabeel-institute-kanban.json"
+```
+
+The dump is READ-ONLY and writes two files into gitignored `migration/`: the
+recovery manifest (real uids, emails and claims — step R1's safety net, since
+custom claims are in no backup) and a REDACTED shape carrying only what the
+migration branches on. No names, no addresses, no board titles, no cards; uids
+become `u1..uN`. The replay seeds an emulator from the shape, runs the real
+scripts in the real order, and asserts invariants rather than ids — every board
+ends with the owners the shape predicts, the ownerless ones are exactly those
+whose creator had left, nobody is handed claims they did not have, and the round
+trip through both undo scripts leaves membership untouched.
+
+Run both. Neither substitutes for the other.
+
 ### Screenshots for the user manual
 
 Different job, different script. `screens-e2e.mjs` asserts; this one only

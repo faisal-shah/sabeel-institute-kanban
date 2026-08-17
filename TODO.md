@@ -713,9 +713,12 @@ human observation follows it. Steps R2–R4 are best done outside working hours:
 both caches apply optimistically and revert on a rejected write, so a mismatch
 shows as a rename that appears and snaps back.
 
-- [ ] **R1 — Manifests.** A managed Firestore export, plus a dump of
-      uid/email/role/status and of `boardId → {createdBy, memberUids}`. Confirm
-      PITR is still on: `firebase firestore:databases:get "(default)"`.
+- [ ] **R1 — Manifests.** A managed Firestore export, plus
+      `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/dump-migration-shape.mjs`,
+      which writes both the recovery manifest (real uids, emails and CLAIMS —
+      gitignored, keep a copy off this machine) and a redacted shape file safe to
+      keep. Note the board count it prints; R7c wants it. Confirm PITR is still
+      on: `firebase firestore:databases:get "(default)"`.
 - [ ] **R2 — Compat rules only**, from the commit that carries them alone:
       ```
       git checkout db46919 -- firestore.rules
@@ -725,7 +728,13 @@ shows as a rename that appears and snaps back.
       They admit `boardOwnerUids` and PIN it — create allows only
       `[request.auth.uid]`, update requires it unchanged unless you are an admin.
       Merely admitting the key would let any manager write themselves in for the
-      whole window. Rollback is redeploying the previous rules, about a minute.
+      whole window.
+      **Rollback, about a minute:**
+      ```
+      git checkout db46919~1 -- firestore.rules
+      npx firebase deploy --only firestore:rules --project sabeel-institute-kanban
+      git checkout HEAD -- firestore.rules
+      ```
 - [ ] **R3 — Canary.** Backfill ONE low-traffic board and then rename that board
       from a real signed-in client. This is the only proof R2 propagated; a green
       `firebase deploy` is not that proof.
@@ -741,8 +750,10 @@ shows as a rename that appears and snaps back.
       cannot remove a field that was wrongly added.
 - [ ] **R5 — Ship the clients**, web and Android. The new client works under both
       rule sets, which is what makes this order safe.
-- [ ] **R6 — Soak** until everyone is on the new build. Eleven-ish people: ask
-      them. Confirm from Sentry release data, not Play's rollout percentage.
+- [ ] **R6 — Soak** until everyone is on the new build. Small enough team to
+      simply ask; confirm from Sentry release data, not Play's rollout
+      percentage. An app build too old to know about ownership gets a broken
+      Boards screen the moment R7a lands, which is the whole reason to wait.
 - [ ] **R7 — The flip, one window, minutes apart.**
       **(a)** `firebase deploy --only firestore:rules,functions`.
       **(b)** Immediately — target under two minutes —
@@ -752,6 +763,11 @@ shows as a rename that appears and snaps back.
       **If (b) half-finishes, go FORWARD** — re-run it, it is idempotent. New
       rules with old claims is recoverable; old rules with new claims is the
       worst state in the migration.
+      **Rollback of (a) alone, before (b) has run:** redeploy the previous rules
+      as in R2 and the previous functions with
+      `git checkout db46919~1 -- functions/src && npx firebase deploy --only functions`,
+      then `git checkout HEAD -- functions/src`. Claims are untouched at that
+      point, so nothing else has to be undone. Once (b) has started, finish it.
       Keep the manifest it writes under `migration/`. It is gitignored, it holds
       real addresses, and it is the ONLY record of the previous claims — Auth is
       in no backup. Copy it off this machine.

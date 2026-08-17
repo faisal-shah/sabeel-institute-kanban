@@ -127,7 +127,7 @@ describe('chipsForIds', () => {
   });
 
   it('STILL yields a chip for an id whose label was deleted', () => {
-    // The whole point. A manager can delete a label someone is filtering by;
+    // The whole point. An admin can delete a label someone is filtering by;
     // building chips by filtering the org-wide set down to the chosen ids meant
     // a dead id produced no chip while still narrowing the results — Search went
     // empty with no cause on screen and nothing to tap.

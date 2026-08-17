@@ -596,7 +596,16 @@ board with no `createdBy`. Both are idempotent.
 `rename-manager-role.mjs` writes a manifest to `migration/` **before** it changes
 a claim, and that file is the only way back: custom claims are in no backup at
 all (see below). Reverse it with
-`node scripts/rename-manager-role.mjs --revert <manifest> --apply`.
+`node scripts/rename-manager-role.mjs --revert <manifest> --apply`. It also
+refuses to run while any active board is still missing `boardOwnerUids`, so the
+order above is enforced rather than merely written down.
+
+**Rehearse against the shape first if there is time.**
+`scripts/dump-migration-shape.mjs` reads the database and writes a redacted
+structure — no names, no addresses, no board titles, no cards — which
+`scripts/migration-e2e.mjs --shape <file>` replays through the whole sequence on
+the emulators. It answers the question the seeded fixtures cannot: does this
+work on the database that actually exists. See `docs/DEVELOPING.md`.
 
 **A restore cannot undo the backfill.** An import merges by document id, so it
 recreates what was deleted and cannot remove what was wrongly *added* — a field

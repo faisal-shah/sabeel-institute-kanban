@@ -371,11 +371,14 @@ the team.
 
 ## Deploy log
 
-### 2026-08-16 — Board authority becomes per-board — v0.9.0
+### 2026-08-17 — Board authority becomes per-board — v0.9.0
 
-**The largest access change since launch, and it runs against live data.** Read
-`docs/DEPLOY.md` § Restoring across the board-ownership migration before
-deploying, and the whole of `docs/PERMISSIONS.md` for the model.
+**The largest access change since launch, and it runs against live data.** It is
+NOT a normal release: rules, functions and both clients all move, and they move
+in a fixed order with a data migration in the middle. **`TODO.md` § K is the
+sequence and every command**; `docs/PERMISSIONS.md` is the model, and
+`docs/DEPLOY.md` § Restoring across the board-ownership migration is what a
+restore from before it has to re-run.
 
 **What changed.** `manager` meant three unrelated things at once — administer any
 board, curate the org's labels, read Stats — and one consequence was that every
@@ -442,8 +445,15 @@ ran, all four rehearsed end to end against seeded awkward data by
 `scripts/migration-e2e.mjs`, which CI runs on every push. The backfill refuses a
 board with no `createdBy` rather than mint an owner no uid can match, writes an
 honest empty list where the creator has left the board, and asserts every uid it
-is about to name could already administer a board under the OLD rules — which is
-what makes shipping the clients before the rules flip safe.
+is about to name could already administer a board under the OLD rules — judged by
+the CLAIM, because that is what the rules read, not by the user document. The
+rename refuses to run at all while any active board is still missing its owner
+list, so the order is enforced rather than only written down; it never mints
+claims for an account that had none, because renaming a mirror is a rename and
+creating claims would be a grant; and its revert restores both halves exactly as
+recorded rather than deriving one from the other. That last one is the emergency
+path, and deriving would have let an account in that could not sign in before.
+That claim check is what makes shipping the clients before the rules flip safe.
 `rename-manager-role.mjs` flushes and re-reads its manifest before the first
 claim moves, because custom claims are in no backup at all.
 

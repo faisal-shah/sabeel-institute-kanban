@@ -77,10 +77,10 @@ there is nothing left to protect and the clause stands aside. Pinning that state
 would freeze the board for everyone but an admin.
 
 **`removeBoardMember` repeats the check, and that repetition is the real
-boundary.** Removing the creator from the board would drop them from
-`boardOwnerUids` too, so it is the same act by another route — but that callable
-is an Admin SDK batch and rules do not see it at all. The screen disables the
-row; a disabled control is an affordance, not a security control.
+boundary.** That callable clears both lists itself, so removing the creator
+through it is the same unseating by another route — and it is an Admin SDK batch,
+which rules do not see at all. The screen disables the row; a disabled control is
+an affordance, not a security control.
 
 ### Ownership is checked alongside membership, never alone
 

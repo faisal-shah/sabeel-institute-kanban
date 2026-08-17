@@ -23,6 +23,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { shapeMode } from './migration-shape-replay.mjs';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -52,6 +53,36 @@ function run(script, ...args) {
 initializeApp({ projectId: PROJECT });
 const db = getFirestore();
 const auth = getAuth();
+
+/**
+ * REPLAY MODE. `--shape migration/shape-<project>.json` seeds the emulator from
+ * the redacted structure of a real database and runs the whole upgrade against
+ * it, instead of the hand-written fixtures below.
+ *
+ * The fixtures are still the default and still the more DEMANDING test — they
+ * contain every awkward case on purpose, and production may contain none of
+ * them. Replay answers the other question: does the sequence work on the shape
+ * that actually exists, with the number of boards and accounts that actually
+ * exist? Neither substitutes for the other, which is why this is a mode rather
+ * than a replacement.
+ */
+const shapeIdx = process.argv.indexOf('--shape');
+if (shapeIdx >= 0) {
+  const path = process.argv[shapeIdx + 1];
+  if (!path) {
+    console.error('usage: --shape <migration/shape-*.json from dump-migration-shape.mjs>');
+    process.exit(1);
+  }
+  await shapeMode({ path, db, auth, run, check, results });
+  const failedShape = results.filter((r) => !r.ok);
+  console.log(`\n${results.length - failedShape.length}/${results.length} checks passed.`);
+  if (failedShape.length > 0) {
+    console.log('\nFailed:');
+    for (const f of failedShape) console.log(`  - ${f.name}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
 
 const A = 'mig_admin';
 const M1 = 'mig_mgr1';
