@@ -563,6 +563,51 @@ Archive in Xcode, then Distribute App to App Store Connect. TestFlight builds
 appear after processing; because `usesNonExemptEncryption` is answered, they go
 to testers without the manual export-compliance prompt.
 
+### The handoff prompt
+
+Web, Android and iOS ship from different machines, so the iOS half is handed to
+whoever is at the Mac — usually a Claude Code session there, which has none of
+the context of the session that cut the release. Paste this, filling in the one
+blank. It is deliberately short on instruction and long on *what not to assume*:
+this file is the runbook, and a prompt that restates it would be a second copy to
+keep in sync.
+
+```
+You are on the build Mac, in a clone of sabeel-institute-kanban. Ship the
+iOS build of release <TAG> to TestFlight.
+
+Read docs/IOS-BUILD.md first, all of it, and follow it. Two things in it
+destroy work silently, so know them before you type anything: a bare
+`npx expo prebuild` deletes the committed android/ folder, and app/ios/ is
+a build product, so nothing you change in Xcode's UI survives.
+
+Start from the release commit, not from main:
+    git fetch --tags && git checkout <TAG>
+This is the same commit web and Android already shipped, and the sign-in
+screen displays it — building from a later main would put a different hash
+in front of testers for the same version number.
+
+Do not change the version. `expo.version` is the one number across all
+three surfaces and it is already correct for this release. If App Store
+Connect rejects the upload and you re-upload, raise `ios.buildNumber`
+alone; that is the only version field iOS may move.
+
+You need two gitignored files a fresh clone does not have — app/.env.local
+and app/.env.sentry-build-plugin. Without the first, the build SUCCEEDS
+and ships with crash reporting silently off. `npm run build:ios -- --check`
+is free, runs every gate including that one, and takes seconds; run it
+before the twenty-minute archive.
+
+Scope: iOS only. Do not touch app/android/, do not commit app/ios/, and do
+not deploy hosting, functions or rules — those went out from Linux
+already. If a gate fails, stop and report rather than working around it.
+
+Report back: the build number you uploaded, its App Store Connect
+processing state, and the version and commit as read off the sign-in
+screen of the installed TestFlight build — read, not inferred. A build
+whose stamp does not match <TAG> means gen-build-info did not re-run.
+```
+
 ## Things that are genuinely open
 
 - **Proof that the APNs key works.** The key itself is created and uploaded to

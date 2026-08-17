@@ -38,6 +38,23 @@ const server = createServer(async (req, res) => {
   res.writeHead(404).end('not found');
 });
 
+/**
+ * Console errors this app cannot prevent, matched EXACTLY so a real one still fails.
+ *
+ * React Native's own app-root renderer (`Libraries/ReactNative/renderApplication.js`)
+ * imports BackHandler unconditionally, to install the default handler that exits
+ * the app when no listener responds. Under react-native-web that import logs an
+ * unsupported-API error at every startup. Nothing here calls BackHandler — the
+ * app's Back is an in-app control — and there is no version of this app on this
+ * React Native that does not print it.
+ *
+ * It was ignored rather than filtered for a long time, which cost this script its
+ * meaning: it exited 1 on every single run, so "web-shot failed" stopped being
+ * information. A check that always fails is not a check.
+ */
+const EXPECTED = ['BackHandler is not supported on web and should not be used.'];
+const expected = (text) => EXPECTED.some((e) => text.includes(e));
+
 await new Promise((r) => server.listen(PORT, r));
 await mkdir(OUT, { recursive: true });
 
@@ -51,7 +68,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    page.on('console', (m) => m.type() === 'error' && !expected(m.text()) && errors.push(m.text()));
 
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(400);
