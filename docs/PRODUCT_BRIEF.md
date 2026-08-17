@@ -95,10 +95,11 @@ permanently deleting a card, deleting anyone's comment — belongs to that board
 Consequences worth being explicit about:
 
 - **Boards are private from everyone except admins.** This changed on 2026-08-16:
-  every manager used to see and be able to join every board, which was fine at
-  five boards and is the opposite of least privilege at twenty. If the team ever
-  needs a board that ADMINS cannot see, this model still does not support it —
-  tell me and it becomes a per-board privacy flag.
+  every manager used to see and be able to join every board, which was bearable
+  while there were a handful of boards and is the opposite of least privilege as
+  they multiply. If the team ever needs a board that ADMINS cannot see, this
+  model still does not support it — tell me and it becomes a per-board privacy
+  flag.
 - **Anyone's board list is exactly the boards they've been added to**, admins
   excepted. An owner of that board, or an admin, adds them.
 - **Nobody can add themselves to a board**, whatever their role — except an admin,

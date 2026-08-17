@@ -379,8 +379,8 @@ deploying, and the whole of `docs/PERMISSIONS.md` for the model.
 
 **What changed.** `manager` meant three unrelated things at once — administer any
 board, curate the org's labels, read Stats — and one consequence was that every
-manager saw and could administer **every** board. Fine at five boards, the
-opposite of least privilege at twenty.
+manager saw and could administer **every** board. Bearable while there were a
+handful of boards, the opposite of least privilege as they multiply.
 
 Board authority moved onto the board: a `boardOwnerUids` array. Its entries can
 be anybody who is a member, so a plain member can own a board and an organizer
