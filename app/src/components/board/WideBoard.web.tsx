@@ -461,7 +461,7 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
           {b.name}
         </h1>
         <div style={{ display: 'flex', gap: space.xs, flexShrink: 0 }}>
-          {/* Everyone, not just managers: members can archive, so members must
+          {/* Everyone, not just owners: members can archive, so members must
               be able to un-archive. */}
           <IconAction
             icon="inventory-2"
@@ -473,18 +473,18 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
               a trip to an admin. The NAME changes with what it opens — calling it
               Board settings for someone who gets only the member list would be a
               control that does not say what it does. */}
-            <IconAction
-              icon={canManage ? 'settings' : 'group'}
-              label={canManage ? 'Board settings' : 'Board members'}
-              onPress={() => nav.push({ name: 'boardSettings', boardId })}
-            />
+          <IconAction
+            icon={canManage ? 'settings' : 'group'}
+            label={canManage ? 'Board settings' : 'Board members'}
+            onPress={() => nav.push({ name: 'boardSettings', boardId })}
+          />
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </div>
       </div>
 
       {selection.active ? (
         <BulkBar
-         canManage={canManage}
+          canManage={canManage}
           currentBoardId={boardId}
           columns={b.columns}
           allCards={cards.data ?? []}

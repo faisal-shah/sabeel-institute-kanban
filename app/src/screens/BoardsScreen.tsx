@@ -302,7 +302,7 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           undo that. */}
       {/* No role gate: `useArchivedBoards` returns YOUR archived boards (and every
           one of them for an admin), so anyone with an archived board has one to
-          look at. It used to be manager-gated, which meant a member who archived
+          look at. It used to be role-gated, which meant a member who archived
           nothing still could not find a board they were on that someone else
           archived. */}
       <ArchivedBoards user={user} onOpen={open} />

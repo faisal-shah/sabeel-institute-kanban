@@ -281,7 +281,7 @@ service cloud.firestore {
       // Work and Search, which are cross-board by definition.
       allow read: if isActive();
 
-      // ANY active member — deliberately wider than the manager gate on boards.
+      // ANY active member — deliberately wider than the gate on renaming below.
       // Adding a label is cheap, ordinary and reversible, and it happens while
       // someone is looking at a card rather than in board settings.
       //
@@ -305,18 +305,16 @@ service cloud.firestore {
         && label().createdAt is number
         && label().createdAt <= request.time.toMillis() + 3600000;
 
-      // Renaming and recolouring are curation, so they stay with managers —
-      // unlike creating, they change what everyone else already sees. Nothing
-      // else may move: `createdAt`/`createdBy` are history.
+      // ADMIN-only. Renaming and recolouring are curation: unlike creating, they
+      // change what everyone else already sees — on every card on every board,
+      // including boards the editor is not a member of. An org-wide effect takes
+      // an org-wide authority, so owning a board grants no part of it. Nothing
+      // else may move either: `createdAt`/`createdBy` are history.
       //
       // `.get(field, default)` on both sides rather than plain access, the same
       // old-document guard the board and card blocks carry: a label written
       // before one of these fields existed would otherwise be permanently
       // uneditable, which is a worse failure than the drift being prevented.
-      // ADMIN-only. A label is org-wide: renaming or recolouring one changes it
-      // on every card on every board, including boards the editor is not on. That
-      // is an org-wide effect, so it takes an org-wide authority — owning a board
-      // grants no part of it.
       allow update: if isAdmin()
         && label().keys().hasOnly(['name', 'color', 'createdAt', 'createdBy'])
         && label().name is string
@@ -507,7 +505,7 @@ service cloud.firestore {
       // queries (`assigneeUids array-contains me`, `subscriberUids
       // array-contains me`) are authorized with ZERO board reads; the board-view
       // query falls through to the membership arm, whose board read is cached
-      // across the whole list (all rows share one boardId). Managers match the
+      // across the whole list (all rows share one boardId). Admins match the
       // membership arm with no read (they see every board).
       //
       // Neither arm WIDENS access: both lists are constrained to board members
@@ -596,7 +594,7 @@ service cloud.firestore {
         // cannot open the card it points at.
         && comment().mentionUids.hasOnly(board().memberUids);
 
-      // Only the author edits — a manager rewriting someone's words under their
+      // Only the author edits — an owner rewriting someone's words under their
       // name would be worse than useless.
       allow update: if onBoard()
         && comment().keys().hasOnly(['authorUid', 'body', 'mentionUids', 'createdAt', 'editedAt'])
@@ -696,7 +694,7 @@ service cloud.firestore {
       // recorded, and a record naming nobody is not a record.
       //
       // Who may remove one is therefore enforced in the callable: any active
-      // member of the board, deliberately NOT the manager-only gate that
+      // member of the board, deliberately NOT the owner-only gate that
       // permanent card deletion uses. Attaching the wrong file is an ordinary
       // mistake and should not need someone else to undo.
       allow update, delete: if false;

@@ -174,7 +174,7 @@ export const LABEL_NAME_MAX = 40;
  * `renameColumn` needs; omit it when creating.
  *
  * Client-side only: Firestore rules cannot see across documents, so a
- * simultaneous double-create yields two same-named labels. A manager deletes
+ * simultaneous double-create yields two same-named labels. An admin deletes
  * one. Documented in docs/PRODUCT_BRIEF.md as an accepted residual.
  */
 export function validateLabelName(

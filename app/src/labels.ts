@@ -62,7 +62,9 @@ export async function createLabel(params: {
 }
 
 /**
- * Rename or recolour — managers only, enforced in rules. The id never moves, so
+ * Rename or recolour — ADMINS only, enforced in rules. A label is org-wide, so
+ * renaming one changes cards on boards the renamer may not even be a member of.
+ * The id never moves, so
  * every card carrying the label follows the change rather than losing it.
  */
 export async function updateLabel(

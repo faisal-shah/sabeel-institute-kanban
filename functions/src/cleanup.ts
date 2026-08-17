@@ -13,7 +13,7 @@ import { recordStat } from './stats';
  *
  * Firestore does NOT cascade: deleting `cards/{cardId}` leaves its subcollections
  * behind as orphans forever (unreadable — the rules resolve their board from the
- * now-missing card doc and deny). A hard delete is managers/admins only, but it
+ * now-missing card doc and deny). A hard delete is board owners and admins only, but it
  * happens, and without this every deletion leaks its whole thread and history.
  *
  * `recursiveDelete` removes the (already-gone) card doc AND every descendant, so
@@ -38,7 +38,7 @@ export const onCardDeleted = onDocumentDeleted(
     // A permanent card delete does not go through `applyDeleteAttachment` — it
     // is `recursiveDelete` plus the object sweep below — so nothing else on this
     // path ever subtracts these bytes from the stored total. Left alone, the
-    // "Files stored" figure climbs every time a manager deletes a card that had
+    // "Files stored" figure climbs every time someone deletes a card that had
     // files, and it CANNOT self-correct: `bytesRemoved` is forward-only, and by
     // the time anyone noticed, the attachment documents would be long gone.
     //

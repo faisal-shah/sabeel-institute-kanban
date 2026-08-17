@@ -71,7 +71,7 @@ const BUCKETINGS = [
 /**
  * How the boards are actually being used.
  *
- * Manager-and-above, because a member has no use for it and the board filter
+ * Admin-only, because a member has no use for it and the board filter
  * would otherwise have to be narrowed to their own boards — see firestore.rules.
  *
  * Everything is derived from ONE subscription to a range of month documents.
@@ -136,12 +136,14 @@ export function StatsScreen({ user }: { user: SessionUser }) {
   /**
    * uid → name, from the boards' own member profiles.
    *
-   * NOT `users/*`: only ADMINS may list that collection (firestore.rules), and
-   * this screen is open to managers. `memberProfiles` is denormalised onto each
-   * board for exactly this kind of question.
+   * NOT `users/*`. This screen is admin-only, so that collection is readable
+   * here — it is simply the wrong source: `memberProfiles` is already
+   * denormalised onto every board this screen has loaded, so resolving a name
+   * costs nothing, while listing the directory is a second query that still
+   * misses anyone whose account was deleted.
    *
    * It misses routinely rather than exceptionally, which is why the panel has a
-   * fallback rather than an assertion: a manager may act on a board they are not
+   * fallback rather than an assertion: an admin may act on a board they are not
    * a member of, and anyone removed from a board stays in that board's history
    * for good.
    */
@@ -1144,8 +1146,8 @@ function StatsDetail({
       metric === 'activePeople'
         ? actorsBetween(series, rangeFrom, rangeTo).map((uid) => ({
             uid,
-            // Someone can act on a board and later be removed from it, and a
-            // manager can act on a board they were never a member of. Both are
+            // Someone can act on a board and later be removed from it, and an
+            // admin can act on a board they were never a member of. Both are
             // ordinary, so this is a fallback rather than an assertion — the
             // same wording the assignee picker already uses for the same case.
             name: nameByUid.get(uid) ?? 'Someone no longer on a board',

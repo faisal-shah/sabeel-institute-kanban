@@ -80,8 +80,10 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
         <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
       </Row>
       <Hint>
-        Only admins approve accounts and change roles. Managers create boards and
-        may join any board; members see only the boards they&rsquo;re added to.
+        Only admins approve accounts, change roles, curate labels and see every
+        board. Organizers create boards; everyone else sees only the boards
+        they&rsquo;re added to. Who can RUN a board is set on the board itself,
+        in Board settings, and has nothing to do with the role here.
       </Hint>
 
       {error ? (

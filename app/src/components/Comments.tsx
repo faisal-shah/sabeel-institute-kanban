@@ -269,7 +269,7 @@ export function Comments({
               </Hint>
               {editing !== c.id ? (
                 <Row style={styles.actions}>
-                  {/* Only the author edits: a manager rewriting someone's words
+                  {/* Only the author edits: an owner rewriting someone's words
                       under their name would be worse than useless. */}
                   {mine ? (
                     <IconAction

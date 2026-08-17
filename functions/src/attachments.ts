@@ -291,7 +291,7 @@ export async function applyFinalizeAttachment(
  * Remove an attachment: the object and its record, together.
  *
  * Any active member of the board may do this — deliberately NOT the
- * manager-only gate that permanent card deletion uses. Attaching the wrong file
+ * owner-only gate that permanent card deletion uses. Attaching the wrong file
  * is an ordinary mistake and should not need someone else to undo.
  *
  * Also the ROLLBACK path for a failed upload, which is why it accepts a document

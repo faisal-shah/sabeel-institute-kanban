@@ -15,7 +15,7 @@ import { space, type, useTheme } from '../theme';
  * why the rule itself lives in `renameColumn` in @sabeel/shared and is
  * unit-tested there.
  *
- * Renaming a column is a board write, so it is manager/admin only, exactly like
+ * Renaming a column is a board write, so it is board-owner/admin only, exactly like
  * adding and removing them. Callers pass `canEdit`; a member simply sees the name.
  *
  * The write is the caller's: each surface already has its own `useAction` `run`

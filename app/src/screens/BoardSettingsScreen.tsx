@@ -63,8 +63,8 @@ export function BoardSettingsScreen({
 }) {
   const nav = useNav();
   const board = useBoard(boardId);
-  // Only admins may list all users; managers add members by picking from the
-  // board's own view, so a non-admin manager sees an empty picker and a note.
+  // Only admins may list all users; a board owner who is not one adds members
+  // by picking from the board's own view, so they see an empty picker and a note.
   const allUsers = useAllUsers();
   // Labels are org-wide. This section edits ONE set that every board shows —
   // the copy below says so, because the screen it sits on does not.
@@ -76,7 +76,7 @@ export function BoardSettingsScreen({
    * `?? []` this used to carry turned "not known yet" into "there are no
    * labels" — and `validateLabelName` against an empty set waves every
    * duplicate through. The result is a persistent org-wide label that only a
-   * manager can remove, created with no warning at all. Null here means the
+   * admin can remove, created with no warning at all. Null here means the
    * create controls stay disabled until the check can mean something.
    */
   const knownLabels = labels.status === 'ready' ? labels.data : null;
@@ -624,7 +624,7 @@ export function BoardSettingsScreen({
                   const { uid, self } = pending;
                   await removeBoardMember(boardId, uid);
                   setPending(null);
-                  // After leaving, step out to the boards list. (A manager still
+                  // After leaving, step out to the boards list. (An admin still
                   // SEES the board, but the point of leaving is to be off it.)
                   if (self) nav.reset({ name: 'boards' });
                 })

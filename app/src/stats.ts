@@ -99,7 +99,7 @@ export function useStoredTotals(): LiveState<StatsRootDoc> {
  * that shape. The rules nest `match /months/{month}` INSIDE `match
  * /stats/{scope}`, which does not authorize a collection-group read; it would
  * need a `match /{path=**}/months/{month}` recursive rule. Widening a rule to
- * save a round trip on a manager-only screen with under twenty boards is not a
+ * save a round trip on an admin-only screen with under twenty boards is not a
  * trade worth making.
  *
  * SETTLES rather than rejecting: one unreadable scope must not blank a

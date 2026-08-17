@@ -353,12 +353,12 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
    * state. That second one is not hypothetical — `columnDeleteBlocked` only
    * refuses a column that still holds cards, so an empty board CAN be emptied of
    * columns entirely, and the footer lives inside the column list. Without the
-   * empty state a manager who deleted the last column had no way back into Board
+   * empty state an owner who deleted the last column had no way back into Board
    * settings to add one: verified as a dead end before this existed.
    */
   const boardActions = (
     <>
-      {/* Everyone gets this, not just managers: members can archive, so
+      {/* Everyone gets this, not just owners: members can archive, so
           members must be able to un-archive. */}
       <IconAction
         icon="inventory-2"
@@ -370,11 +370,11 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           a trip to an admin. The NAME changes with what it opens — calling it
           Board settings for someone who gets only the member list would be a
           control that does not say what it does. */}
-        <IconAction
-          icon={canManage ? 'settings' : 'group'}
-          label={canManage ? 'Board settings' : 'Board members'}
-          onPress={() => nav.push({ name: 'boardSettings', boardId })}
-        />
+      <IconAction
+        icon={canManage ? 'settings' : 'group'}
+        label={canManage ? 'Board settings' : 'Board members'}
+        onPress={() => nav.push({ name: 'boardSettings', boardId })}
+      />
     </>
   );
 
@@ -456,14 +456,14 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
           <Hint>
             {canManage
               ? 'Cards live in columns — add the first one in Board settings.'
-              : 'Cards live in columns. A manager can add the first one.'}
+              : 'Cards live in columns. An owner of this board can add the first one.'}
           </Hint>
           <Row>{boardActions}</Row>
         </Panel>
       ) : null}
 
       <BulkBar
-       canManage={canManage}
+        canManage={canManage}
         currentBoardId={boardId}
         columns={columns}
         allCards={cards.data ?? []}

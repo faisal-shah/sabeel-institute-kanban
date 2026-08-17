@@ -263,7 +263,7 @@ export async function moveCard(params: {
   await updateCard(params.card.id, { columnId: params.toColumnId, rank }, params.user);
 }
 
-/** Members archive; only managers/admins may destroy. Rules enforce both. */
+/** Members archive; only this board's owners and admins destroy. Rules enforce both. */
 export async function archiveCard(cardId: string, user: SessionUser): Promise<void> {
   // `archivedAt` on EVERY archive path, not just the bulk one. It was written by
   // bulkArchive alone, so half the archive had the field and half did not — and
@@ -381,7 +381,7 @@ export async function bulkArchive(
   await batch.commit();
 }
 
-/** Managers and admins only — rules enforce it on the bulk path too. */
+/** This board's owners and admins only — rules enforce it on the bulk path too. */
 export async function bulkDelete(cards: readonly Card[]): Promise<void> {
   const batch = writeBatch(db);
   for (const c of cards) {

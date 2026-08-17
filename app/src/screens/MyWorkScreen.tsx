@@ -69,9 +69,9 @@ export function MyWorkScreen({ user }: { user: SessionUser }) {
    * is meant to put it away; leaving its work in everyone's list is the opposite.
    *
    * Scoping to the board list is the same thing Search already does, and it
-   * needs no denormalised `boardArchived` on every card. Sound for both roles:
-   * `useMyBoards` drops archived boards, gives a member the boards they belong
-   * to (and assignment implies membership), and a manager every live board.
+   * needs no denormalised `boardArchived` on every card. Sound either way:
+   * `useMyBoards` drops archived boards, gives everyone the boards they belong
+   * to (and assignment implies membership), and an admin every live board.
    */
   const onVisibleBoard = useCallback(
     (cards: MyWorkCard[] | undefined) =>

@@ -152,7 +152,7 @@ export function BoardArchiveScreen({
                 })
               }
             />
-            {/* Permanent deletion stays managers/admins only, exactly as on the
+            {/* Permanent deletion stays this board's owners and admins, as on the
                 card itself — the archive is not a back door around that.
                 It ASKS FIRST: this shipped as a bare button that deleted on the
                 first tap, one row away from Restore, with no undo behind it. */}

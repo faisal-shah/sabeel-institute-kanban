@@ -58,7 +58,7 @@ export function BulkBar({
   const [busy, setBusy] = useState(false);
   const [destBoardId, setDestBoardId] = useState('');
   const [destColumnId, setDestColumnId] = useState('');
-  // The boards you could move/copy to (members see their own; managers see all).
+  // The boards you could move/copy to (yours, or every board if you are an admin).
   const boards = useMyBoards(user);
 
   if (!selection.active) return null;
@@ -92,7 +92,7 @@ export function BulkBar({
           and not labelled buttons, each keeping its word as an accessibility
           label.
 
-          But it must never be MORE than the screen. A manager sees six 44px
+          But it must never be MORE than the screen. A board owner sees six 44px
           actions, and 6 x 44 is 264px — exactly the inner width at 320px,
           before the gaps or the count. Unwrapped it pushed the page sideways by
           46px and took the close button off-screen with it, so the only way out
@@ -140,7 +140,7 @@ export function BulkBar({
                 disabled={busy}
                 onPress={() => run(() => bulkArchive(chosen, user))}
               />
-              {/* Members archive; only managers and admins destroy. */}
+              {/* Members archive; only this board's owners and admins destroy. */}
               {canManage ? (
                 <IconAction
                   icon="delete-outline"

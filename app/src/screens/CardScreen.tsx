@@ -83,7 +83,7 @@ export function CardScreen({
    * `?? []` this used to carry turned "not known yet" into "there are no
    * labels" — and `validateLabelName` against an empty set waves every
    * duplicate through. The result is a persistent org-wide label that only a
-   * manager can remove, created with no warning at all. Null here means the
+   * admin can remove, created with no warning at all. Null here means the
    * create controls stay disabled until the check can mean something.
    */
   const knownLabels = labels.status === 'ready' ? labels.data : null;

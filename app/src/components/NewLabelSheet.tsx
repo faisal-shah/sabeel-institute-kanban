@@ -9,9 +9,10 @@ import { radius, useTheme } from '../theme';
  * Coining a label from a card, with the name and colour owned here.
  *
  * This is the ONE label affordance a plain member gets: Board Settings, where
- * labels are curated, is manager-only, and needing a manager to coin a tag
- * while you are looking at the card it belongs on is exactly the friction that
- * made per-board labels get re-created everywhere.
+ * labels are curated, opens for that board's owners alone, and renaming or
+ * deleting one is admin-only besides. Needing either of them to coin a tag while
+ * you are looking at the card it belongs on is exactly the friction that made
+ * per-board labels get re-created everywhere.
  *
  * MOUNTED ONLY WHILE OPEN, so the draft is scoped to the sheet being open —
  * the same rule every other draft in this refactor follows. Held in the screen,

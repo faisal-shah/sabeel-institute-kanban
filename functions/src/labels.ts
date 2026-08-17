@@ -14,9 +14,10 @@ import { canCurateLabels } from '@sabeel/shared';
  * it too. That is why `firestore.rules` denies client deletes outright.
  *
  * Three things a client could not do here:
- *  - Sweep across boards it cannot read. A manager can read every board, but the
- *    sweep must be complete regardless of who runs it, and the Admin SDK is what
- *    makes that guaranteed rather than incidental.
+ *  - Sweep across boards it cannot read. Only an admin may delete a label and
+ *    only an admin reads every board — but the sweep must be complete regardless
+ *    of who runs it, and the Admin SDK is what makes that guaranteed rather than
+ *    incidental.
  *  - Name the actor. A delete TRIGGER cannot — Firestore does not tell it who
  *    performed the delete — which is the same reason attachment deletion is a
  *    callable rather than a trigger.
@@ -97,7 +98,7 @@ export const countLabelUsage = onCall({ secrets: [sentryDsn] }, guarded(async (r
  * No activity entry is written here. Setting `updatedBy` to the caller is enough:
  * `onCardWritten` diffs `labelIds`, sees the change and logs a `labels` entry
  * attributed to them — the same mechanism `removeBoardMember` relies on to make
- * the resulting `unassigned` entries name the manager rather than whoever last
+ * the resulting `unassigned` entries name the remover rather than whoever last
  * touched the card.
  */
 export const deleteLabel = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ labelId?: unknown }>) => {

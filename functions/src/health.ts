@@ -58,7 +58,7 @@ const HEALTH_DOC = 'meta/health';
  *  - `activity` — `allow create, update, delete: if false`; trigger-written only.
  *  - `users`   — removed only by a deliberate Admin-SDK operation.
  *
- * The rest shrink in normal use (managers delete cards, authors delete comments,
+ * The rest shrink in normal use (board owners delete cards, authors delete comments,
  * people clear their notifications), so they alert on a drop bigger than
  * `max(minDrop, fraction × previous)`. The floor stops a tiny dataset alerting on
  * routine tidying; the fraction keeps it meaningful as the data grows.
