@@ -536,26 +536,32 @@ make, not a default.
 
 ## Getting it to testers, and the login gate
 
-**Decided 2026-08-12. Two channels, and they are not competing:**
+**The destination is NOT settled (as of 2026-08-17). Ship to internal
+TestFlight, and do not act on anything below until Faisal says the route is
+final.** Concretely: do not create the review account, do not submit to App
+Review, and do not request unlisted distribution. Those are one-way enough to be
+worth waiting on — an App Review submission puts the app in front of Apple, and
+unlisted must be requested against a release build that is not in a beta state.
 
-- **Internal TestFlight while stabilising** — Faisal and any core developer.
+- **Internal TestFlight — the standing channel.** Faisal and any core developer.
   These are people who genuinely belong on the App Store Connect team, so the
   standing-membership cost that rules internal out for the whole team does not
   apply to two or three developers. No Beta App Review; builds land minutes
-  after processing. **Builds expire after 90 days**, which is fine for a
-  development channel and is exactly why it is not the destination.
-- **Unlisted App Distribution as the permanent route** — a normal App Store app
-  that is not searchable and appears in no category, chart or recommendation,
-  reachable only by direct link. No user cap, all App Store regions, managed and
-  unmanaged devices alike, and **no expiry**: updates arrive like any other app.
-  Colleagues need no App Store Connect account, no MDM enrolment and no
-  redemption code — just the link.
+  after processing. **Builds expire after 90 days**, so a release that must
+  outlive that needs re-uploading — the one real cost of staying here.
+- **Unlisted App Distribution — the leading candidate**, considered on
+  2026-08-12 and still the best-argued option, but not chosen. A normal App
+  Store app that is not searchable and appears in no category, chart or
+  recommendation, reachable only by direct link. No user cap, all App Store
+  regions, managed and unmanaged devices alike, and **no expiry**: updates
+  arrive like any other app. Colleagues need no App Store Connect account, no
+  MDM enrolment and no redemption code — just the link.
 
-Unlisted fits **both** Sabeel apps, which is why it was chosen over anything
-app-specific. Apple asks that an unlisted app carry its own access control, and
-this one already does: `@oursabeel.com`-only sign-in, enforced server-side, with
-admin approval on top. The sibling recordings app has the same shape with
-invited students beside staff.
+Unlisted would fit **both** Sabeel apps, which is the strongest argument for it
+over anything app-specific. Apple asks that an unlisted app carry its own access
+control, and this one already does: `@oursabeel.com`-only sign-in, enforced
+server-side, with admin approval on top. The sibling recordings app has the same
+shape with invited students beside staff.
 
 **What was considered and rejected, so it is not re-litigated:**
 

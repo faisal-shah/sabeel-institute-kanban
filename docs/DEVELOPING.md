@@ -305,8 +305,8 @@ With the emulators running and the app open:
 3. **New board** → it starts with To Do / In Progress / Done.
 4. Add a few cards. On web, drag them between columns. On Android, long-press a
    card for the "Move to…" sheet.
-5. Tap a card for the detail screen: plain-text description, assignees, due date,
-   priority, labels.
+5. Tap a card for the detail screen: rich-text description with a toolbar (bold,
+   italic, both lists, link), assignees, due date, priority, labels.
 6. **Settings** on the board → add a column, add a label, add a member. Try
    deleting a column that still has cards; it refuses and says why.
 7. Sign in as **sara** in a second browser (or private window), approve her under

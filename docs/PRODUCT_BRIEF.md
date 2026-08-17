@@ -164,7 +164,8 @@ labels/{labelId}                                 # ORG-WIDE: one set, every boar
 
 cards/{cardId}                                   # TOP-LEVEL collection; keyed to a board by a FIELD
   boardId                                        # which board this card is on — client-supplied, rule-validated, changed by a cross-board move
-  title, description                             # plain text
+  title, description                             # title is plain; description is MARKDOWN, five elements only
+                                                 # `packages/shared/src/richtext.ts` is the one definition
   columnId, rank: string
   assigneeUids: [uid, …]                         # MUST be members of boardId's board (rule-enforced)
   subscriberUids: [uid, …]                       # comment subscribers. SAME membership rule, and for a sharper

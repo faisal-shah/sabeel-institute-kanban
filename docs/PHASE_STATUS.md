@@ -42,11 +42,12 @@ Every phase is complete and the app is **live and in daily use** at
 - Boards with columns and membership; favourites and recents. **Labels are
   org-wide**, one set every board shares — any member creates one, admins
   rename, recolour and delete.
-- Cards with **plain-text** descriptions and comments (markdown was removed
-  2026-07-20 — the renderer and parser were deleted, not disabled), assignees,
-  all-day due dates, priority, labels, subtasks, and **file attachments**
-  (10 MB each, any type, named before they upload, downloaded through
-  short-lived signed URLs).
+- Cards with **rich-text** descriptions and comments — bold, italic, bullet
+  list, ordered list and link, and deliberately nothing else. Both editors are
+  WYSIWYG with a toolbar; markdown is the storage format and nobody types it.
+  Also assignees, all-day due dates, priority, labels, subtasks, and **file
+  attachments** (10 MB each, any type, named before they upload, downloaded
+  through short-lived signed URLs).
 - Archive, and delete by that board's owners and admins; boards archive and
   never hard-delete.
 - Web: multi-column board with real drag-and-drop. Android: swipe-paged single
@@ -525,6 +526,14 @@ what Apple holds is the artifact that was verified rather than a rebuild of it.
 **Push on iOS remains unproven.** The entitlement is right in the exported
 `.ipa`, but whether the APNs key reached Firebase correctly can only be seen on
 a physical device — it is the first thing to check on this build.
+
+**And the destination is reopened.** August 12th's "internal TestFlight while
+stabilising, then Unlisted App Distribution" recorded a decision that has not in
+fact been made. Internal TestFlight is the standing channel until Faisal
+finalises the route; unlisted remains the leading candidate and the survey
+behind it still holds. Nothing on a reviewed route starts meanwhile — no review
+account, no App Review submission — because both are hard to walk back and
+neither is needed to get builds to a developer.
 
 ### 2026-08-15 — Naming a file, drilling into a bar, and a search that sorts — v0.8.0
 

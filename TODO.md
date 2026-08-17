@@ -227,16 +227,20 @@ creation**.
       Access → Integrations, and it uploads builds rather than delivering
       pushes. Both download exactly once and both are real secrets — keep either
       out of the repo. Both are in Drive.
-- [x] **Distribution route decided (2026-08-12): internal TestFlight while
-      stabilising, then Unlisted App Distribution as the permanent route.**
+- [ ] **Distribution route NOT yet final (reopened 2026-08-17). Internal
+      TestFlight until further notice.** The options below were surveyed on
+      2026-08-12 and the reasoning stands, but the destination is Faisal's call
+      and has not been made — so nothing here is to be acted on: no review
+      account, no App Review submission, no unlisted request.
       Internal TestFlight is right for Faisal and core developers — people who
       genuinely belong on the App Store Connect team — and avoids Beta App
-      Review entirely; its 90-day build expiry is why it is not the destination.
-      **Unlisted** is a normal App Store app that is not searchable and appears
+      Review entirely; its 90-day build expiry is the cost of staying on it.
+      **Unlisted**, the leading candidate, is a normal App Store app that is not
+      searchable and appears
       in no chart or category, reachable only by direct link: no user cap, no
       expiry, managed and unmanaged devices, and colleagues need no ASC account,
       no MDM and no redemption code. It suits the recordings app equally, which
-      is why it was chosen over anything app-specific.
+      is the strongest argument for it over anything app-specific.
       **Rejected:** Apple Business Manager Custom Apps (needs a D-U-N-S number,
       reaches unmanaged devices only via country-locked redemption codes Apple is
       migrating away from, still requires App Review, and is a *one-way door* —
@@ -273,8 +277,9 @@ creation**.
       that Apple's reviewer can actually sign in with, since sign-in is
       domain-restricted *and* admin-gated. An app a reviewer cannot open is
       rejected every time. Create it, approve it, and keep it — every reviewed
-      submission needs it, so it is infrastructure rather than a one-off. Not
-      blocking the first TestFlight build, so it can wait until you submit.
+      submission needs it, so it is infrastructure rather than a one-off.
+      **On hold with the route (2026-08-17)** — internal TestFlight needs no
+      reviewer, so there is nothing to create until a reviewed route is chosen.
 
 - [x] **Symbolication wired for BOTH platforms (2026-08-12), at parity.**
       `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_AUTH_TOKEN` in the build shell,
@@ -377,9 +382,11 @@ Two things worth reusing next time:
    at export and discarded, so after three shipped builds `security
    find-identity` finds four *development* certificates and no distribution one.
    A GitHub Actions build would need the same Admin `.p8`, not a `.p12`.
-7. **When it is stable:** create and approve the review account, submit to App
-   Review, then request unlisted distribution — against a release build, not a
-   TestFlight one.
+7. **On hold until the route is final (2026-08-17).** If it lands on unlisted:
+   create and approve the review account, submit to App Review, then request
+   unlisted distribution — against a release build, not a TestFlight one. None
+   of that starts before Faisal says so; internal TestFlight is the standing
+   channel meanwhile.
 
 **Answered 2026-08-15, and nothing goes under `ios.entitlements`.** The question
 was whether the `aps-environment` entitlement survives a prebuild. It does, and
