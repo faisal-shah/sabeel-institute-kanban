@@ -764,6 +764,25 @@ shows as a rename that appears and snaps back.
       report. Dump the board manifest again afterwards — a mis-click in the new
       UI is otherwise unrecoverable.
 
+## L. Known, deliberately NOT fixed in v0.9.0
+
+- [ ] **`setUserAccess` requires a role even when only the status is changing.**
+      Approve, Reject and Disable on the People screen all send the role read
+      back from the user document, which means two things: a concurrent role
+      change by another admin is silently reverted (a lost update — needs two
+      admins acting on the same person within seconds, so it has never happened
+      here), and during the R7a→R7b window nobody can disable an account still
+      holding `manager`, because the deployed code no longer recognises that role
+      as valid input.
+
+      The fix is to let the callable take a status alone and carry the stored
+      role through. It is NOT in this release on purpose: the migration's whole
+      sequence was reasoned about and rehearsed against `setUserAccess` behaving
+      exactly as it does today, and changing the access API during an
+      access-model migration invalidates that reasoning for a bug worth minutes
+      of exposure. `scripts/rename-manager-role.mjs` can set status directly if
+      the window ever has to be worked through.
+
 ## J. Backups and disaster recovery
 
 - [x] **Native protections enabled 2026-07-25** (you authorised me to run them).

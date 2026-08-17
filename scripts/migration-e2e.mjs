@@ -59,13 +59,21 @@ const M2 = 'mig_mgr2';
 const MEM = 'mig_member';
 /** Claims say manager, the mirror says member. The rename must settle both. */
 const STALE = 'mig_stale';
+/**
+ * The inverse drift: the DOC says manager, the account carries no claims at all.
+ * The revert has nothing recorded to put back, and writing the recorded empty
+ * string would mint a role no rule matches.
+ */
+const CLAIMLESS = 'mig_claimless';
 /** A user doc with no Auth account — what a half-finished Auth restore leaves. */
 const DOC_ONLY = 'mig_doconly';
 
 async function makeUser(uid, role, status, { claims = null, authAccount = true } = {}) {
   if (authAccount) {
     await auth.createUser({ uid, email: `${uid}@oursabeel.com`, emailVerified: true });
-    await auth.setCustomUserClaims(uid, claims ?? { role, status });
+    // `claims: false` means an account that carries none at all, which is what a
+    // half-finished restore or a very old account looks like.
+    if (claims !== false) await auth.setCustomUserClaims(uid, claims ?? { role, status });
   }
   await db.doc(`users/${uid}`).set({
     email: `${uid}@oursabeel.com`,
@@ -100,6 +108,7 @@ await makeUser(M1, 'manager', 'active');
 await makeUser(M2, 'manager', 'active');
 await makeUser(MEM, 'member', 'active');
 await makeUser(STALE, 'member', 'active', { claims: { role: 'manager', status: 'active' } });
+await makeUser(CLAIMLESS, 'manager', 'active', { claims: false });
 await makeUser(DOC_ONLY, 'manager', 'active', { authAccount: false });
 
 const B_NORMAL = 'mig_b_normal';
@@ -177,6 +186,45 @@ console.log('\nbackfill-board-owners — gates');
   check('ABORTS when an owner-to-be is only a member', r.code === 1 && r.out.includes(MEM));
   check('and still wrote nothing', (await owners(B_NORMAL)) === undefined);
   await db.doc('boards/mig_b_lowrole').delete();
+}
+
+{
+  /**
+   * GATE 3 READS THE CLAIM, not the mirror.
+   *
+   * The gate reasons about what `firestore.rules` will allow, and rules read the
+   * token. Checking `users/{uid}` instead would pass an account whose document
+   * says manager and whose token says member — precisely the case where the new
+   * client offers buttons that fail — and abort on the harmless inverse.
+   *
+   * `mig_docmgr` is that first case: mirror manager, claim member.
+   */
+  await makeUser('mig_docmgr', 'manager', 'active', {
+    claims: { role: 'member', status: 'active' },
+  });
+  await db.doc('boards/mig_b_docmgr').set(
+    board({ name: 'Doc says manager', createdBy: 'mig_docmgr', memberUids: ['mig_docmgr'] }),
+  );
+  const r = run('backfill-board-owners.mjs', '--apply');
+  check(
+    'ABORTS on an owner whose MIRROR says manager but whose CLAIM says member',
+    r.code === 1 && r.out.includes('mig_docmgr'),
+    r.out.slice(-300),
+  );
+  check('and says which source it judged by', r.out.includes('from the claim'));
+  await db.doc('boards/mig_b_docmgr').delete();
+  await auth.deleteUser('mig_docmgr');
+  await db.doc('users/mig_docmgr').delete();
+
+  // The harmless inverse must NOT abort: STALE's claim says manager while its
+  // mirror says member, and the claim is the one the rules will read.
+  await db.doc('boards/mig_b_stale').set(
+    board({ name: 'Claim says manager', createdBy: STALE, memberUids: [STALE] }),
+  );
+  const ok = run('backfill-board-owners.mjs');
+  check('accepts the inverse, where the CLAIM is the one that qualifies', ok.code === 0);
+  check('and reports the disagreement rather than swallowing it', ok.out.includes('claim=manager'));
+  await db.doc('boards/mig_b_stale').delete();
 }
 
 // ---- backfill: the canary and the run ---------------------------------------
@@ -271,6 +319,18 @@ console.log('\nrename-manager-role');
   const orphan = (await db.doc(`users/${DOC_ONLY}`).get()).data();
   check('an orphan mirror is renamed too', orphan?.role === 'organizer');
 
+  /**
+   * An account with NO claims: the mirror is renamed, and claims are NOT minted.
+   *
+   * Renaming a mirror is a rename; creating claims for an account that had none
+   * would be a GRANT — that account cannot use the app at all today, whatever its
+   * document says, because rules default a missing status to '' and deny.
+   */
+  const bare = await roleOf(CLAIMLESS);
+  check('a claimless account has its MIRROR renamed', bare.doc === 'organizer/active');
+  check('and is not handed claims it never had', bare.claims === '-/-', bare.claims);
+  check('and the run says so out loud', r.out.includes('an admin must re-approve'));
+
   check('the change is stamped so signed-in clients refresh', Boolean((await db.doc(`users/${M1}`).get()).data()?.claimsUpdatedAt));
   check('and attributed', (await db.doc(`users/${M1}`).get()).data()?.accessChangedBy === 'rename-manager-role-script');
 }
@@ -278,7 +338,14 @@ console.log('\nrename-manager-role');
 {
   const m = JSON.parse(readFileSync(MANIFEST, 'utf8'));
   check('the manifest exists and names this project', m.projectId === PROJECT);
-  check('it records the PRE-migration claims', m.entries.every((e) => e.claims.role === 'manager'));
+  check(
+    'it records the PRE-migration claims',
+    m.entries.filter((e) => e.uid !== CLAIMLESS).every((e) => e.claims.role === 'manager'),
+  );
+  check(
+    'including an empty record for the account that had none',
+    m.entries.find((e) => e.uid === CLAIMLESS)?.claims.role === '',
+  );
   check('including the disagreeing mirror', m.entries.find((e) => e.uid === STALE)?.doc.role === 'member');
   check('and the orphan', m.docOnly.some((d) => d.uid === DOC_ONLY));
 }
@@ -296,10 +363,21 @@ console.log('\nrename-manager-role');
 console.log('\nverify-board-owners — after the rename');
 
 {
+  // The claimless account is still claimless — deliberately — so verify must
+  // still be failing, and for THAT reason rather than any leftover.
   const r = run('verify-board-owners.mjs', '--expect-boards', '5');
-  check('passes', r.code === 0, r.code === 0 ? '' : r.out.slice(-800));
-  check('still warns about the ownerless board', r.out.includes('NO owner'));
-  check('claims and mirror agree everywhere', r.out.includes('claims and mirror agree'));
+  check('still fails while an account carries no claims', r.code === 1);
+  check('and names it', r.out.includes(`${CLAIMLESS}@oursabeel.com`));
+  check('no account holds the retired role any more', !r.out.includes('still hold "manager"'));
+
+  // An admin re-approving writes both halves. That is the documented fix, and it
+  // is the only thing standing between here and a clean verify.
+  await auth.setCustomUserClaims(CLAIMLESS, { role: 'organizer', status: 'active' });
+
+  const after = run('verify-board-owners.mjs', '--expect-boards', '5');
+  check('passes once that is done', after.code === 0, after.code === 0 ? '' : after.out.slice(-800));
+  check('still warns about the ownerless board', after.out.includes('NO owner'));
+  check('claims and mirror agree everywhere', after.out.includes('claims and mirror agree'));
 }
 
 // ---- both inverses -----------------------------------------------------------
@@ -309,7 +387,18 @@ console.log('\nthe undo paths');
   const r = run('rename-manager-role.mjs', '--revert', MANIFEST, '--apply');
   check('revert exits clean', r.code === 0, r.code === 0 ? '' : r.out.slice(-500));
   check('claims go back exactly', (await roleOf(M1)).claims === 'manager/active');
-  check('and the mirror follows the claims, not its own old value', (await roleOf(STALE)).doc === 'manager/active');
+  // EXACTLY what was recorded, on both halves independently. The mirror had said
+  // `member` before the rename, and that is what a revert puts back — deriving
+  // it from the claims would be a repair, not an undo.
+  const stale = await roleOf(STALE);
+  check('the claims go back to manager', stale.claims === 'manager/active');
+  check('and the mirror back to its OWN recorded value', stale.doc === 'member/active', stale.doc);
+  // The account that had none gets none: inventing claims here would let in an
+  // account that could not sign in before.
+  const bare = await roleOf(CLAIMLESS);
+  check('a claimless account is left claimless', bare.claims === '-/-', bare.claims);
+  check('with its mirror back to manager', bare.doc === 'manager/active', bare.doc);
+  check('the orphan mirror is reverted too', (await roleOf(DOC_ONLY)).doc === 'manager/active');
   check('verify notices immediately', run('verify-board-owners.mjs').code === 1);
 }
 

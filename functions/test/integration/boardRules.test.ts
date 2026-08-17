@@ -467,13 +467,30 @@ describe('granting and revoking ownership', () => {
   });
 
   it('nor remove the creator from the board, which would demote them sideways', async () => {
-    // Because ownership requires membership, dropping the creator from
-    // `memberUids` forces dropping them from `boardOwnerUids` — and that is the
-    // thing refused. One clause covers both doors.
+    // Authority is `member AND owner`, so taking away either one unseats them.
     await assertFails(
       updateDoc(doc(ctx('second1', 'member'), 'boards/b_two'), {
         memberUids: ['second1'],
         boardOwnerUids: ['second1'],
+      }),
+    );
+  });
+
+  /**
+   * The door the creator clause used to leave open.
+   *
+   * It checked the OWNER list alone, on the stated reasoning that dropping the
+   * creator from `memberUids` "forces" dropping them from `boardOwnerUids`.
+   * Nothing forces that — there is deliberately no subset rule — so this exact
+   * write walked through: the creator ends up off the board holding an ownership
+   * entry that grants nothing, which is the unseating the clause exists to
+   * refuse, reached by the other door.
+   */
+  it('nor remove the creator from the board while LEAVING them an owner', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('second1', 'member'), 'boards/b_two'), {
+        memberUids: ['second1'],
+        boardOwnerUids: ['owner1', 'second1'],
       }),
     );
   });
@@ -517,6 +534,59 @@ describe('granting and revoking ownership', () => {
  * erroring rule denies, which would make exactly the boards most in need of
  * repair the ones nobody could repair.
  */
+/**
+ * Membership may only GROW from a client. Removals belong to the
+ * `removeBoardMember` callable, which clears assignments and subscriptions in the
+ * same batch — an Admin SDK write, so these rules never see it.
+ *
+ * Enforced here because "assignees are board members" is checked on CARD writes
+ * only: a board write that drops a member leaves their `assigneeUids` entries
+ * behind, and the card read rule has an arm for those, so the person keeps read
+ * access to the very cards the removal was meant to take away.
+ */
+describe('membership may only grow', () => {
+  it('an owner can ADD a member', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('owner1', 'member'), 'boards/b_member'), {
+        memberUids: ['owner1', 'member1', 'second1'],
+      }),
+    );
+  });
+
+  it('an owner cannot remove one — that is the callable’s job', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('owner1', 'member'), 'boards/b_member'), {
+        memberUids: ['owner1'],
+      }),
+    );
+  });
+
+  it('nor remove THEMSELVES, which would strand their own assignments', async () => {
+    await assertFails(
+      updateDoc(doc(ctx('second1', 'member'), 'boards/b_two'), {
+        memberUids: ['owner1'],
+        boardOwnerUids: ['owner1'],
+      }),
+    );
+  });
+
+  it('an admin can, as the repair path for a board nothing else can fix', async () => {
+    await assertSucceeds(
+      updateDoc(doc(ctx('admin1', 'admin'), 'boards/b_member'), {
+        memberUids: ['owner1'],
+      }),
+    );
+  });
+
+  it('and an ordinary edit that does not touch the list is unaffected', async () => {
+    // The positive control that matters: `updateDoc` merges field-by-field, so a
+    // rename carries the stored membership through and must not trip this.
+    await assertSucceeds(
+      updateDoc(doc(ctx('owner1', 'member'), 'boards/b_member'), { name: 'Renamed' }),
+    );
+  });
+});
+
 describe('a board with no owner list at all', () => {
   it('is administrable by an admin, who can repair it', async () => {
     await assertSucceeds(

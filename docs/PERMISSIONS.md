@@ -69,6 +69,10 @@ The rule is phrased on the CHANGE, not on the value: it refuses an update that
 the creator stays perfectly editable, which a value-shaped rule ("the creator
 must always be an owner") would have made permanently uneditable instead.
 
+It checks **both lists**. Authority is `member AND owner`, so dropping the
+creator from `memberUids` unseats them exactly as completely as dropping them
+from `boardOwnerUids`, and nothing makes the two move together.
+
 **`removeBoardMember` repeats the check, and that repetition is the real
 boundary.** Removing the creator from the board would drop them from
 `boardOwnerUids` too, so it is the same act by another route — but that callable
@@ -86,6 +90,21 @@ that bypasses rules — a subset rule would let an ordinary member removal leave
 board that the next client write bounces, which is how the labels migration broke
 board editing. The writer clears both lists instead, and the pairing makes a
 missed one inert rather than dangerous.
+
+### Membership may only grow from a client
+
+Adding somebody to a board is an ordinary board write. **Removing them is not** —
+that goes through `removeBoardMember`, and the rules refuse a client update that
+shortens `memberUids` (admins excepted, as the repair path).
+
+This is what makes "assignees are board members" true rather than merely
+intended. That invariant is checked on CARD writes only, so a board write that
+dropped a member would leave their `assigneeUids` and `subscriberUids` entries
+behind — and the card read rule has an arm for each, so the person would keep
+read access to the very cards the removal was meant to take away, while every one
+of those cards started failing its next edit. The callable clears assignments,
+subscriptions, membership and ownership in one batch precisely so none of that
+can happen.
 
 ### A board with no owner
 

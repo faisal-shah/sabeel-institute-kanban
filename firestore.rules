@@ -170,11 +170,15 @@ service cloud.firestore {
        * satisfy it. Testing the change means an already-demoted creator's board
        * simply stays editable by whoever is left.
        *
-       * Because `ownsBoard` requires MEMBERSHIP as well as ownership, this one
-       * clause also covers removal from the board: dropping the creator from
-       * `memberUids` forces dropping them from `boardOwnerUids` to keep the
-       * document coherent, and that is the thing refused here. No second clause,
-       * no back door.
+       * BOTH LISTS, not just the owner list. Authority is `member AND owner`, so
+       * dropping the creator from `memberUids` unseats them just as completely as
+       * dropping them from `boardOwnerUids` — and nothing makes the two move
+       * together, because there is deliberately no subset rule (see `ownsBoard`).
+       * An earlier version checked the owner list alone and claimed the pairing
+       * forced coherence; it does not, and a write carrying
+       * `memberUids: [me], boardOwnerUids: [me, creator]` walked straight through
+       * it, leaving the creator off the board with an ownership entry that grants
+       * nothing.
        *
        * Only an admin lifts it — including for the creator themselves, who
        * therefore cannot step down unaided. That was chosen deliberately: one
@@ -183,8 +187,31 @@ service cloud.firestore {
        */
       function keepsCreator() {
         return isAdmin()
+          // Nothing left to protect: an admin has already demoted them.
           || !(existing().createdBy in existing().get('boardOwnerUids', []))
-          || existing().createdBy in incoming().get('boardOwnerUids', []);
+          || (existing().createdBy in incoming().get('boardOwnerUids', [])
+              && existing().createdBy in incoming().memberUids);
+      }
+
+      /**
+       * MEMBERSHIP MAY ONLY GROW from a client. Removals go through the
+       * `removeBoardMember` callable, which is an Admin SDK batch and bypasses
+       * these rules.
+       *
+       * Not tidiness — it is what makes "assignees are board members" true rather
+       * than merely intended. That invariant is enforced on CARD writes only, so a
+       * board write that drops a member leaves their `assigneeUids` and
+       * `subscriberUids` entries behind: the card read rule has an arm for each,
+       * so the person keeps read access to the very cards the removal was meant to
+       * take away, and every one of those cards then fails `assigneesAreMembers`
+       * on its next edit. The callable clears assignments and membership in one
+       * batch precisely so neither can happen.
+       *
+       * Admins are exempt because they are the repair path for a board in a shape
+       * nothing else can fix — the same reason `ownsBoard` short-circuits on them.
+       */
+      function membershipOnlyGrows() {
+        return isAdmin() || incoming().memberUids.hasAll(existing().memberUids);
       }
 
       // Admins see every board; everyone else sees only boards they are on. For
@@ -213,6 +240,10 @@ service cloud.firestore {
         && incoming().archived == false
         && incoming().memberUids is list
         && request.auth.uid in incoming().memberUids
+        // Shape-checked on create as well as update. The update rule already
+        // required it, and a create rule laxer than its update rule leaves
+        // exactly one document state the shape was never guaranteed for.
+        && (!('memberProfiles' in incoming()) || incoming().memberProfiles is map)
         && incoming().columns is list
         && incoming().columnIds is list
         && incoming().name is string
@@ -237,6 +268,7 @@ service cloud.firestore {
       // being prevented.
       allow update: if ownsBoard(existing())
         && keepsCreator()
+        && membershipOnlyGrows()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
             'columnIds', 'memberUids', 'memberProfiles', 'boardOwnerUids',
             'activeCardCount', 'createdAt', 'createdBy'])

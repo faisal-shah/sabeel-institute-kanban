@@ -27,6 +27,7 @@
 //   # production, the rest
 //   GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs --apply
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const APPLY = process.argv.includes('--apply');
@@ -51,6 +52,7 @@ console.log(
 
 initializeApp({ projectId });
 const db = getFirestore();
+const auth = getAuth();
 
 const snap = ONLY
   ? { docs: [await db.doc(`boards/${ONLY}`).get()] }
@@ -121,15 +123,53 @@ for (const d of snap.docs) {
  * already a manager or an admin, the two agree and nobody is offered a button
  * that fails. Board creation has always required `isManager()`, so this should
  * hold everywhere — assert it rather than assume it.
+ *
+ * READ FROM THE CUSTOM CLAIM, not from `users/{uid}`. The claim is what
+ * `firestore.rules` evaluates; the document is a mirror kept for display, and
+ * this gate's whole reasoning is about what the RULES will allow. Checking the
+ * mirror would pass an account whose doc says manager and whose token says
+ * member — the exact case where the new client offers buttons that fail — and
+ * would abort on the harmless inverse. A mirror that disagrees is reported
+ * either way: `rename-manager-role.mjs` repairs it, and a silent disagreement is
+ * worth seeing before a migration rather than after.
  */
+const ADMINISTERS_ANY_BOARD = ['manager', 'organizer', 'admin'];
 const owners = [...new Set(planned.flatMap((p) => p.owners))];
 const wrongRole = [];
+const mirrorDrift = [];
 for (const uid of owners) {
-  const u = await db.doc(`users/${uid}`).get();
-  const role = u.data()?.role;
-  if (role !== 'manager' && role !== 'organizer' && role !== 'admin') {
-    wrongRole.push({ uid, role: role ?? '(no user doc)' });
+  const doc = (await db.doc(`users/${uid}`).get()).data();
+  // "No such account" and "could not reach Auth" are NOT the same answer, and a
+  // bare catch would turn the second into a silent fall back to the mirror —
+  // reintroducing the very confusion this gate was fixed to avoid. Anything but
+  // a genuine not-found is rethrown and the run stops.
+  let record = null;
+  try {
+    record = await auth.getUser(uid);
+  } catch (e) {
+    if (e?.errorInfo?.code !== 'auth/user-not-found') throw e;
   }
+  const claims = record?.customClaims ?? null;
+  // No Auth account at all: the mirror is the only thing left to judge by, and
+  // it is what `restore-auth.mjs` would rebuild the claim from.
+  const effective = claims ? claims.role : doc?.role;
+  const source = claims ? 'claim' : 'mirror (no Auth account)';
+  if (!ADMINISTERS_ANY_BOARD.includes(effective)) {
+    wrongRole.push({ uid, role: effective ?? '(none)', source });
+  }
+  if (claims && doc && claims.role !== doc.role) {
+    mirrorDrift.push({ uid, claim: claims.role ?? '(none)', mirror: doc.role ?? '(none)' });
+  }
+}
+if (mirrorDrift.length > 0) {
+  console.log(
+    'NOTE — these accounts\u2019 claims and user documents disagree. The claim is\n' +
+      'what the rules read; rename-manager-role.mjs writes both and settles it:',
+  );
+  for (const d of mirrorDrift) {
+    console.log(`  ${d.uid}  claim=${d.claim}  mirror=${d.mirror}`);
+  }
+  console.log('');
 }
 if (wrongRole.length > 0) {
   console.error(
@@ -137,7 +177,7 @@ if (wrongRole.length > 0) {
       'under the CURRENT rules, so the new client would offer them controls that\n' +
       'fail until the authority change lands:',
   );
-  for (const w of wrongRole) console.error(`  ${w.uid}  role=${w.role}`);
+  for (const w of wrongRole) console.error(`  ${w.uid}  role=${w.role}  (from the ${w.source})`);
   process.exit(1);
 }
 

@@ -140,11 +140,25 @@ do {
 const mismatched = [];
 const retired = [];
 const unknownRole = [];
+const claimless = [];
 for (const u of authUsers) {
   const claims = u.customClaims ?? {};
   const doc = docById.get(u.uid) ?? {};
   const who = u.email || u.uid;
-  if (claims.role !== doc.role || claims.status !== doc.status) {
+  // No claims AT ALL is its own failure, separated from the generic mismatch
+  // below rather than folded into it. `firestore.rules` defaults a missing status
+  // to '', which denies everything — such an account can sign in and do nothing,
+  // and no script may mint claims for it. An admin re-approving from People
+  // writes both halves and is the only fix.
+  //
+  // Reported INSTEAD of a mismatch, not as well as: every claimless account
+  // trivially disagrees with its mirror, and two lines saying the same thing
+  // twice is how a report stops being read. The retired-role check below still
+  // runs on it, because its document is exactly where the old role hides.
+  const bare = !claims.role && !claims.status;
+  if (bare) {
+    claimless.push(`${who}  doc ${doc.role ?? '(none)'}/${doc.status ?? '(none)'}`);
+  } else if (claims.role !== doc.role || claims.status !== doc.status) {
     mismatched.push(
       `${who}  claims ${claims.role ?? '(none)'}/${claims.status ?? '(none)'}  ` +
         `doc ${doc.role ?? '(none)'}/${doc.status ?? '(none)'}`,
@@ -159,6 +173,14 @@ for (const [uid, d] of docById) {
   if (d.role === RETIRED_ROLE && !authUsers.some((u) => u.uid === uid)) {
     retired.push(`${d.email || uid} (mirror only, no Auth account)`);
   }
+}
+
+if (claimless.length === 0) {
+  pass('every account carries custom claims');
+} else {
+  fail(`${claimless.length} account(s) carry NO custom claims and cannot use the app`);
+  for (const c of claimless) fail(`    ${c}`);
+  fail('    An admin must re-approve each one from the People screen.');
 }
 
 if (mismatched.length === 0) {

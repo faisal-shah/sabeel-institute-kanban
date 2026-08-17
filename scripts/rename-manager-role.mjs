@@ -97,8 +97,13 @@ async function allAuthUsers() {
  */
 async function writeAccess(uid, role, status, by) {
   await auth.setCustomUserClaims(uid, { role, status });
+  await mirror(uid, { role, status }, by);
+}
+
+/** The display copy alone, stamped so a signed-in client refreshes its token. */
+async function mirror(uid, fields, by) {
   await db.doc(`users/${uid}`).set(
-    { role, status, claimsUpdatedAt: FieldValue.serverTimestamp(), accessChangedBy: by },
+    { ...fields, claimsUpdatedAt: FieldValue.serverTimestamp(), accessChangedBy: by },
     { merge: true },
   );
 }
@@ -120,8 +125,8 @@ if (REVERT) {
 
   for (const e of m.entries) {
     console.log(
-      `  ${e.email || e.uid}  claims ${e.claims.role}/${e.claims.status}` +
-        `  doc ${e.doc.role}/${e.doc.status}`,
+      `  ${e.email || e.uid}  claims ${e.claims.role || '(none)'}/${e.claims.status || '(none)'}` +
+        `  doc ${e.doc.role || '(none)'}/${e.doc.status || '(none)'}`,
     );
   }
   if (!APPLY) {
@@ -134,14 +139,44 @@ if (REVERT) {
 
   let restored = 0;
   for (const e of m.entries) {
-    // The claims are what the rules read, so they are what must go back exactly.
-    // The doc mirror follows them rather than its own recorded value: if the two
-    // disagreed before the migration that was already a bug, and `restore-auth`
-    // rebuilds claims FROM the mirror, so leaving a disagreement in place would
-    // make a later Auth restore reinstate the wrong thing.
-    await writeAccess(e.uid, e.claims.role, e.claims.status, 'rename-manager-role-script');
+    /**
+     * EXACTLY what was recorded, on both halves independently.
+     *
+     * A revert is an undo, not a repair. Deriving one half from the other —
+     * writing the doc's role into the claims because the claims were empty —
+     * would GRANT access the account never had: an account whose doc said
+     * manager/active while it carried no claims at all could not use the app,
+     * and inventing claims for it would let it in. Least privilege wins over
+     * tidiness on the emergency path.
+     *
+     * `setCustomUserClaims(uid, null)` is how "there were none" goes back.
+     */
+    const hadClaims = Boolean(e.claims.role || e.claims.status);
+    if (hadClaims) {
+      await auth.setCustomUserClaims(e.uid, { role: e.claims.role, status: e.claims.status });
+    } else {
+      await auth.setCustomUserClaims(e.uid, null);
+    }
+    // The mirror goes back to ITS recorded values, and only the ones that were
+    // there — writing an empty string would put a role no rule matches into the
+    // document `restore-auth.mjs` rebuilds claims from.
+    const docFields = {};
+    if (e.doc.role) docFields.role = e.doc.role;
+    if (e.doc.status) docFields.status = e.doc.status;
+    await mirror(e.uid, docFields, 'rename-manager-role-script');
     restored += 1;
-    console.log(`  restored ${e.email || e.uid} -> ${e.claims.role}/${e.claims.status}`);
+    console.log(
+      `  restored ${e.email || e.uid} -> claims ` +
+        `${hadClaims ? `${e.claims.role}/${e.claims.status}` : '(cleared)'}` +
+        `, doc ${e.doc.role || '(unchanged)'}/${e.doc.status || '(unchanged)'}`,
+    );
+  }
+  // The mirror-only entries go back too, or a revert would leave the rename
+  // half-undone on exactly the accounts nothing else will fix.
+  for (const d of m.docOnly ?? []) {
+    await mirror(d.uid, { role: d.doc.role }, 'rename-manager-role-script');
+    restored += 1;
+    console.log(`  restored ${d.email || d.uid} -> doc ${d.doc.role} (mirror only)`);
   }
   console.log(`\nRestored ${restored} account(s).`);
   process.exit(0);
@@ -185,11 +220,24 @@ if (entries.length === 0 && docOnly.length === 0) {
   process.exit(0);
 }
 
+/**
+ * An account with NO claims at all cannot use the app, whatever its document
+ * says: `firestore.rules` defaults a missing status to `''`, which denies
+ * everything. Renaming its mirror is a rename; MINTING claims for it would be a
+ * grant, and this script is not the place a person gets let in. The mirror is
+ * repaired so a later `restore-auth.mjs` does not rebuild the retired role, and
+ * the operator is told to have an admin re-approve them.
+ */
+const claimless = entries.filter((e) => !e.claims.role && !e.claims.status);
+
 for (const e of entries) {
+  const bare = claimless.includes(e);
   console.log(
     `  ${e.email || e.uid}  claims ${e.claims.role || '(none)'}/${e.claims.status || '(none)'}` +
       `  doc ${e.doc.role || '(none)'}/${e.doc.status || '(none)'}` +
-      `  ->  ${NEW_ROLE}/${e.claims.status || e.doc.status || 'pending'}`,
+      (bare
+        ? `  ->  ${NEW_ROLE} in the MIRROR ONLY (no claims to rename; an admin must re-approve)`
+        : `  ->  ${NEW_ROLE}/${e.claims.status || e.doc.status || 'pending'}`),
   );
 }
 for (const d of docOnly) {
@@ -255,6 +303,12 @@ if (existsSync(MANIFEST)) {
 
 let changed = 0;
 for (const e of entries) {
+  if (claimless.includes(e)) {
+    await mirror(e.uid, { role: NEW_ROLE }, 'rename-manager-role-script');
+    changed += 1;
+    console.log(`  ${e.email || e.uid} -> ${NEW_ROLE} (mirror only — no claims to rename)`);
+    continue;
+  }
   // Status comes from the claims first: they are the live authority, and a
   // mirror that disagrees is the stale copy. Falling back to `pending` rather
   // than `active` keeps the failure direction safe — an admin re-approves.
@@ -275,7 +329,16 @@ for (const d of docOnly) {
 
 console.log(
   `\nRenamed ${changed} account(s) and ${docOnly.length} orphan mirror(s).\n` +
-    'Anyone signed in picks it up within about a second. Next: ' +
-    'node scripts/verify-board-owners.mjs',
+    'Anyone signed in picks it up within about a second.',
 );
+if (claimless.length > 0) {
+  console.log(
+    `\n${claimless.length} of those carried NO custom claims, so only their mirror\n` +
+      'was renamed. They cannot use the app at all until an admin re-approves them\n' +
+      'from the People screen, which writes both halves. verify-board-owners.mjs\n' +
+      'reports each one until that happens:',
+  );
+  for (const e of claimless) console.log(`  ${e.email || e.uid}`);
+}
+console.log('\nNext: node scripts/verify-board-owners.mjs');
 process.exit(0);

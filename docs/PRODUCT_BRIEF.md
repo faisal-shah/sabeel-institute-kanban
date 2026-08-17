@@ -592,9 +592,14 @@ Deny-by-default.
   excepted. `.get('boardOwnerUids', [])`, never plain access: a board written
   before the field existed would otherwise error the rule, and an erroring rule
   denies.
-- A board update may not remove `board.createdBy` from `boardOwnerUids` unless
-  the caller is an admin. Phrased on the CHANGE, so a board whose creator an
-  admin has already demoted stays editable.
+- A board update may not remove `board.createdBy` from `boardOwnerUids` **or from
+  `memberUids`** unless the caller is an admin — authority is the pair, so either
+  removal unseats them. Phrased on the CHANGE, so a board whose creator an admin
+  has already demoted stays editable.
+- A board update may not SHORTEN `memberUids` at all (admins excepted). Removal
+  is `removeBoardMember`, which also clears assignments and subscriptions; a
+  client-side removal would leave those behind and the card read rule's assignee
+  arm would keep handing the removed person access.
 - A board CREATE must set `boardOwnerUids == [request.auth.uid]`. Deliberate: it
   turns "an app too old to know about ownership made a board nobody can manage"
   from silent and permanent into a visible failure.

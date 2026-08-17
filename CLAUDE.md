@@ -38,11 +38,16 @@ Key product invariants (do not silently change):
   protected**: only an admin may take `createdBy` out of `boardOwnerUids`,
   including on their own behalf — and the rule is phrased on the CHANGE, so a
   board whose creator an admin already demoted stays editable, which a
-  value-shaped rule would have bricked. **Ownership is always checked WITH
-  membership**, never alone, which is what lets the rules skip a
-  `boardOwnerUids ⊆ memberUids` subset check — `removeBoardMember` is an Admin
-  SDK batch that bypasses rules, so such a check would let an ordinary member
-  removal make a board reject the next client write. And **board create REQUIRES
+  value-shaped rule would have bricked — and it checks BOTH lists, because
+  authority is `member AND owner` and nothing makes the two move together.
+  **Ownership is always checked WITH membership**, never alone, which is what
+  lets the rules skip a `boardOwnerUids ⊆ memberUids` subset check —
+  `removeBoardMember` is an Admin SDK batch that bypasses rules, so such a check
+  would let an ordinary member removal make a board reject the next client
+  write. **`memberUids` may only GROW from a client** (admins excepted): removal
+  belongs to that callable, which clears assignments and subscriptions in the
+  same batch, and without the rule a board write could strand both — leaving a
+  removed person read access through the card rule's assignee arm. And **board create REQUIRES
   `boardOwnerUids == [creator]`**, which turns "an app too old to know about
   ownership made a board only an admin can manage" from silent and permanent
   into a loud failure.
