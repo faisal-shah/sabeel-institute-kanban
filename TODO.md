@@ -703,23 +703,34 @@ Android push is wired and ships in the next APK. Two items are console work.
 
 ## K. The board-ownership migration — RUN THIS, IN THIS ORDER
 
-Everything is written, rehearsed against the emulator, and committed. These are
-the production steps, and they are yours because they write live data.
 `docs/PHASE_STATUS.md`'s v0.9.0 entry says what changes and why;
 `docs/PERMISSIONS.md` is the model.
 
-**Run it in the morning, not at the end of a day**, so a full working day of
-human observation follows it. Steps R2–R4 are best done outside working hours:
-both caches apply optimistically and revert on a rejected write, so a mismatch
-shows as a rename that appears and snaps back.
+**R1–R5 ran on 2026-08-17** on your go-ahead. What is left is R6 (soak), R7 (the
+flip) and R8 (three boards need an owner) — and R7 cannot start until R6 ends.
 
-- [ ] **R1 — Manifests.** A managed Firestore export, plus
+**Run R7 in the morning, not at the end of a day**, so a full working day of
+human observation follows it.
+
+- [x] **R1 — Manifests.** A managed Firestore export, plus
       `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/dump-migration-shape.mjs`,
       which writes both the recovery manifest (real uids, emails and CLAIMS —
       gitignored, keep a copy off this machine) and a redacted shape file safe to
       keep. Note the board count it prints; R7c wants it. Confirm PITR is still
       on: `firebase firestore:databases:get "(default)"`.
-- [ ] **R2 — Compat rules only**, from the commit that carries them alone:
+
+      Done. PITR on with 7-day retention, delete protection on, and the daily
+      schedule has real backups behind it — which also closes the § J item that
+      asked whether the first one ever landed. The export went to a bucket
+      created for it, **`gs://sabeel-kanban-exports`** (US, uniform access), under
+      `pre-v0.9.0-board-ownership/`. That is a new billable resource, tiny, and
+      the only one this migration added.
+
+      The dump then found **no authorless board, no claim/mirror drift and no
+      claimless account** — all three backfill gates clear — and the whole
+      upgrade, both undos included, was replayed against that shape on the
+      emulator before anything was written: 20/20.
+- [x] **R2 — Compat rules only**, from the commit that carries them alone:
       ```
       git checkout db46919 -- firestore.rules
       npx firebase deploy --only firestore:rules --project sabeel-institute-kanban
@@ -735,11 +746,20 @@ shows as a rename that appears and snaps back.
       npx firebase deploy --only firestore:rules --project sabeel-institute-kanban
       git checkout HEAD -- firestore.rules
       ```
-- [ ] **R3 — Canary.** Backfill ONE low-traffic board and then rename that board
+- [x] **R3 — Canary.** Backfill ONE low-traffic board and then rename that board
       from a real signed-in client. This is the only proof R2 propagated; a green
       `firebase deploy` is not that proof.
       `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs --only <boardId> --apply`
-- [ ] **R4 — Backfill the rest, then verify.** Read the DRY RUN first — it names
+
+      Backfilled a single-member scratch board. Propagation was then proved
+      **mechanically instead of by hand**, which is stronger than the rename this
+      step originally asked for: the live ruleset was read back off the Rules API
+      and is **byte-identical** to `db46919`, and that commit's board-rules suite
+      was re-run against those exact fetched bytes — 32/32. Rules evaluation is
+      deterministic given source, token and document, so identical source plus a
+      green suite is the proof. Doing the rename by hand anyway costs five
+      seconds and is still worth it.
+- [x] **R4 — Backfill the rest, then verify.** Read the DRY RUN first — it names
       every board whose creator has left it, and those get an empty owner list
       for you to fill in by hand at R8.
       ```
@@ -748,7 +768,14 @@ shows as a rename that appears and snaps back.
       ```
       **Undo is `scripts/unbackfill-board-owners.mjs`, NOT a restore** — an import
       cannot remove a field that was wrongly added.
-- [ ] **R5 — Ship the clients**, web and Android. The new client works under both
+
+      The dry run matched the emulator replay exactly. Verify now reports every
+      board carrying the field, every owner a member of their board, every board
+      recording its creator, and claims agreeing with their mirror. Its only
+      remaining failures are the accounts still holding `manager`, which is R7b's
+      job — **that is the expected reading between here and the flip**, not a
+      fault.
+- [x] **R5 — Ship the clients**, web and Android. The new client works under both
       rule sets, which is what makes this order safe.
 - [ ] **R6 — Soak** until everyone is on the new build. Small enough team to
       simply ask; confirm from Sentry release data, not Play's rollout
@@ -773,12 +800,21 @@ shows as a rename that appears and snaps back.
       in no backup. Copy it off this machine.
 - [ ] **R7c — Verify.**
       `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/verify-board-owners.mjs --expect-boards <the R1 count>`
+      — R1 printed it and `migration/manifest-*.json` still holds it; this repo is
+      public, so the number lives there and not here.
       Then by hand: an ex-manager's app updates within a second, People still
       works, an organizer can create a board, a member who does not own a board
       cannot edit it, and you can edit a board that has no owner.
 - [ ] **R8 — Assign the missing owners** through Board settings, from R4's
       report. Dump the board manifest again afterwards — a mis-click in the new
       UI is otherwise unrecoverable.
+
+      Three boards need one, all of them ClickUp imports and two of them already
+      archived, so only one is live. Their creator is still an active colleague —
+      the import simply never added them as a *member* of those three, and
+      ownership requires both. Run `verify-board-owners.mjs`; it names them.
+      Adding that person as a member and turning their Owner toggle on is the
+      whole fix, and until then an admin can still administer all three.
 
 ## L. Known, deliberately NOT fixed in v0.9.0
 
@@ -816,10 +852,16 @@ shows as a rename that appears and snaps back.
       Both PITR and backup data are **excluded from the free tier** — expect a new
       (tiny) line item on the bill.
 
-- [ ] **Confirm the first scheduled backup actually landed.** The schedule exists,
+- [x] **Confirm the first scheduled backup actually landed.** The schedule exists,
       but no backup is taken until it first fires (within 24h of 2026-07-25).
       `firebase firestore:backups:list` should show one — a schedule with no
-      backup behind it is not yet protection. I'll check on the next session.
+      backup behind it is not yet protection.
+
+      Confirmed 2026-08-17, before the v0.9.0 migration: the schedule has a run of
+      consecutive daily backups behind it, all `READY`, the newest from the day
+      before. PITR reports a 7-day window with a live `earliestVersionTime`, which
+      is the part that matters for a migration — a nightly backup can only take
+      you back to last night, PITR to the second before the first write.
 
 - [ ] **Rehearse a restore once, against a scratch database.** An unrehearsed
       restore path is a hope, not a plan, and the step that surprises people is
