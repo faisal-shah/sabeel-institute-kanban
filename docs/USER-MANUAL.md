@@ -537,9 +537,14 @@ From here:
 - **Members** — who can see the board. Tap the **add-person** icon beside the
   *Members* heading to see who else can be added, and tap a name to add them.
   Removing someone (the **remove-person** icon on their row) also **unassigns them
-  from that board's cards**; you're told how many before it happens. Your **own**
+  from that board's cards** — you're told how many before it happens — and takes
+  away their ownership of it if they had any. **Adding them back later does not
+  give the ownership back**; turn the switch on again if you mean to. Your **own**
   row shows a **leave** icon instead — use it to step off a board you no longer
   work. Members who don't own the board ask an owner to take them off it.
+
+  Somebody removed while they have the board open is told they no longer have
+  access to it, rather than being left looking at a screen that will not load.
 - **Owners** — each member's row carries an **Owner** switch. Turn it on and that
   person can run the board exactly as you can; turn it off and they go back to
   being an ordinary member, keeping the board and everything on it. **Both
@@ -830,7 +835,8 @@ stay.
 | A column won't delete | It still has cards in it | Move or archive its cards first, then delete the column |
 | Removing a board member warns about cards | They're assigned to cards on that board | Those cards are unassigned automatically; the warning just says how many |
 | No push notifications arriving | Permission not granted on this device, or that kind is muted | Allow notifications when the app asks, and check **Alerts → Settings** |
-| A red "Live data error" bar | The app couldn't reach the server or was refused | It clears when the connection recovers; if it persists, tell Faisal what the bar says |
+| A red "Live data error" bar | The app couldn't reach the server | It clears when the connection recovers, and when you leave the screen; if it persists, tell Faisal what the bar says |
+| "You no longer have access to this board" | Somebody removed you from it, or archived it, while you had it open | Go back to your board list. Ask one of that board's owners if you should still be on it |
 | Text you underlined loses its underline | Cards hold bold, italic, lists and links — underline is not one of them, and a keyboard shortcut can set it even though no button offers it | Use **bold** or *italic* instead |
 | Pasted text lost its headings or colours | Only the five formatting options survive a paste — but every word does | Nothing to do; reformat the parts you want bold or bulleted |
 

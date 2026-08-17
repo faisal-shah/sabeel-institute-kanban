@@ -92,6 +92,51 @@ describe('removeBoardMember and ownership', () => {
     expect(after?.boardOwnerUids).not.toContain(SECOND);
   });
 
+  /**
+   * A card the removed person is BOTH assigned to and subscribed to.
+   *
+   * Entirely ordinary — being assigned to a card and following its comments is
+   * the common case, and the model explicitly allows both at once — but it makes
+   * the callable add two writes to the SAME document in one batch, and the two
+   * branches that produce them were written independently. If the backend
+   * refuses that, the whole removal fails and the person stays on the board with
+   * their access intact.
+   */
+  it('handles a card that is both assigned AND subscribed in one batch', async () => {
+    await adminDb().doc('boards/bo_both').set(board());
+    await adminDb().doc('cards/bo_both_card').set({
+      boardId: 'bo_both',
+      title: 'Assigned and followed',
+      description: '',
+      columnId: 'c1',
+      rank: 'V',
+      assigneeUids: [SECOND],
+      subscriberUids: [SECOND],
+      priority: 'none',
+      labelIds: [],
+      archived: false,
+      commentCount: 0,
+      createdAt: 1,
+      createdBy: OWNER,
+      updatedAt: 1,
+      updatedBy: OWNER,
+    });
+
+    const res = await callFunction(
+      'removeBoardMember',
+      { boardId: 'bo_both', uid: SECOND },
+      await idTokenFor(OWNER),
+    );
+    expect(res.body.error).toBeUndefined();
+
+    const card = (await adminDb().doc('cards/bo_both_card').get()).data();
+    expect(card?.assigneeUids).not.toContain(SECOND);
+    expect(card?.subscriberUids).not.toContain(SECOND);
+    // The assignee branch stamps the actor so the activity entry names who did
+    // it; the subscriber branch deliberately does not touch the card's history.
+    expect(card?.updatedBy).toBe(OWNER);
+  });
+
   it('is refused to a member of the board who does not own it', async () => {
     await adminDb().doc('boards/bo_gate').set(board());
     const res = await callFunction(

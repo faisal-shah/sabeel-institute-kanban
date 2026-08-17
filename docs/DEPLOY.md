@@ -575,7 +575,9 @@ failures rather than errors:
   member's app, and holds a claim that means nothing.
 
 Two scripts put it back, **in this order**, because the second one is what makes
-the first one's owners able to act:
+the first one's owners able to act — and `rename-manager-role.mjs` now refuses to
+run while any active board is still missing `boardOwnerUids`, so the order is
+enforced rather than merely written down:
 
 ```sh
 GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs           # dry run

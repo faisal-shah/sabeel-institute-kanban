@@ -184,6 +184,34 @@ if (REVERT) {
 
 // ---- forward ----------------------------------------------------------------
 
+/**
+ * ORDER GATE: the backfill must have run first.
+ *
+ * Renaming the role takes board authority off everybody who held `manager` —
+ * under the old rules AND the new ones, since neither recognises `organizer` as
+ * board authority. `boardOwnerUids` is what they land on instead, so running
+ * this against boards that do not carry it yet leaves nobody able to administer
+ * anything, which is the one state in this migration the runbook says never to
+ * enter. Refuse rather than describe it afterwards.
+ *
+ * Archived boards are excluded: they are out of everyone's way by definition, and
+ * one left behind by an aborted backfill should not block the window.
+ */
+const boardsMissingOwners = (await db.collection('boards').get()).docs.filter(
+  (d) => d.data()?.archived !== true && !Array.isArray(d.data()?.boardOwnerUids),
+);
+if (boardsMissingOwners.length > 0) {
+  console.error(
+    `ABORT: ${boardsMissingOwners.length} active board(s) have no boardOwnerUids, so\n` +
+      'renaming the role now would leave nobody able to administer them:',
+  );
+  for (const d of boardsMissingOwners) {
+    console.error(`  boards/${d.id}  "${d.data()?.name ?? ''}"`);
+  }
+  console.error('\nRun scripts/backfill-board-owners.mjs --apply first.');
+  process.exit(1);
+}
+
 const users = await allAuthUsers();
 const docs = await db.collection('users').get();
 const docById = new Map(docs.docs.map((d) => [d.id, d.data() ?? {}]));

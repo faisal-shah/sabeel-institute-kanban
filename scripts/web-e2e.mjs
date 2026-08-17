@@ -570,12 +570,13 @@ try {
   await admin.getByRole('button', { name: /^Remove sara from this board$/i }).click();
   await admin.getByText(/^Remove this person from the board\?/).waitFor({ timeout: 20000 });
   check('removing asks first', true);
-  check(
-    'and says how many cards they will be unassigned from',
-    /assigned to any cards|assigned to \d+ card/.test(
-      (await admin.getByText(/^Remove this person from the board\?/).textContent()) ?? '',
-    ),
-  );
+  // The count arrives from `countMemberAssignments`, so WAIT for the settled
+  // sentence rather than reading the "Checking how many cards…" placeholder that
+  // is on screen the instant the dialog opens.
+  await admin
+    .getByText(/They are (not assigned to any cards|assigned to \d+ card)/)
+    .waitFor({ timeout: 25000 });
+  check('and says how many cards they will be unassigned from', true);
   await admin.getByRole('button', { name: 'Remove', exact: true }).click();
   await admin.getByText('Members (1)').waitFor({ timeout: 25000 });
   check('the roster shrinks', true);
@@ -607,6 +608,10 @@ try {
   await sara.getByRole('button', { name: 'All boards' }).click();
   await sara.getByText('Fundraising 2026').first().waitFor({ timeout: 25000 });
   check('re-adding restores the board to their list', true);
+  // Back INTO the board: the phases below assume she is watching it, and this
+  // detour is only here to exercise the removal.
+  await sara.getByText('Fundraising 2026').first().click();
+  await sara.getByText('To Do').first().waitFor({ timeout: 25000 });
 
   // ---- Cards (Phase 3) ----------------------------------------------------
   await admin.getByRole('button', { name: 'Back' }).first().click();

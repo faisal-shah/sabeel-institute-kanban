@@ -408,6 +408,24 @@ Board CREATE now requires `boardOwnerUids == [creator]`. Deliberate: it turns "a
 app too old to know about ownership made a board only an admin can ever manage"
 from a silent, permanent condition into a visible failure at creation.
 
+**Two more the review pass found, both in the same family.** The creator clause
+checked the OWNER list alone, reasoning that dropping the creator from
+`memberUids` "forces" dropping them from `boardOwnerUids` — nothing forces that,
+so a write carrying `memberUids: [me], boardOwnerUids: [me, creator]` unseated
+the creator through the other door. And a client board write could SHORTEN
+`memberUids` at all, which matters because "assignees are board members" is
+enforced on card writes only: a board-side removal left the person's
+`assigneeUids` behind, and the card read rule's assignee arm kept handing them
+access to the very cards the removal was for. Membership may now only grow from
+a client, with admins exempt as the repair path; removal is `removeBoardMember`,
+which clears assignments, subscriptions, membership and ownership in one batch.
+
+**A refused board read no longer claims the board is missing.** Being removed
+from a board you have open ends its listeners with `permission-denied` — a
+bug-shaped event while a manager could read every board, an ordinary one now.
+Every screen answered it with "Board not found" or with advice to wait for a
+connection problem to clear.
+
 **In the app.** Every board surface computes `canManageBoard(user, board)` once;
 `sessionCan.manageBoards` is gone, because a helper taking no board would be a
 button that always fails. The settings entry point is now always present and its

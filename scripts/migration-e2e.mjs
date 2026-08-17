@@ -298,6 +298,30 @@ console.log('\nverify-board-owners — before the rename');
 console.log('\nrename-manager-role');
 
 {
+  /**
+   * ORDER GATE. Renaming the role takes board authority off everyone holding
+   * `manager`, and `boardOwnerUids` is what they are supposed to land on — so
+   * running this before the backfill leaves nobody able to administer anything,
+   * the one state the runbook says never to enter.
+   */
+  await db.doc('boards/mig_b_nofield').set(
+    board({ name: 'Not backfilled', createdBy: M1, memberUids: [M1] }),
+  );
+  const r = run('rename-manager-role.mjs', '--manifest', MANIFEST, '--apply');
+  check('ABORTS if any active board has not been backfilled', r.code === 1);
+  check('and names it', r.out.includes('mig_b_nofield'));
+  check('and says what to run first', r.out.includes('backfill-board-owners.mjs --apply'));
+  check('having changed nothing', (await roleOf(M1)).claims === 'manager/active');
+
+  // An ARCHIVED board left behind must not block the window: it is out of
+  // everyone's way by definition.
+  await db.doc('boards/mig_b_nofield').update({ archived: true });
+  const arch = run('rename-manager-role.mjs', '--manifest', MANIFEST);
+  check('but an archived one does not block it', arch.code === 0, arch.out.slice(-300));
+  await db.doc('boards/mig_b_nofield').delete();
+}
+
+{
   const r = run('rename-manager-role.mjs', '--manifest', MANIFEST);
   check('dry run writes nothing', r.code === 0 && (await roleOf(M1)).claims === 'manager/active');
   check('dry run writes no manifest either', !existsSync(MANIFEST));

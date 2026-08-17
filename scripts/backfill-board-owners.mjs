@@ -19,6 +19,10 @@
 // Idempotent: a board that already has a non-empty list is left alone, so a
 // re-run after a partial run finishes the job rather than repeating it.
 //
+// NEEDS AUTH READ ACCESS as well as Firestore: gate 3 judges an owner-to-be by
+// their custom CLAIM, because that is what firestore.rules reads. ADC for the
+// project covers both.
+//
 //   # emulators
 //   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 GCLOUD_PROJECT=demo-sabeel-kanban \
 //     node scripts/backfill-board-owners.mjs
