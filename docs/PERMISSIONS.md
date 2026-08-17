@@ -69,9 +69,12 @@ The rule is phrased on the CHANGE, not on the value: it refuses an update that
 the creator stays perfectly editable, which a value-shaped rule ("the creator
 must always be an owner") would have made permanently uneditable instead.
 
-It checks **both lists**. Authority is `member AND owner`, so dropping the
-creator from `memberUids` unseats them exactly as completely as dropping them
-from `boardOwnerUids`, and nothing makes the two move together.
+It checks **both lists**, on both sides. Authority is `member AND owner`, so
+dropping the creator from `memberUids` unseats them exactly as completely as
+dropping them from `boardOwnerUids`, and nothing makes the two move together —
+and equally, a creator who already holds only one of the two holds nothing, so
+there is nothing left to protect and the clause stands aside. Pinning that state
+would freeze the board for everyone but an admin.
 
 **`removeBoardMember` repeats the check, and that repetition is the real
 boundary.** Removing the creator from the board would drop them from

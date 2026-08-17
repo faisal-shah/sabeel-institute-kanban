@@ -36,8 +36,10 @@ they must be non-secret: anyone with the app has them.
 | `SENTRY_DSN` | `functions/src/sentry.ts` | `firebase functions:secrets:set SENTRY_DSN` |
 
 Bind it on any function whose failures matter, via `secrets: [sentryDsn]`.
-Currently bound on: `setUserAccess`, `removeBoardMember`,
-`countMemberAssignments`.
+**Every v2 function carries it** — the list here used to name three and was four
+releases out of date, so the rule is stated instead of enumerated. The one
+exception is `onUserCreate`, a v1 auth trigger: v1 functions have no `secrets`
+option, which is why `sentry.ts` also reads the DSN from the environment.
 
 Locally, `functions/.secret.local` (gitignored) sets it empty so the emulator
 never reports. The emulator still logs one 403 at startup trying to reach real

@@ -187,8 +187,20 @@ service cloud.firestore {
        */
       function keepsCreator() {
         return isAdmin()
-          // Nothing left to protect: an admin has already demoted them.
-          || !(existing().createdBy in existing().get('boardOwnerUids', []))
+          /**
+           * Nothing left to protect, tested on BOTH halves for the same reason
+           * the clause below checks both: authority is the pair, so a creator who
+           * is an owner but no longer a member holds nothing already.
+           *
+           * Testing only the owner list here would BRICK that state. An owner can
+           * write a departed creator's uid back into `boardOwnerUids` — inert, and
+           * not reachable from the UI, but a legal write — and the board would
+           * then demand of every subsequent write a membership no non-admin write
+           * can restore. Precisely the unsatisfiable-invariant trap this whole
+           * clause is phrased on the CHANGE to avoid.
+           */
+          || !(existing().createdBy in existing().get('boardOwnerUids', [])
+               && existing().createdBy in existing().memberUids)
           || (existing().createdBy in incoming().get('boardOwnerUids', [])
               && existing().createdBy in incoming().memberUids);
       }

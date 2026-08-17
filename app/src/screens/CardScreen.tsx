@@ -44,6 +44,7 @@ import {
   Body,
   Button,
   Hint,
+  LoadError,
   IconAction,
   Card as Panel,
   Heading,
@@ -142,13 +143,22 @@ export function CardScreen({
   const cardsReady = boardCards.status === 'ready';
 
   if (!c || !b) {
+    // GONE and REFUSED are different answers, and both reach here: losing access
+    // to a board ends the card's listener too, which is ordinary now that
+    // authority is per-board. "It may have been deleted" would be a claim about
+    // somebody else's work made from a refusal.
+    const refused = card.status === 'error' || board.status === 'error';
     return (
       <Screen width="read">
         <Row style={styles.between}>
-          <Title>Card not found</Title>
+          <Title>{refused ? 'Card unavailable' : 'Card not found'}</Title>
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
-        <Hint>It may have been deleted.</Hint>
+        {refused ? (
+          <LoadError what="this card" code={card.error ?? board.error} />
+        ) : (
+          <Hint>It may have been deleted.</Hint>
+        )}
       </Screen>
     );
   }

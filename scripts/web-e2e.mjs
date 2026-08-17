@@ -599,6 +599,19 @@ try {
       .isVisible()
       .catch(() => false)),
   );
+  // …and NOT with a red bar across the whole app on top of it. The global
+  // listener banner clears only when a listener with the same label next
+  // succeeds, and after a removal there will never be one — so before this was
+  // suppressed for permission-denied it sat there until sign-out, on every
+  // screen, for something the screen in front of her already explains.
+  check(
+    'and without an app-wide error banner that nothing could ever clear',
+    !(await sara
+      .getByText(/Live data error/)
+      .first()
+      .isVisible()
+      .catch(() => false)),
+  );
   await sara.screenshot({ path: join(SHOTS, 'p2-removed-light.png'), fullPage: true });
 
   // Put her back, or every phase after this one has nobody to mention.

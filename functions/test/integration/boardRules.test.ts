@@ -270,6 +270,25 @@ describe('creating a board', () => {
     }
   });
 
+  it('rejects a memberProfiles that is not a map', async () => {
+    // The update rule already required this. A create rule laxer than its update
+    // rule leaves exactly one document state whose shape was never guaranteed —
+    // the same hole the comment `mentionUids` check had.
+    await assertFails(
+      setDoc(doc(ctx('org1', 'organizer'), 'boards/b_shape'), {
+        ...baseBoard({ memberUids: ['org1'], boardOwnerUids: ['org1'], createdBy: 'org1' }),
+        memberProfiles: 'not a map',
+      }),
+    );
+    // Only the shape was in the way.
+    await assertSucceeds(
+      setDoc(doc(ctx('org1', 'organizer'), 'boards/b_shape2'), {
+        ...baseBoard({ memberUids: ['org1'], boardOwnerUids: ['org1'], createdBy: 'org1' }),
+        memberProfiles: {},
+      }),
+    );
+  });
+
   it('rejects an unknown field on the board', async () => {
     await assertFails(
       setDoc(doc(ctx('org1', 'organizer'), 'boards/new11'), newBoard({ smuggled: 'x' })),
@@ -523,6 +542,34 @@ describe('granting and revoking ownership', () => {
   it('a board whose creator was already demoted is still editable', async () => {
     await assertSucceeds(
       updateDoc(doc(ctx('second1', 'member'), 'boards/b_demoted'), { name: 'Carries on' }),
+    );
+  });
+
+  /**
+   * The OTHER unsatisfiable state, and the reason the "nothing to protect" arm
+   * tests both lists rather than the owner list alone.
+   *
+   * An owner may legally write a departed creator's uid back into
+   * `boardOwnerUids` — inert, since authority needs membership too, and not
+   * reachable from the UI. Testing only the owner list would then have the board
+   * demand of every later write a membership no non-admin write can restore:
+   * `membershipOnlyGrows` forbids shrinking the list, and adding the creator back
+   * is a different act nobody may be trying to perform. The board would be frozen
+   * for everyone but an admin, by an edit that granted nothing.
+   */
+  it('a stray owner entry for a departed creator does not freeze the board', async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(
+        doc(c.firestore(), 'boards/b_stray'),
+        baseBoard({
+          memberUids: ['second1'],
+          boardOwnerUids: ['second1', 'owner1'],
+          createdBy: 'owner1',
+        }),
+      );
+    });
+    await assertSucceeds(
+      updateDoc(doc(ctx('second1', 'member'), 'boards/b_stray'), { name: 'Still editable' }),
     );
   });
 });

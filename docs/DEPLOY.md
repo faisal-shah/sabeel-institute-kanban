@@ -446,6 +446,8 @@ recreation:
 
 ```sh
 firebase functions:delete setUserAccess removeBoardMember countMemberAssignments \
+  boardsSolelyOwnedBy countLabelUsage deleteLabel \
+  finalizeAttachment deleteAttachment getAttachmentUrl \
   --region us-central1 --force
 firebase deploy --only functions
 ```

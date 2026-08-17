@@ -8,6 +8,7 @@ import {
   Body,
   Button,
   Hint,
+  LoadError,
   Card as Panel,
   IconAction,
   Row,
@@ -239,6 +240,22 @@ export function Comments({
   }, [candidates]);
 
   if (comments.status === 'loading') return <Spinner label="Loading comments…" />;
+
+  /**
+   * A failed read is not an empty thread.
+   *
+   * `?? []` below turns "we could not find out" into "there are none", and the
+   * heading above already says `Comments (3)` from the card's own counter — so a
+   * refused or dropped listen rendered a count beside the words "No comments
+   * yet", which is a definite claim contradicting the number next to it.
+   *
+   * It also has to say so ITSELF now: a `permission-denied` no longer raises the
+   * app-wide banner, deliberately, because the screen that asked is the right
+   * place to explain it.
+   */
+  if (comments.status === 'error') {
+    return <LoadError what="this conversation" code={comments.error} />;
+  }
 
   const list = comments.data ?? [];
 

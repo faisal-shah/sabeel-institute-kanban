@@ -227,6 +227,33 @@ await db.doc('boards/sw_empty').set({
   createdBy: uid,
 });
 
+/**
+ * A board with NO OWNER — the state the migration deliberately produces.
+ *
+ * The backfill writes an empty owner list wherever a board's creator has left
+ * it, and an admin repairs those by hand on day one. Nothing else exercises that
+ * state: `b_legacy` in the rules suite is a board MISSING the field, which is a
+ * different shape, and every UI fixture has an owner. What has to hold is that
+ * an admin can still open its settings and give somebody ownership — otherwise
+ * the repair path the whole plan rests on does not exist.
+ */
+await db.doc('boards/sw_ownerless').set({
+  name: 'Nobody owns this',
+  description: '',
+  archived: false,
+  columns: [{ id: 'o1', name: 'To Do' }],
+  columnIds: ['o1'],
+  memberUids: [uid, memberUid],
+  boardOwnerUids: [],
+  memberProfiles: {
+    [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' },
+    [memberUid]: { displayName: 'Omar', email: 'omar@oursabeel.com' },
+  },
+  activeCardCount: 0,
+  createdAt: now,
+  createdBy: uid,
+});
+
 // Content chosen to STRESS layout: a long title, every priority, labels and an
 // assignee on each, so card faces are at their widest.
 const CARDS = [
@@ -754,6 +781,40 @@ async function tour(page, tag, width) {
    * settings is the only way to add a column back, so losing it strands the
    * board. Checked last: it navigates away from the toured board.
    */
+  /**
+   * The ownerless board: an ADMIN must still be able to run it, because that is
+   * the only way one ever gets an owner again. Narrow only, alongside its
+   * sibling below — the gate being checked is a role, not a layout.
+   */
+  if (width < WIDE_BREAKPOINT) {
+    await nav('Boards');
+    await page.getByText('Nobody owns this').first().click();
+    await page.waitForTimeout(1200);
+    const onOwnerless = await page.evaluate(() => {
+      const name = (e) => (e.getAttribute('aria-label') || '').trim();
+      const shown = [...document.querySelectorAll('[role="button"]')].filter(
+        (e) => e.getBoundingClientRect().width > 0,
+      );
+      return {
+        settings: shown.some((e) => name(e) === 'Board settings'),
+        members: shown.some((e) => name(e) === 'Board members'),
+      };
+    });
+    check(
+      `${tag} / an admin can still run a board nobody owns`,
+      onOwnerless.settings && !onOwnerless.members,
+      JSON.stringify(onOwnerless),
+    );
+    // …and the roster offers the switch that repairs it.
+    await page.getByRole('button', { name: 'Board settings' }).click();
+    const repairable = await page
+      .getByRole('switch', { name: /^Owner of this board: Omar/ })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    check(`${tag} / and can give somebody ownership of it`, repairable);
+  }
+
   if (width < WIDE_BREAKPOINT) {
     await nav('Boards');
     await page.getByText('Empty board').first().click();
