@@ -397,12 +397,14 @@ be an owner") would have made every board an admin had legitimately demoted a
 creator on permanently uneditable.
 
 Ownership is always checked WITH membership, never alone. That is what lets the
-rules skip a `boardOwnerUids ⊆ memberUids` subset check: `removeBoardMember` is
-an Admin SDK batch that bypasses rules, so a subset rule would let an ordinary
-member removal leave a board that bounces the next client write — the labels
-failure mode with a routine action as its trigger. `removeBoardMember` clears
-both lists instead, which also stops `addBoardMember` silently restoring
-authority when somebody is re-added later.
+rules skip a `boardOwnerUids ⊆ memberUids` subset check. The subset does hold —
+`removeBoardMember` clears both lists in one batch, which also stops
+`addBoardMember` silently restoring authority when somebody is re-added later —
+but it holds because that code is right, and rules cannot check an Admin SDK
+batch at all. A subset RULE would convert any lapse there, or any restore from a
+backup predating the shape, into a board that bounces the next client write and
+only an admin can repair: the labels failure mode with a routine action as its
+trigger. The pairing makes the same lapse inert instead.
 
 Board CREATE now requires `boardOwnerUids == [creator]`. Deliberate: it turns "an
 app too old to know about ownership made a board only an admin can ever manage"

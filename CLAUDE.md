@@ -41,10 +41,11 @@ Key product invariants (do not silently change):
   value-shaped rule would have bricked — and it checks BOTH lists, because
   authority is `member AND owner` and nothing makes the two move together.
   **Ownership is always checked WITH membership**, never alone, which is what
-  lets the rules skip a `boardOwnerUids ⊆ memberUids` subset check —
-  `removeBoardMember` is an Admin SDK batch that bypasses rules, so such a check
-  would let an ordinary member removal make a board reject the next client
-  write. **`memberUids` may only GROW from a client** (admins excepted): removal
+  lets the rules skip a `boardOwnerUids ⊆ memberUids` subset check. The subset
+  does hold — `removeBoardMember` clears both — but it holds because that code
+  is right, and rules cannot check an Admin SDK batch; a subset RULE would turn
+  any lapse there, or any restore predating the shape, into a board that bounces
+  the next client write. The pairing makes the same lapse inert instead. **`memberUids` may only GROW from a client** (admins excepted): removal
   belongs to that callable, which clears assignments and subscriptions in the
   same batch, and without the rule a board write could strand both — leaving a
   removed person read access through the card rule's assignee arm. And **board create REQUIRES

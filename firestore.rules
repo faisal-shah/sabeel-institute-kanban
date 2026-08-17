@@ -44,11 +44,15 @@ service cloud.firestore {
      *
      * MEMBERSHIP AND OWNERSHIP, never ownership alone. That pairing is what makes
      * a leftover owner entry inert, and it is why there is deliberately no rule
-     * requiring `boardOwnerUids` to be a subset of `memberUids`: such a rule
-     * would be broken routinely by `removeBoardMember`, an Admin SDK batch that
-     * bypasses rules entirely, turning an ordinary member removal into a board
-     * that silently stops accepting edits on the next write. The invariant is
-     * held in that writer instead.
+     * requiring `boardOwnerUids` to be a subset of `memberUids`.
+     *
+     * The invariant does hold in practice — `removeBoardMember` clears both lists
+     * in one batch — but it holds because that code is right, and rules cannot
+     * check an Admin SDK batch at all. A subset RULE would therefore convert any
+     * lapse there, or any restore from a backup predating this shape, into a
+     * board that silently stops accepting client edits and only an admin can
+     * repair. The pairing makes the same lapse INERT instead: a stray entry
+     * grants nothing, and `verify-board-owners.mjs` reports it.
      *
      * `.get('boardOwnerUids', [])`, never plain access. On a board that lacks the
      * field — an aborted backfill, a restore from before the migration — plain

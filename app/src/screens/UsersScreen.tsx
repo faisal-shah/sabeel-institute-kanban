@@ -11,6 +11,7 @@ import {
   Button,
   Hint,
   IconAction,
+  LoadError,
   Card,
   Row,
   Screen,
@@ -70,6 +71,27 @@ export function UsersScreen({ actor }: { actor: SessionUser }) {
   }
 
   if (users.status === 'loading') return <Spinner label="Loading people…" />;
+
+  /**
+   * A failed read is not an empty organisation.
+   *
+   * `users.data ?? []` sorts to nothing, and the screen then renders "Nobody has
+   * signed in yet" — a definite claim about the whole company, made from an
+   * absence of information, on the screen an admin opens to find out who is
+   * waiting for approval. The documented three-states trap, on the one screen
+   * where being wrong about it matters most.
+   */
+  if (users.status === 'error') {
+    return (
+      <Screen width="read">
+        <Row style={styles.between}>
+          <Title>People</Title>
+          <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
+        </Row>
+        <LoadError what="the list of people" code={users.error} />
+      </Screen>
+    );
+  }
 
   const pending = sorted.filter((u) => u.status === 'pending');
 

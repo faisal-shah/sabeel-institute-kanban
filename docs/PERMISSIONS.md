@@ -88,11 +88,15 @@ Every check is "in `memberUids` AND in `boardOwnerUids`". A leftover ownership
 entry for somebody no longer on the board therefore grants nothing.
 
 That pairing is load-bearing. There is deliberately **no rule** that
-`boardOwnerUids ⊆ memberUids`, because `removeBoardMember` is an Admin SDK batch
-that bypasses rules — a subset rule would let an ordinary member removal leave a
-board that the next client write bounces, which is how the labels migration broke
-board editing. The writer clears both lists instead, and the pairing makes a
-missed one inert rather than dangerous.
+`boardOwnerUids ⊆ memberUids`.
+
+The invariant does hold: `removeBoardMember` clears both lists in one batch. But
+it holds because that code is right, and rules cannot check an Admin SDK batch at
+all. A subset rule would convert any lapse there — or any restore from a backup
+predating this shape — into a board that silently bounces the next client write
+and only an admin can repair, which is how the labels migration broke board
+editing. The pairing makes the same lapse inert instead: a stray entry grants
+nothing, and `scripts/verify-board-owners.mjs` reports it.
 
 ### Membership may only grow from a client
 
