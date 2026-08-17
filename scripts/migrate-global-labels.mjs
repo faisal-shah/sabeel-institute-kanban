@@ -76,7 +76,7 @@ if (part === 'part-a') {
   }
 
   // The rules validate the WHOLE document on update, so a label copied in with a
-  // name over the cap — or a colour that is not a hex — is one no manager can
+  // name over the cap — or a colour that is not a hex — is one no admin can
   // ever rename or recolour afterwards. Production was clean when this first
   // ran; the check is here for the re-run that matters, after a restore from a
   // backup predating the migration. Abort rather than mint something unfixable.
