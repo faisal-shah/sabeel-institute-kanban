@@ -929,13 +929,28 @@ export function ProgressBar({ fraction, label }: { fraction: number | null; labe
  * not on screen is worse than a slightly redundant one.
  */
 export function LoadError({ what, code }: { what: string; code?: string }) {
+  /**
+   * A REFUSAL is not a connection problem, and telling someone to wait for one
+   * to clear on its own is advice that never comes good.
+   *
+   * It became an ordinary event when board authority went per-board: being
+   * removed from a board you have open now ends the listener with
+   * `permission-denied`, where before a manager could read every board and this
+   * code meant a bug. The two cases need different sentences and a different
+   * next step — go back, versus come back later.
+   */
+  const denied = code === 'permission-denied';
   return (
     <Card>
-      <Body>Could not load {what}.</Body>
+      <Body>
+        {denied ? `You no longer have access to ${what}.` : `Could not load ${what}.`}
+      </Body>
       <Hint>
-        This is usually a connection problem and often clears on its own — leave
-        the screen and come back.
-        {code ? ` If it keeps happening, quote this: ${code}` : ''}
+        {denied
+          ? 'If you could a moment ago, someone has just changed who can see it. Go back and start again from your board list.'
+          : `This is usually a connection problem and often clears on its own — leave the screen and come back.${
+              code ? ` If it keeps happening, quote this: ${code}` : ''
+            }`}
       </Hint>
     </Card>
   );

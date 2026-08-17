@@ -555,6 +555,59 @@ try {
     .catch(() => false);
   check('a member cannot create boards', !saraSeesNewBoard);
 
+  /**
+   * REMOVING SOMEBODY, through the button rather than the callable.
+   *
+   * The callable carries more invariants than anything else here — it unassigns,
+   * unsubscribes, clears the profile AND clears ownership in one batch, and
+   * refuses to touch the board's creator — and until now nothing clicked it. It
+   * also produces the one board-read failure an ordinary person can cause: being
+   * removed while you have the board open.
+   *
+   * Sara has no cards yet at this point in the flow, so this is safe to undo,
+   * and it is undone immediately below because the rest of the suite needs her.
+   */
+  await admin.getByRole('button', { name: /^Remove sara from this board$/i }).click();
+  await admin.getByText(/^Remove this person from the board\?/).waitFor({ timeout: 20000 });
+  check('removing asks first', true);
+  check(
+    'and says how many cards they will be unassigned from',
+    /assigned to any cards|assigned to \d+ card/.test(
+      (await admin.getByText(/^Remove this person from the board\?/).textContent()) ?? '',
+    ),
+  );
+  await admin.getByRole('button', { name: 'Remove', exact: true }).click();
+  await admin.getByText('Members (1)').waitFor({ timeout: 25000 });
+  check('the roster shrinks', true);
+
+  /**
+   * Her open board now refuses to load, and must NOT claim the board is missing:
+   * it is there, she just cannot see it any more.
+   *
+   * Asserted on the SENTENCE rather than the heading. Removal fails the board
+   * document listener and the cards query at the same moment, and whichever
+   * lands first picks the branch that renders — so the heading is a race while
+   * this line is not, because both branches reach it through `LoadError`.
+   */
+  await sara.getByText(/no longer have access to this board/).waitFor({ timeout: 25000 });
+  check('a removed member is told they lost access, not that the board is gone', true);
+  check(
+    'and never sees the old "connection problem" advice, which would never come good',
+    !(await sara
+      .getByText(/usually a connection problem/)
+      .isVisible()
+      .catch(() => false)),
+  );
+  await sara.screenshot({ path: join(SHOTS, 'p2-removed-light.png'), fullPage: true });
+
+  // Put her back, or every phase after this one has nobody to mention.
+  await admin.getByRole('button', { name: /^Add someone/ }).click();
+  await admin.getByRole('button', { name: /^Add .* to this board$/ }).first().click();
+  await admin.getByText('Members (2)').waitFor({ timeout: 25000 });
+  await sara.getByRole('button', { name: 'All boards' }).click();
+  await sara.getByText('Fundraising 2026').first().waitFor({ timeout: 25000 });
+  check('re-adding restores the board to their list', true);
+
   // ---- Cards (Phase 3) ----------------------------------------------------
   await admin.getByRole('button', { name: 'Back' }).first().click();
   await admin.getByText('To Do').first().waitFor({ timeout: 20000 });

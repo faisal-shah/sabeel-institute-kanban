@@ -131,7 +131,8 @@ One definition per rule, mirrored rather than duplicated:
 |---|---|---|
 | Create a board | `canCreateBoards()` in `firestore.rules` | `sessionCan.createBoards` |
 | Administer a board | `ownsBoard()` in `firestore.rules`, `canManageBoard` in `removeBoardMember` / `countMemberAssignments` | `canManageBoard(user, board)` |
-| Take the creator off a board | `keepsCreator()` in `firestore.rules`, repeated in `removeBoardMember` | the creator's row is disabled |
+| Take the creator off a board | `keepsCreator()` in `firestore.rules`, repeated in `removeBoardMember` | `canUnseatCreator` — the creator's row is disabled |
+| Shorten a board's member list | `membershipOnlyGrows()` in `firestore.rules` | there is no control; removal is `removeBoardMember` |
 | See a board's contents | `onBoard()` in `firestore.rules` | `canAccessBoard(user, board)` |
 | Curate labels | `isAdmin()` in `firestore.rules`, `canCurateLabels` in `deleteLabel` | `canCurateLabels` |
 | Stats | `isAdmin()` in `firestore.rules` | `canViewStats` |

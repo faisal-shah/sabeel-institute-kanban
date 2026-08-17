@@ -334,10 +334,17 @@ export function NarrowBoard({ boardId, user }: { boardId: string; user: SessionU
 
   const b = board.data;
   if (!b) {
+    // A refused read is not a missing board — and since authority went
+    // per-board, being removed while you have it open is the ordinary way to get
+    // here. `LoadError` says which of the two happened.
     return (
       <Screen>
-        <Title>Board not found</Title>
-        <Hint>It may have been archived, or you may not be a member.</Hint>
+        <Title>{board.status === 'error' ? 'Board unavailable' : 'Board not found'}</Title>
+        {board.status === 'error' ? (
+          <LoadError what="this board" code={board.error} />
+        ) : (
+          <Hint>It may have been archived, or you may not be a member.</Hint>
+        )}
         <Button label="All boards" onPress={() => nav.reset({ name: 'boards' })} />
       </Screen>
     );

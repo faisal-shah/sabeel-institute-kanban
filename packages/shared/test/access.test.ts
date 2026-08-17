@@ -8,6 +8,7 @@ import {
   canCreateBoards,
   canCurateLabels,
   canManageBoard,
+  canUnseatCreator,
   canUseApp,
   canViewStats,
   checkAccessChange,
@@ -147,6 +148,36 @@ describe('canManageBoard', () => {
     for (const status of USER_STATUSES.filter((s) => s !== 'active')) {
       expect(canManageBoard({ uid: 'owner1', role: 'admin', status }, board)).toBe(false);
     }
+  });
+});
+
+/**
+ * One sentence, three enforcement points: `keepsCreator()` in firestore.rules,
+ * the repeat inside `removeBoardMember` (an Admin SDK batch no rule sees), and
+ * the disabled controls on the creator's row in Board settings.
+ */
+describe('canUnseatCreator', () => {
+  it('is an admin and nobody else', () => {
+    expect(canUnseatCreator({ role: 'admin', status: 'active' })).toBe(true);
+    expect(canUnseatCreator({ role: 'organizer', status: 'active' })).toBe(false);
+    expect(canUnseatCreator({ role: 'member', status: 'active' })).toBe(false);
+  });
+
+  it('status gates it', () => {
+    for (const status of USER_STATUSES.filter((s) => s !== 'active')) {
+      expect(canUnseatCreator({ role: 'admin', status })).toBe(false);
+    }
+  });
+
+  /**
+   * Owning the board is NOT enough, which is the whole point: the creator has to
+   * be safe from the people they delegated to, or delegating is a one-way door.
+   */
+  it('does not follow board ownership', () => {
+    const board = { memberUids: ['owner1'], boardOwnerUids: ['owner1'] };
+    const owner = { uid: 'owner1', role: 'member' as Role, status: 'active' as UserStatus };
+    expect(canManageBoard(owner, board)).toBe(true);
+    expect(canUnseatCreator(owner)).toBe(false);
   });
 });
 

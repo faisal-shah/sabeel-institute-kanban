@@ -5,6 +5,7 @@ import {
   LABEL_COLORS,
   canCurateLabels,
   canManageBoard,
+  canUnseatCreator,
   LABEL_NAME_MAX,
   columnsPatch,
   describeLabelUsage,
@@ -41,6 +42,7 @@ import {
   Card,
   Heading,
   IconAction,
+  LoadError,
   PickerList,
   Row,
   Screen,
@@ -80,6 +82,11 @@ export function BoardSettingsScreen({
   // Curating the shared label set is ORG-wide and admin-only, so it is a
   // different question from running this board and has to be asked separately.
   const canCurate = canCurateLabels(user);
+  // …and so is taking the board's CREATOR off it, which is the client mirror of
+  // `keepsCreator()` in firestore.rules and of the check `removeBoardMember`
+  // repeats. Named rather than inlined so the disabled controls below and the
+  // rule that would refuse them are visibly the same sentence.
+  const canUnseat = canUnseatCreator(user);
   // ASKED FOR ONLY BY SOMEONE WHO COULD USE IT. Only admins may list all users;
   // a board owner who is not one gets the error and a note explaining it, which
   // is the honest answer to "who else could I add?". A non-owner has no add
@@ -149,12 +156,19 @@ export function BoardSettingsScreen({
   if (board.status === 'loading') return <Spinner label="Loading board…" />;
   const b = board.data;
   if (!b) {
+    // GONE and REFUSED are different answers. Being removed from a board you
+    // have open ends its listener with permission-denied, which is ordinary now
+    // that authority is per-board — and "Board not found" would tell somebody
+    // their colleague's board had been deleted.
     return (
       <Screen width="read">
         <Row style={styles.between}>
-          <Title>Board not found</Title>
+          <Title>{board.status === 'error' ? 'Board unavailable' : 'Board not found'}</Title>
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
+        {board.status === 'error' ? (
+          <LoadError what="this board" code={board.error} />
+        ) : null}
       </Screen>
     );
   }
@@ -522,7 +536,7 @@ export function BoardSettingsScreen({
                       grant nobody is told about. */}
                   <Toggle
                     value={isOwner}
-                    disabled={busy || (isCreator && user.role !== 'admin')}
+                    disabled={busy || (isCreator && !canUnseat)}
                     label={`Owner of this board: ${m.displayName}`}
                     onValueChange={async (next) => {
                       // Stepping DOWN yourself is the one move you cannot take
@@ -557,7 +571,7 @@ export function BoardSettingsScreen({
                         ? 'Leave this board'
                         : `Remove ${m.displayName} from this board`
                     }
-                    disabled={busy || (isCreator && user.role !== 'admin')}
+                    disabled={busy || (isCreator && !canUnseat)}
                     onPress={() => ask(m.uid)}
                   />
                 </Row>
@@ -633,7 +647,10 @@ export function BoardSettingsScreen({
         ) : null}
       </Card>
 
-      {pending ? (
+      {/* Gated with the rows that open it: a live demotion — another owner
+          revoking yours while this is on screen — would otherwise leave a
+          confirmation whose button the server now refuses. */}
+      {canManage && pending ? (
         <Card>
           <Body>
             {pending.self

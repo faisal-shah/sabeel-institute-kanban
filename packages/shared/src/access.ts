@@ -85,6 +85,26 @@ export function canManageBoard(
 }
 
 /**
+ * Who may take the person who CREATED a board off it — out of
+ * `boardOwnerUids`, or out of `memberUids`, which unseats them just as
+ * completely because authority is the pair.
+ *
+ * The client mirror of `keepsCreator()` in firestore.rules, and the check
+ * `removeBoardMember` repeats in TypeScript because that callable is an Admin
+ * SDK batch no rule ever sees. Three enforcement points for one sentence, which
+ * is exactly why the sentence has a name: expressed inline as
+ * `user.role !== 'admin'` at each of them, nothing connects the disabled toggle
+ * on screen to the rule that would refuse the write behind it.
+ *
+ * Its own body, like every other predicate here. It is not "administers
+ * accounts" and it is not "curates labels"; it happens to require the same role
+ * today and must be free to stop.
+ */
+export function canUnseatCreator(actor: { role: Role; status: UserStatus }): boolean {
+  return actor.status === 'active' && actor.role === 'admin';
+}
+
+/**
  * Who may read the org-wide usage counters.
  *
  * Its OWN body rather than an alias of `canAdministerUsers`, even though the two

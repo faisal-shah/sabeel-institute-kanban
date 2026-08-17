@@ -167,9 +167,13 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   const b = board.data;
   if (!b) {
+    // A refused read is not a missing board — see NarrowBoard.
     return (
       <Screen>
-        <Title>Board not found</Title>
+        <Title>{board.status === 'error' ? 'Board unavailable' : 'Board not found'}</Title>
+        {board.status === 'error' ? (
+          <LoadError what="this board" code={board.error} />
+        ) : null}
         <Button label="All boards" onPress={() => nav.reset({ name: 'boards' })} />
       </Screen>
     );

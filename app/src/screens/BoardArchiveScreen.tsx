@@ -69,14 +69,18 @@ export function BoardArchiveScreen({
 
   const b = board.data;
   if (!b) {
+    // See BoardSettingsScreen: a refused read is not a missing board.
     return (
       <Screen width="read">
         <Row style={styles.between}>
           <Title numberOfLines={1} style={styles.grow}>
-            Board not found
+            {board.status === 'error' ? 'Board unavailable' : 'Board not found'}
           </Title>
           <IconAction icon="arrow-back" label="Back" onPress={nav.pop} />
         </Row>
+        {board.status === 'error' ? (
+          <LoadError what="this board" code={board.error} />
+        ) : null}
       </Screen>
     );
   }

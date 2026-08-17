@@ -4,7 +4,7 @@ import { guarded, sentryDsn } from './sentry';
 import { logger } from 'firebase-functions/v2';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import type { BoardDoc, Role, UserStatus } from '@sabeel/shared';
-import { canAdministerUsers, canManageBoard } from '@sabeel/shared';
+import { canAdministerUsers, canManageBoard, canUnseatCreator } from '@sabeel/shared';
 
 /**
  * Removing someone from a board is a CALLABLE, not a plain client write.
@@ -67,7 +67,7 @@ export const removeBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async 
    * unaided. One sentence, no exceptions to remember, at the price of an admin
    * request on the rare handover.
    */
-  if (uid === board.data()?.createdBy && actor.role !== 'admin') {
+  if (uid === board.data()?.createdBy && !canUnseatCreator(actor)) {
     throw new HttpsError(
       'permission-denied',
       'Only an admin can take the person who created this board off it.',

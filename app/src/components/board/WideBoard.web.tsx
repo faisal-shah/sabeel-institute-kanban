@@ -409,9 +409,11 @@ export function WideBoard({ boardId, user }: { boardId: string; user: SessionUse
 
   const b = board.data;
   if (!b) {
+    // A refused read is not a missing board — see NarrowBoard.
     return (
       <div style={{ padding: space.xl, background: t.bg.canvas, color: t.text.primary }}>
-        <h2>Board not found</h2>
+        <h2>{board.status === 'error' ? 'Board unavailable' : 'Board not found'}</h2>
+        {board.status === 'error' ? <LoadError what="this board" code={board.error} /> : null}
         {/* btn(t) like its sibling above — this one shipped with no style
             prop at all, so it rendered as a raw browser button. */}
         <button onClick={() => nav.reset({ name: 'boards' })} style={btn(t)}>
