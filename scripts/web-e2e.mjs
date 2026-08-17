@@ -407,10 +407,10 @@ try {
   // Renaming keeps the id, so anything already carrying the label follows the
   // change rather than losing it. (A card gets it further down; this proves the
   // control itself.)
-  await admin.getByRole('button', { name: 'Rename urgent' }).click();
-  await admin.getByRole('button', { name: 'Save name for urgent' }).waitFor({ timeout: 15000 });
-  await admin.getByLabel('New name for urgent').fill('urgent-fix');
-  await admin.getByRole('button', { name: 'Save name for urgent' }).click();
+  await admin.getByRole('button', { name: 'Rename label urgent' }).click();
+  await admin.getByRole('button', { name: 'Save name for label urgent' }).waitFor({ timeout: 15000 });
+  await admin.getByLabel('New name for label urgent').fill('urgent-fix');
+  await admin.getByRole('button', { name: 'Save name for label urgent' }).click();
   check(
     'a manager can rename a label',
     await admin

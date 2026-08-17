@@ -888,7 +888,7 @@ async function tour(page, tag, width) {
           // when curation narrowed — three buttons the rules refuse, on the
           // screen of every board owner in the org.
           labelEdits: vis('[role="button"]').filter((e) =>
-            /^(Rename|Delete label|Change colour of) /.test(nm(e)),
+            /^(Rename label|Delete label|Change colour of) /.test(nm(e)),
           ).length,
           canAddLabel: vis('[role="button"]').some((e) => nm(e) === 'Add label'),
           bleed: document.documentElement.scrollWidth - window.innerWidth,

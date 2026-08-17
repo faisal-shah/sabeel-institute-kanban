@@ -395,7 +395,12 @@ export function BoardSettingsScreen({
                     />
                     <IconAction
                       icon="edit"
-                      label={`Rename ${l.name}`}
+                      // "Rename LABEL", not "Rename": `ColumnNameEditor` emits
+                      // `Rename ${name}` for a column on this same screen, so a
+                      // column and a label sharing a name — Finance, say — gave
+                      // two controls one accessible name. It is also the shape
+                      // `Delete label` beside it already uses.
+                      label={`Rename label ${l.name}`}
                       disabled={busy}
                       // No draft to seed: the editor mounts with the label's
                       // current name and unmounts with whatever was typed.
@@ -842,14 +847,14 @@ function LabelNameEditor({
         <TextField
           value={draft}
           onChangeText={setDraft}
-          label={`New name for ${label.name}`}
+          label={`New name for label ${label.name}`}
           maxLength={LABEL_NAME_MAX}
           autoFocus
         />
       </View>
       <IconAction
         icon="check"
-        label={`Save name for ${label.name}`}
+        label={`Save name for label ${label.name}`}
         accent
         disabled={busy || !draft.trim() || !ready}
         onPress={() => void onSave(draft)}
