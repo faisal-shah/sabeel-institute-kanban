@@ -351,7 +351,11 @@ export function BoardSettingsScreen({
               <Hint>No labels yet.</Hint>
             ) : null}
             {(labels.data ?? []).map((l) =>
-              renamingLabel === l.id ? (
+              // `canCurate &&` for the same reason the confirmation panels carry
+              // their gate: only the pencil sets `renamingLabel`, and only an
+              // admin sees a pencil — but a demotion landing mid-rename would
+              // otherwise leave an editor whose Save the server now refuses.
+              canCurate && renamingLabel === l.id ? (
                 <LabelNameEditor
                   key={l.id}
                   label={l}
@@ -384,49 +388,49 @@ export function BoardSettingsScreen({
                   <Row style={styles.noShrink}>
                     {!canCurate ? null : (
                       <>
-                    {/* Recolouring in place: the swatch row below belongs to the
-                        NEW label being composed, so an existing one needs its own
-                        way to change, and cycling the palette is one tap rather
-                        than a second editor. */}
-                    <IconAction
-                      icon="palette"
-                      label={`Change colour of ${l.name}`}
-                      disabled={busy}
-                      onPress={() =>
-                        run(() =>
-                          updateLabel(l.id, {
-                            color:
-                              LABEL_COLORS[
-                                (LABEL_COLORS.indexOf(
-                                  l.color as (typeof LABEL_COLORS)[number],
-                                ) +
-                                  1) %
-                                  LABEL_COLORS.length
-                              ],
-                          }),
-                        )
-                      }
-                    />
-                    <IconAction
-                      icon="edit"
-                      // "Rename LABEL", not "Rename": `ColumnNameEditor` emits
-                      // `Rename ${name}` for a column on this same screen, so a
-                      // column and a label sharing a name — Finance, say — gave
-                      // two controls one accessible name. It is also the shape
-                      // `Delete label` beside it already uses.
-                      label={`Rename label ${l.name}`}
-                      disabled={busy}
-                      // No draft to seed: the editor mounts with the label's
-                      // current name and unmounts with whatever was typed.
-                      onPress={() => setRenamingLabel(l.id)}
-                    />
-                    <IconAction
-                      icon="delete-outline"
-                      label={`Delete label ${l.name}`}
-                      danger
-                      disabled={busy}
-                      onPress={() => askDeleteLabel(l)}
-                    />
+                        {/* Recolouring in place: the swatch row below belongs to the
+                            NEW label being composed, so an existing one needs its own
+                            way to change, and cycling the palette is one tap rather
+                            than a second editor. */}
+                        <IconAction
+                          icon="palette"
+                          label={`Change colour of ${l.name}`}
+                          disabled={busy}
+                          onPress={() =>
+                            run(() =>
+                              updateLabel(l.id, {
+                                color:
+                                  LABEL_COLORS[
+                                    (LABEL_COLORS.indexOf(
+                                      l.color as (typeof LABEL_COLORS)[number],
+                                    ) +
+                                      1) %
+                                      LABEL_COLORS.length
+                                  ],
+                              }),
+                            )
+                          }
+                        />
+                        <IconAction
+                          icon="edit"
+                          // "Rename LABEL", not "Rename": `ColumnNameEditor` emits
+                          // `Rename ${name}` for a column on this same screen, so a
+                          // column and a label sharing a name — Finance, say — gave
+                          // two controls one accessible name. It is also the shape
+                          // `Delete label` beside it already uses.
+                          label={`Rename label ${l.name}`}
+                          disabled={busy}
+                          // No draft to seed: the editor mounts with the label's
+                          // current name and unmounts with whatever was typed.
+                          onPress={() => setRenamingLabel(l.id)}
+                        />
+                        <IconAction
+                          icon="delete-outline"
+                          label={`Delete label ${l.name}`}
+                          danger
+                          disabled={busy}
+                          onPress={() => askDeleteLabel(l)}
+                        />
                       </>
                     )}
                   </Row>
@@ -439,7 +443,7 @@ export function BoardSettingsScreen({
               bin that opens this sits in the Labels card directly above; rendered
               below Members it was off-screen on a phone, so tapping delete looked
               like it had done nothing at all. */}
-          {pendingLabel ? (
+          {canCurate && pendingLabel ? (
             <Card>
               <Body>
                 {pendingLabelCards === null
