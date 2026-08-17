@@ -488,8 +488,8 @@ make, not a default.
 
 - **Internal TestFlight while stabilising** — Faisal and any core developer.
   These are people who genuinely belong on the App Store Connect team, so the
-  standing-membership cost that rules internal out for thirteen colleagues does
-  not apply to two or three developers. No Beta App Review; builds land minutes
+  standing-membership cost that rules internal out for the whole team does not
+  apply to two or three developers. No Beta App Review; builds land minutes
   after processing. **Builds expire after 90 days**, which is fine for a
   development channel and is exactly why it is not the destination.
 - **Unlisted App Distribution as the permanent route** — a normal App Store app
@@ -517,7 +517,7 @@ invited students beside staff.
   Review anyway, so it buys no exemption.
 - **Apple Developer Enterprise Program.** Requires **100+ employees** and is
   restricted to cases the App Store, Custom Apps, Ad Hoc and TestFlight cannot
-  serve. Thirteen people do not qualify.
+  serve. A team this size does not qualify.
 
 Neither route below avoids review; the differences are who can install and what
 review costs:
@@ -526,8 +526,8 @@ review costs:
   minutes. The price is not small and is easy to miss: each tester must be a
   **user on the App Store Connect team** (up to 100), holding Account Holder,
   Admin, App Manager, Developer or Marketing. That is a role inside the Apple
-  developer account, accepted by invitation — not a download link. Thirteen
-  colleagues means thirteen people with standing access to the account that
+  developer account, accepted by invitation — not a download link. Every
+  colleague added is one more person with standing access to the account that
   ships the app.
 - **TestFlight, external testers** — up to 10,000, invited by email or a public
   link, **not** App Store Connect users. They need an Apple ID and the TestFlight

@@ -17,9 +17,9 @@
 // Auth is a separate system from Firestore and neither PITR nor the daily
 // exports touch it (docs/DEPLOY.md § Auth is not in any backup). So the manifest
 // is written, flushed and re-read BEFORE the first claim changes, and a re-run
-// never overwrites it: the first one holds the true pre-migration state, and a
-// second pass after a partial run would otherwise record the half-migrated one
-// as the thing to restore.
+// never overwrites it — it only APPENDS anyone new. The first run holds the true
+// pre-migration state, and a second pass after a partial run would otherwise
+// record the half-migrated one as the thing to restore.
 //
 // DRY RUN BY DEFAULT. `--apply` writes.
 //
@@ -71,7 +71,7 @@ initializeApp({ projectId });
 const db = getFirestore();
 const auth = getAuth();
 
-/** Every Auth account, paged. Eleven-ish people, but pagination is free. */
+/** Every Auth account. Small enough not to need paging; paged anyway, for free. */
 async function allAuthUsers() {
   const out = [];
   let pageToken;
@@ -209,10 +209,21 @@ if (!APPLY) {
 // Claims are in no backup; if this file is not on disk there is no way back.
 if (existsSync(MANIFEST)) {
   const prior = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+  // Kept, not replaced: it holds the PRE-migration state, and a second pass
+  // after a partial run would otherwise record the half-migrated one as the
+  // thing to restore. Anyone NEW is appended rather than dropped — an account
+  // promoted between the two runs is still an account the revert has to know
+  // about, and appending cannot lose what is already there.
+  const known = new Set(prior.entries.map((e) => e.uid));
+  const fresh = entries.filter((e) => !known.has(e.uid));
+  if (fresh.length > 0) {
+    prior.entries.push(...fresh);
+    writeFileSync(MANIFEST, `${JSON.stringify(prior, null, 2)}\n`);
+  }
   console.log(
     `Reusing the existing manifest at ${MANIFEST} (${prior.entries.length} entr` +
-      `${prior.entries.length === 1 ? 'y' : 'ies'}). It holds the PRE-migration state; ` +
-      'overwriting it now would record the half-migrated one instead.\n',
+      `${prior.entries.length === 1 ? 'y' : 'ies'}` +
+      `${fresh.length > 0 ? `, ${fresh.length} newly appended` : ''}).\n`,
   );
 } else {
   mkdirSync(dirname(MANIFEST), { recursive: true });

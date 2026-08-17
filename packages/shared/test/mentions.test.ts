@@ -79,7 +79,7 @@ describe('mentionSuggestions', () => {
 
   it('does not match the shared email DOMAIN, which would match everybody', () => {
     // Every account is @oursabeel.com. Matching the whole address meant that
-    // typing `@o` — or s, e, a, u, r, b, l, c, m — returned all 13 people and
+    // typing `@o` — or s, e, a, u, r, b, l, c, m — returned every account and
     // the list appeared not to narrow at all.
     for (const q of ['o', 'u', 'r', 'b', 'l', 'ours', 'oursabeel', '.com']) {
       expect(
