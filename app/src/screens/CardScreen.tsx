@@ -639,11 +639,11 @@ export function CardScreen({
         {canManage ? (
           <>
             <Hint>
-              Deleting is permanent and cannot be undone. Members can only
-              archive.
+              Deleting is permanent and cannot be undone. Everyone else on this
+              board can only archive.
             </Hint>
             <Button
-          busy={busy}
+              busy={busy}
               label="Delete permanently"
               variant="danger"
               onPress={() =>

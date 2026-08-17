@@ -1355,6 +1355,33 @@ try {
   await sara.getByText('Fundraising 2026').first().waitFor({ timeout: 20000 });
   await sara.getByText('Fundraising 2026').first().click();
   await openCard(sara, 'Book venue');
+
+  /**
+   * THE THREE PLACES A NON-OWNER MUST NOT BE OFFERED PERMANENT DELETION.
+   *
+   * The rules refuse all three, and the rules suites prove that — but a control
+   * that is shown and then fails is a different bug from one the server bounces,
+   * and it is the bug that actually shipped: the label pencil and bin sat inside
+   * the owner-gated panel and stayed there when curation narrowed to admins.
+   * Nothing found that until somebody looked at a screenshot. So each of these
+   * is checked on screen, with the admin's own view as the positive control —
+   * absence proves nothing if the control is absent for everyone.
+   */
+  check(
+    'a member gets no permanent delete on a card',
+    !(await sara
+      .getByRole('button', { name: 'Delete permanently' })
+      .isVisible()
+      .catch(() => false)),
+  );
+  check(
+    'and no warning sentence hinting at one',
+    !(await sara
+      .getByText(/Deleting is permanent/)
+      .isVisible()
+      .catch(() => false)),
+  );
+
   await sara.getByRole('button', { name: 'Subscribe to comments' }).click();
   check(
     'subscribing flips the control to unsubscribe',
@@ -1409,6 +1436,17 @@ try {
   await backToBoards(admin);
   await admin.getByText('Fundraising 2026').first().click();
   await openCard(admin, 'Book venue');
+
+  // THE POSITIVE CONTROL for the three absence checks above and below. Same
+  // card, same screen; only the authority differs.
+  check(
+    'an owner does get permanent delete on the same card',
+    await admin
+      .getByRole('button', { name: 'Delete permanently' })
+      .isVisible()
+      .catch(() => false),
+  );
+
   const venueBox = commentEditor(admin);
   await venueBox.waitFor({ timeout: 20000 });
   await venueBox.click();

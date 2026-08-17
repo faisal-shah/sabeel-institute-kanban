@@ -974,6 +974,37 @@ async function tour(page, tag, width) {
         JSON.stringify(roster),
       );
       await rp.screenshot({ path: join(SHOTS, `${tag}-roster-${role}.png`), fullPage: true });
+
+      /**
+       * THE ARCHIVE, where permanent deletion lives for anyone who never opens a
+       * card. Same authority as the card screen's Delete permanently, a separate
+       * rendering site — and the label bug proved a rendering site can drift
+       * from the authority it is meant to express while the rules stay right.
+       *
+       * `sw_archived` is seeded on this board, so the row exists for both actors
+       * and the difference is the bin, not the emptiness.
+       */
+      await rp.getByRole('button', { name: 'Back' }).first().click();
+      await rp.getByRole('button', { name: 'Archived cards' }).click();
+      await rp.getByText('An archived card').first().waitFor({ timeout: 25000 });
+      const archive = await rp.evaluate(() => {
+        const nm = (e) => (e.getAttribute('aria-label') || '').trim();
+        const vis = [...document.querySelectorAll('[role="button"]')].filter(
+          (e) => e.getBoundingClientRect().width > 2,
+        );
+        return {
+          restore: vis.some((e) => /^Restore .* to the board$/.test(nm(e))),
+          destroy: vis.some((e) => /^Delete .* permanently$/.test(nm(e))),
+        };
+      });
+      check(
+        `${tag} / the archive as ${role === 'owner' ? 'an owner' : 'a member'}`,
+        // Restore is EVERYONE's — members archive, so members must un-archive.
+        // Permanent deletion is the board's owners and admins alone.
+        archive.restore && archive.destroy === wants.settings,
+        JSON.stringify(archive),
+      );
+
       await roleCtx.close();
     }
   }
