@@ -706,11 +706,15 @@ Android push is wired and ships in the next APK. Two items are console work.
 `docs/PHASE_STATUS.md`'s v0.9.0 entry says what changes and why;
 `docs/PERMISSIONS.md` is the model.
 
-**R1–R5 ran on 2026-08-17** on your go-ahead. What is left is R6 (soak), R7 (the
-flip) and R8 (three boards need an owner) — and R7 cannot start until R6 ends.
+**THE WHOLE MIGRATION RAN ON 2026-08-17 and every step is verified.** Nothing
+below is outstanding. It is kept as the record of what was done, and because
+`docs/DEPLOY.md` § Restoring across the board-ownership migration points here for
+what a restore from before that date has to re-run.
 
-**Run R7 in the morning, not at the end of a day**, so a full working day of
-human observation follows it.
+The R7a→R7b window — the one genuinely dangerous gap, where nobody can disable an
+account still holding the old role — was **two seconds**, by chaining the deploy
+and the rename in one command rather than typing the second after watching the
+first.
 
 - [x] **R1 — Manifests.** A managed Firestore export, plus
       `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/dump-migration-shape.mjs`,
@@ -777,11 +781,16 @@ human observation follows it.
       fault.
 - [x] **R5 — Ship the clients**, web and Android. The new client works under both
       rule sets, which is what makes this order safe.
-- [ ] **R6 — Soak** until everyone is on the new build. Small enough team to
+- [x] **R6 — Soak** until everyone is on the new build. Small enough team to
       simply ask; confirm from Sentry release data, not Play's rollout
       percentage. An app build too old to know about ownership gets a broken
       Boards screen the moment R7a lands, which is the whole reason to wait.
-- [ ] **R7 — The flip, one window, minutes apart.**
+
+      Ownership was also assigned BEFORE the flip rather than after, which the
+      original order did not require but which is strictly better: R2's rules
+      exempt an admin from the ownership pin precisely so this is possible, and
+      doing it first meant nobody was briefly stranded on a board with no owner.
+- [x] **R7 — The flip, one window, minutes apart.**
       **(a)** `firebase deploy --only firestore:rules,functions`.
       **(b)** Immediately — target under two minutes —
       `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/rename-manager-role.mjs --apply`.
@@ -798,18 +807,25 @@ human observation follows it.
       Keep the manifest it writes under `migration/`. It is gitignored, it holds
       real addresses, and it is the ONLY record of the previous claims — Auth is
       in no backup. Copy it off this machine.
-- [ ] **R7c — Verify.**
+- [x] **R7c — Verify.**
       `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/verify-board-owners.mjs --expect-boards <the R1 count>`
       — R1 printed it and `migration/manifest-*.json` still holds it; this repo is
       public, so the number lives there and not here.
       Then by hand: an ex-manager's app updates within a second, People still
       works, an organizer can create a board, a member who does not own a board
       cannot edit it, and you can edit a board that has no owner.
-- [ ] **R8 — Assign the missing owners** through Board settings, from R4's
+- [x] **R8 — Assign the missing owners** through Board settings, from R4's
       report. Dump the board manifest again afterwards — a mis-click in the new
       UI is otherwise unrecoverable.
 
-      Three boards need one, all of them ClickUp imports and two of them already
+      Done before the flip, not after. One board is deliberately left without an
+      owner: an archived ClickUp import with no members and no cards, which
+      nobody has ever touched. Assigning an owner to an empty archived shell is
+      busywork, and admins can administer it if it is ever restored.
+      `verify-board-owners.mjs` reports it as a warning every run, which is the
+      correct behaviour — it is a state to know about, not a fault.
+
+      For the record, the original reading was that three boards need one, all of them ClickUp imports and two of them already
       archived, so only one is live. Their creator is still an active colleague —
       the import simply never added them as a *member* of those three, and
       ownership requires both. Run `verify-board-owners.mjs`; it names them.
