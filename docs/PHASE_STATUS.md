@@ -380,6 +380,32 @@ sequence and every command**; `docs/PERMISSIONS.md` is the model, and
 `docs/DEPLOY.md` § Restoring across the board-ownership migration is what a
 restore from before it has to re-run.
 
+**It ran, in full, on 2026-08-17, and every step is verified.** Two things about
+the execution are worth keeping, because both are reusable and neither was in the
+plan.
+
+The compat rules' propagation was proved by **reading the deployed ruleset back
+off the Rules API and diffing it** against the commit that was supposed to be
+live, then re-running that commit's rules suite against the fetched bytes. The
+plan had called for renaming a board from a signed-in client, on the correct
+grounds that a green `firebase deploy` proves nothing. Byte-identity plus a green
+suite is the same proof and a stronger one: rules evaluation is deterministic
+given source, token and document, so identical source cannot behave differently.
+
+The deploy and the claims rename were **chained in one command** rather than run
+one after the other. That window — where nothing recognises the old role but
+accounts still hold it, so no admin can disable or restore one — is the only
+genuinely dangerous gap in the sequence, and it came to two seconds against a
+two-minute target. Anything with a "do this immediately after that" step should
+be one command; a human watching a deploy finish is the slowest part of it.
+
+Ownership was also assigned **before** the flip rather than after. R2's rules
+exempt an admin from the ownership pin precisely so that is possible, and doing
+it first meant nobody was briefly stranded on a board with no owner. One board is
+deliberately left ownerless — an archived import with no members and no cards
+that nobody has ever touched. `verify-board-owners.mjs` reports it every run,
+which is correct: it is a state to know about, not a fault to clear.
+
 **What changed.** `manager` meant three unrelated things at once — administer any
 board, curate the org's labels, read Stats — and one consequence was that every
 manager saw and could administer **every** board. Bearable while there were a
