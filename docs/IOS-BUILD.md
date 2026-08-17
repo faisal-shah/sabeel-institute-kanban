@@ -259,6 +259,58 @@ folder is committed and never prebuilt. `scripts/build-aab.sh` warns when they
 are missing, exactly as `check:ios` does here. Full reasoning in
 `docs/SECRETS.md`.
 
+### Archiving over ssh needs the login keychain unlocked
+
+The archive gets past prebuild, `pod install` and sixty-odd compiled targets,
+then dies at the first framework it signs:
+
+```
+Code Signing …/SabeelKanban.app/Frameworks/ExpoFileSystem.framework
+  with Identity Apple Development: Created via API (…)
+…/ExpoFileSystem.framework: errSecInternalComponent
+** ARCHIVE FAILED **
+```
+
+Nothing there names a keychain. The login keychain unlocks at **GUI login**, and
+an ssh session never has one — `launchctl managername` answers `Background`, not
+`Aqua`. codesign can still READ a certificate, which is public data, so
+`security find-identity -v -p codesigning` lists valid identities while every one
+of them is unusable. The tell is one command:
+
+```console
+$ security show-keychain-info ~/Library/Keychains/login.keychain-db
+security: SecKeychainCopySettings …: User interaction is not allowed.
+```
+
+The fix is one more, typed at the prompt rather than passed with `-p`, which
+would put an account password in shell history:
+
+```bash
+security unlock-keychain ~/Library/Keychains/login.keychain-db
+```
+
+The unlock is shared by every process of that user, so doing it in another
+terminal is fine. It is **runtime state**: it does not survive a reboot, and no
+one logs into this Mac's console as the build account, so it starts locked every
+time. Once open it stays open — `show-keychain-info` then reads `no-timeout`,
+with no lock-on-sleep.
+
+Proving it costs a second rather than a rebuild, because signing anything
+exercises the same mechanism as signing a framework:
+
+```bash
+cp /bin/echo /tmp/probe && codesign --force --sign <identity> /tmp/probe
+```
+
+`npm run build:ios -- --check` does exactly that, so this now fails in two
+seconds. If the keychain is open and signing still fails, the cause is the
+private key's ACL refusing a session with no window server, which an unlock does
+not touch:
+
+```bash
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s <keychain>
+```
+
 ### Then — one command, no Xcode UI
 
 ```bash
@@ -276,8 +328,8 @@ Organizer, no Transporter, no signing dialog — `-allowProvisioningUpdates` wit
 an App Store Connect API key lets Xcode fetch the signing assets itself.
 
 `--check` is free and runs every gate. Use it first; it catches a missing team
-id, a missing API key or an absent deploy-log entry in two seconds rather than
-twenty minutes into an archive.
+id, a missing API key, an absent deploy-log entry or a locked signing keychain in
+two seconds rather than twenty minutes into an archive.
 
 **It refuses to run anywhere but macOS**, and the prebuild inside it is always
 `--platform ios`, so it cannot be the thing that deletes `android/`.
@@ -615,11 +667,15 @@ whose stamp does not match <TAG> means gen-build-info did not re-run.
   Firebase exposes no API for reading APNs configuration back, so nothing here
   can tell "uploaded" from "uploaded wrong". The only proof is a push arriving on
   a real device, which is why it is the first thing to check on the first build.
-- **The distribution certificate's private key.** It lives in the build Mac's
-  keychain and nowhere else. Export a `.p12` and keep it with the two `.p8`
-  keys — a rebuilt Mac otherwise costs a new certificate, and Apple caps how
-  many an account may hold. Same rule as the Android upload keystore: back up
-  what cannot be recreated, and note a pointer to what can.
+- ~~The distribution certificate's private key.~~ **Closed 2026-08-15 — there is
+  no such key on this Mac.** The item assumed the Android keystore rule, a
+  private key held in one place and nowhere else. Signing is cloud-managed
+  instead: `-allowProvisioningUpdates` mints the distribution certificate through
+  the App Store Connect key at export and discards it, so `security
+  find-identity` on the Mac that has shipped every build finds *development*
+  certificates and no distribution one. What cannot be recreated is the **Admin
+  `.p8`**, and it is already backed up. A CI build would need that key, not a
+  `.p12`.
 - **iPad.** `supportsTablet` is `false`. If that changes, the phone-first layout
   needs a look at iPad widths — the breakpoint work in `scripts/screens-e2e.mjs`
   covers 320-500px only.

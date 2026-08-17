@@ -493,6 +493,39 @@ current set and stamps `claimsUpdatedAt`; without both, a restore from a backup
 predating this release would reinstate `manager` on accounts that then sat on a
 stale token for an hour.
 
+**iOS: build 6, and a gate that paid for itself on the run that created it.**
+All three surfaces are on this release from the same commit, `26b01f1` — iOS
+followed web and Android the same day and is `VALID` on TestFlight, confirmed by
+asking the App Store Connect API rather than by reading `Upload succeeded` off
+the build. Apple rejected the same three dSYMs as last time
+(`React.framework`, `ReactNativeDependencies.framework`, `hermesvm.framework`),
+which is Expo 57's precompiled binaries and costs nothing here: Sentry took the
+app's own dSYM in the same build.
+
+The first archive died after twenty minutes at the first framework it signed,
+with `errSecInternalComponent` — an error that names no keychain and arrives
+only once prebuild, `pod install` and sixty-odd targets have already run. The
+Mac is reached over ssh; the login keychain unlocks at **GUI login** and there
+is no GUI login, so codesign could read the certificate and not use its private
+key. `security find-identity` reported four valid identities throughout, which
+is what makes the failure read as a signing-configuration problem. `build-ios.sh`
+now signs a throwaway copy of `/bin/echo` as its last gate, so `--check` catches
+this in about a second; both halves of the predicate were proved — a locked
+keychain made on purpose, and a bogus identity — rather than assumed from one
+observation.
+
+The `.ipa` was checked **before** the upload, not after, since a build number
+cannot be reused once Apple has seen it: entitlements (`aps-environment`
+`production` and `get-task-allow` `false`, against `development`/`true` in the
+archive, which is the substitution the export performs), `CFBundleVersion`, a
+build stamp carrying no dirty `+`, and `IS_DEV`/`USE_EMULATORS` both compiled to
+`false`. That same archive was then re-exported with `destination: upload`, so
+what Apple holds is the artifact that was verified rather than a rebuild of it.
+
+**Push on iOS remains unproven.** The entitlement is right in the exported
+`.ipa`, but whether the APNs key reached Firebase correctly can only be seen on
+a physical device — it is the first thing to check on this build.
+
 ### 2026-08-15 — Naming a file, drilling into a bar, and a search that sorts — v0.8.0
 
 Four features, independent of one another. **Server and rules changes are in

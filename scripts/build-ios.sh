@@ -122,6 +122,65 @@ It downloads from App Store Connect exactly once — if it is lost, revoke the k
 and generate another."
 fi
 
+# 8. The signing keychain has to be USABLE, and the only proof is signing
+#    something. Every gate above is a value; this one is a capability, and it is
+#    the last thing standing between here and twenty minutes of compiling.
+#
+#    On a Mac reached over ssh the login keychain is LOCKED: it unlocks at GUI
+#    login, and an ssh session never has one (`launchctl managername` says
+#    `Background`, not `Aqua`). codesign can still READ a certificate — public
+#    data — so `security find-identity` cheerfully lists valid identities while
+#    every one of them is unusable. The archive then dies at the FIRST framework
+#    it signs, with `errSecInternalComponent`: an error that names no keychain,
+#    arrives after prebuild, pod install and 60-odd compiled targets, and looks
+#    for all the world like a signing-configuration problem.
+KEYCHAIN="$(security default-keychain -d user | tr -d ' "')"
+UNLOCK_HELP="Unlock it, then re-run:
+
+  security unlock-keychain ${KEYCHAIN}
+
+Type the password at the prompt rather than passing -p, which puts your account
+password in shell history. The unlock is shared by every process of this user,
+so a different terminal is fine, but it is RUNTIME state: it does not survive a
+reboot, and on a Mac nobody logs into at the console it starts locked every time."
+
+if ! security show-keychain-info "$KEYCHAIN" >/dev/null 2>&1; then
+  die "The signing keychain is locked:
+  ${KEYCHAIN}
+
+${UNLOCK_HELP}"
+fi
+
+# Locked is the usual cause but not the only one: a private key's ACL can refuse
+# a non-GUI session even when the keychain is open, which needs
+# set-key-partition-list rather than an unlock. Signing a throwaway binary
+# exercises the exact mechanism the archive will use, and costs about a second.
+#
+# No identity is NOT an error: -allowProvisioningUpdates mints one through the
+# App Store Connect key during the archive, which is how this Mac has always
+# worked — it holds development certificates and no distribution one.
+SIGN_ID="$(security find-identity -v -p codesigning 2>/dev/null | awk '/^ *1\)/ {print $2}')"
+if [ -n "$SIGN_ID" ]; then
+  PROBE_DIR="$(mktemp -d)"
+  cp /bin/echo "${PROBE_DIR}/probe"
+  if ! codesign --force --sign "$SIGN_ID" "${PROBE_DIR}/probe" >/dev/null 2>&1; then
+    rm -rf "$PROBE_DIR"
+    die "The keychain is unlocked, but codesign cannot USE the signing identity.
+Signing a throwaway binary with ${SIGN_ID} failed — the archive would fail the
+same way at its first framework, twenty minutes from now.
+
+Usually the private key's ACL refuses a session with no window server:
+
+  security set-key-partition-list -S apple-tool:,apple:,codesign: -s ${KEYCHAIN}
+
+${UNLOCK_HELP}"
+  fi
+  rm -rf "$PROBE_DIR"
+else
+  echo "note: no codesigning identity in the keychain — cloud signing will mint" >&2
+  echo "one during the archive. Nothing to prove here yet." >&2
+fi
+
 echo
 echo "app          Sabeel Kanban (com.sabeelinstitute.kanban)"
 echo "version      ${VERSION}  (build ${BUILD_NUMBER})"

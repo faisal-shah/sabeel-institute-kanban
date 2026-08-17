@@ -362,11 +362,11 @@ Two things worth reusing next time:
 4. **Bump `expo.ios.buildNumber` before every re-upload.** Apple requires it to
    increase even for the same version; unlike Android's versionCode it does not
    derive itself. Shipped so far: **v0.7.7 build 1**, **v0.7.8 build 2** (both
-   2026-08-13) and **v0.8.0 build 4** (2026-08-15). Build 3 was never uploaded —
-   it was bumped to twice — which cost nothing, and is the point: the number need
-   only rise *within* a version, so carrying it across versions is simply the
-   cheapest way never to collide. It is `5` now, unused, ready for the next
-   upload.
+   2026-08-13), **v0.8.0 build 4** (2026-08-15) and **v0.9.0 build 6**
+   (2026-08-17). Builds 3 and 5 were never uploaded — each was bumped past twice
+   — which cost nothing, and is the point: the number need only rise *within* a
+   version, so carrying it across versions is simply the cheapest way never to
+   collide. It is `7` now, unused, ready for the next upload.
 5. **First thing on a real device: confirm a push arrives.** The only proof the
    APNs key was uploaded correctly — nothing on this side distinguishes
    "uploaded" from "uploaded wrong", and a simulator cannot test it because it
@@ -381,10 +381,15 @@ Two things worth reusing next time:
    Review, then request unlisted distribution — against a release build, not a
    TestFlight one.
 
-Answer one thing on the first build and record it here: whether automatic
-signing re-adds the **Push Notifications** capability and the `aps-environment`
-entitlement after a prebuild. If not, it belongs in `app/app.json` under
-`ios.entitlements` — never re-clicked in Xcode, since `ios/` is regenerated.
+**Answered 2026-08-15, and nothing goes under `ios.entitlements`.** The question
+was whether the `aps-environment` entitlement survives a prebuild. It does, and
+not through Xcode: `expo-notifications` ships an `app.plugin.js`, so its config
+plugin applies automatically and writes the entitlement on every prebuild.
+Confirmed again on v0.9.0 build 6 by reading the exported `.ipa` — the archive
+carries `development`/`get-task-allow true` and the export re-signs it to
+`production`/`false` off the App Store profile, so setting `production` by hand
+would break the simulator and be overwritten anyway. `docs/IOS-BUILD.md` has the
+detail.
 
 `docs/IOS-BUILD.md` is the runbook.
 
