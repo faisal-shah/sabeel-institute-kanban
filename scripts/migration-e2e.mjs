@@ -521,6 +521,54 @@ console.log('\nrestore-auth, on a mirror from before the migration');
   await db.doc(`users/${M1}`).set({ role: 'organizer', status: 'active' }, { merge: true });
 }
 
+// ---- the dump that step R1 depends on ----------------------------------------
+console.log('\ndump-migration-shape');
+
+{
+  /**
+   * R1's safety net, and the input to the replay mode above — so if it breaks,
+   * the migration loses its only record of who held what AND its only way to
+   * rehearse against real structure. Nothing else runs it.
+   *
+   * The load-bearing assertion is the REDACTION. The shape file is the half that
+   * may be kept, and it must carry no address and no board name; a leak there
+   * would be silent, because the file looks the same either way.
+   */
+  const dumpDir = resolve(import.meta.dirname, '..', 'migration');
+  const manifestFile = resolve(dumpDir, `manifest-${PROJECT}.json`);
+  const shapeFile = resolve(dumpDir, `shape-${PROJECT}.json`);
+  rmSync(manifestFile, { force: true });
+  rmSync(shapeFile, { force: true });
+
+  const r = run('dump-migration-shape.mjs');
+  check('exits clean', r.code === 0, r.out.slice(-400));
+  check('writes both files', existsSync(manifestFile) && existsSync(shapeFile));
+
+  const man = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  check('the manifest records real claims, which no backup holds', man.accounts.some((a) => a.claim.role));
+  check('and every board, with who created it', man.boards.length === (await db.collection('boards').get()).size);
+
+  const raw = readFileSync(shapeFile, 'utf8');
+  const sh = JSON.parse(raw);
+  check('the shape carries the same board count', sh.boards.length === man.boards.length);
+  check('and the same account count', sh.accounts.length === man.accounts.length);
+  // The redaction, asserted on the FILE TEXT rather than the parsed object, so
+  // a value hiding in a key or a nested field cannot slip past.
+  check('no address survives redaction', !raw.includes('@'), raw.match(/\S*@\S*/)?.[0] ?? '');
+  check(
+    'no real uid survives redaction',
+    !raw.includes(A) && !raw.includes(M1) && !raw.includes(MEM),
+  );
+  check('no board name survives redaction', !raw.includes('Several members') && !raw.includes('Creator left'));
+  check(
+    'and the structure the replay reads is intact',
+    sh.boards.every((b) => Array.isArray(b.memberUids) && typeof b.archived === 'boolean'),
+  );
+
+  rmSync(manifestFile, { force: true });
+  rmSync(shapeFile, { force: true });
+}
+
 // ---- done --------------------------------------------------------------------
 rmSync(MANIFEST, { force: true });
 
