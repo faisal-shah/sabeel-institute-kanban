@@ -160,10 +160,11 @@ for (const b of BOARDS) {
   }
   // A real board document, so the breakdown can name it and navigate to it —
   // and with member PROFILES, because that is the only place uid -> name comes
-  // from: only admins may list `users/*`, and Stats is open to managers.
+  // from: the screen reads names off the boards it has already loaded rather
+  // than listing the directory.
   //
   // `ed` is deliberately left OUT of every board. Someone who acted and was
-  // later removed stays in the history for good, and a manager can act on a
+  // later removed stays in the history for good, and an admin can act on a
   // board they were never a member of, so the unresolvable case is ordinary
   // rather than exotic and the fallback has to be exercised.
   await db.doc(`boards/${b.id}`).set({
@@ -489,7 +490,7 @@ try {
         .catch(() => false),
     );
     // The names come from board member profiles, and that misses routinely:
-    // anyone removed from a board stays in its history, and a manager can act
+    // anyone removed from a board stays in its history, and an admin can act
     // on a board they were never a member of. A uid is never shown raw.
     check(
       'a uid with no profile falls back to words rather than an id',

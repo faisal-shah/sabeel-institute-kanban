@@ -647,8 +647,10 @@ would update rather than duplicate.
 
 ## H. Launch — **done**
 
-- [x] **Roles decided and in place.** Admins, managers and members are all
-      assigned in production and the distribution was verified (2026-07-29).
+- [x] **Roles decided and in place.** Every role is assigned in production and
+      the distribution was verified (2026-07-29). The model was **replaced** on
+      2026-08-16 — board authority is now per-board, and `manager` became
+      `organizer`; see `docs/PERMISSIONS.md`.
 - [x] **First admin bootstrapped** after the first deploy (2026-07-19); everyone
       since has been approved and promoted in-app.
 - [x] **Notification event list confirmed** and shipped. `myCardMoved` is off by
@@ -698,6 +700,69 @@ Android push is wired and ships in the next APK. Two items are console work.
       frame is `await fn(event)` — `guardedEvent` — so this also confirms the
       newly-wrapped background triggers deliver, not just the callables. All
       three surfaces now have an observed event, none inferred.
+
+## K. The board-ownership migration — RUN THIS, IN THIS ORDER
+
+Everything is written, rehearsed against the emulator, and committed. These are
+the production steps, and they are yours because they write live data.
+`docs/PHASE_STATUS.md`'s v0.9.0 entry says what changes and why;
+`docs/PERMISSIONS.md` is the model.
+
+**Run it in the morning, not at the end of a day**, so a full working day of
+human observation follows it. Steps R2–R4 are best done outside working hours:
+both caches apply optimistically and revert on a rejected write, so a mismatch
+shows as a rename that appears and snaps back.
+
+- [ ] **R1 — Manifests.** A managed Firestore export, plus a dump of
+      uid/email/role/status and of `boardId → {createdBy, memberUids}`. Confirm
+      PITR is still on: `firebase firestore:databases:get "(default)"`.
+- [ ] **R2 — Compat rules only**, from the commit that carries them alone:
+      ```
+      git checkout db46919 -- firestore.rules
+      npx firebase deploy --only firestore:rules --project sabeel-institute-kanban
+      git checkout HEAD -- firestore.rules      # put the working tree back
+      ```
+      They admit `boardOwnerUids` and PIN it — create allows only
+      `[request.auth.uid]`, update requires it unchanged unless you are an admin.
+      Merely admitting the key would let any manager write themselves in for the
+      whole window. Rollback is redeploying the previous rules, about a minute.
+- [ ] **R3 — Canary.** Backfill ONE low-traffic board and then rename that board
+      from a real signed-in client. This is the only proof R2 propagated; a green
+      `firebase deploy` is not that proof.
+      `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs --only <boardId> --apply`
+- [ ] **R4 — Backfill the rest, then verify.** Read the DRY RUN first — it names
+      every board whose creator has left it, and those get an empty owner list
+      for you to fill in by hand at R8.
+      ```
+      GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs
+      GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs --apply
+      ```
+      **Undo is `scripts/unbackfill-board-owners.mjs`, NOT a restore** — an import
+      cannot remove a field that was wrongly added.
+- [ ] **R5 — Ship the clients**, web and Android. The new client works under both
+      rule sets, which is what makes this order safe.
+- [ ] **R6 — Soak** until everyone is on the new build. Eleven-ish people: ask
+      them. Confirm from Sentry release data, not Play's rollout percentage.
+- [ ] **R7 — The flip, one window, minutes apart.**
+      **(a)** `firebase deploy --only firestore:rules,functions`.
+      **(b)** Immediately — target under two minutes —
+      `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/rename-manager-role.mjs --apply`.
+      Between (a) and (b) nobody can disable or restore an account that still
+      holds `manager`, and their Boards screen is broken; (b) closes both.
+      **If (b) half-finishes, go FORWARD** — re-run it, it is idempotent. New
+      rules with old claims is recoverable; old rules with new claims is the
+      worst state in the migration.
+      Keep the manifest it writes under `migration/`. It is gitignored, it holds
+      real addresses, and it is the ONLY record of the previous claims — Auth is
+      in no backup. Copy it off this machine.
+- [ ] **R7c — Verify.**
+      `GCLOUD_PROJECT=sabeel-institute-kanban node scripts/verify-board-owners.mjs --expect-boards <the R1 count>`
+      Then by hand: an ex-manager's app updates within a second, People still
+      works, an organizer can create a board, a member who does not own a board
+      cannot edit it, and you can edit a board that has no owner.
+- [ ] **R8 — Assign the missing owners** through Board settings, from R4's
+      report. Dump the board manifest again afterwards — a mis-click in the new
+      UI is otherwise unrecoverable.
 
 ## J. Backups and disaster recovery
 

@@ -74,6 +74,7 @@ await db.doc('boards/rt_b').set({
   columns: [{ id: 'c1', name: 'To Do' }],
   columnIds: ['c1'],
   memberUids: [uid, sara],
+  boardOwnerUids: [uid],
   memberProfiles: {
     [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' },
     [sara]: { displayName: 'Sara', email: 'sara@oursabeel.com' },

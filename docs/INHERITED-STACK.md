@@ -191,17 +191,21 @@ curl -s -H "Authorization: Bearer $(gcloud auth application-default print-access
 Google sign-in only → new user lands `pending` → an **admin** approves. Claims
 (`role`, `status`, `admin`) are set exclusively by a `setUserAccess` callable and
 are what `firestore.rules` trusts; the user doc mirrors them for display. Rules
-are deny-by-default with `isSignedIn` / `isActive` / `isManager` / `isAdmin`
-helpers. First admin after first deploy is bootstrapped by
+are deny-by-default with `isSignedIn` / `isActive` / `isAdmin` /
+`canCreateBoards` / `ownsBoard` helpers. First admin after first deploy is bootstrapped by
 `scripts/grant-admin.mjs` via gcloud ADC.
 
 ## Resolved during design (2026-07-18)
 
 See `docs/PRODUCT_BRIEF.md` for the full decisions. Deltas from the time tracker:
 
-- **Roles map closely.** The time tracker's member / manager (+ admin flag)
-  becomes a flat **member / manager / admin**, and the claims-based account
-  approval flow ports essentially unchanged. What's new is a **domain
+- **Roles map loosely.** The time tracker's member / manager (+ admin flag)
+  became a flat member / manager / admin here, and the claims-based account
+  approval flow ports essentially unchanged. The roles then **diverged** on
+  2026-08-16: this app's are member / organizer / admin, with board authority
+  moved OFF the role entirely and onto a `boardOwnerUids` array on the board
+  (see `docs/PERMISSIONS.md`). The time tracker has no equivalent — its manager
+  role is org-wide and stays that way. What's also new is a **domain
   restriction** (`@oursabeel.com`) that must be enforced server-side in the
   auth-create function — the client `hd` hint is not a boundary.
 - **Card ordering: fractional base-62 string ranks**, one doc write per move.

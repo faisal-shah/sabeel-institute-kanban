@@ -16,11 +16,18 @@ export interface AdminUserRow {
  * Every account, for the admin screen. Rules allow this list to admins only, so
  * for anyone else the listener errors and the screen shows empty plus a banner
  * rather than silently rendering nothing.
+ *
+ * `enabled` is how a screen says it has no business asking. Board settings is
+ * the case: it now opens for every member of a board, and subscribing there
+ * unconditionally meant a plain member got a red "Live data error" banner the
+ * moment they looked at the member list — an error about a query nothing on
+ * their screen needed. `useLiveQuery` treats a null query as "do not subscribe",
+ * so nothing is published either way.
  */
-export function useAllUsers() {
+export function useAllUsers(enabled = true) {
   return useLiveQuery<AdminUserRow[]>(
     'users',
-    () => query(collection(db, 'users'), orderBy('displayName')),
+    () => (enabled ? query(collection(db, 'users'), orderBy('displayName')) : null),
     (docs) =>
       docs.map((d) => ({
         uid: d.id,
@@ -29,7 +36,7 @@ export function useAllUsers() {
         role: (d.data.role as Role) ?? 'member',
         status: (d.data.status as UserStatus) ?? 'pending',
       })),
-    [],
+    [enabled],
   );
 }
 

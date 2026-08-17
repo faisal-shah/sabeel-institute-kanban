@@ -182,8 +182,8 @@ actually displayed — much faster than guessing.
 
 ### Every screen, every width
 
-One harness covers this — it seeds, signs in, walks all ten authenticated
-screens at five widths, **asserts**, and writes a screenshot of each:
+One harness covers this — it seeds, signs in, walks every authenticated screen
+at five widths, **asserts**, and writes a screenshot of each:
 
 ```sh
 bash scripts/e2e.sh scripts/screens-e2e.mjs                   # the CI set
@@ -219,6 +219,23 @@ Two rules this encodes, both learned expensively:
   authenticated screen showed it.
 
 `app/src/ciCoverage.test.ts` fails if CI ever stops running this.
+
+### The migration scripts
+
+`scripts/backfill-board-owners.mjs`, its inverse, `rename-manager-role.mjs` and
+`verify-board-owners.mjs` are run by hand against **production** a handful of
+times each, so nothing else exercises them. This does, against seeded awkward
+data, driving each as a real subprocess because three of their gates ARE exit
+codes:
+
+```sh
+. scripts/jdk21.sh
+firebase emulators:exec --project demo-sabeel-kanban --only firestore,auth \
+  "node scripts/migration-e2e.mjs"
+```
+
+CI runs it on every push. `docs/DEPLOY.md` § Restoring across the board-ownership
+migration says when to reach for the scripts themselves.
 
 ### Screenshots for the user manual
 

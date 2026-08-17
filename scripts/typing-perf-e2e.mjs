@@ -88,6 +88,7 @@ const board = (id, name, columns, cardCount) =>
     columns,
     columnIds: columns.map((c) => c.id),
     memberUids: [uid],
+    boardOwnerUids: [uid],
     memberProfiles: { [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' } },
     activeCardCount: cardCount,
     createdAt: now,

@@ -14,7 +14,8 @@ or public users) currently runs on ClickUp and wants off it for three reasons:
 So the product is: **a featureful kanban board, access-controlled across unlimited
 boards, that is genuinely good on a phone.** Nothing else.
 
-Faisal is the developer. The nonprofit's staff are the admins/managers in the app.
+Faisal is the developer. The nonprofit's staff are the admins and board owners
+in the app.
 
 ## Product invariants (do not silently change)
 
@@ -34,14 +35,14 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Topic | Decision |
 |---|---|
 | Auth | Google sign-in **only**, restricted to **`@oursabeel.com`** — a Google Workspace domain (confirmed 2026-07-19). Domain match alone is not enough: every new account still lands `pending` and an **admin** individually approves or rejects it. |
-| Roles | **Org-wide: admin / manager / member.** No per-board roles. |
+| Roles | **Org-wide: admin / organizer / member**, plus **per-board ownership** (changed 2026-08-16; it was three roles alone, with `manager` meaning board authority). See `docs/PERMISSIONS.md`. |
 | Board count | **Unlimited.** |
 | Card basics | Title, description, **assignees** (multiple), **due date**, **priority**, **labels/tags**. |
 | Card extras | **Comments with @mentions**, **per-card activity history**. |
 | Cross-board view | **"My Work"** — every card assigned to me across every board, sorted by due date. First-class screen, and the phone's default landing surface. |
 | Due dates | **All-day dates only** (`YYYY-MM-DD`), no time-of-day, no start dates. |
 | Card subscriptions | **Comments only.** Anyone who can see a card may subscribe to its comment thread (2026-07-28). Assignees are unaffected and may also subscribe, which keeps the interest after they are unassigned. Not "watchers": no other change notifies. |
-| Labels | **Org-wide.** One set every board shares (changed 2026-07-27; they were per board). Any active member may add one; managers rename and delete. |
+| Labels | **Org-wide.** One set every board shares (changed 2026-07-27; they were per board). Any active member may add one; **admins** rename and delete (narrowed 2026-08-16 — the effect is org-wide, so the authority is). |
 | Description format | **Markdown, restricted to five elements** — bold, italic, bullet list, ordered list, link (changed 2026-07-30). Both editors are WYSIWYG, so markdown is storage the user never sees. See "Rich text". |
 | Search | **Global across the boards you belong to**, client-side matching. See "Search". |
 | Notifications | Push **plus an in-app inbox** with an unread badge. |
@@ -50,8 +51,8 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 | Column deletion | **Blocked until the column is empty**, made painless by multi-select bulk actions. |
 | Bulk actions | **Multi-select cards** → move, archive, delete, assign. |
 | Board list | **Favorites + recents**, then everything else alphabetically. No folders. |
-| Card deletion | Members **archive** only. Permanent **delete is managers/admins**. |
-| Offboarding | A disabled user **keeps their assignments**, rendered as inactive; managers get a review list to reassign. |
+| Card deletion | Members **archive** only. Permanent **delete is the board's owners and admins**. |
+| Offboarding | A disabled user **keeps their assignments**, rendered as inactive; a board's owners get a review list to reassign. Disabling **warns** if the person solely owns a board, and proceeds anyway. |
 | Theming | **Single light theme, no dark mode** (decided 2026-07-21). Semantic tokens throughout, so a re-theme stays a one-file change. |
 | Subtasks | A card may be a **subtask of one other card on the same board** (`parentId` on the child). The parent's detail view lists them and links straight through; the child shows "Subtask of". Deliberately NOT a checklist: a subtask is an ordinary card, with its own column, assignees and comments. Added 2026-07-25 — the ClickUp import had been faking it in description text. **`parentId` is an opaque string to the rules**: same-board is enforced by the picker, not by `firestore.rules`, which check only that it is a string under 200 chars. A child's read access comes from its OWN `boardId`, so a stale or cross-board link leaks nothing — it renders as nothing. Do not add a rules lookup to "fix" this; it would cost a read on every card write to enforce something the UI already does and no one can exploit. |
 | Explicitly NOT in v1 | Checklists (as a separate item type — see Subtasks), custom fields, dependencies, recurring cards, alternate board views, automations, integrations, guest/external access. |
@@ -66,36 +67,47 @@ Faisal is the developer. The nonprofit's staff are the admins/managers in the ap
 
 ## Roles and access
 
-Three org-wide roles, held in **custom claims** and mirrored to the user doc for
-display. Rules trust the token, never the doc.
+**Two independent things**, and `docs/PERMISSIONS.md` is the full statement of
+them. An **org role** — held in **custom claims** and mirrored to the user doc for
+display, rules trusting the token and never the doc — and **ownership of one
+board**, held in `boardOwnerUids` on the board itself.
 
-| | member | manager | admin |
+They are orthogonal: a plain member can own a board, an organizer can own none,
+and neither fact implies the other.
+
+| | member | organizer | admin |
 |---|---|---|---|
 | See a board they've been added to | ✓ | ✓ | ✓ |
 | Create/edit/move/archive cards on such a board | ✓ | ✓ | ✓ |
 | Comment | ✓ | ✓ | ✓ |
-| **See every board / join any board** | | ✓ | ✓ |
+| **See every board** | | | ✓ |
 | **Create boards** | | ✓ | ✓ |
-| Manage columns, board settings | | ✓ | ✓ |
 | **Add a label** (org-wide) | ✓ | ✓ | ✓ |
-| Rename or delete a label | | ✓ | ✓ |
-| Add/remove board members | | ✓ | ✓ |
-| Archive/delete a board | | ✓ | ✓ |
+| Rename, recolour or delete a label | | | ✓ |
+| Stats | | | ✓ |
 | **Approve/reject/disable user accounts** | | | ✓ |
-| **Promote to manager or admin** | | | ✓ |
+| **Change anyone's role** | | | ✓ |
+
+Everything about ONE board — settings, columns, membership, ownership, archiving,
+permanently deleting a card, deleting anyone's comment — belongs to that board's
+**owners**, plus admins. Whoever creates a board is its first owner.
 
 Consequences worth being explicit about:
 
-- **Boards are private from members, not from managers.** Any manager can see and
-  join any board. If the team ever needs a board that managers genuinely cannot
-  see (HR, board-of-directors matters), this model does not support it — tell me
-  and it becomes a per-board privacy flag.
-- **A member's board list is exactly the boards they've been added to.** Only a
-  manager or admin can add them.
-- **Membership still matters for managers** even though it doesn't gate access: it
-  drives "my boards" and who gets notified. A manager "joining" a board is just
-  adding themselves to the member list.
-- Members cannot add anyone to a board, including themselves.
+- **Boards are private from everyone except admins.** This changed on 2026-08-16:
+  every manager used to see and be able to join every board, which was fine at
+  five boards and is the opposite of least privilege at twenty. If the team ever
+  needs a board that ADMINS cannot see, this model still does not support it —
+  tell me and it becomes a per-board privacy flag.
+- **Anyone's board list is exactly the boards they've been added to**, admins
+  excepted. An owner of that board, or an admin, adds them.
+- **Nobody can add themselves to a board**, whatever their role — except an admin,
+  who can see it in order to join it.
+- **The creator of a board is protected**: only an admin can take ownership away
+  from them, including when they want to hand it on themselves.
+- **A board can end up with no owner** — its creator left it, or an admin demoted
+  the last one. It is then administrable by admins only, which is visible in Board
+  settings and fixed there.
 
 ### Domain restriction is a server-side check
 
@@ -125,7 +137,7 @@ being a Workspace domain gives us these layers, in order of trustworthiness:
 users/{uid}
   displayName, email, photoUrl
   status: pending|active|rejected|disabled
-  role:   member|manager|admin
+  role:   member|organizer|admin
   notifyPrefs: { mention: bool, assigned: bool, dueSoon: bool, … }
   mutedBoardIds: [boardId, …]
   favoriteBoardIds: [boardId, …]
@@ -485,11 +497,17 @@ separate actions** with different consequences:
 
 - **Disable** (admin, org-wide): the user can no longer sign in. Their card
   assignments **stay** — nothing silently loses its owner. They render greyed with
-  an "inactive" marker wherever they appear, and managers get a review list of
-  that person's open cards to reassign at their own pace.
-- **Remove from board** (manager/admin): strips them from `memberUids` **and**
-  unassigns them from that board's cards, because the assignee read-rule would
-  otherwise leave them access. This is the callable described under My Work.
+  an "inactive" marker wherever they appear, and a board's owners get a review
+  list of that person's open cards to reassign at their own pace. Disabling
+  **warns** the admin if the person is the only owner of some board, naming them,
+  and then proceeds: not being able to disable a departing colleague until every
+  board they touched had been reassigned is the wrong way round.
+- **Remove from board** (that board's owners, or an admin): strips them from
+  `memberUids` **and** `boardOwnerUids` **and** unassigns them from that board's
+  cards, because the assignee read-rule would otherwise leave them access. This is
+  the callable described under My Work. Clearing ownership matters because
+  `addBoardMember` only touches `memberUids` — left behind, re-adding the person
+  later would silently restore their authority.
 
 The two stay consistent: a disabled user is still a board member, so the
 "assignees must be board members" invariant holds. They simply cannot read
@@ -567,13 +585,24 @@ comments, newest first.
 
 Deny-by-default.
 
-- Board read/write requires `status == 'active'` **and** (`role in [manager,
-  admin]` or `uid in board.memberUids`).
+- Board READ requires `status == 'active'` **and** (`role == 'admin'` or
+  `uid in board.memberUids`).
+- Board WRITE requires that **and** `uid in board.boardOwnerUids` — admins
+  excepted. `.get('boardOwnerUids', [])`, never plain access: a board written
+  before the field existed would otherwise error the rule, and an erroring rule
+  denies.
+- A board update may not remove `board.createdBy` from `boardOwnerUids` unless
+  the caller is an admin. Phrased on the CHANGE, so a board whose creator an
+  admin has already demoted stays editable.
+- A board CREATE must set `boardOwnerUids == [request.auth.uid]`. Deliberate: it
+  turns "an app too old to know about ownership made a board nobody can manage"
+  from silent and permanent into a visible failure.
 - A column may not be removed from `board.columns` while any card references it.
-- **Card delete requires `role in [manager, admin]`.** Members may only set
+- **Card delete requires ownership of that card's board.** Members may only set
   `archived: true`. Applies to bulk operations identically.
 - `users/{uid}/notifications` is trigger-written; the client may only flip `read`.
-- Board create / settings / membership / archive: `role in [manager, admin]`.
+- Board create: `role in [organizer, admin]`. Settings, membership, ownership and
+  archive: ownership of that board.
 - `columnId` on a card must match a column that exists on the board — clients
   cannot invent columns.
 - **Every uid in a card's `assigneeUids` must be in the parent board's
@@ -591,7 +620,7 @@ Deny-by-default.
 - No client may write their own `role` or `status`; both are claims, set only by
   the admin-only `setUserAccess` callable.
 - Comment `authorUid` must equal `request.auth.uid`; edits restricted to the
-  author; deletes to the author, a manager, or an admin.
+  author; deletes to the author, an owner of that board, or an admin.
 - **`activity` is read-only to all clients** — trigger-written only.
 
 ## Notifications
@@ -621,8 +650,8 @@ dismissed or missed push is never lost — there's a badge and a list. The clien
 may only flip `read`; it can neither create nor edit entries.
 
 There are no watchers: you are notified because a card is assigned to you or
-someone @mentioned you. A manager wanting to track a card assigns themselves
-alongside the doer.
+someone @mentioned you. Anyone wanting to track a card subscribes to its comments,
+or assigns themselves alongside the doer.
 
 Due-soon timing and timezone need a decision at Phase 8. The time tracker's
 work-local timezone machinery is deliberately NOT being copied; due dates are
@@ -744,7 +773,10 @@ Anything the script cannot map is reported, never guessed at.
 
 ## Stats (added 2026-07-28)
 
-A manager-and-admin screen showing how the boards are actually used: cards
+An ADMIN-ONLY screen showing how the boards are actually used (narrowed
+2026-08-16 — it used to be managers too, which was safe only while a manager could
+already open every board; once that stopped being true, this screen became a way
+to read any board's activity by id without being on it): cards
 created, cards archived, comments, active people, files added and files removed —
 one metric at a time, as a bar chart bucketed by day, calendar week (Sunday to
 Saturday) or calendar month, filterable to one board or all of them. Plus a
@@ -806,9 +838,9 @@ answers one of two questions depending on the metric:
 
 - **Active people answers WHO.** `actors` is a uid array rather than a count, so
   the people are already in hand and the panel costs no read at all. Names come
-  from the boards' `memberProfiles`, because only admins may list `users/*` and
-  this screen is open to managers — which means it misses routinely rather than
-  exceptionally (a manager acting on a board they are not a member of, anyone
+  from the boards' `memberProfiles`, which are already loaded, rather than from
+  a second query against `users/*` — which means it misses routinely rather than
+  exceptionally (an admin acting on a board they are not a member of, anyone
   removed from a board since) and falls back to a placeholder rather than
   pretending.
 - **Everything else answers WHERE** — boards ranked by that metric, biggest
@@ -854,7 +886,8 @@ card counts and these numbers have to agree.
 - ~~**Due-soon timing**~~ — **settled.** `dueSoonReminders` runs on `0 8 * * *`
   in `ORG_TIMEZONE`, which is `America/Chicago` (Houston, where the team is —
   not the sibling time-tracker's, which deliberately has no org timezone at all).
-- **Board privacy from managers** — currently impossible by design. Flagged in
+- **Board privacy from admins** — currently impossible by design. Privacy from
+  everyone else arrived on 2026-08-16; the admin exception remains. Flagged in
   case the team has a board that needs it.
 - **Duplicating a board / board templates** — worth it if the nonprofit runs
   repeating programs with the same column structure. Not currently planned.
@@ -874,6 +907,6 @@ Reversible, low-stakes, and not worth a round trip — flag any you dislike:
   everyone's list and is admin-reversible; a board is far too much accumulated
   work to expose a destroy button for. (Cards are different — they're small, and
   a bad import needs purging.)
-- **Comments are editable by their author, deletable by author/manager/admin**,
-  with an "edited" marker.
+- **Comments are editable by their author, deletable by the author, an owner of
+  the board, or an admin**, with an "edited" marker.
 - **No @channel / @board-wide mention.** Mentions target individuals only.

@@ -92,6 +92,44 @@ function grantAdmin(email) {
 
 /** Confirmation text from the most recent window.confirm, per page. */
 const lastConfirm = new WeakMap();
+/**
+ * Pages whose NEXT confirmation must be declined, then cleared.
+ *
+ * The handler below accepts everything, which is right for a suite that is
+ * mostly proving a flow completes — but it makes "the confirmation is real"
+ * untestable, because a control with no dialog behind it passes identically.
+ * Declining once, and asserting the state did NOT move, is the only way to tell
+ * a genuine gate from a decorative one.
+ */
+const declineNext = new WeakSet();
+
+/**
+ * Wait for a switch to actually READ as on/off, rather than sleeping and hoping.
+ *
+ * The value comes back from Firestore, so the control flips when the snapshot
+ * lands — which on a loaded machine is comfortably longer than any fixed pause
+ * worth writing. A fixed pause here failed once in exactly the way that teaches
+ * nothing: the write had landed, the other browser had already seen it, and only
+ * this assertion was early.
+ */
+async function switchReads(locator, want, ms = 20000) {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    if ((await locator.getAttribute('aria-checked')) === String(want)) return true;
+    if (Date.now() > deadline) return false;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
+/** Run `fn` with this page's next confirmation declined instead of accepted. */
+async function decliningConfirm(page, fn) {
+  declineNext.add(page);
+  try {
+    await fn();
+  } finally {
+    declineNext.delete(page);
+  }
+}
 
 async function newApp(browser, scheme = 'light') {
   const ctx = await browser.newContext({
@@ -106,6 +144,11 @@ async function newApp(browser, scheme = 'light') {
   // can assert a confirmation was actually demanded.
   page.on('dialog', async (d) => {
     lastConfirm.set(page, d.message());
+    if (declineNext.has(page)) {
+      declineNext.delete(page);
+      await d.dismiss();
+      return;
+    }
     await d.accept();
   });
   page.on('pageerror', (e) => console.error('   page error:', String(e)));
@@ -114,6 +157,12 @@ async function newApp(browser, scheme = 'light') {
       console.error(`   console.${m.type()}:`, m.text());
     }
   });
+  // A BOUND ON EVERY WAIT. Outside Playwright's test runner the default action
+  // timeout is ZERO — meaning no timeout — so a `click()` on a control that is
+  // not there hangs the suite silently and forever, with the last log line
+  // pointing at whatever happened to run before it. Explicit timeouts still win;
+  // this only puts a floor under the calls that never named one.
+  page.setDefaultTimeout(45000);
   await page.goto(BASE, { waitUntil: 'networkidle' });
   return { ctx, page };
 }
@@ -332,7 +381,7 @@ try {
   await admin.screenshot({ path: join(SHOTS, 'p2-board-light.png'), fullPage: true });
 
   // Board settings: add a column, add a label, add a member.
-  await admin.getByRole('button', { name: 'Settings' }).click();
+  await admin.getByRole('button', { name: 'Board settings' }).click();
   await admin.getByText('Board settings').waitFor({ timeout: 15000 });
   await admin.getByPlaceholder('New column name').fill('Blocked');
   await admin.getByRole('button', { name: 'Add column' }).click();
@@ -389,14 +438,116 @@ try {
   check('a member sees a board live once added, with no reload', true);
   await sara.screenshot({ path: join(SHOTS, 'p2-member-boards-light.png'), fullPage: true });
 
-  // Members do not get board administration.
+  // ---- Board authority is per-board (Phase 2) -----------------------------
+  // Sara is a member of this board. Board authority is a property OF THE BOARD
+  // now, so nothing about her org role decides what follows.
   await sara.getByText('Fundraising 2026').first().click();
   await sara.getByText('To Do').first().waitFor({ timeout: 15000 });
+
   const saraSeesSettings = await sara
-    .getByRole('button', { name: 'Settings' })
+    .getByRole('button', { name: 'Board settings' })
     .isVisible()
     .catch(() => false);
-  check('a member gets no board Settings button', !saraSeesSettings);
+  check('a non-owner gets no Board settings button', !saraSeesSettings);
+
+  // But she does get a way in — the roster, read-only. The control SAYS which
+  // one it is, because "Board settings" opening a member list would be a button
+  // that does not describe what it does.
+  await sara.getByRole('button', { name: 'Board members' }).click();
+  await sara.getByText('Board members').first().waitFor({ timeout: 15000 });
+  check('a non-owner reaches a read-only roster instead', true);
+  check(
+    'the roster names the owner, so there is somebody to ask',
+    await sara.getByText('Owner', { exact: true }).first().isVisible().catch(() => false),
+  );
+  check(
+    'and offers no owner toggle',
+    !(await sara
+      .getByRole('switch', { name: /^Owner of this board/ })
+      .first()
+      .isVisible()
+      .catch(() => false)),
+  );
+  check(
+    'nor a way to add anyone',
+    !(await sara
+      .getByRole('button', { name: /^Add someone/ })
+      .isVisible()
+      .catch(() => false)),
+  );
+  await sara.screenshot({ path: join(SHOTS, 'p2-member-roster-light.png'), fullPage: true });
+  await sara.getByRole('button', { name: 'Back' }).first().click();
+  await sara.getByText('To Do').first().waitFor({ timeout: 15000 });
+
+  // Promotion. A declined confirmation must leave the board exactly as it was —
+  // otherwise the dialog is decoration and a mistap is a silent grant.
+  //
+  // The admin is ALREADY on Board settings — that is where they added Sara — and
+  // stays there through to the end of this section, because the Cards phase
+  // below opens with a Back that expects exactly that.
+  const saraOwnerToggle = admin
+    .getByRole('switch', { name: /^Owner of this board: sara/i })
+    .first();
+  await saraOwnerToggle.waitFor({ timeout: 15000 });
+  check('every member row carries an owner toggle', true);
+
+  await decliningConfirm(admin, async () => {
+    await saraOwnerToggle.click();
+    await admin.waitForTimeout(1200);
+  });
+  check(
+    'promoting asks first, and says what it grants',
+    /will be able to change this board/.test(lastConfirm.get(admin) ?? ''),
+    lastConfirm.get(admin) ?? '(no dialog)',
+  );
+  check(
+    'a declined promotion grants nothing',
+    (await saraOwnerToggle.getAttribute('aria-checked')) === 'false',
+  );
+
+  await saraOwnerToggle.click();
+  check('an accepted one does', await switchReads(saraOwnerToggle, true));
+  await admin.screenshot({ path: join(SHOTS, 'p2-owners-light.png'), fullPage: true });
+
+  // Live, with no reload: this is a board write, so her open app sees it.
+  await sara.getByRole('button', { name: 'Board settings' }).waitFor({ timeout: 25000 });
+  check('an owner gets board administration, live', true);
+  await sara.getByRole('button', { name: 'Board settings' }).click();
+  await sara.getByRole('button', { name: 'Archive board' }).waitFor({ timeout: 15000 });
+  check('and the whole screen, not a roster', true);
+
+  // The creator's row is protected: an owner cannot demote the person who made
+  // the board, and cannot remove them from it either. Only an admin can.
+  //
+  // Asserted on `aria-disabled` rather than Playwright's isDisabled(): these are
+  // react-native-web Pressables, not form controls, so the DOM property does not
+  // exist and only the ARIA state carries the answer.
+  const creatorToggle = sara
+    .getByRole('switch', { name: /^Owner of this board: faisal/i })
+    .first();
+  const removeCreator = sara
+    .getByRole('button', { name: /^Remove faisal from this board$/i })
+    .first();
+  check(
+    'an owner cannot demote the creator of the board',
+    (await creatorToggle.getAttribute('aria-disabled')) === 'true',
+  );
+  check(
+    'nor remove them from the board',
+    (await removeCreator.getAttribute('aria-disabled')) === 'true',
+  );
+  await sara.getByRole('button', { name: 'Back' }).first().click();
+  await sara.getByText('To Do').first().waitFor({ timeout: 15000 });
+
+  // Demote her again, so the rest of the suite runs with her as a plain member.
+  await saraOwnerToggle.click();
+  check('the revocation lands', await switchReads(saraOwnerToggle, false));
+  check(
+    'revoking asks too — it is not a one-way door',
+    /no longer be able to change it/.test(lastConfirm.get(admin) ?? ''),
+  );
+  await sara.getByRole('button', { name: 'Board members' }).waitFor({ timeout: 25000 });
+  check('and the demotion reaches her open app', true);
 
   const saraSeesNewBoard = await sara
     .getByRole('button', { name: 'New board' })
@@ -1724,8 +1875,8 @@ try {
   await backToBoards(admin);
   await admin.getByText('Fundraising 2026').first().click();
   await admin.getByText('To Do').first().waitFor({ timeout: 25000 });
-  await admin.getByRole('button', { name: 'Settings' }).click();
-  await admin.getByText('Board settings').waitFor({ timeout: 20000 });
+  await admin.getByRole('button', { name: 'Board settings' }).click();
+  await admin.getByText('Board settings').first().waitFor({ timeout: 20000 });
   await admin.getByRole('button', { name: 'Archive board' }).click();
   await admin.getByRole('button', { name: 'New board' }).waitFor({ timeout: 25000 });
   await admin.waitForTimeout(1500);
@@ -1745,7 +1896,7 @@ try {
 
   await admin.getByText('Fundraising 2026').first().click();
   await admin.getByText('To Do').first().waitFor({ timeout: 25000 });
-  await admin.getByRole('button', { name: 'Settings' }).click();
+  await admin.getByRole('button', { name: 'Board settings' }).click();
   await admin.getByRole('button', { name: 'Restore board' }).click();
   await admin.waitForTimeout(2000);
   await admin.getByRole('button', { name: 'Back' }).first().click();

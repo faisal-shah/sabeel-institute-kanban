@@ -27,7 +27,7 @@ web. "The code looks right" is not verification.
 | 14 | ClickUp import + launch | **complete** (2026-07-26) — three boards imported from a CSV export in one pass; `scripts/import-clickup.mjs` and the `sourceId` field remain so a re-run would update, not duplicate. See `docs/MIGRATION.md`. |
 | — | Since launch | The app is **in production and in daily use**. Work now ships as numbered releases rather than phases; the **deploy log** below is the running record. |
 
-## What works today (2026-07-29, v0.6.1)
+## What works today (2026-08-16, v0.9.0)
 
 Every phase is complete and the app is **live and in daily use** at
 <https://sabeel-institute-kanban.web.app> with an Android APK beside it:
@@ -36,15 +36,19 @@ Every phase is complete and the app is **live and in daily use** at
   admin approval that un-gates the app live. A rejected account is told why
   rather than left spinning.
 - Admin people-management: approve, reject, disable, change roles.
+- **Authority is two independent things** — an org role (member / organizer /
+  admin) and per-board ownership. A plain member can own a board; only an admin
+  sees a board they were not added to. `docs/PERMISSIONS.md` states it fully.
 - Boards with columns and membership; favourites and recents. **Labels are
-  org-wide**, one set every board shares — any member creates one, managers
+  org-wide**, one set every board shares — any member creates one, admins
   rename, recolour and delete.
 - Cards with **plain-text** descriptions and comments (markdown was removed
   2026-07-20 — the renderer and parser were deleted, not disabled), assignees,
   all-day due dates, priority, labels, subtasks, and **file attachments**
   (10 MB each, any type, named before they upload, downloaded through
   short-lived signed URLs).
-- Archive and (manager-only) delete; boards archive and never hard-delete.
+- Archive, and delete by that board's owners and admins; boards archive and
+  never hard-delete.
 - Web: multi-column board with real drag-and-drop. Android: swipe-paged single
   column with a "Move to…" sheet.
 - Multi-select and bulk move/assign/archive/delete on both surfaces, including
@@ -56,7 +60,7 @@ Every phase is complete and the app is **live and in daily use** at
 - My Work across every board, and search across the boards you belong to, with
   filters for archived, overdue, priority, label, board and assignee that
   survive navigating away, and a sort by last activity in either direction.
-- **Stats** (managers/admins): cards created and archived, comments, active
+- **Stats** (admins): cards created and archived, comments, active
   people and file counts by day, calendar week or calendar month, server-counted
   and stored so the screen opens instantly. Selecting a bar breaks it down —
   which boards, or which people.
@@ -366,6 +370,72 @@ the team.
 ---
 
 ## Deploy log
+
+### 2026-08-16 — Board authority becomes per-board — v0.9.0
+
+**The largest access change since launch, and it runs against live data.** Read
+`docs/DEPLOY.md` § Restoring across the board-ownership migration before
+deploying, and the whole of `docs/PERMISSIONS.md` for the model.
+
+**What changed.** `manager` meant three unrelated things at once — administer any
+board, curate the org's labels, read Stats — and one consequence was that every
+manager saw and could administer **every** board. Fine at five boards, the
+opposite of least privilege at twenty.
+
+Board authority moved onto the board: a `boardOwnerUids` array. Its entries can
+be anybody who is a member, so a plain member can own a board and an organizer
+can own none. The org role kept exactly one power, creating a board, and was
+renamed `organizer` to say so. Label curation and Stats both became **admin-only**.
+**Only an admin now sees a board they were not added to.**
+
+**Three decisions that are load-bearing rather than tidy.**
+
+The creator of a board is protected — only an admin can take `createdBy` out of
+`boardOwnerUids`, including on the creator's own behalf — and the rule is phrased
+on the CHANGE, not the value. A value-shaped invariant ("the creator must always
+be an owner") would have made every board an admin had legitimately demoted a
+creator on permanently uneditable.
+
+Ownership is always checked WITH membership, never alone. That is what lets the
+rules skip a `boardOwnerUids ⊆ memberUids` subset check: `removeBoardMember` is
+an Admin SDK batch that bypasses rules, so a subset rule would let an ordinary
+member removal leave a board that bounces the next client write — the labels
+failure mode with a routine action as its trigger. `removeBoardMember` clears
+both lists instead, which also stops `addBoardMember` silently restoring
+authority when somebody is re-added later.
+
+Board CREATE now requires `boardOwnerUids == [creator]`. Deliberate: it turns "an
+app too old to know about ownership made a board only an admin can ever manage"
+from a silent, permanent condition into a visible failure at creation.
+
+**In the app.** Every board surface computes `canManageBoard(user, board)` once;
+`sessionCan.manageBoards` is gone, because a helper taking no board would be a
+button that always fails. The settings entry point is now always present and its
+NAME changes with what it opens — `Board settings` for an owner, `Board members`
+for everyone else, which is a read-only roster with owners marked. Each member
+row carries an Owner switch, confirmed in **both** directions, with the creator's
+row locked for anyone but an admin. Disabling an account warns the admin when
+that person solely owns a board, names it, and proceeds anyway.
+
+**The migration.** Four scripts, both inverses written before either forward one
+ran, all four rehearsed end to end against seeded awkward data by
+`scripts/migration-e2e.mjs`, which CI runs on every push. The backfill refuses a
+board with no `createdBy` rather than mint an owner no uid can match, writes an
+honest empty list where the creator has left the board, and asserts every uid it
+is about to name could already administer a board under the OLD rules — which is
+what makes shipping the clients before the rules flip safe.
+`rename-manager-role.mjs` flushes and re-reads its manifest before the first
+claim moves, because custom claims are in no backup at all.
+
+A field addition is outside a Firestore restore's reach entirely — an import
+merges by document id, so it recreates what was deleted and cannot remove what
+was wrongly added. `scripts/unbackfill-board-owners.mjs` is the only undo the
+backfill has.
+
+**Also.** `scripts/restore-auth.mjs` now validates the restored role against the
+current set and stamps `claimsUpdatedAt`; without both, a restore from a backup
+predating this release would reinstate `manager` on accounts that then sat on a
+stale token for an hour.
 
 ### 2026-08-15 — Naming a file, drilling into a bar, and a search that sorts — v0.8.0
 

@@ -63,9 +63,25 @@ export function BoardSettingsScreen({
 }) {
   const nav = useNav();
   const board = useBoard(boardId);
-  // Only admins may list all users; a board owner who is not one adds members
-  // by picking from the board's own view, so they see an empty picker and a note.
-  const allUsers = useAllUsers();
+  /**
+   * Whether this person ADMINISTERS the board, as opposed to merely being on it.
+   *
+   * Everything on this screen except the roster is gated on it. A non-owner
+   * reaches the screen deliberately — the roster answers "who do I ask to add
+   * someone?", which used to be a question you could only put to an admin — and
+   * sees no controls at all.
+   *
+   * Computed here rather than after the loading guards below, because the
+   * directory subscription needs it: `board.data` is undefined while the board
+   * loads and `canManageBoard` takes that, returning false until it knows.
+   */
+  const canManage = canManageBoard(user, board.data);
+  // ASKED FOR ONLY BY SOMEONE WHO COULD USE IT. Only admins may list all users;
+  // a board owner who is not one gets the error and a note explaining it, which
+  // is the honest answer to "who else could I add?". A non-owner has no add
+  // control at all, so for them the same failure is a red banner about a query
+  // nothing on their screen needed.
+  const allUsers = useAllUsers(canManage);
   // Labels are org-wide. This section edits ONE set that every board shows —
   // the copy below says so, because the screen it sits on does not.
   const labels = useLabels();
@@ -249,16 +265,6 @@ export function BoardSettingsScreen({
   const members = b.members;
   const isMember = b.memberUids.includes(user.uid);
 
-  /**
-   * Whether this person ADMINISTERS the board, as opposed to merely being on it.
-   *
-   * Everything on this screen except the roster is gated on it. A non-owner
-   * reaches the screen deliberately — the roster answers "who do I ask to add
-   * someone?", which used to be a question you could only put to an admin — and
-   * sees no controls at all.
-   */
-  const canManage = canManageBoard(user, b);
-
   return (
     <Screen width="read">
       <Row style={styles.between}>
@@ -277,161 +283,159 @@ export function BoardSettingsScreen({
           controls, which reads as something being broken. */}
       {canManage ? (
         <>
-      <Heading>Name</Heading>
-      <Card>
-        <BoardNameEditor initial={b.name} onSave={renameBoard} />
-      </Card>
+          <Heading>Name</Heading>
+          <Card>
+            <BoardNameEditor initial={b.name} onSave={renameBoard} />
+          </Card>
 
-      <Heading>Columns</Heading>
-      <Card>
-        {/* Drag the handle to reorder. One document write per drop
-            (columnsPatch keeps columns/columnIds in sync — never a bare
-            `columns` write, or card rules reject the new column). */}
-        {/* The name is editable in place. Dragging is the handle's job, so a tap
-            on the pencil cannot start a reorder. */}
-        <ReorderList
-          items={b.columns}
-          keyOf={(c) => c.id}
-          renderItem={(c) => (
-            <ColumnNameEditor
-              column={c}
-              columns={b.columns}
-              canEdit
-              busy={busy}
-              onError={setError}
-              onRename={(next) => updateBoard(boardId, columnsPatch(next))}
-              run={run}
+          <Heading>Columns</Heading>
+          <Card>
+            {/* Drag the handle to reorder. One document write per drop
+                (columnsPatch keeps columns/columnIds in sync — never a bare
+                `columns` write, or card rules reject the new column). */}
+            {/* The name is editable in place. Dragging is the handle's job, so a tap
+                on the pencil cannot start a reorder. */}
+            <ReorderList
+              items={b.columns}
+              keyOf={(c) => c.id}
+              renderItem={(c) => (
+                <ColumnNameEditor
+                  column={c}
+                  columns={b.columns}
+                  canEdit
+                  busy={busy}
+                  onError={setError}
+                  onRename={(next) => updateBoard(boardId, columnsPatch(next))}
+                  run={run}
+                />
+              )}
+              onReorder={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
             />
-          )}
-          onReorder={(next) => run(() => updateBoard(boardId, columnsPatch(next)))}
-        />
-        <Hint>
-          Columns are removed from the board screen, and only once they are
-          empty — so no cards can vanish with them.
-        </Hint>
-        <AddColumnRow busy={busy} onAdd={addColumn} />
-      </Card>
+            <Hint>
+              Columns are removed from the board screen, and only once they are
+              empty — so no cards can vanish with them.
+            </Hint>
+            <AddColumnRow busy={busy} onAdd={addColumn} />
+          </Card>
 
-      <Heading>Labels</Heading>
-      <Card>
-        {/* This screen is per-board and these labels are not, which is exactly
-            the misreading to head off: someone deletes one expecting it to
-            affect their board alone. */}
-        <Hint>
-          Labels are shared by every board. Adding, renaming or deleting one
-          changes it everywhere.
-        </Hint>
-        {labels.status === 'loading' ? <Spinner label="Loading labels…" /> : null}
-        {(labels.data ?? []).length === 0 && labels.status === 'ready' ? (
-          <Hint>No labels yet.</Hint>
-        ) : null}
-        {(labels.data ?? []).map((l) =>
-          renamingLabel === l.id ? (
-            <LabelNameEditor
-              key={l.id}
-              label={l}
-              busy={busy}
-              ready={knownLabels !== null}
-              onSave={(name) => saveLabelName(l, name)}
-              onCancel={() => setRenamingLabel(null)}
-            />
-          ) : (
-            <Row key={l.id} style={styles.between}>
-              {/* The NAME gives way; the actions never do. A label whose name
-                  is long — or that starts with an emoji, which people do —
-                  pushed the row wider than the screen and carried its own
-                  delete button off the right edge.
+          <Heading>Labels</Heading>
+          <Card>
+            {/* This screen is per-board and these labels are not, which is exactly
+                the misreading to head off: someone deletes one expecting it to
+                affect their board alone. */}
+            <Hint>
+              Labels are shared by every board. Adding, renaming or deleting one
+              changes it everywhere.
+            </Hint>
+            {labels.status === 'loading' ? <Spinner label="Loading labels…" /> : null}
+            {(labels.data ?? []).length === 0 && labels.status === 'ready' ? (
+              <Hint>No labels yet.</Hint>
+            ) : null}
+            {(labels.data ?? []).map((l) =>
+              renamingLabel === l.id ? (
+                <LabelNameEditor
+                  key={l.id}
+                  label={l}
+                  busy={busy}
+                  ready={knownLabels !== null}
+                  onSave={(name) => saveLabelName(l, name)}
+                  onCancel={() => setRenamingLabel(null)}
+                />
+              ) : (
+                <Row key={l.id} style={styles.between}>
+                  {/* The NAME gives way; the actions never do. A label whose name
+                      is long — or that starts with an emoji, which people do —
+                      pushed the row wider than the screen and carried its own
+                      delete button off the right edge.
 
-                  Two lines rather than one: at 320px a single line clips
-                  "Waiting on Response" to "Waitin…", and a settings list you
-                  cannot read the names in is not much use. Wrapping costs a few
-                  pixels of height on the long ones only. */}
-              <Row style={styles.grow}>
-                <View style={[styles.swatch, { backgroundColor: l.color }]} />
-                <Body numberOfLines={2}>{l.name}</Body>
-              </Row>
-              <Row style={styles.noShrink}>
-                {/* Recolouring in place: the swatch row below belongs to the
-                    NEW label being composed, so an existing one needs its own
-                    way to change, and cycling the palette is one tap rather
-                    than a second editor. */}
-                <IconAction
-                  icon="palette"
-                  label={`Change colour of ${l.name}`}
-                  disabled={busy}
+                      Two lines rather than one: at 320px a single line clips
+                      "Waiting on Response" to "Waitin…", and a settings list you
+                      cannot read the names in is not much use. Wrapping costs a few
+                      pixels of height on the long ones only. */}
+                  <Row style={styles.grow}>
+                    <View style={[styles.swatch, { backgroundColor: l.color }]} />
+                    <Body numberOfLines={2}>{l.name}</Body>
+                  </Row>
+                  <Row style={styles.noShrink}>
+                    {/* Recolouring in place: the swatch row below belongs to the
+                        NEW label being composed, so an existing one needs its own
+                        way to change, and cycling the palette is one tap rather
+                        than a second editor. */}
+                    <IconAction
+                      icon="palette"
+                      label={`Change colour of ${l.name}`}
+                      disabled={busy}
+                      onPress={() =>
+                        run(() =>
+                          updateLabel(l.id, {
+                            color:
+                              LABEL_COLORS[
+                                (LABEL_COLORS.indexOf(
+                                  l.color as (typeof LABEL_COLORS)[number],
+                                ) +
+                                  1) %
+                                  LABEL_COLORS.length
+                              ],
+                          }),
+                        )
+                      }
+                    />
+                    <IconAction
+                      icon="edit"
+                      label={`Rename ${l.name}`}
+                      disabled={busy}
+                      // No draft to seed: the editor mounts with the label's
+                      // current name and unmounts with whatever was typed.
+                      onPress={() => setRenamingLabel(l.id)}
+                    />
+                    <IconAction
+                      icon="delete-outline"
+                      label={`Delete label ${l.name}`}
+                      danger
+                      disabled={busy}
+                      onPress={() => askDeleteLabel(l)}
+                    />
+                  </Row>
+                </Row>
+              ),
+            )}
+            <AddLabelRow busy={busy} ready={knownLabels !== null} onAdd={addLabel} />
+          </Card>
+          {/* HERE, not with the other confirmations further down the screen. The
+              bin that opens this sits in the Labels card directly above; rendered
+              below Members it was off-screen on a phone, so tapping delete looked
+              like it had done nothing at all. */}
+          {pendingLabel ? (
+            <Card>
+              <Body>
+                {pendingLabelCards === null
+                  ? `Delete “${pendingLabel.name}”? Checking how many cards use it…`
+                  : `Delete “${pendingLabel.name}”? ${describeLabelUsage(pendingLabelCards)}${
+                      pendingLabelCards.active + pendingLabelCards.archived > 0
+                        ? ' It will be removed from all of them, across every board. This cannot be undone.'
+                        : ''
+                    }`}
+              </Body>
+              <Row>
+                <Button
+                  busy={busy}
+                  label="Delete"
+                  variant="danger"
                   onPress={() =>
-                    run(() =>
-                      updateLabel(l.id, {
-                        color:
-                          LABEL_COLORS[
-                            (LABEL_COLORS.indexOf(
-                              l.color as (typeof LABEL_COLORS)[number],
-                            ) +
-                              1) %
-                              LABEL_COLORS.length
-                          ],
-                      }),
-                    )
+                    run(async () => {
+                      await deleteLabel(pendingLabel.id);
+                      setPendingLabel(null);
+                    })
                   }
                 />
-                <IconAction
-                  icon="edit"
-                  label={`Rename ${l.name}`}
-                  disabled={busy}
-                  // No draft to seed: the editor mounts with the label's
-                  // current name and unmounts with whatever was typed.
-                  onPress={() => setRenamingLabel(l.id)}
-                />
-                <IconAction
-                  icon="delete-outline"
-                  label={`Delete label ${l.name}`}
-                  danger
-                  disabled={busy}
-                  onPress={() => askDeleteLabel(l)}
+                <Button
+                  label="Cancel"
+                  variant="secondary"
+                  onPress={() => setPendingLabel(null)}
                 />
               </Row>
-            </Row>
-          ),
-        )}
-        <AddLabelRow busy={busy} ready={knownLabels !== null} onAdd={addLabel} />
-      </Card>
-      {/* HERE, not with the other confirmations further down the screen. The
-          bin that opens this sits in the Labels card directly above; rendered
-          below Members it was off-screen on a phone, so tapping delete looked
-          like it had done nothing at all. */}
-      {pendingLabel ? (
-        <Card>
-          <Body>
-            {pendingLabelCards === null
-              ? `Delete “${pendingLabel.name}”? Checking how many cards use it…`
-              : `Delete “${pendingLabel.name}”? ${describeLabelUsage(pendingLabelCards)}${
-                  pendingLabelCards.active + pendingLabelCards.archived > 0
-                    ? ' It will be removed from all of them, across every board. This cannot be undone.'
-                    : ''
-                }`}
-          </Body>
-          <Row>
-            <Button
-              busy={busy}
-              label="Delete"
-              variant="danger"
-              onPress={() =>
-                run(async () => {
-                  await deleteLabel(pendingLabel.id);
-                  setPendingLabel(null);
-                })
-              }
-            />
-            <Button
-              label="Cancel"
-              variant="secondary"
-              onPress={() => setPendingLabel(null)}
-            />
-          </Row>
-        </Card>
-      ) : null}
-
-
+            </Card>
+          ) : null}
         </>
       ) : null}
 
@@ -536,7 +540,10 @@ export function BoardSettingsScreen({
             </Row>
           );
         })}
-        {allUsers.status === 'error' ? (
+        {/* Both of these explain why there is no ADD control. Shown to someone
+            who would not get one anyway, they read as an apology for a button
+            they never expected — so they belong behind the same gate. */}
+        {!canManage ? null : allUsers.status === 'error' ? (
           <Hint>
             Only admins can browse the full directory. Ask an admin to add
             people to this board.
@@ -641,24 +648,24 @@ export function BoardSettingsScreen({
 
       {canManage ? (
         <>
-      <Heading>Archive</Heading>
-      <Card>
-        <Body>
-          Archiving hides the board from everyone&rsquo;s list. Boards are never
-          permanently deleted — too much work accumulates in them.
-        </Body>
-        <Button
-          busy={busy}
-          label={b.archived ? 'Restore board' : 'Archive board'}
-          variant={b.archived ? 'primary' : 'danger'}
-          onPress={() =>
-            run(async () => {
-              await updateBoard(boardId, { archived: !b.archived });
-              if (!b.archived) nav.reset({ name: 'boards' });
-            })
-          }
-        />
-      </Card>
+          <Heading>Archive</Heading>
+          <Card>
+            <Body>
+              Archiving hides the board from everyone&rsquo;s list. Boards are
+              never permanently deleted — too much work accumulates in them.
+            </Body>
+            <Button
+              busy={busy}
+              label={b.archived ? 'Restore board' : 'Archive board'}
+              variant={b.archived ? 'primary' : 'danger'}
+              onPress={() =>
+                run(async () => {
+                  await updateBoard(boardId, { archived: !b.archived });
+                  if (!b.archived) nav.reset({ name: 'boards' });
+                })
+              }
+            />
+          </Card>
         </>
       ) : null}
     </Screen>

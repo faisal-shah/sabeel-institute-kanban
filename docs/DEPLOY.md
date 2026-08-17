@@ -541,8 +541,9 @@ why a release exists.
 
 Hosting keeps previous releases — roll back from the console in one click.
 Functions and rules do not: redeploy the previous commit. For Firestore data, see
-disaster recovery below — boards still archive rather than delete, and only
-managers may permanently remove cards, because prevention beats restoring.
+disaster recovery below — boards still archive rather than delete, and only a
+board's owners and admins may permanently remove cards, because prevention beats
+restoring.
 
 ### Restoring across the label migration
 
@@ -561,6 +562,44 @@ GCLOUD_PROJECT=sabeel-institute-kanban node scripts/migrate-global-labels.mjs pa
 
 Both are idempotent and both abort rather than guess — part A on a duplicate id
 or a label the rules would refuse, part B if anything has not been copied yet.
+
+### Restoring across the board-ownership migration
+
+A restore from a backup taken **before 2026-08-16** brings back boards with no
+`boardOwnerUids` and user documents that may still say `manager`. Both are silent
+failures rather than errors:
+
+- a board without the field is administrable **by admins only**, forever, and
+  nothing on screen says why;
+- `manager` is a role no rule matches, so the account signs in, is shown a
+  member's app, and holds a claim that means nothing.
+
+Two scripts put it back, **in this order**, because the second one is what makes
+the first one's owners able to act:
+
+```sh
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs           # dry run
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/backfill-board-owners.mjs --apply
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/rename-manager-role.mjs --apply
+GCLOUD_PROJECT=sabeel-institute-kanban node scripts/verify-board-owners.mjs
+```
+
+The backfill seeds each board's creator and **nothing else** — it deliberately
+writes an empty list where the creator is no longer a member, and names those
+boards in its report for an admin to assign by hand. It aborts outright on a
+board with no `createdBy`. Both are idempotent.
+
+`rename-manager-role.mjs` writes a manifest to `migration/` **before** it changes
+a claim, and that file is the only way back: custom claims are in no backup at
+all (see below). Reverse it with
+`node scripts/rename-manager-role.mjs --revert <manifest> --apply`.
+
+**A restore cannot undo the backfill.** An import merges by document id, so it
+recreates what was deleted and cannot remove what was wrongly *added* — a field
+addition is outside the backup's reach entirely. The undo is
+`scripts/unbackfill-board-owners.mjs`, and it only helps while rules that do not
+require the field are live. All four scripts are exercised end to end by
+`scripts/migration-e2e.mjs`, which CI runs on every push.
 
 ## Backups and disaster recovery
 

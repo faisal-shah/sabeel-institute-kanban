@@ -27,7 +27,8 @@ const OUT = resolve(ROOT, 'shots', 'sweep-report.html');
 /** Tour order, then anything new alphabetically after it. */
 const ORDER = [
   'boards', 'mywork', 'search', 'alerts', 'stats', 'people',
-  'board', 'board-manager', 'board-member', 'board-longname', 'board-empty', 'bulk', 'card', 'card-editing', 'card-comment',
+  'board', 'board-owner', 'board-member', 'roster-owner', 'roster-member',
+  'board-longname', 'board-empty', 'bulk', 'card', 'card-editing', 'card-comment',
   'settings', 'archive',
 ];
 
@@ -38,7 +39,14 @@ const ORDER = [
  * "not captured", which reads as a gap in the sweep rather than as the layout
  * genuinely not having that state. The pager is the narrow board's alone.
  */
-const NARROW_ONLY = new Set(['board-longname', 'board-empty', 'board-manager', 'board-member']);
+const NARROW_ONLY = new Set([
+  'board-longname',
+  'board-empty',
+  'board-owner',
+  'board-member',
+  'roster-owner',
+  'roster-member',
+]);
 
 /** What each screen is, so the report explains itself to someone else. */
 const BLURB = {
@@ -47,19 +55,21 @@ const BLURB = {
   search: 'Search and its filter chips. The cursor is taken on desktop widths only.',
   'search-filters': 'The Filters sheet, one section expanded. An accordion because four headers already spend most of a bounded modal at 320px, and a second open section would double what has to be scrolled past to reach the rest. The rows do not scroll themselves — the sheet is the one scroller, because two nested on the same axis do not chain on iOS.',
   alerts: 'Notifications, newest first.',
-  stats: 'Manager/admin only. A pushed screen, so it needs its own way back.',
+  stats: 'Admin only. A pushed screen, so it needs its own way back.',
   'stats-detail': 'A bar selected, with its breakdown below the chart. The panel appends below the fold on a phone, so the screen scrolls it into view — the one thing reading the code cannot show.',
   people: 'Admin only — approvals and roles.',
   board: 'Columns on a wide screen, one swipeable column on a narrow one.',
   card: 'A card at rest: the description RENDERED, with its formatting applied.',
   'card-editing': 'The description EDITOR open — toolbar row plus Save/Cancel.',
   'card-comment': 'The comment composer in use, with Bold active.',
-  'board-manager': 'The same board as a MANAGER — delete-column and Board settings present, like an admin.',
-  'board-member': 'The same board as a MEMBER — no delete-column, no Board settings, but the archive stays, because members archive and so must un-archive.',
+  'board-owner': 'The same board as an OWNER of it — delete-column and Board settings present, like an admin. Ownership is per board and has nothing to do with the org role.',
+  'board-member': 'The same board as a MEMBER who does not own it — no delete-column, and the settings icon becomes Board members. The archive stays, because members archive and so must un-archive.',
+  'roster-owner': 'The member list as an OWNER: a toggle per person, and the creator\u2019s row locked, because only an admin may take ownership off whoever made the board.',
+  'roster-member': 'The same list as a MEMBER \u2014 read-only, owners marked. It answers \u201cwho do I ask to add someone?\u201d, which used to be a question you could only put to an admin. Reachable by nobody in the admin tour, since an admin owns every board.',
   bulk: 'Selection mode, with the action bar floating over the board. Six 44px actions do not fit one row at 320px, so it wraps rather than pushing the page sideways.',
   'board-empty': 'A board with no columns — reachable, since the last empty column can be deleted. Its board actions must survive having no column footer to live in.',
   'board-longname': 'A column name too long to centre — the name and its pencil slide left rather than truncating early. Narrow layouts only; the pager does not exist on wide.',
-  settings: 'Board settings — manager only.',
+  settings: 'Board settings — this board\u2019s owners and admins only.',
   archive: 'Archived cards, most recently archived first.',
 };
 

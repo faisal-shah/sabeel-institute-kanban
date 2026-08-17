@@ -95,12 +95,16 @@ function renderScreen(route: Route, user: SessionUser) {
       return <NotificationsScreen user={user} />;
     case 'search':
       return <SearchScreen user={user} />;
-    // Both admin-only, and gated HERE as well as in the More menu. The menu is
-    // an affordance; a route is reachable by a deep link, a restored history
-    // entry and the back button. The server is the real boundary either way —
-    // `users/*` and `stats/*` are admin-only in firestore.rules — but a screen
-    // that renders and then fills with permission errors is a worse answer than
-    // one that says what is going on.
+    // Both admin-only, and gated HERE as well as in the More menu.
+    //
+    // The reachable case is a LIVE DEMOTION: role comes from a claim the session
+    // watches, so an admin sitting on Stats when another admin demotes them
+    // re-renders through this switch with `role: 'member'`. Gated only by the
+    // menu, that screen stays mounted and fills with permission errors — the
+    // server is the real boundary either way (`users/*` and `stats/*` are
+    // admin-only in firestore.rules), but "you cannot see this" is a better
+    // answer than a screen of red. The menu hiding an entry does nothing for a
+    // route already on the stack.
     case 'users':
       return sessionCan.administerUsers(user) ? (
         <UsersScreen actor={user} />

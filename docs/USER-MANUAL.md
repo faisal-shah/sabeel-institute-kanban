@@ -1,11 +1,12 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.8.0 · August 2026*
+*For app version 0.9.0 · August 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
-role: **everyone** starts with Part 1; **managers** add Part 2; **admins** add
-Part 3. Part 4 is a quick "How do I…?" index you can skim any time.
+what you do: **everyone** starts with Part 1; if you **run a board**, add Part 2;
+**admins** add Part 3. Part 4 is a quick "How do I…?" index you can skim any
+time.
 
 The app works the same on the website
 (https://sabeel-institute-kanban.web.app) and the Android app — same account,
@@ -19,8 +20,9 @@ browser layouts differ, you'll see them side by side.
 
 1. **Work lives on boards.** A board is a set of **columns** (like *To Do → In
    Progress → Done*) holding **cards**. Each card is one piece of work.
-2. **You see the boards you've been added to.** Managers can see and join every
-   board and create new ones; members see only theirs.
+2. **You see the boards you've been added to** — nobody else's, unless you are
+   an admin. Each board has one or more **owners** who run it: they add people,
+   shape the columns, and decide who else owns it.
 3. **A card carries everything about a task** — a description, a priority, a due
    date, the people assigned, labels, and a comment thread. Open it to see or
    change any of that in one place.
@@ -66,8 +68,8 @@ A slim navigation bar is always in reach — **along the bottom on a phone**, an
 - **My Work** — every card assigned to you, across every board.
 - **Search** — find a card by its words.
 - **Alerts** — what you've been told about; a badge shows how many are unread.
-- **More** — everything that isn't a place you go often: **Stats** (managers and
-  admins), **People** (admins), and **Sign out**. It also shows the version of
+- **More** — everything that isn't a place you go often: **Stats** (admins),
+  **People** (admins), and **Sign out**. It also shows the version of
   the app you're running, which is the first thing to quote if something looks
   wrong.
 
@@ -81,7 +83,8 @@ rail stays put — it's narrow enough to keep out of the way.
 it at the top; boards you've opened recently follow, then the rest alphabetically.
 
 Every board shows as a card in a grid on wide screens, and as a single-column list
-on a phone. Managers create boards with **New board** (see Part 2).
+on a phone. If your account can create boards, **New board** is at the top (see
+ Part 2).
 
 ## 1.4 Inside a board
 
@@ -102,9 +105,10 @@ badge. Tap **+ Add card** at the bottom of a column, type a title, press Enter �
 that's a new card.
 
 **On a phone the row along the bottom holds everything else**: beside **+ Add
-card** are icons to delete the column (managers only), open the board's
-**archived cards**, and open **board settings** (managers only). They sit there
-rather than in the header so the board's name has the top row to itself.
+card** are icons to delete the column (owners of the board only), open the
+board's **archived cards**, and open the board's **settings** — or, if you do not
+own it, its **members**, which is the same screen without the controls. They sit
+there rather than in the header so the board's name has the top row to itself.
 
 ## 1.5 Working with a card
 
@@ -257,8 +261,8 @@ Archiving takes a card off the board but **keeps it**. Tap the **archive icon**
 everything archived on that board, **most recently archived first**. Each card
 carries two icons: **restore** puts it back on the board, and the red **bin**
 deletes it permanently. Anyone who can archive can restore; permanent deletion
-stays with managers and admins, and it **asks first** because nothing brings a
-deleted card back.
+stays with the board's owners and admins, and it **asks first** because nothing
+brings a deleted card back.
 
 If the column a card came from has since been deleted, it comes back in the
 **first column** and says so — rather than refusing to come back at all.
@@ -311,8 +315,8 @@ swipes between columns, where a drag would be ambiguous.
 Select several cards — **tick the boxes** in a browser (hold **Shift** for a
 range), or **long-press** one on a phone and then tap the rest. A bar appears with
 what you can do to the whole selection: **move**, **assign**, **archive**, or
-(managers) **delete**. It shows how many are selected, and the **✕** beside that
-count leaves selection mode without doing anything.
+(owners of the board) **delete**. It shows how many are selected, and the **✕**
+beside that count leaves selection mode without doing anything.
 
 You can also **copy or move the selection to another board** — pick one of your
 boards, then a column in it.
@@ -460,18 +464,36 @@ next sign-in shows Google's account chooser, which is how you switch accounts.
 
 ---
 
-# Part 2 — For managers
+# Part 2 — For board owners
 
-Managers can see and join **every** board, create new ones, and shape a board's
-columns and membership. They also curate the org-wide **labels** — anyone may add
-one, but only managers rename or delete. There are no per-board roles: a manager
-can act on any board.
+Two separate things decide what you can do, and it is worth being clear about
+which is which.
+
+**Your role** — set by an admin under **People** — says what you can do across
+the whole organisation. There are three:
+
+- **Member** — the boards you've been added to, and nothing else.
+- **Organizer** — the same, plus **creating new boards**. That is the whole of
+  the difference.
+- **Admin** — everything, including every board. See Part 3.
+
+**Owning a board** is separate, and belongs to the board rather than to you.
+Whoever creates a board owns it, and an owner can make any other member an owner
+too. Owning a board says nothing about any other board: a plain member can own
+one, an organizer can own none.
+
+**An owner runs the board**: its name, its columns, who is on it, who else owns
+it, archiving it, permanently deleting its cards, and removing anybody's comment.
+
+Everyone else on the board opens the same screen and sees **the member list,
+read-only, with owners marked** — so you can always see who to ask.
 
 ## 2.1 Creating a board
 
-On **Boards**, tap **New board** and give it a name. Every new board starts with
-three columns — **To Do**, **In Progress**, **Done** — which you can rename or
-replace in Settings.
+*Organizers and admins.* On **Boards**, tap **New board** and give it a name.
+Every new board starts with three columns — **To Do**, **In Progress**, **Done**
+— which you can rename or replace in Settings. **You own the board you create**,
+and only an admin can change that.
 
 ## 2.2 Board settings
 
@@ -481,7 +503,9 @@ replace in Settings.
 </div>
 
 Open a board and tap its **settings** (the gear — along the bottom on a phone,
-in the header in a browser). From here:
+in the header in a browser). If you don't own the board the icon is a **group of
+people** instead and says **Board members**: same screen, member list only. From
+here:
 
 - **Columns** — add, rename, and reorder. Tap the **pencil** beside a column's
   name to rename it; drag the handle to reorder. A column can only be deleted
@@ -499,36 +523,50 @@ in the header in a browser). From here:
   different capitals — a card face shows the name and nothing else, so "Urgent"
   and "urgent" would be impossible to tell apart.
 
-  **Anyone can add a label**, not just managers: open any card and press **+**
-  beside its labels. It joins the shared set and is applied to that card at the
-  same time. Only managers rename or delete.
+  **Anyone can add a label**: open any card and press **+** beside its labels. It
+  joins the shared set and is applied to that card at the same time. **Only an
+  admin renames, recolours or deletes one** — because a label is shared, so
+  changing it reaches cards on boards you may not even be able to open.
 - **Members** — who can see the board. Tap the **add-person** icon beside the
   *Members* heading to see who else can be added, and tap a name to add them.
   Removing someone (the **remove-person** icon on their row) also **unassigns them
   from that board's cards**; you're told how many before it happens. Your **own**
   row shows a **leave** icon instead — use it to step off a board you no longer
-  work.
+  work. Members who don't own the board ask an owner to take them off it.
+- **Owners** — each member's row carries an **Owner** switch. Turn it on and that
+  person can run the board exactly as you can; turn it off and they go back to
+  being an ordinary member, keeping the board and everything on it. **Both
+  directions ask first** and spell out what changes, so a stray tap grants
+  nothing.
+
+  The person who **created** the board is marked *created this board*, and their
+  switch is locked: **only an admin** can take ownership away from them — even
+  when it is you and you want to hand the board on. Ask an admin.
+
+  A board can end up with **nobody** owning it — its creator left it, or an admin
+  took the last owner off. Nothing is lost, but only an admin can change that
+  board until somebody is made an owner again.
 - **Archive** — hides the board from everyone's list. Boards are never deleted
   outright.
 
 **Renaming a column without opening Settings.** Column names are editable from
 the board itself too — tap the **pencil** beside the column name (on a phone, in
 the column header at the top; on a wide screen, at the top of each column). Only
-managers and admins see it; everyone else just sees the name.
+the board's owners and admins see it; everyone else just sees the name.
 
-**Joining or leaving a board yourself.** Because managers and admins can open
-**any** board's settings, a board you haven't joined shows a **Join this board**
-button at the top of **Members**. Joining makes you assignable to its cards and
-lists the board under your own boards; **Leave** reverses both. Only your *own*
-membership is self-service — everyone else is added and removed by a manager or
-admin.
+**Joining or leaving a board yourself.** Neither is self-service for an ordinary
+member: an owner of the board adds you, and an owner takes you off. **Leave** is
+on your own row in *Members* if you own the board. (Admins are the exception,
+since they can open any board's settings; a board they haven't joined shows a
+**Join this board** button at the top of *Members*.)
 
 ## 2.3 Archiving a board
 
 Boards **archive**, they don't get hard-deleted, so nothing is lost by accident.
-Managers and admins see an **Archived** section at the bottom of the board list —
-open one from there and use **Restore** in its settings to bring it back. It stays
-collapsed unless something is actually archived.
+An **Archived** section sits at the bottom of your board list, holding the
+archived boards you belong to — open one from there and use **Restore** in its
+settings to bring it back. It stays collapsed unless something is actually
+archived, and only an owner of that board (or an admin) can restore it.
 
 Archiving a board **puts its work away too**: its cards drop out of everyone's
 **My Work** and **Search**, and it stops sending notifications and due-date
@@ -537,20 +575,70 @@ back, exactly as it was.
 
 ## 2.4 Deleting cards
 
-**Members archive** cards; **managers and admins can delete** them permanently.
-Archiving keeps a card out of the way but recoverable; deletion is final and takes
-its comments and history with it. When in doubt, archive.
+**Anyone on the board archives** cards; **its owners and admins can delete** them
+permanently. Archiving keeps a card out of the way but recoverable; deletion is
+final and takes its comments and history with it. When in doubt, archive.
 
-## 2.5 Stats — how the boards are being used
+---
+
+# Part 3 — For admins
+
+Admins manage **people**, curate the shared **labels**, and read **Stats**. They
+can also open, run and join **every** board, whether or not they were added to
+it — the one exception to boards being private.
+
+## 3.1 The People screen — approving new users
+
+<div class="pair">
+  <figure><img class="wide" src="manual/img/people-wide.png" alt="The People screen in a browser"><figcaption>In a browser</figcaption></figure>
+  <figure><img class="narrow" src="manual/img/people-phone.png" alt="The People screen on a phone"><figcaption>On a phone</figcaption></figure>
+</div>
+
+Open **More → People**. It lists everyone who has signed in. A new account
+waits on **pending** and sees nothing until you approve it — approve it here and
+their screen unlocks live, wherever they are. Admins also get a push notification
+when someone is waiting.
+
+## 3.2 Managing a user
+
+Each person's role and access are shown as **controls set to their current
+value** — a **role** (member / organizer / admin) and an **Active** toggle —
+rather than buttons you press. You change someone by moving the control to where
+you want it:
+
+- **Member** — sees only the boards they've been added to.
+- **Organizer** — the same, plus **creating boards**. That is the only
+  difference. They own the boards they create, and nothing on anyone else's.
+- **Admin** — everything: every board, the shared labels, Stats, and approving
+  accounts and changing roles.
+- **Active** — turn off to **disable** an account. Whatever they have open
+  switches to an "Account disabled" screen straight away, wherever they are, and
+  they cannot sign back in. **Their card assignments are kept** so nothing is
+  left ownerless — an owner of that board can reassign at leisure. Turn back on
+  to restore. Nothing is ever deleted.
+
+  If they are the **only owner of a board**, the confirmation names it. Disabling
+  still goes ahead — losing access is usually the urgent half — but that board
+  then needs a new owner, which you can give it from its settings.
+
+Every change asks you to **confirm**, spelling out what it will actually let that
+person do, so a stray tap can't promote or lock out anyone. You **cannot change
+your own access** — that's what stops an admin locking themselves out.
+
+**Who runs a board is NOT set here.** It is set on the board, under
+*Board settings → Members*, and is independent of the role above. An admin can
+open any board and give anybody ownership of it.
+
+## 3.3 Stats — how the boards are being used
 
 <div class="pair">
   <figure><img class="wide" src="manual/img/stats-wide.png" alt="Stats in a browser"><figcaption>In a browser</figcaption></figure>
   <figure><img class="narrow" src="manual/img/stats-phone.png" alt="Stats on a phone"><figcaption>On a phone</figcaption></figure>
 </div>
 
-**More → Stats.** Managers and admins only. It answers "is this being used, and
-by whom?" — nothing about individual performance, and nothing you can drill into
-a person with.
+**More → Stats.** Admins only. It answers "is this being used, and by whom?" —
+nothing about individual performance, and nothing you can drill into a person
+with.
 
 Three controls sit above the chart:
 
@@ -601,46 +689,6 @@ history there is; only the current day is worked out live.
 
 ---
 
-# Part 3 — For admins
-
-Admins manage **people**. Everything a manager can do, an admin can do too — plus
-approve accounts and change roles.
-
-## 3.1 The People screen — approving new users
-
-<div class="pair">
-  <figure><img class="wide" src="manual/img/people-wide.png" alt="The People screen in a browser"><figcaption>In a browser</figcaption></figure>
-  <figure><img class="narrow" src="manual/img/people-phone.png" alt="The People screen on a phone"><figcaption>On a phone</figcaption></figure>
-</div>
-
-Open **More → People**. It lists everyone who has signed in. A new account
-waits on **pending** and sees nothing until you approve it — approve it here and
-their screen unlocks live, wherever they are. Admins also get a push notification
-when someone is waiting.
-
-## 3.2 Managing a user
-
-Each person's role and access are shown as **controls set to their current
-value** — a **role** (member / manager / admin) and an **Active** toggle — rather
-than buttons you press. You change someone by moving the control to where you want
-it:
-
-- **Member** — sees only the boards they've been added to.
-- **Manager** — can see and join every board, create boards, edit columns/labels/
-  membership, and delete cards.
-- **Admin** — everything a manager can, plus approve accounts and change roles.
-- **Active** — turn off to **disable** an account. Whatever they have open
-  switches to an "Account disabled" screen straight away, wherever they are, and
-  they cannot sign back in. **Their card assignments are kept** so nothing is
-  left ownerless — a manager can reassign at leisure. Turn back on to restore.
-  Nothing is ever deleted.
-
-Every change asks you to **confirm**, spelling out what it will actually let that
-person do, so a stray tap can't promote or lock out anyone. You **cannot change
-your own access** — that's what stops an admin locking themselves out.
-
----
-
 # Part 4 — "How do I…?" quick answers
 
 **…get in for the first time?**
@@ -674,17 +722,17 @@ they're a member of its board).
 **…stop a noisy notification?**
 **Alerts → Settings** → switch off that kind, or **mute** the board.
 
-**…create a board?** *(managers)*
-**Boards → New board** → name it.
+**…create a board?** *(organizers and admins)*
+**Boards → New board** → name it. You own the board you create.
 
-**…rename or add columns?** *(managers)*
+**…rename or add columns?** *(the board's owners)*
 Open the board → **settings** → Columns.
 
 **…add a label?** *(anyone)*
 Open any card → **+** beside its labels. Labels are shared by every board, so it
 appears everywhere at once.
 
-**…rename or delete a label?** *(managers)*
+**…rename or delete a label?** *(admins)*
 Open any board → **settings → Labels**. Deleting removes it from every card that
 carries it, and tells you how many first — counting live cards and archived ones
 separately, because a card in the archive is one no board will show you.
@@ -725,27 +773,38 @@ The **clear-filters** icon at the end of the chip row, or **Clear all** inside
 the Filters panel. It only appears when something is actually filtering, and it
 leaves your **Sort** alone.
 
-**…see how much the boards are being used?** *(managers/admins)*
+**…see how much the boards are being used?** *(admins)*
 **More → Stats** — cards created and archived, comments, how many different
 people were active, and files, by day, week or month.
 
-**…see which boards those numbers came from?** *(managers/admins)*
+**…see which boards those numbers came from?** *(admins)*
 **Tap a bar.** The panel underneath lists the boards behind it, largest first,
 and tapping one opens that board. On **Active people** it lists the people
 instead.
 
-**…add someone to a board?** *(managers)*
+**…add someone to a board?** *(the board's owners)*
 Board **settings → Members** → add them. (They must be an approved account first.)
 
-**…delete a card?** *(managers/admins)*
-Open the card → delete. Members **archive** instead.
+**…let someone else run a board with me?** *(the board's owners)*
+Board **settings → Members** → turn on **Owner** on their row → confirm.
+
+**…find out who runs a board I'm on?** *(anyone)*
+Open the board → **Board members**. Owners are marked.
+
+**…hand a board on when I created it?** *(admins)*
+Ask an admin. Only they can take ownership off whoever created a board — the
+creator cannot even do it themselves.
+
+**…delete a card?** *(the board's owners, and admins)*
+Open the card → delete. Everyone else **archives** instead.
 
 **…let a new team member in?** *(admins)*
 They sign in once with Google → **More → People** → **Approve** their pending
 card.
 
-**…make someone a manager or admin?** *(admins)*
-**People** → their card → set the **role** → confirm the dialog.
+**…make someone an organizer or admin?** *(admins)*
+**People** → their card → set the **role** → confirm the dialog. This does NOT
+decide who runs a board — that lives on the board itself.
 
 **…disable someone who left?** *(admins)*
 **People** → their card → **Active** off → confirm. Their assignments and history
@@ -760,7 +819,7 @@ stay.
 | "Waiting for approval" after signing in | Your account awaits admin approval | Ask your admin; the screen unlocks by itself once approved |
 | You can't sign in at all | Only @oursabeel.com Google accounts are allowed | Use your work account, not a personal one |
 | A card's due date is red | The card is overdue | Open it and update the date, or get the work done |
-| "This card is unavailable" from a shared link | You're not a member of its board, or the card was deleted | Ask a manager to add you to the board |
+| "This card is unavailable" from a shared link | You're not a member of its board, or the card was deleted | Ask one of that board's owners to add you |
 | A column won't delete | It still has cards in it | Move or archive its cards first, then delete the column |
 | Removing a board member warns about cards | They're assigned to cards on that board | Those cards are unassigned automatically; the warning just says how many |
 | No push notifications arriving | Permission not granted on this device, or that kind is muted | Allow notifications when the app asks, and check **Alerts → Settings** |

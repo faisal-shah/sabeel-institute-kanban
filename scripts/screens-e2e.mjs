@@ -129,13 +129,17 @@ const browser = await chromium.launch();
 }
 
 /**
- * A MANAGER and a MEMBER as well as the admin.
+ * A BOARD OWNER and a plain MEMBER as well as the admin.
  *
- * Every screen in this sweep was toured as an admin, so manager-gated and
- * member-only layouts had no coverage at any width — the one place a bug is
- * invisible to the person who owns the app, because they never render it.
- * Provisioned through the real sign-in flow; the ROLE is then set directly,
- * which is what an admin promoting someone does.
+ * Every screen in this sweep was toured as an admin, so gated and member-only
+ * layouts had no coverage at any width — the one place a bug is invisible to the
+ * person who owns the app, because they never render it.
+ *
+ * Sara is seeded as an `organizer` AND into the board's `boardOwnerUids`, and
+ * the pair is deliberate: the org role lets her start boards of her own and
+ * grants nothing on this one, while the ownership entry is what gives her the
+ * controls below. Omar is a member of the board and an owner of nothing, so his
+ * run is the read-only side of the same screen.
  */
 async function provision(who, email) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -149,9 +153,9 @@ async function provision(who, email) {
   if (snap.empty) throw new Error(`${who} was never provisioned`);
   return snap.docs[0].id;
 }
-const managerUid = await provision('sara', 'sara@oursabeel.com');
+const ownerUid = await provision('sara', 'sara@oursabeel.com');
 const memberUid = await provision('omar', 'omar@oursabeel.com');
-await setUserRole('sara@oursabeel.com', 'manager');
+await setUserRole('sara@oursabeel.com', 'organizer');
 await setUserRole('omar@oursabeel.com', 'member');
 
 const users = await db.collection('users').where('email', '==', 'faisal@oursabeel.com').get();
@@ -187,10 +191,14 @@ await db.doc(`boards/${BOARD}`).set({
     { id: 'c3', name: 'Waiting on the finance committee' },
   ],
   columnIds: ['c1', 'c2', 'c3'],
-  memberUids: [uid, managerUid, memberUid],
+  memberUids: [uid, ownerUid, memberUid],
+  // Two owners, and neither is the whole story: Faisal owns it because he made
+  // it, Sara because she was given it. Omar is a member of the board and an
+  // owner of nothing, which is the case the read-only roster exists for.
+  boardOwnerUids: [uid, ownerUid],
   memberProfiles: {
     [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' },
-    [managerUid]: { displayName: 'Sara', email: 'sara@oursabeel.com' },
+    [ownerUid]: { displayName: 'Sara', email: 'sara@oursabeel.com' },
     [memberUid]: { displayName: 'Omar', email: 'omar@oursabeel.com' },
   },
   activeCardCount: 0,
@@ -212,6 +220,7 @@ await db.doc('boards/sw_empty').set({
   columns: [],
   columnIds: [],
   memberUids: [uid],
+  boardOwnerUids: [uid],
   memberProfiles: { [uid]: { displayName: 'Faisal', email: 'faisal@oursabeel.com' } },
   activeCardCount: 0,
   createdAt: now,
@@ -805,16 +814,22 @@ async function tour(page, tag, width) {
   }
 
   /**
-   * EVERY ROLE, not just the admin who owns the app.
+   * BOTH SIDES OF BOARD AUTHORITY, not just the admin who owns the app.
    *
-   * Manager-gated and member-only layouts had no coverage at any width. Each
-   * role gets its own context because the session is per-browser-context, and
-   * narrow only because that is where the gated controls share one cramped row.
+   * Owner-gated and member-only layouts had no coverage at any width. Each
+   * person gets their own context because the session is per-browser-context,
+   * and narrow only because that is where the gated controls share one cramped
+   * row.
+   *
+   * The `settings`/`members` pair is the assertion that matters: the entry point
+   * is now ALWAYS present and its NAME is what changes, so checking only for the
+   * absence of "Board settings" would pass just as well if the control had
+   * vanished entirely and stranded the member with no roster.
    */
   if (width < WIDE_BREAKPOINT) {
     for (const [who, role, wants] of [
-      ['sara', 'manager', { deleteColumn: true, settings: true }],
-      ['omar', 'member', { deleteColumn: false, settings: false }],
+      ['sara', 'owner', { deleteColumn: true, settings: true, members: false }],
+      ['omar', 'member', { deleteColumn: false, settings: false, members: true }],
     ]) {
       const roleCtx = await browser.newContext({ viewport: { width, height: 900 } });
       const rp = await roleCtx.newPage();
@@ -836,6 +851,7 @@ async function tour(page, tag, width) {
           deleteColumn: vis.some((e) => nm(e).startsWith('Delete column')),
           archived: vis.some((e) => nm(e) === 'Archived cards'),
           settings: vis.some((e) => nm(e) === 'Board settings'),
+          members: vis.some((e) => nm(e) === 'Board members'),
           bleed: document.documentElement.scrollWidth - window.innerWidth,
         };
       });
@@ -845,9 +861,42 @@ async function tour(page, tag, width) {
         got.bleed <= 1 &&
         got.deleteColumn === wants.deleteColumn &&
         got.settings === wants.settings &&
+        got.members === wants.members &&
         roleErrors.length === 0;
-      check(`${tag} / the board as a ${role}`, ok, `${JSON.stringify(got)} ${roleErrors.join('|')}`);
+      check(`${tag} / the board as ${role === 'owner' ? 'an owner' : 'a member'}`, ok, `${JSON.stringify(got)} ${roleErrors.join('|')}`);
       await rp.screenshot({ path: join(SHOTS, `${tag}-board-${role}.png`), fullPage: true });
+
+      // The roster ITSELF, at phone width, on both sides. It is a screen the
+      // admin tour can never reach: an admin always owns every board, so the
+      // read-only version renders for nobody who is looking.
+      await rp.getByRole('button', { name: wants.settings ? 'Board settings' : 'Board members' }).click();
+      await rp.getByText('Members (3)').first().waitFor({ timeout: 20000 });
+      const roster = await rp.evaluate(() => {
+        const nm = (e) => (e.getAttribute('aria-label') || '').trim();
+        const vis = (sel) =>
+          [...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().width > 2);
+        const creator = vis('[role="switch"]').find((e) => /: Faisal$/.test(nm(e)));
+        return {
+          title: (document.body.textContent || '').includes('Board settings')
+            ? 'settings'
+            : 'members',
+          toggles: vis('[role="switch"]').filter((e) => nm(e).startsWith('Owner of this board')).length,
+          creatorLocked: creator ? creator.getAttribute('aria-disabled') === 'true' : null,
+          ownerHints: (document.body.textContent || '').split('Owner').length - 1,
+          bleed: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+      // An owner gets a toggle per member and cannot demote the creator; a
+      // member gets no toggle at all and reads who to ask instead.
+      const rosterOk = wants.settings
+        ? roster.title === 'settings' && roster.toggles === 3 && roster.creatorLocked === true
+        : roster.title === 'members' && roster.toggles === 0 && roster.ownerHints >= 2;
+      check(
+        `${tag} / the roster as ${role === 'owner' ? 'an owner' : 'a member'}`,
+        rosterOk && roster.bleed <= 1,
+        JSON.stringify(roster),
+      );
+      await rp.screenshot({ path: join(SHOTS, `${tag}-roster-${role}.png`), fullPage: true });
       await roleCtx.close();
     }
   }

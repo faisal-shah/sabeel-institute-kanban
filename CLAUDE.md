@@ -4,8 +4,9 @@
 
 A kanban board application for Sabeel Institute (small nonprofit, <50 internal
 users), replacing ClickUp. Faisal is the developer; the nonprofit's staff are the
-admins/managers in the app. Source of truth: `docs/PRODUCT_BRIEF.md` (decisions &
-data model) and `docs/PHASE_STATUS.md` (live build status).
+admins and board owners in the app. Source of truth: `docs/PRODUCT_BRIEF.md`
+(decisions & data model), `docs/PERMISSIONS.md` (who can do what) and
+`docs/PHASE_STATUS.md` (live build status).
 
 Key product invariants (do not silently change):
 - **Restraint is the feature.** They left ClickUp because of interface bloat. No
@@ -23,15 +24,34 @@ Key product invariants (do not silently change):
   reminder firing at 07:00 local. Do not "align" it with the sibling
   time-tracker — that project has no org timezone at all, by design, because it
   buckets each entry in the timezone where the work happened.
-- **Three org-wide roles: admin / manager / member.** Managers create boards and
-  may join any board; members see only boards they've been added to; admins alone
-  approve accounts and promote people. There are NO per-board roles.
+- **AUTHORITY IS TWO INDEPENDENT THINGS** (changed 2026-08-16, replacing three
+  org roles alone). An **org role** — admin / organizer / member — and
+  **ownership of one board**, a `boardOwnerUids` array on the board document.
+  They are orthogonal: a plain member can own a board, an organizer can own
+  none. `organizer` grants EXACTLY ONE thing, creating a board; label curation
+  and Stats are admin-only; **only an admin sees a board they were not added
+  to**. Everything about one board — settings, columns, membership, ownership,
+  archiving, permanently deleting a card, deleting anyone's comment — is its
+  owners plus admins. `docs/PERMISSIONS.md` is the full statement; do not restate
+  the table anywhere else.
+  Three things that are load-bearing rather than tidy. **The creator is
+  protected**: only an admin may take `createdBy` out of `boardOwnerUids`,
+  including on their own behalf — and the rule is phrased on the CHANGE, so a
+  board whose creator an admin already demoted stays editable, which a
+  value-shaped rule would have bricked. **Ownership is always checked WITH
+  membership**, never alone, which is what lets the rules skip a
+  `boardOwnerUids ⊆ memberUids` subset check — `removeBoardMember` is an Admin
+  SDK batch that bypasses rules, so such a check would let an ordinary member
+  removal make a board reject the next client write. And **board create REQUIRES
+  `boardOwnerUids == [creator]`**, which turns "an app too old to know about
+  ownership made a board only an admin can manage" from silent and permanent
+  into a loud failure.
 - **Sign-in is restricted to `@oursabeel.com` AND still needs admin approval.**
   The domain check is server-side — the client `hd` hint is UX, not a boundary.
 - **File attachments exist, and the shape of them is settled** (added 2026-07-26,
   reversing the original "no attachments" decision). Multiple files per card,
   **10 MB each**, any type. **Any active member of the board may remove one** —
-  deliberately NOT the manager-only gate permanent card deletion uses, because
+  deliberately NOT the owner-only gate permanent card deletion uses, because
   attaching the wrong file is an ordinary mistake that should not need someone
   else to undo. Plain rows, no inline previews. Attach and remove are both
   recorded in the card's activity log.
@@ -86,8 +106,10 @@ Key product invariants (do not silently change):
   collection every board shares; a card's `labelIds` mean the same thing
   wherever the card is, so a cross-board move and copy **carry them** — the old
   code cleared them and must not come back. **Any active member creates** one
-  (from the `+` in a card's label picker, since Board Settings is manager-only);
-  **managers rename, recolour and delete**. Deleting is a callable that strips
+  (from the `+` in a card's label picker, since Board Settings opens for that
+  board's owners alone); **ADMINS rename, recolour and delete** — the effect is
+  org-wide, reaching cards on boards the editor cannot open, so the authority is
+  org-wide too. Deleting is a callable that strips
   the id from every card first and only then removes the document — reversed,
   a failure would leave cards pointing at nothing findable. A COLLECTION rather
   than an array on a config doc: concurrent creates are the normal case here,
@@ -165,9 +187,9 @@ Key product invariants (do not silently change):
   removed, not disabled). Never hardcode a color; the ESLint rule will reject it.
   `app/src/theme/palette.ts` is the only exception and is where the brand palette
   lives.
-- **Boards archive, never hard-delete. Cards can be deleted, but only by
-  managers/admins** — members archive.
-- **Stats are server-written, manager-gated, and must never be able to break what
+- **Boards archive, never hard-delete. Cards can be deleted, but only by that
+  board's owners and admins** — members archive.
+- **Stats are server-written, ADMIN-gated, and must never be able to break what
   they count.** `recordStat` runs AFTER the primary work commits and never
   rejects: `guardedEvent` rethrows, so a throw inside a trigger retries it, and
   `onCardWritten` writes activity with generated ids — a retry would duplicate a
