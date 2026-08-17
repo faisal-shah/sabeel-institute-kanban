@@ -67,7 +67,7 @@ beforeEach(async () => {
       memberUids: ['member1', 'member2'],
       boardOwnerUids: ['member1'],
       createdAt: 1,
-      createdBy: 'manager1',
+      createdBy: 'member1',
     });
     // A second board member1 is NOT on, to prove comment rules resolve the
     // card's OWN boardId rather than assuming one.
@@ -80,7 +80,7 @@ beforeEach(async () => {
       memberUids: ['outsider'],
       boardOwnerUids: ['outsider'],
       createdAt: 1,
-      createdBy: 'manager1',
+      createdBy: 'outsider',
     });
     const cardDoc = (boardId: string) => ({
       boardId,
@@ -103,6 +103,11 @@ beforeEach(async () => {
     await setDoc(doc(db, 'cards/card2'), cardDoc('b2'));
     await setDoc(doc(db, 'cards/card2/comments/c2existing'), comment());
     await setDoc(doc(db, `${CARD}/comments/existing`), comment());
+    // SOMEONE ELSE'S comment. Moderation is the only thing that can act on this
+    // one, so the delete test below proves board authority rather than
+    // self-deletion — which is what it proved while it used `existing`, whose
+    // author is the very person doing the deleting.
+    await setDoc(doc(db, `${CARD}/comments/byMember2`), comment({ authorUid: 'member2' }));
     await setDoc(doc(db, `${CARD}/activity/a1`), {
       type: 'created',
       actorUid: 'member1',
@@ -228,12 +233,15 @@ describe('editing comments', () => {
     );
   });
 
-  it('even a MANAGER cannot rewrite someone else words', async () => {
-    // Managers moderate by deleting, never by editing under another name.
+  it('even an OWNER of the board cannot rewrite someone else’s words', async () => {
+    // `member1` owns b1. Owners moderate by DELETING, never by editing under
+    // another person's name — the delete test below is the positive control.
     await assertFails(
-      updateDoc(doc(ctx('manager1', 'manager'), `${CARD}/comments/existing`), {
-        ...comment(),
-        body: 'rewritten by a manager',
+      updateDoc(doc(ctx('member1', 'member'), `${CARD}/comments/byMember2`), {
+        authorUid: 'member2',
+        body: 'rewritten by an owner',
+        mentionUids: [],
+        createdAt: 1,
       }),
     );
   });
@@ -285,13 +293,14 @@ describe('deleting comments', () => {
 
   it('an OWNER of the board can delete anyone’s comment — the moderation path', async () => {
     // Moderation is a property of the BOARD, not of a rank in the organisation.
-    // member1 owns b1 while holding the plain `member` role.
+    // member1 owns b1 while holding the plain `member` role, and the comment
+    // being removed is member2's — so this is moderation, not self-deletion.
     await assertSucceeds(
-      deleteDoc(doc(ctx('member1', 'member'), `${CARD}/comments/existing`)),
+      deleteDoc(doc(ctx('member1', 'member'), `${CARD}/comments/byMember2`)),
     );
   });
 
-  it('another member cannot', async () => {
+  it('another member cannot delete someone else’s', async () => {
     await assertFails(
       deleteDoc(doc(ctx('member2', 'member'), `${CARD}/comments/existing`)),
     );
@@ -299,11 +308,11 @@ describe('deleting comments', () => {
 
   it('nor can an organizer who does not own the board', async () => {
     await assertFails(
-      deleteDoc(doc(ctx('org1', 'organizer'), `${CARD}/comments/existing`)),
+      deleteDoc(doc(ctx('org1', 'organizer'), `${CARD}/comments/byMember2`)),
     );
     // Only board authority was in the way.
     await assertSucceeds(
-      deleteDoc(doc(ctx('admin1', 'admin'), `${CARD}/comments/existing`)),
+      deleteDoc(doc(ctx('admin1', 'admin'), `${CARD}/comments/byMember2`)),
     );
   });
 });
@@ -317,11 +326,12 @@ describe('activity is read-only to everyone', () => {
     await assertFails(getDoc(doc(ctx('stranger', 'member'), `${CARD}/activity/a1`)));
   });
 
-  it('NOBODY can write it — not members, not managers, not admins', async () => {
-    // The log is trustworthy precisely because it cannot be forged.
+  it('NOBODY can write it — not members, not owners, not admins', async () => {
+    // The log is trustworthy precisely because it cannot be forged. `member1`
+    // owns this board, so the middle row is the board-authority case.
     for (const [uid, role] of [
+      ['member2', 'member'],
       ['member1', 'member'],
-      ['manager1', 'manager'],
       ['admin1', 'admin'],
     ]) {
       await assertFails(

@@ -81,7 +81,7 @@ beforeEach(async () => {
       memberUids: ['member1', 'member2'],
       boardOwnerUids: ['member1'],
       createdAt: 1,
-      createdBy: 'manager1',
+      createdBy: 'member1',
     });
     await setDoc(doc(db, 'boards/b2'), {
       name: 'Private',
@@ -92,7 +92,7 @@ beforeEach(async () => {
       memberUids: ['outsider'],
       boardOwnerUids: ['outsider'],
       createdAt: 1,
-      createdBy: 'manager1',
+      createdBy: 'outsider',
     });
     // A second board member1 IS on, for the successful cross-board move.
     await setDoc(doc(db, 'boards/b3'), {
@@ -104,7 +104,7 @@ beforeEach(async () => {
       memberUids: ['member1'],
       boardOwnerUids: ['member1'],
       createdAt: 1,
-      createdBy: 'manager1',
+      createdBy: 'member1',
     });
     await setDoc(doc(db, 'cards/card1'), card());
     // A card on a board member1 is NOT on, but which they are assigned to.
@@ -303,7 +303,7 @@ describe('creating cards', () => {
     await assertFails(
       setDoc(
         doc(ctx('member1', 'member'), 'cards/new7'),
-        card({ createdBy: 'manager1', updatedBy: 'manager1' }),
+        card({ createdBy: 'member2', updatedBy: 'member2' }),
       ),
     );
   });
@@ -555,8 +555,8 @@ describe('updating cards (in-board)', () => {
 
 describe('moving a card to another board', () => {
   it('a plain member moves a card to a board they are also on', async () => {
-    // Proves a move is an EDIT, not a delete — the delete gate (manager/admin)
-    // must not apply. member1 is on both b1 and b3.
+    // Proves a move is an EDIT, not a delete — the delete gate (owners and
+    // admins) must not apply. member1 is on both b1 and b3.
     await assertSucceeds(
       updateDoc(doc(ctx('member1', 'member'), 'cards/card1'), {
         ...card(),

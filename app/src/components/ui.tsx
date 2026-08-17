@@ -490,6 +490,16 @@ export function Toggle({
     <Pressable
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled: !!disabled }}
+      /**
+       * `aria-checked` as well, and for the same reason `IconAction` carries
+       * `aria-pressed`: react-native-web does not map `accessibilityState.checked`
+       * to any ARIA attribute. Measured, not assumed — the rendered switch had the
+       * right thumb position and NO state at all, so on the web a screen reader
+       * could not tell an owner's row from a non-owner's, and neither could a
+       * test. Inert on native, where `accessibilityState` above is what Android
+       * reads.
+       */
+      aria-checked={value}
       accessibilityLabel={label}
       disabled={disabled}
       onPress={() => onValueChange(!value)}
@@ -660,6 +670,10 @@ export function SegmentedIcons<T extends string>({
             accessibilityRole="radio"
             accessibilityLabel={o.label}
             accessibilityState={{ selected: on, checked: on }}
+            // Same react-native-web gap as `Toggle` above: the state has to be
+            // stated in ARIA directly or the web build announces every option
+            // identically.
+            aria-checked={on}
             onPress={() => onChange(o.key)}
             style={({ pressed }) => [
               styles.segment,

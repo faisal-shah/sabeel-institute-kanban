@@ -58,9 +58,9 @@ beforeEach(async () => {
       role: 'admin',
       status: 'active',
     });
-    await setDoc(doc(db, 'users/manager1'), {
-      displayName: 'Manager One',
-      email: 'manager1@oursabeel.com',
+    await setDoc(doc(db, 'users/org1'), {
+      displayName: 'Organizer One',
+      email: 'org1@oursabeel.com',
       role: 'organizer',
       status: 'active',
     });
@@ -139,8 +139,8 @@ describe('reading OTHER user docs', () => {
     await assertSucceeds(getDocs(collection(ctx('admin1', 'admin', 'active'), 'users')));
   });
 
-  it('refuses the user list to managers and members', async () => {
-    await assertFails(getDocs(collection(ctx('manager1', 'manager', 'active'), 'users')));
+  it('refuses the user list to organizers and members', async () => {
+    await assertFails(getDocs(collection(ctx('org1', 'organizer', 'active'), 'users')));
     await assertFails(getDocs(collection(ctx('member1', 'member', 'active'), 'users')));
   });
 
@@ -170,8 +170,8 @@ describe('writes to user docs are impossible from any client', () => {
     await assertFails(updateDoc(doc(db, 'users/pending1'), { status: 'active' }));
   });
 
-  it('blocks a manager promoting someone', async () => {
-    const db = ctx('manager1', 'manager', 'active');
+  it('blocks an organizer promoting someone', async () => {
+    const db = ctx('org1', 'organizer', 'active');
     await assertFails(updateDoc(doc(db, 'users/member1'), { role: 'organizer' }));
   });
 
@@ -211,7 +211,7 @@ describe('writes to user docs are impossible from any client', () => {
 
   it('blocks editing someone ELSE preferences', async () => {
     const db = ctx('member1', 'member', 'active');
-    await assertFails(updateDoc(doc(db, 'users/manager1'), { favoriteBoardIds: ['b1'] }));
+    await assertFails(updateDoc(doc(db, 'users/org1'), { favoriteBoardIds: ['b1'] }));
   });
 
   it('blocks creating a user doc for someone who never signed up', async () => {
@@ -289,7 +289,7 @@ describe('push tokens', () => {
       await setDoc(doc(c.firestore(), 'users/member1/pushTokens/t'), { platform: 'android' });
     });
     await assertFails(getDoc(doc(ctx('admin1', 'admin', 'active'), 'users/member1/pushTokens/t')));
-    await assertFails(getDocs(collection(ctx('manager1', 'manager', 'active'), 'users/member1/pushTokens')));
+    await assertFails(getDocs(collection(ctx('org1', 'organizer', 'active'), 'users/member1/pushTokens')));
   });
 
   it('a PENDING user may not write preferences', async () => {
@@ -336,7 +336,7 @@ describe('the notification inbox', () => {
   it("nobody may read or clear SOMEONE ELSE's inbox, an admin included", async () => {
     await seedNotif('member1', 'n1', false);
     for (const [uid, role] of [
-      ['manager1', 'manager'],
+      ['org1', 'organizer'],
       ['admin1', 'admin'],
     ] as const) {
       const db = ctx(uid, role, 'active');

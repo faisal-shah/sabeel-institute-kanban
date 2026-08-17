@@ -89,7 +89,7 @@ beforeEach(async () => {
       // but the surrounding rules now need the field to exist.
       boardOwnerUids: memberUids.slice(0, 1),
       createdAt: 1,
-      createdBy: 'manager1',
+      createdBy: memberUids[0],
     });
     await setDoc(doc(db, 'boards/b1'), board(['member1', 'member2'], 'c1'));
     // A second board member1 is NOT on, to prove the rules resolve the card's
@@ -212,23 +212,25 @@ describe('creating an attachment record', () => {
 describe('attachments are never edited or deleted by a client', () => {
   const existing = (db: ReturnType<typeof fs>) => doc(db, `${attachments(CARD)}/existing`);
 
-  it('refuses an update from the uploader, a manager and an admin', async () => {
+  it('refuses an update from the uploader, the board’s owner and an admin', async () => {
+    // member1 is both the uploader and this board's owner, so the middle case is
+    // covered twice over; org1 is on no board at all.
     for (const who of [
       fs('member1', 'member'),
-      fs('manager1', 'manager'),
+      fs('member2', 'member'),
       fs('admin1', 'admin'),
     ]) {
       await assertFails(updateDoc(existing(who), { name: 'renamed.pdf' }));
     }
   });
 
-  it('refuses a delete from the uploader, a manager and an admin', async () => {
+  it('refuses a delete from the uploader, the board’s owner and an admin', async () => {
     // Removal is real, but it goes through the deleteAttachment callable: a
     // client deleteDoc would strand the bytes and would leave the activity log
     // unable to name who did it.
     for (const who of [
       fs('member1', 'member'),
-      fs('manager1', 'manager'),
+      fs('member2', 'member'),
       fs('admin1', 'admin'),
     ]) {
       await assertFails(deleteDoc(existing(who)));
@@ -296,7 +298,7 @@ describe('storage: the attachment object', () => {
     });
     for (const who of [
       st('member1', 'member'),
-      st('manager1', 'manager'),
+      st('org1', 'organizer'),
       st('admin1', 'admin'),
     ]) {
       await assertFails(getDownloadURL(ref(who, path)));

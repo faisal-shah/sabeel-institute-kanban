@@ -13,7 +13,7 @@ import { EMULATOR_PROJECT_ID, STATS_ALL_SCOPE } from '@sabeel/shared';
  * Rules for the server-written `stats` collection.
  *
  * Two things to pin. Reading is ADMIN-ONLY: a per-board bucket is addressed by
- * board id, so while this was open to managers it was a way to read any board's
+ * board id, so while this was open to every manager it was a way to read any board's
  * activity without being on it and without any screen offering it — which stops
  * being tolerable the moment the org role no longer carries sight of every
  * board. And writing is closed to everyone without exception — a client that

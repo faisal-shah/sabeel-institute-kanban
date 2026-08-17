@@ -19,13 +19,13 @@ import {
  * Unique ids throughout (`lb_` prefix) so these do not collide with the other
  * suites sharing one `emulators:exec` run.
  */
-const MGR = 'lb_mgr';
+const ADM = 'lb_adm';
 const MEM = 'lb_mem';
-/** A board the MANAGER is deliberately not a member of. */
+/** A board the ADMIN is deliberately not a member of. */
 const BOARD_A = 'lb_board_a';
 const BOARD_B = 'lb_board_b';
 
-let mgrToken: string;
+let admToken: string;
 let memToken: string;
 
 const labelRef = (id: string) => adminDb().doc(`labels/${id}`);
@@ -65,9 +65,9 @@ async function putCard(
 beforeAll(async () => {
   // Curating labels is ADMIN work now: the effect is org-wide, so it takes an
   // org-wide authority. Owning a board grants no part of it.
-  await makeUser({ uid: MGR, email: `${MGR}@oursabeel.com`, role: 'admin', status: 'active' });
+  await makeUser({ uid: ADM, email: `${ADM}@oursabeel.com`, role: 'admin', status: 'active' });
   await makeUser({ uid: MEM, email: `${MEM}@oursabeel.com`, role: 'member', status: 'active' });
-  [mgrToken, memToken] = await Promise.all([idTokenFor(MGR), idTokenFor(MEM)]);
+  [admToken, memToken] = await Promise.all([idTokenFor(ADM), idTokenFor(MEM)]);
 
   for (const [id, members] of [
     [BOARD_A, [MEM]],
@@ -83,7 +83,7 @@ beforeAll(async () => {
       memberProfiles: {},
       activeCardCount: 0,
       createdAt: Date.now(),
-      createdBy: MGR,
+      createdBy: ADM,
     });
   }
 });
@@ -100,9 +100,9 @@ describe('countLabelUsage', () => {
     await putCard('lb_c_b1', BOARD_B, ['lb_wide']);
     await putCard('lb_c_b2', BOARD_B, ['lb_other']);
 
-    // MGR is a member of NEITHER board. The count must still be complete, which
+    // ADM is a member of NEITHER board. The count must still be complete, which
     // is the point of doing it server-side rather than from the client.
-    const res = await callFunction('countLabelUsage', { labelId: 'lb_wide' }, mgrToken);
+    const res = await callFunction('countLabelUsage', { labelId: 'lb_wide' }, admToken);
     expect(res.status).toBe(200);
     expect(res.body.result).toEqual({ active: 3, archived: 0 });
   });
@@ -115,13 +115,13 @@ describe('countLabelUsage', () => {
     await putCard('lb_s_arch1', BOARD_A, ['lb_split'], true);
     await putCard('lb_s_arch2', BOARD_B, ['lb_split'], true);
 
-    const res = await callFunction('countLabelUsage', { labelId: 'lb_split' }, mgrToken);
+    const res = await callFunction('countLabelUsage', { labelId: 'lb_split' }, admToken);
     expect(res.body.result).toEqual({ active: 1, archived: 2 });
   });
 
   it('reports zero for a label nothing carries', async () => {
     await putLabel('lb_unused');
-    const res = await callFunction('countLabelUsage', { labelId: 'lb_unused' }, mgrToken);
+    const res = await callFunction('countLabelUsage', { labelId: 'lb_unused' }, admToken);
     expect(res.body.result).toEqual({ active: 0, archived: 0 });
   });
 
@@ -132,13 +132,13 @@ describe('countLabelUsage', () => {
     const anon = await callFunction('countLabelUsage', { labelId: 'lb_gated' });
     expect(anon.body.error?.status).toBe('UNAUTHENTICATED');
     // Only the role was in the way.
-    const asManager = await callFunction('countLabelUsage', { labelId: 'lb_gated' }, mgrToken);
-    expect(asManager.status).toBe(200);
+    const asAdmin = await callFunction('countLabelUsage', { labelId: 'lb_gated' }, admToken);
+    expect(asAdmin.status).toBe(200);
   });
 
   it('rejects a malformed labelId rather than querying with it', async () => {
     for (const labelId of ['', 'has/slash', 'x'.repeat(200), 42]) {
-      const res = await callFunction('countLabelUsage', { labelId }, mgrToken);
+      const res = await callFunction('countLabelUsage', { labelId }, admToken);
       expect(res.body.error?.status).toBe('INVALID_ARGUMENT');
     }
   });
@@ -154,7 +154,7 @@ describe('deleteLabel', () => {
     await putCard('lb_d_b1', BOARD_B, ['lb_kill'], true);
     await putCard('lb_d_b2', BOARD_B, ['lb_keep']);
 
-    const res = await callFunction('deleteLabel', { labelId: 'lb_kill' }, mgrToken);
+    const res = await callFunction('deleteLabel', { labelId: 'lb_kill' }, admToken);
     expect(res.status).toBe(200);
     expect((res.body.result as { strippedFromCards: number }).strippedFromCards).toBe(2);
 
@@ -171,7 +171,7 @@ describe('deleteLabel', () => {
     await putLabel('lb_logged');
     await putCard('lb_log_1', BOARD_A, ['lb_logged']);
 
-    await callFunction('deleteLabel', { labelId: 'lb_logged' }, mgrToken);
+    await callFunction('deleteLabel', { labelId: 'lb_logged' }, admToken);
 
     // Written by the onCardWritten trigger off the labelIds diff, not by the
     // callable — which is why setting updatedBy is load-bearing. Without it the
@@ -180,7 +180,7 @@ describe('deleteLabel', () => {
       const docs = (await adminDb().collection('cards/lb_log_1/activity').get()).docs;
       return docs.map((d) => d.data()).find((e) => e.type === 'labels');
     });
-    expect(entry.actorUid).toBe(MGR);
+    expect(entry.actorUid).toBe(ADM);
   });
 
   it('is refused to a member, and the label survives', async () => {
@@ -194,7 +194,7 @@ describe('deleteLabel', () => {
   });
 
   it('reports a label that is not there rather than silently succeeding', async () => {
-    const res = await callFunction('deleteLabel', { labelId: 'lb_missing' }, mgrToken);
+    const res = await callFunction('deleteLabel', { labelId: 'lb_missing' }, admToken);
     expect(res.body.error?.status).toBe('NOT_FOUND');
   });
 
@@ -212,7 +212,7 @@ describe('deleteLabel', () => {
     await putCard('lb_partial_c', BOARD_A, ['lb_partial']);
 
     await expect(
-      applyDeleteLabel('lb_partial', MGR, async () => {
+      applyDeleteLabel('lb_partial', ADM, async () => {
         throw new Error('sweep failed partway');
       }),
     ).rejects.toThrow('sweep failed partway');
@@ -221,7 +221,7 @@ describe('deleteLabel', () => {
     expect(await labelsOn('lb_partial_c')).toEqual(['lb_partial']);
 
     // …and the ordinary path still finishes it.
-    const res = await callFunction('deleteLabel', { labelId: 'lb_partial' }, mgrToken);
+    const res = await callFunction('deleteLabel', { labelId: 'lb_partial' }, admToken);
     expect(res.status).toBe(200);
     expect((await labelRef('lb_partial').get()).exists).toBe(false);
     expect(await labelsOn('lb_partial_c')).toEqual([]);
@@ -234,9 +234,9 @@ describe('deleteLabel', () => {
     // rather than stripping anything a second time.
     await putLabel('lb_twice');
     await putCard('lb_twice_c', BOARD_A, ['lb_twice']);
-    const first = await callFunction('deleteLabel', { labelId: 'lb_twice' }, mgrToken);
+    const first = await callFunction('deleteLabel', { labelId: 'lb_twice' }, admToken);
     expect((first.body.result as { strippedFromCards: number }).strippedFromCards).toBe(1);
-    const second = await callFunction('deleteLabel', { labelId: 'lb_twice' }, mgrToken);
+    const second = await callFunction('deleteLabel', { labelId: 'lb_twice' }, admToken);
     expect(second.body.error?.status).toBe('NOT_FOUND');
     expect(await labelsOn('lb_twice_c')).toEqual([]);
   });

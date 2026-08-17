@@ -128,7 +128,7 @@ export async function callFunction(
 
 /**
  * Create a user and wait for the auth trigger to finish provisioning it, then
- * force the claims the test needs. Tests that want a manager or admin cannot get
+ * force the claims the test needs. Tests that want an organizer or admin cannot get
  * one from the trigger — everyone starts pending/member by design.
  */
 export async function makeUser(opts: {
