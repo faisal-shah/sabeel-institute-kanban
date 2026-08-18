@@ -227,15 +227,19 @@ creation**.
       Access → Integrations, and it uploads builds rather than delivering
       pushes. Both download exactly once and both are real secrets — keep either
       out of the repo. Both are in Drive.
-- [ ] **Distribution route NOT yet final (reopened 2026-08-17). Internal
-      TestFlight until further notice.** The options below were surveyed on
-      2026-08-12 and the reasoning stands, but the destination is Faisal's call
-      and has not been made — so nothing here is to be acted on: no review
-      account, no App Review submission, no unlisted request.
+- [ ] **Distribution route DECIDED 2026-08-18: Unlisted App Distribution.**
+      Surveyed 2026-08-12, briefly reopened on 2026-08-17 because it had not
+      actually been called, and now called. The Apple Developer account is an
+      **Organization** account under Sabeel Institute, so the Account Holder
+      files the unlisted request and listings carry the institute's name.
+      **Still do not submit yet** — App Review and the unlisted request are gated
+      on `docs/STORE-RELEASE.md` landing, which removes account creation from the
+      app. Submitting before that owes Apple an in-app deletion flow nobody has
+      built. Internal TestFlight remains the channel meanwhile.
       Internal TestFlight is right for Faisal and core developers — people who
       genuinely belong on the App Store Connect team — and avoids Beta App
       Review entirely; its 90-day build expiry is the cost of staying on it.
-      **Unlisted**, the leading candidate, is a normal App Store app that is not
+      **Unlisted** is a normal App Store app that is not
       searchable and appears
       in no chart or category, reachable only by direct link: no user cap, no
       expiry, managed and unmanaged devices, and colleagues need no ASC account,

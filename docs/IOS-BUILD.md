@@ -537,11 +537,21 @@ make, not a default.
 ## Getting it to testers, and the login gate
 
 **The destination is NOT settled (as of 2026-08-17). Ship to internal
-TestFlight, and do not act on anything below until Faisal says the route is
-final.** Concretely: do not create the review account, do not submit to App
-Review, and do not request unlisted distribution. Those are one-way enough to be
-worth waiting on — an App Review submission puts the app in front of Apple, and
-unlisted must be requested against a release build that is not in a beta state.
+TestFlight until the prerequisites below are met.**
+
+**DECIDED 2026-08-18: Unlisted App Distribution.** Faisal called it, and the
+Apple Developer account is an Organization account under Sabeel Institute, so
+listings carry the institute's name and the Account Holder files the request.
+The survey below stands as the reasoning.
+
+The old instruction here — do not create a review account, submit to App Review
+or request unlisted — was right while the route was open, and it is now replaced
+by a narrower one. **Those steps are gated on `docs/STORE-RELEASE.md`, not on a
+decision.** That document removes account creation from the app, which is what
+makes the release viable at all; submitting before it lands would put an app in
+front of Apple that owes an in-app account-deletion flow nobody has built.
+Internal TestFlight remains the channel meanwhile, and its 90-day build expiry
+is the cost of staying there.
 
 - **Internal TestFlight — the standing channel.** Faisal and any core developer.
   These are people who genuinely belong on the App Store Connect team, so the
@@ -549,8 +559,8 @@ unlisted must be requested against a release build that is not in a beta state.
   apply to two or three developers. No Beta App Review; builds land minutes
   after processing. **Builds expire after 90 days**, so a release that must
   outlive that needs re-uploading — the one real cost of staying here.
-- **Unlisted App Distribution — the leading candidate**, considered on
-  2026-08-12 and still the best-argued option, but not chosen. A normal App
+- **Unlisted App Distribution — CHOSEN.** Surveyed 2026-08-12, decided
+  2026-08-18. A normal App
   Store app that is not searchable and appears in no category, chart or
   recommendation, reachable only by direct link. No user cap, all App Store
   regions, managed and unmanaged devices alike, and **no expiry**: updates
