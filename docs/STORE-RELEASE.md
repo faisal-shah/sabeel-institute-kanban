@@ -112,23 +112,16 @@ empty array for every project created after 15 September 2023 — email enumerat
 protection is on by default and the method is deprecated on all platforms.
 Firebase's documented replacement is exactly this: Admin SDK behind a callable.
 
-### No server-side backstop, deliberately
+### No server-side backstop
 
-Decided 2026-08-18. A `beforeCreate` blocking function would run before the
-record is persisted and could reject by throwing `HttpsError`, so it *would* be a
-true backstop rather than a cleanup. It is still not worth having here.
+Considered and rejected (2026-08-18). Nothing in this design detects which
+platform a request came from, and nothing needs to: the mobile app simply never
+calls the code path that creates an account.
 
-The web app keeps self-service sign-in, so `beforeCreate` cannot reject
-everything — it would have to tell web from mobile, and `EventContext` carries
-`ipAddress` and `userAgent` but **no client identifier**. That leaves
-user-agent sniffing, which a Firebase SDK update could silently break: the
-failure mode is real staff being refused at web signup, which is worse than the
-risk it covers.
-
-The rule governs what the *app* does, and the app does not create. A modified
-client is not the app. If this ever needs to be airtight — say the exemption is
-challenged — the answer is admin pre-provisioning, not heuristics: creation moves
-behind an admin action and `beforeCreate` rejects anything not pre-provisioned.
+A `beforeCreate` blocking function was the alternative, but the web app keeps
+self-service sign-in, so it could not reject everything — it would have to tell
+web from mobile, and `EventContext` has no client identifier. If the exemption is
+ever challenged, the answer is admin pre-provisioning, not detection.
 
 ### The refusal copy, which matters more than it looks
 
