@@ -403,11 +403,24 @@ Built 2026-08-18 in v0.10.0. **Two halves are each proven; their join is not.**
 - The public pages — fetched anonymously against the hosting emulator and checked
   they are static, not the SPA shell.
 
-**Not verified, and cannot be from Linux:** the real native round trip — tapping
-Sign in with Google on a device with an account that has none here, and seeing
-the refusal. It needs a deployed `accountExists` plus a real Google account, so
-it is the first thing to do on TestFlight and on the first Play internal build.
-The iOS handoff prompt in `docs/IOS-BUILD.md` asks for exactly that.
+**The native round trip is now verified too**, on Android against production
+(2026-08-18), which was the one thing no test on Linux could reach:
+
+- a personal Google account with no Kanban account → the refusal message;
+- signing in with a Workspace account immediately afterwards → works, which also
+  proves `googleSignOut()` ran, since Google would otherwise have silently
+  reused the first account and made switching impossible;
+- and the assertion that matters, checked against production Auth rather than
+  inferred from the screen: **the refused attempt created no account.** Zero new
+  auth records, and zero non-`oursabeel.com` accounts in the directory at all.
+
+Before this release that same attempt created a record and relied on
+`onUserCreate` to delete it again. Now nothing is created, which is the whole
+claim.
+
+**Still unverified: iOS.** Same code path and the same seam, but a different
+platform, and `docs/IOS-BUILD.md`'s handoff prompt asks for the identical check
+on a real iPhone.
 
 ## 12. Open decisions
 

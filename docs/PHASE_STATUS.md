@@ -461,9 +461,16 @@ archive has been built and signed. `check:ios` now fails without it, and fails o
 a manifest that contradicts itself by marking a data type as used for tracking
 while declaring `NSPrivacyTracking: false`.
 
+**Verified in production the same day**, on Android, which is the half no test on
+this machine can reach. A personal Google account got the refusal; a Workspace
+account signed in straight afterwards, which also proves the sign-out-from-Google
+step ran; and production Auth gained **no new account** from the refused attempt —
+checked directly rather than read off the screen. That last one is the entire
+compliance claim.
+
 **Not in this release:** App Review submission, the unlisted request, and App
-Store Connect metadata. iOS goes to **TestFlight** first, until the refusal path
-has been seen working in real use.
+Store Connect metadata. iOS goes to **TestFlight** first, and owes the same
+three-part check on a real iPhone.
 
 ### 2026-08-17 — Board authority becomes per-board — v0.9.0
 
