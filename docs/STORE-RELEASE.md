@@ -76,41 +76,59 @@ touches nothing in your Firebase project. That is the window the design lives in
 
 ```ts
 const { idToken } = await GoogleSignin.signIn();   // creates nothing
-const { allowed } = await canSignIn({ idToken });  // callable, Admin SDK
-if (!allowed) return showRefusal();                // never reach Firebase Auth
+const { exists } = await accountExists({ idToken });  // callable, Admin SDK
+if (!exists) return showRefusal();                 // never reach Firebase Auth
 await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+// from here, App.tsx routes on status exactly as it does today
 ```
 
-### The `canSignIn` callable
+### The `accountExists` callable
 
 - Unauthenticated callable (there is no session yet, by definition).
 - Verifies the Google ID token server-side. Do **not** trust an email sent by the
   client.
-- Looks the user up with the Admin SDK and returns whether an account exists
-  **and** is active.
-- Returns a single boolean. Never return *why* — that is an account-enumeration
-  oracle, and it is the reason Firebase disabled the client-side check.
+- Looks the user up with the Admin SDK and returns **one boolean: does an account
+  exist.** Nothing about role, status or why. Never return *why* — that is an
+  account-enumeration oracle, and it is the reason Firebase disabled the
+  client-side check in the first place.
+
+**It deliberately does not check status.** Existence is the whole compliance
+question, because signing in to an account that already exists creates nothing.
+Everything else is already handled:
+
+| State | Mobile behaviour | Why it is safe |
+|---|---|---|
+| No account | Refuse; never call `signInWithCredential` | The one case that would create |
+| Pending | Sign in, show the waiting-for-approval screen | Account exists; the screen already updates live on approval |
+| Disabled | Sign in, show the account-disabled screen | Account exists; disabling sets a claim and revokes tokens, it does not set Firebase's own `disabled` flag, so sign-in still succeeds and `App.tsx` routes on the claim |
+| Active | Sign in normally | — |
+
+So the status routing in `App.tsx` is untouched. **The entire change is one
+existence gate in front of `signInWithCredential`**, which is worth saying plainly
+because it is far smaller than the compliance argument behind it.
 
 **You cannot do this on the client.** `fetchSignInMethodsForEmail` returns an
 empty array for every project created after 15 September 2023 — email enumeration
 protection is on by default and the method is deprecated on all platforms.
 Firebase's documented replacement is exactly this: Admin SDK behind a callable.
 
-### Two rules that share one code path
+### No server-side backstop, deliberately
 
-- **Never create** — refuse any identity with no existing account. *Compliance.*
-- **Only active** — also refuse pending and disabled. *Product choice.*
+Decided 2026-08-18. A `beforeCreate` blocking function would run before the
+record is persisted and could reject by throwing `HttpsError`, so it *would* be a
+true backstop rather than a cleanup. It is still not worth having here.
 
-One check covers both, but know which is which. Relaxing the second is harmless.
-Relaxing the first ends the exemption.
+The web app keeps self-service sign-in, so `beforeCreate` cannot reject
+everything — it would have to tell web from mobile, and `EventContext` carries
+`ipAddress` and `userAgent` but **no client identifier**. That leaves
+user-agent sniffing, which a Firebase SDK update could silently break: the
+failure mode is real staff being refused at web signup, which is worse than the
+risk it covers.
 
-### Backstop
-
-Add a `beforeCreate` blocking function that rejects creation when the request did
-not come from the web app. It runs *before* the record is persisted and rejects
-by throwing `HttpsError`, so it is a true backstop rather than a cleanup. Note
-`EventContext` exposes `ipAddress` and `userAgent` but no reliable client
-identifier, so this is defence in depth, not the primary gate.
+The rule governs what the *app* does, and the app does not create. A modified
+client is not the app. If this ever needs to be airtight — say the exemption is
+challenged — the answer is admin pre-provisioning, not heuristics: creation moves
+behind an admin action and `beforeCreate` rejects anything not pre-provisioned.
 
 ### The refusal copy, which matters more than it looks
 
@@ -174,8 +192,9 @@ rather than hidden: organisation-owned records — cards, timesheets, academic
 records — are retained as institutional records; the account, its credentials and
 personal data are removed.
 
-Proposed address: **`privacy@oursabeel.com`**, monitored by an admin. One address
-across all three apps.
+Address: **`privacy@oursabeel.com`** (decided 2026-08-18), one address across all
+three apps. It does not exist yet — create it as a Workspace group with two
+admins on it, so the policy does not go stale when one person changes role.
 
 ### 4.3 `/get-app` — the download page
 
@@ -292,6 +311,13 @@ refactor, the § 4 web pages, the § 5 in-app additions, and the § 6 metadata.
 `platforms: ["android", "web"]`. Same refactor and same web pages. iOS is a later
 project — when it happens, § 6 applies unchanged. Its Play track stays unlisted.
 
+### Sequencing
+
+Kanban ships through App Review **first, alone** (decided 2026-08-18). The other
+two follow once it is through. The pilot exists so that a correction from Apple
+costs one app's rework rather than three — and the exemption argument in § 9 is
+exactly the kind of thing a reviewer might push back on.
+
 ### Recordings app — the one that differs
 
 `platforms: ["android", "web"]`, and **Google auth only today**; the student
@@ -343,10 +369,13 @@ Driven by store rules, not statute:
 
 - **Texas TDPSA** — nonprofits are fully exempt, and small businesses separately.
 - **CCPA** — applies to for-profit businesses. Not applicable.
-- **FERPA** — binds institutions taking US Department of Education funding.
-  Confirm whether this applies; either way it grants inspect-and-amend rights,
-  never erasure.
-- **GDPR** — only if EU/UK students are enrolled.
+- **FERPA** — **does not apply.** Confirmed 2026-08-18: the institute receives no
+  US Department of Education funding. Retention of student records rests on
+  institutional and contractual grounds instead, which is equally solid and is
+  how the policy should word it. Do not cite FERPA.
+- **GDPR** — **out of scope.** Confirmed 2026-08-18: all students are in the US.
+  No erasure-rights section is needed. Revisit if the institute ever enrols
+  someone in the EU or UK, because that single fact brings it back.
 - **COPPA** — not applicable; no under-13 users on any app.
 
 So the privacy policy can be short, plain and honest rather than a compliance
@@ -356,12 +385,10 @@ document. Have someone read it who is not the person who wrote it.
 
 ## 11. Open decisions
 
-- [ ] Confirm `privacy@oursabeel.com` exists and who monitors it.
-- [ ] Does the institute receive US Department of Education funding? Decides
-      whether FERPA is cited in the privacy policy or not.
-- [ ] Are any students outside the US, specifically EU/UK? Decides whether GDPR
-      erasure rights need a paragraph.
-- [ ] Who writes the privacy policy text, and who reviews it.
+- [ ] Create `privacy@oursabeel.com` as a Workspace group and put two admins on
+      it. Decided 2026-08-18; does not exist yet.
+- [ ] Who reviews the privacy policy text. It should be read by somebody who did
+      not write it.
 - [ ] App Store listing copy, screenshots and category, per app.
 - [ ] Whether a Google sign-in links correctly to a pre-created Auth user —
       depends on the project's one-account-per-email setting. Only matters if the
