@@ -16,11 +16,12 @@
  * phones and still looks right on button-nav devices that report a zero inset.
  */
 import { useState, type ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sheet, SheetOption } from './Sheet';
 import { Caption } from './ui';
+import { GET_APP_URL, PRIVACY_URL } from '@sabeel/shared';
 import { BUILD_INFO } from '../build-info';
 import { useNav, type Route } from '../nav';
 import { useUnreadCount } from '../notifications';
@@ -133,7 +134,31 @@ export function AppNav({
         />
       ) : null}
 
-      {canSeeStats || canSeePeople ? <MenuSection label="You" /> : null}
+      <MenuSection label="You" />
+      {/* Required to be reachable INSIDE the app, not just in store metadata —
+          App Store Review Guideline 5.1.1(i). Absolute URL so it opens from a
+          phone as well as the browser. */}
+      <SheetOption
+        label="Privacy policy"
+        onPress={() => {
+          setMenuOpen(false);
+          void Linking.openURL(PRIVACY_URL).catch(() => undefined);
+        }}
+      />
+      {/* Web only: on a phone you already have the app. Deliberately not shown
+          in the native apps for a second reason — this page tells people to sign
+          in on the website first, and an app that points at that is an app
+          directing users to account creation. docs/STORE-RELEASE.md § 2. */}
+      {Platform.OS === 'web' ? (
+        <SheetOption
+          label="Get the app"
+          detail="Install Kanban on your phone"
+          onPress={() => {
+            setMenuOpen(false);
+            void Linking.openURL(GET_APP_URL).catch(() => undefined);
+          }}
+        />
+      ) : null}
       <SheetOption
         label="Sign out"
         onPress={() => {

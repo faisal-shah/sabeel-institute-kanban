@@ -255,6 +255,50 @@ if (missingSentry.length) {
   );
 }
 
+// ---------------------------------------------------------------- privacy manifest
+//
+// Apple has rejected uploads for a missing or incomplete privacy manifest since
+// May 2024, and the rejection arrives by email AFTER a twenty-minute archive has
+// been built and signed — exactly the class of late, expensive failure this
+// script exists to move forward.
+//
+// Expo writes ios/PrivacyInfo.xcprivacy from this key during prebuild. Absent
+// the key it writes nothing, the build succeeds, and nothing says so.
+{
+  const pm = app.ios?.privacyManifests;
+  if (!pm) {
+    fail(
+      'app.json has no expo.ios.privacyManifests.\n' +
+        '    Expo generates ios/PrivacyInfo.xcprivacy from it; with the key absent\n' +
+        '    the archive builds fine and Apple rejects the upload afterwards.',
+    );
+  } else {
+    // The bundled SDKs declare their own API use; what nothing else can declare
+    // is what THIS app collects. That list is also what the App Privacy answers
+    // in App Store Connect must agree with, so a missing one is a discrepancy
+    // waiting to be found by a reviewer rather than by us.
+    if (!Array.isArray(pm.NSPrivacyCollectedDataTypes) || pm.NSPrivacyCollectedDataTypes.length === 0) {
+      fail('expo.ios.privacyManifests declares no NSPrivacyCollectedDataTypes.');
+    }
+    if (pm.NSPrivacyTracking !== false) {
+      fail(
+        'expo.ios.privacyManifests.NSPrivacyTracking must be false.\n' +
+          '    This app does not track. Declaring true would require an App\n' +
+          '    Tracking Transparency prompt that does not exist.',
+      );
+    }
+    const tracks = (pm.NSPrivacyCollectedDataTypes ?? []).filter(
+      (t) => t.NSPrivacyCollectedDataTypeTracking === true,
+    );
+    if (tracks.length > 0) {
+      fail(
+        `${tracks.length} collected data type(s) are marked as used for tracking, ` +
+          'which contradicts NSPrivacyTracking: false.',
+      );
+    }
+  }
+}
+
 if (warnings.length > 0) {
   console.warn('\niOS config warnings (build-machine only)\n');
   for (const w of warnings) console.warn(`  ! ${w}\n`);

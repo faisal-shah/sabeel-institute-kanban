@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
-import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
+import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { ALLOWED_EMAIL_DOMAIN, PRIVACY_URL } from '@sabeel/shared';
 import {
   signInWithGoogle,
   signInWithGoogleRedirect,
@@ -30,12 +30,23 @@ export function SignInScreen() {
    */
   const [popupBlocked, setPopupBlocked] = useState(false);
 
+  /**
+   * Signed in with an account this app has never heard of.
+   *
+   * A STATE, not an error, and kept out of `error` deliberately: that path runs
+   * `toUserMessage`, which reports to Sentry, and a colleague who simply has not
+   * been set up yet is not an application fault. It would also drown the real
+   * sign-in errors in noise.
+   */
+  const [noAccount, setNoAccount] = useState(false);
+
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
     setPopupBlocked(false);
+    setNoAccount(false);
     try {
-      await fn();
+      if ((await fn()) === 'no-account') setNoAccount(true);
     } catch (e) {
       if (e instanceof PopupBlockedError) setPopupBlocked(true);
       else setError(toUserMessage(e, 'signIn'));
@@ -105,6 +116,23 @@ export function SignInScreen() {
         </Hint>
       </Card>
 
+
+      {noAccount ? (
+        <Card>
+          {/*
+            DO NOT make this more helpful by naming where to get an account.
+
+            "Sign in on the website first" is, almost verbatim, the second of the
+            two things that would put this app back inside the stores' account
+            creation rule — and with it, a requirement to build in-app account
+            deletion. The instruction belongs in the onboarding email, which is
+            out of band and does not count. docs/STORE-RELEASE.md § 2.
+          */}
+          <Body>This account isn&rsquo;t set up for the app yet.</Body>
+          <Hint>Contact your administrator.</Hint>
+        </Card>
+      ) : null}
+
       {error ? (
         <Card>
           <Body>{error}</Body>
@@ -140,7 +168,19 @@ export function SignInScreen() {
       {/* Which build is running — so "what version are you on?" is answerable
           from the screen everyone sees. Injected at build time by
           scripts/gen-build-info.mjs. */}
+      {/* Also here, not only behind the More menu: an App Review reviewer sees
+          this screen before any other, and 5.1.1(i) asks for the policy to be
+          easily accessible IN the app. In the footer beside the build stamp,
+          which is where a reader expects it and where it does not read as part
+          of the sign-in form. */}
       <View style={styles.build}>
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => void Linking.openURL(PRIVACY_URL).catch(() => undefined)}
+          hitSlop={space.sm}
+        >
+          <Caption>Privacy policy</Caption>
+        </Pressable>
         <Caption>
           v{BUILD_INFO.version} &middot; {BUILD_INFO.commit}
         </Caption>
@@ -163,5 +203,5 @@ const styles = StyleSheet.create({
   },
   logo: { width: 260, height: 130 },
   wrap: { flexWrap: 'wrap' },
-  build: { marginTop: space.lg, alignItems: 'center' },
+  build: { marginTop: space.lg, alignItems: 'center', gap: space.xs },
 });

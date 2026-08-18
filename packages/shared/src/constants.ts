@@ -127,6 +127,41 @@ export const STORAGE_BUCKET = 'sabeel-institute-kanban.firebasestorage.app';
 export const EMULATOR_STORAGE_BUCKET = `${EMULATOR_PROJECT_ID}.firebasestorage.app`;
 
 /**
+ * The **WEB** OAuth client id, from `google-services.json` (`client_type: 3`).
+ * Public, not a secret — see CLAUDE.md, "Client-side non-secrets".
+ *
+ * Two surfaces must agree on this exact string or sign-in breaks in ways that do
+ * not name it:
+ *  - the app passes it to `GoogleSignin.configure({ webClientId })`, and passing
+ *    the *Android* id instead is the classic source of `DEVELOPER_ERROR`;
+ *  - `accountExists` verifies the resulting ID token's **audience** against it,
+ *    which is what stops a token minted for some other app being replayed here.
+ *
+ * So it lives here rather than in the app, for the same reason
+ * `EMULATOR_PROJECT_ID` does: functions need it too, and the app and functions
+ * must never each hold their own copy of a value they have to agree on.
+ */
+/**
+ * The public pages, served as static files outside the app bundle.
+ *
+ * ABSOLUTE, because the native apps open them too — Apple 5.1.1(i) requires the
+ * privacy policy to be reachable *inside* the app, not only from store metadata.
+ * A relative path would resolve against nothing on a phone.
+ *
+ * `PRIVACY_URL` is linked from the app. `GET_APP_URL` deliberately is NOT: it
+ * carries the "sign in on the website first" instruction, and an app pointing at
+ * that is the second of the two triggers that would put these apps back inside
+ * the stores' account-creation rule. See docs/STORE-RELEASE.md.
+ */
+const WEB_APP_ORIGIN = 'https://sabeel-institute-kanban.web.app';
+export const PRIVACY_URL = `${WEB_APP_ORIGIN}/privacy`;
+export const SUPPORT_URL = `${WEB_APP_ORIGIN}/support`;
+export const GET_APP_URL = `${WEB_APP_ORIGIN}/get-app`;
+
+export const GOOGLE_WEB_CLIENT_ID =
+  '826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com';
+
+/**
  * Every collection holding data worth noticing the loss of — the inventory the
  * `healthCheck` canary counts (functions/src/health.ts).
  *

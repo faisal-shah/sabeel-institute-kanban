@@ -640,40 +640,70 @@ blank. It is deliberately short on instruction and long on *what not to assume*:
 this file is the runbook, and a prompt that restates it would be a second copy to
 keep in sync.
 
-```
+```text
 You are on the build Mac, in a clone of sabeel-institute-kanban. Ship the
-iOS build of release <TAG> to TestFlight.
+iOS build of release <TAG> to TESTFLIGHT. Not App Review, not unlisted
+distribution — those are gated on this build being seen working first.
 
-Read docs/IOS-BUILD.md first, all of it, and follow it. Two things in it
-destroy work silently, so know them before you type anything: a bare
-`npx expo prebuild` deletes the committed android/ folder, and app/ios/ is
-a build product, so nothing you change in Xcode's UI survives.
+Read docs/IOS-BUILD.md, all of it, before anything. Two things in it
+destroy work silently: a bare `npx expo prebuild` deletes the committed
+android/ folder, and app/ios/ is a build product, so nothing you change
+in Xcode's UI survives.
 
 Start from the release commit, not from main:
     git fetch --tags && git checkout <TAG>
-This is the same commit web and Android already shipped, and the sign-in
-screen displays it — building from a later main would put a different hash
-in front of testers for the same version number.
+This is the commit web and Android already shipped, and the sign-in
+screen displays it — building from a later main puts a different hash in
+front of testers for the same version number.
 
-Do not change the version. `expo.version` is the one number across all
-three surfaces and it is already correct for this release. If App Store
-Connect rejects the upload and you re-upload, raise `ios.buildNumber`
-alone; that is the only version field iOS may move.
+Do not change the version. `expo.version` is one number across all three
+surfaces and is already correct. If App Store Connect rejects the upload
+and you re-upload, raise `ios.buildNumber` alone.
 
-You need two gitignored files a fresh clone does not have — app/.env.local
-and app/.env.sentry-build-plugin. Without the first, the build SUCCEEDS
-and ships with crash reporting silently off. `npm run build:ios -- --check`
-is free, runs every gate including that one, and takes seconds; run it
-before the twenty-minute archive.
+You need two gitignored files a fresh clone does not have —
+app/.env.local and app/.env.sentry-build-plugin. Without the first the
+build SUCCEEDS and ships with crash reporting silently off.
+`npm run build:ios -- --check` is free and runs every gate; run it before
+the twenty-minute archive.
 
-Scope: iOS only. Do not touch app/android/, do not commit app/ios/, and do
-not deploy hosting, functions or rules — those went out from Linux
-already. If a gate fails, stop and report rather than working around it.
+NEW IN THIS RELEASE, and the reason this build matters:
 
-Report back: the build number you uploaded, its App Store Connect
-processing state, and the version and commit as read off the sign-in
-screen of the installed TestFlight build — read, not inferred. A build
-whose stamp does not match <TAG> means gen-build-info did not re-run.
+1. The app no longer creates accounts. `accountExists` is a new callable
+   the native sign-in path calls BEFORE signInWithCredential, and it must
+   be deployed for sign-in to work at all on a device. If sign-in fails
+   with a missing-function error, the functions deploy has not happened —
+   report it, do not work around it.
+
+2. There is now a privacy manifest. `app.json` carries
+   `expo.ios.privacyManifests`, and prebuild writes it to
+   ios/PrivacyInfo.xcprivacy. VERIFY THE FILE EXISTS after prebuild —
+   the key being present in app.json is not proof it was written.
+
+3. Check ios/Pods for the SDKs Apple requires manifests from:
+   GoogleSignIn, AppAuth, GTMAppAuth, GTMSessionFetcher, GoogleUtilities.
+   This cannot be checked from Linux, so nobody has looked yet. Sentry is
+   NOT on Apple's list; do not chase it.
+
+4. After upload, watch the account's email for ITMS-91053 warnings.
+   Apple warns about privacy manifests rather than failing, so an upload
+   that "succeeded" is not evidence.
+
+Scope: iOS only. Do not touch app/android/, do not commit app/ios/, and
+do not deploy hosting, functions or rules — those go out from Linux.
+If a gate fails, stop and report rather than working around it.
+
+Report back: the build number, its App Store Connect processing state,
+whether ios/PrivacyInfo.xcprivacy was written and what it contains, the
+result of the Pods check, any ITMS-91053 email, and the version and
+commit read off the sign-in screen of the installed build — read, not
+inferred.
+
+Then, on a real iPhone with a Google account that has NO Kanban account:
+tap Sign in with Google and confirm you get "This account isn't set up
+for the app yet", and that tapping again re-opens the account chooser
+rather than silently reusing the same account. That is the one path no
+automated test on Linux can reach, and it is the whole point of the
+release.
 ```
 
 ## Things that are genuinely open

@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.9.0 · August 2026*
+*For app version 0.10.0 · August 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -43,6 +43,17 @@ That's the whole system. Everything below is detail.
 Open the app or website and tap **Sign in with Google**. Sign-in is restricted to
 your **@oursabeel.com** account — no other account works, and there is no password
 to remember.
+
+### On a phone, sign in on the website first
+
+**The very first time only.** The phone app signs you in; it does not set your
+account up. So sign in once at
+[the website](https://sabeel-institute-kanban.web.app), and after that the app
+works normally on the same account.
+
+Install the app before doing that and it will say **"This account isn't set up
+for the app yet."** Nothing is wrong — sign in on the website, then open the app
+again.
 
 ### First time? You'll wait for approval
 

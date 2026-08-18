@@ -1,6 +1,7 @@
 import {
   EMULATOR_PROJECT_ID,
   EMULATOR_STORAGE_BUCKET,
+  GOOGLE_WEB_CLIENT_ID,
   STORAGE_BUCKET,
 } from '@sabeel/shared';
 import { USE_EMULATORS } from './env';
@@ -28,14 +29,11 @@ const realConfig = {
 };
 
 /**
- * The WEB OAuth client id, read from `google-services.json` (`client_type: 3`).
- *
- * Native Google Sign-In wants the WEB client id as `webClientId`, not the
- * Android one — passing the Android id is a classic source of DEVELOPER_ERROR.
- * Public, not secret.
+ * The WEB OAuth client id now lives in `@sabeel/shared` — `accountExists` must
+ * verify token audiences against the same string the app signs in with, and two
+ * copies of a value that has to match is exactly the shape that drifts.
  */
-export const WEB_CLIENT_ID =
-  '826656438175-if1oi85tn29orcmkaenlsg9r7eca9nha.apps.googleusercontent.com';
+export { GOOGLE_WEB_CLIENT_ID };
 
 /**
  * The emulator project id now lives in `@sabeel/shared` — functions need it too,

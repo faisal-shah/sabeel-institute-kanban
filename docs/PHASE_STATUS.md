@@ -372,6 +372,99 @@ the team.
 
 ## Deploy log
 
+### 2026-08-18 — The app stops creating accounts — v0.10.0
+
+**Why this exists at all.** Both stores require in-app account deletion *only if
+the app supports account creation*. Apple 5.1.1(v) has no "directs elsewhere"
+escape; Google's rule closes that gap only when the app itself points at the
+signup. Satisfy neither trigger and the requirement never engages.
+
+The deletion flow that would otherwise be owed is not a button. It is a decision
+about what happens to organisation-owned content when a board owner removes
+themselves — cards other people are working on, comments others replied to,
+boards they solely own — and the honest answer is that the institute keeps them,
+which is an awkward thing to build a "delete everything about me" flow around.
+Not creating accounts in the first place is cheaper and truer.
+`docs/STORE-RELEASE.md` is the full statement, with sources.
+
+**The whole change is one gate.** `signInWithCredential` is the line that creates
+an account. `GoogleSignin.signIn()` above it is pure Google OAuth and touches
+nothing in this project, which is the window: the native path now asks a new
+`accountExists` callable first and never reaches that line for an identity with
+no account.
+
+Nothing detects a platform, and nothing needed to. `app/src/auth/google.ts` is
+already the native-only half of a seam whose web half is `google.web.ts` — the
+file *is* the platform. Web keeps self-service sign-in exactly as it was, because
+web is where accounts are created.
+
+**The gate asks about existence, not status**, and that is what kept it small.
+Pending and disabled accounts already EXIST, so signing them in creates nothing;
+they sign in and `App.tsx` routes them to the waiting and disabled screens
+exactly as before. Verified rather than assumed: `setUserAccess` sets a claim and
+revokes refresh tokens, it does **not** set Firebase Auth's own `disabled` flag,
+so a disabled user still authenticates and the claim catches them.
+
+| State | Mobile | Creates an account? |
+|---|---|---|
+| No account | Refused before `signInWithCredential` | the only case that would |
+| Pending | Signs in, waiting screen | no |
+| Disabled | Signs in, disabled screen | no |
+
+**Three details that are load-bearing rather than tidy.**
+
+The refusal is a returned outcome, never a thrown error. `toUserMessage` calls
+`captureError`, so throwing would report every un-provisioned colleague to Sentry
+as an application fault and bury the real sign-in errors underneath them.
+
+It signs out of Google on refusal. Google remembers the chosen account and
+`signIn()` silently reuses it, so without this someone who picked the wrong
+account could never switch — the refusal would be a dead end rather than a retry.
+
+**The refusal message deliberately does not say where to get an account.** "Sign
+in on the website first" is, almost verbatim, the second trigger — an app
+directing users to an account creation flow outside itself. It would cost the
+exemption to say the helpful thing. The instruction lives in the onboarding
+email, and there is a comment at the call site so nobody adds it back.
+
+**`accountExists` verifies GOOGLE's token, not Firebase's.** `verifyIdToken` on
+the Admin SDK checks tokens Firebase issued; what arrives here is issued by
+`accounts.google.com`, because the user has not signed in to Firebase yet — that
+is the entire point. So it uses `google-auth-library`, now a declared dependency
+rather than one inherited transitively from `firebase-admin`, and it pins the
+audience to the web client id: without that, a token minted for any other OAuth
+client would pass. `GOOGLE_WEB_CLIENT_ID` moved to `@sabeel/shared` for the same
+reason `EMULATOR_PROJECT_ID` did — two surfaces must agree on it exactly.
+
+The callable is unauthenticated, necessarily: there is no session yet, and
+establishing one is the thing being gated. That is safe because the caller has
+already proved control of the address by presenting a Google-signed token for it,
+and it returns one boolean. Not role, not status, not why — a helpful extra field
+would be an enumeration oracle. A test asserts the response has exactly one key.
+
+**Public pages, served outside the app bundle.** `/privacy`, `/get-app` and
+`/support` are static files in `app/public/`, which Expo copies into `dist-web`
+verbatim, with hosting rewrites ahead of the SPA catch-all. This matters: the
+app's routes are behind authentication, so a client-side `/privacy` would return
+an empty shell to a store crawler and to a reviewer who is not signed in — the
+only two readers who have to be able to fetch it. Asserted by fetching all three
+anonymously against the hosting emulator and checking they are not the SPA.
+
+The privacy policy is linked **inside the app** as well as from store metadata,
+which 5.1.1(i) requires and which store metadata alone does not satisfy. It is on
+the sign-in screen too, because a reviewer reaches that before anything else.
+
+**iOS privacy manifest.** `expo.ios.privacyManifests` was absent, so Expo wrote
+no `PrivacyInfo.xcprivacy` and nothing declared what the app collects. Apple has
+rejected uploads for this since May 2024, by email, *after* a twenty-minute
+archive has been built and signed. `check:ios` now fails without it, and fails on
+a manifest that contradicts itself by marking a data type as used for tracking
+while declaring `NSPrivacyTracking: false`.
+
+**Not in this release:** App Review submission, the unlisted request, and App
+Store Connect metadata. iOS goes to **TestFlight** first, until the refusal path
+has been seen working in real use.
+
 ### 2026-08-17 — Board authority becomes per-board — v0.9.0
 
 **The largest access change since launch, and it runs against live data.** It is

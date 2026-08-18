@@ -4,8 +4,10 @@ import {
   isSuccessResponse,
 } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { WEB_CLIENT_ID } from '../firebase-config';
-import { auth } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { GOOGLE_WEB_CLIENT_ID } from '../firebase-config';
+import { auth, functions } from '../firebase';
+import type { SignInOutcome } from './outcome';
 
 /**
  * Google sign-in on Android (web sibling: google.web.ts).
@@ -25,7 +27,7 @@ function ensureConfigured() {
   if (configured) return;
   // MUST be the *Web* OAuth client id (client_type: 3). Passing the Android id
   // is a classic source of DEVELOPER_ERROR.
-  GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+  GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
   configured = true;
 }
 
@@ -53,26 +55,61 @@ export class PopupBlockedError extends Error {
   readonly code = 'auth/popup-blocked';
 }
 
-export async function signInWithGoogleRedirect(): Promise<void> {
-  await signInWithGoogle();
+export async function signInWithGoogleRedirect(): Promise<SignInOutcome> {
+  return signInWithGoogle();
 }
 
-export async function signInWithGoogle(): Promise<void> {
+const accountExists = httpsCallable<{ idToken: string }, { exists: boolean }>(
+  functions,
+  'accountExists',
+);
+
+/**
+ * THIS APP DOES NOT CREATE ACCOUNTS, AND MUST NOT LEARN HOW.
+ *
+ * `signInWithCredential` is the line that would create one, so nothing may reach
+ * it until an account is known to exist. `GoogleSignin.signIn()` above it is
+ * pure Google OAuth — it yields a token and touches nothing in this Firebase
+ * project — which is the only reason there is a window to check in.
+ *
+ * There is deliberately no sign-up affordance anywhere in this app, and no
+ * message here naming where to get an account. Both stores stop requiring in-app
+ * account deletion only while the app neither creates an account nor points at
+ * somewhere that does, and "sign in on the website first" is the second of those
+ * two triggers stated almost verbatim. The instruction belongs in the onboarding
+ * email. See docs/STORE-RELEASE.md before adding anything friendlier here.
+ *
+ * This file is the NATIVE half of the seam (iOS and Android). `google.web.ts` is
+ * the web half and keeps creating accounts, which is why nothing here has to
+ * detect a platform.
+ */
+export async function signInWithGoogle(): Promise<SignInOutcome> {
   ensureConfigured();
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
     if (!isSuccessResponse(response)) {
       // The account chooser was dismissed. Not an error worth surfacing.
-      return;
+      return 'cancelled';
     }
     const idToken = response.data.idToken;
     if (!idToken) throw new Error('Google sign-in returned no ID token.');
+
+    const { data } = await accountExists({ idToken });
+    if (!data.exists) {
+      // Google still remembers the chosen account, and `signIn()` would silently
+      // reuse it — so somebody who picked the wrong one could never switch. Clear
+      // it, or the refusal is a dead end rather than a retry.
+      await googleSignOut();
+      return 'no-account';
+    }
+
     await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+    return 'signed-in';
   } catch (e) {
     const code = (e as { code?: string }).code;
     if (code === statusCodes.SIGN_IN_CANCELLED || code === statusCodes.IN_PROGRESS) {
-      return; // cancelled, or a sign-in is already running
+      return 'cancelled'; // cancelled, or a sign-in is already running
     }
     if (code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
       throw new Error('Google Play services are required to sign in.');

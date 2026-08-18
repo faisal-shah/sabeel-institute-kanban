@@ -5,6 +5,7 @@
  * Later phases append triggers here — see docs/PHASE_STATUS.md.
  */
 export { onUserCreate } from './auth';
+export { accountExists } from './accountExists';
 export { setUserAccess } from './users';
 export { removeBoardMember, countMemberAssignments, boardsSolelyOwnedBy } from './boards';
 export { countLabelUsage, deleteLabel } from './labels';

@@ -1,6 +1,11 @@
 # Store release: no account creation in the mobile app
 
-**Status:** design, not yet built. Kanban is the pilot; the other two follow.
+**Status:** built for Kanban in v0.10.0 (2026-08-18); the other two follow once
+Kanban is through App Review. § 8 is what their agents need.
+
+**First deploy is TestFlight**, not App Review — the refusal path is seen working
+in real use before anything one-way happens. No review account, no App Review
+submission, no unlisted request until then.
 
 ## Who this is for
 
@@ -83,6 +88,15 @@ await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
 ```
 
 ### The `accountExists` callable
+
+Implemented in `functions/src/accountExists.ts`. One thing the design above did
+not anticipate: it verifies **Google's** ID token, not Firebase's.
+`getAuth().verifyIdToken()` checks tokens *Firebase* issued, and what arrives
+here comes from `accounts.google.com` because the user has not signed in to
+Firebase yet — which is the entire point. It uses `google-auth-library` (now a
+declared dependency, previously only transitive via `firebase-admin`) and pins
+the audience to `GOOGLE_WEB_CLIENT_ID`, without which a token minted for any
+other OAuth client would pass.
 
 - Unauthenticated callable (there is no session yet, by definition).
 - Verifies the Google ID token server-side. Do **not** trust an email sent by the
@@ -376,7 +390,26 @@ document. Have someone read it who is not the person who wrote it.
 
 ---
 
-## 11. Open decisions
+## 11. What Kanban shipped, and what is still unverified
+
+Built 2026-08-18 in v0.10.0. **Two halves are each proven; their join is not.**
+
+- `accountExists` — 10 emulator tests, including that asking about an unknown
+  address creates no user record.
+- The ordering — 6 unit tests in `app/src/auth/googleGate.test.ts`, the important
+  one being that `signInWithCredential` is never called when no account exists.
+- The web app still creates accounts — `web-e2e` unchanged and green, which is
+  what proves the gate did not leak across the platform seam.
+- The public pages — fetched anonymously against the hosting emulator and checked
+  they are static, not the SPA shell.
+
+**Not verified, and cannot be from Linux:** the real native round trip — tapping
+Sign in with Google on a device with an account that has none here, and seeing
+the refusal. It needs a deployed `accountExists` plus a real Google account, so
+it is the first thing to do on TestFlight and on the first Play internal build.
+The iOS handoff prompt in `docs/IOS-BUILD.md` asks for exactly that.
+
+## 12. Open decisions
 
 - [ ] Create `privacy@oursabeel.com` as a Workspace group and put two admins on
       it. Decided 2026-08-18; does not exist yet.

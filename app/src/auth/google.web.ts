@@ -5,6 +5,7 @@ import {
   signInWithRedirect,
 } from 'firebase/auth';
 import { ALLOWED_EMAIL_DOMAIN } from '@sabeel/shared';
+import type { SignInOutcome } from './outcome';
 import { auth } from '../firebase';
 import { captureError } from '../sentry';
 
@@ -41,18 +42,33 @@ export class PopupBlockedError extends Error {
 }
 
 /** The explicit "try anyway" — a full-page redirect, only ever user-initiated. */
-export async function signInWithGoogleRedirect(): Promise<void> {
+export async function signInWithGoogleRedirect(): Promise<SignInOutcome> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN, prompt: 'select_account' });
   await signInWithRedirect(auth, provider);
+  // The page is leaving; nothing downstream ever reads this.
+  return 'signed-in';
 }
 
-export async function signInWithGoogle(): Promise<void> {
+/**
+ * THE WEB APP IS WHERE ACCOUNTS ARE CREATED, and it stays that way.
+ *
+ * A first sign-in here provisions the account, exactly as it always has. The
+ * NATIVE sibling (`google.ts`) refuses any identity without one, which is what
+ * keeps the mobile apps outside both stores' account-creation trigger — see
+ * docs/STORE-RELEASE.md. Nothing detects a platform; the file you are reading IS
+ * the platform.
+ *
+ * So this never returns `'no-account'`. If it ever needs to, the exemption has
+ * been broken somewhere else.
+ */
+export async function signInWithGoogle(): Promise<SignInOutcome> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN, prompt: 'select_account' });
 
   try {
     await signInWithPopup(auth, provider);
+    return 'signed-in';
   } catch (e) {
     const code = (e as { code?: string }).code;
     // A blocked popup does NOT silently become a redirect any more.
@@ -94,7 +110,7 @@ export async function signInWithGoogle(): Promise<void> {
       code === 'auth/cancelled-popup-request' ||
       code === 'auth/user-cancelled'
     ) {
-      return;
+      return 'cancelled';
     }
 
     throw e;
