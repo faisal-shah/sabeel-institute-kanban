@@ -848,6 +848,23 @@ first.
       Adding that person as a member and turning their Owner toggle on is the
       whole fix, and until then an admin can still administer all three.
 
+## M. v0.10.0 — do these two, they are the only ones outstanding
+
+- [ ] **Create `privacy@oursabeel.com`.** A Workspace GROUP with two admins on
+      it, not a person's alias — it is published in the privacy policy on both
+      the web app and the download page, and in the App Store listing later. It
+      does not exist yet, so a deletion request sent today bounces. This was
+      flagged before shipping and shipped anyway on your call; it is the one item
+      where waiting made it later rather than worse.
+- [ ] **Read the privacy policy** at
+      https://sabeel-institute-kanban.web.app/privacy. It is short. Three things
+      in it are commitments you are making: a **30-day** response to deletion
+      requests, an assertion that Google, Firebase and Sentry are under
+      agreements protecting the data to the same standard, and the retention
+      position — that cards, comments and authorship belong to the institute and
+      survive somebody leaving. Reading it once already caught a paragraph that
+      described an account model this app does not have.
+
 ## L. Known, deliberately NOT fixed in v0.9.0
 
 - [ ] **`setUserAccess` requires a role even when only the status is changing.**
