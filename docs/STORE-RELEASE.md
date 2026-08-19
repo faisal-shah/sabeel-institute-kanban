@@ -345,6 +345,35 @@ email/password system does not exist yet.
   inspect and amend, never to erase, and transcripts are normally kept
   permanently.
 
+**The review account is a STUDENT account, and only a student account** (decided
+2026-08-19). Both stores need working credentials — Apple under 2.1(a), Play
+under *App access* — and the same account serves both.
+
+Do not hand a reviewer a Google Workspace account. Two-Step Verification an admin
+can exempt; the **login challenge** Google raises on a sign-in from an unusual
+location is separate, and an admin override for it lasts **10 minutes** with no
+permanent per-account disable. An App Review session is exactly an unusual
+location, arriving asynchronously, with the code going to whoever's phone is on
+the account. There is no version of that which works.
+
+A student account is sufficient because the student experience *is* the app:
+signing in and reaching your recordings. Apple asks for "credentials for the role
+needed to verify key features", not every role.
+
+**What this costs, and it is the only thing to watch:** the store listing must
+describe what a student account can demonstrate. Advertise teacher tooling in the
+description or the screenshots and a reviewer may reasonably ask to see it, which
+is a "Guideline 2.1 — Information Needed" round trip of about a week. Keep the
+listing and the demo account describing the same app.
+
+Say the shape out loud in Review Notes anyway — two roles, the teacher role
+restricted to the institution's Workspace accounts, the student account
+demonstrating the reviewable functionality. A reviewer told why up front does not
+ask.
+
+**And keep the account alive.** Every future update is reviewed too, and a demo
+account disabled after approval is an automatic rejection next time.
+
 ---
 
 ## 9. Review Notes — the text to paste
