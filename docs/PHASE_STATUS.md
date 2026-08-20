@@ -372,6 +372,65 @@ the team.
 
 ## Deploy log
 
+### 2026-08-20 — Board owners can add members, which they never could — v0.10.1
+
+**The promise was half-kept.** `docs/PERMISSIONS.md` and the manual both say a
+board owner can "add and remove members". Removal worked — it is a callable.
+Adding never did: `firestore.rules` allows `list` on `users/` to admins alone, so
+a non-admin owner's directory query was refused and the picker read *"Only admins
+can browse the full directory."*
+
+**The shape is why the v0.9.0 review missed it.** That pass enumerated every
+WRITE against its rule and found nothing, because the write was fine —
+`membershipOnlyGrows()` explicitly let an owner extend `memberUids`, and an owner
+who somehow knew a uid could have added them. What was gated more narrowly than
+the control was **the read that feeds it**. Writes were checked; the reads that
+make them reachable were not.
+
+**Applying that lens everywhere found nothing else, for a structural reason.**
+Assignees, mentions, Search's *Assigned to* and subtask links all offer people
+who are ALREADY on the board, and `memberProfiles` is denormalised onto each
+board precisely so none of them needs the directory — `SearchScreen.tsx` says so
+in a comment. Adding is the only control whose subject is by definition *not* on
+the board yet. The class has exactly one member.
+
+Also swept and clean: every callable's gate against `PERMISSIONS.md`, and every
+other owner capability, all of which read only the board document or
+board-scoped cards.
+
+**Both halves are callables now.** `addBoardMember` and `listAddableUsers`, gated
+on `canManageBoard` exactly as removal is. The list returns **names only** — a
+picker needs something to tap, not everybody's address — and refuses accounts
+that are not `active`, so an owner cannot route around the approval queue by
+adding somebody before an admin has decided about them.
+
+**It closes an adjacent hole.** Board update validates `memberProfiles` only as
+`is map`, and rules cannot cross-reference `users/`, so while the CLIENT supplied
+the profile an owner could write any name or address against a uid. The server
+reads it from `users/` now, which removes the possibility instead of trying to
+validate it. A test asserts a caller-supplied `evil@example.com` is ignored.
+
+**So `membershipOnlyGrows` became `membershipIsServerOnly`**: neither
+`memberUids` nor `memberProfiles` may change on a client board update at all. The
+admin exemption went with it, deliberately — both callables gate on
+`canManageBoard`, which is true for an admin on any board, so the capability is
+unchanged and only the direct client write is gone. Board *create* still sets
+`memberUids: [creator]`.
+
+**One transitional cost, stated plainly.** The rules deploy refuses the OLD
+client's member-add write. Web updates the moment hosting deploys, but an Android
+user still on v0.10.0 who tries to add somebody, or an admin tapping *Join this
+board*, gets a refusal until Play updates them. Rare action, loud failure, and
+self-correcting — but it is real, and it is the price of tightening the rule in
+the same release rather than staging it.
+
+**Verified:** 235 rules and 131 function tests on the emulator (+1 and +10), and
+`web-e2e` **143/143** with its 141 existing checks untouched, which is what shows
+the callable swap is transparent. The two new e2e checks assert *which* empty
+state a non-admin owner gets — this suite seeds two people and both are members
+by then, so "nobody available to add" is the truthful answer, and it is a message
+only a SUCCESSFUL directory lookup can produce.
+
 ### 2026-08-18 — The app stops creating accounts — v0.10.0
 
 **Why this exists at all.** Both stores require in-app account deletion *only if
