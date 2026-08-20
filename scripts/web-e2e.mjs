@@ -536,6 +536,37 @@ try {
     'nor remove them from the board',
     (await removeCreator.getAttribute('aria-disabled')) === 'true',
   );
+
+  /**
+   * A NON-ADMIN OWNER CAN REACH THE DIRECTORY. Impossible until 2026-08-20, and
+   * the reason `listAddableUsers` and `addBoardMember` became callables.
+   *
+   * `firestore.rules` allows `list` on `users/` to admins alone, so Sara's query
+   * was refused and the panel read "Only admins can browse the full directory" —
+   * while the board WRITE was permitted the whole time. `docs/PERMISSIONS.md`
+   * promised owners "add and remove members"; she could only remove.
+   *
+   * Asserted as WHICH EMPTY STATE she gets, not by adding somebody, because this
+   * suite seeds only two people and both are on the board by now — so "nobody
+   * available" is the truthful answer here. That is exactly what makes it a good
+   * probe: the old failure and the new success differ precisely in this string,
+   * and the message she now gets is one only a SUCCESSFUL directory query can
+   * produce. A non-admin owner actually adding someone is covered against a real
+   * candidate in functions/test/integration/boardOwnership.test.ts.
+   */
+  const adminOnlyApology = await sara
+    .getByText(/Only admins can browse the full directory/i)
+    .isVisible()
+    .catch(() => false);
+  check('an owner is no longer told the directory is admins-only', !adminOnlyApology);
+  check(
+    'she gets the real empty state instead, which only a successful lookup gives',
+    await sara
+      .getByText(/Nobody available to add/i)
+      .isVisible()
+      .catch(() => false),
+  );
+
   await sara.getByRole('button', { name: 'Back' }).first().click();
   await sara.getByText('To Do').first().waitFor({ timeout: 15000 });
 

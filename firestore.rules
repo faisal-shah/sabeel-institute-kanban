@@ -210,24 +210,36 @@ service cloud.firestore {
       }
 
       /**
-       * MEMBERSHIP MAY ONLY GROW from a client. Removals go through the
-       * `removeBoardMember` callable, which is an Admin SDK batch and bypasses
-       * these rules.
+       * MEMBERSHIP DOES NOT CHANGE FROM A CLIENT, in either direction.
        *
-       * Not tidiness — it is what makes "assignees are board members" true rather
-       * than merely intended. That invariant is enforced on CARD writes only, so a
-       * board write that drops a member leaves their `assigneeUids` and
-       * `subscriberUids` entries behind: the card read rule has an arm for each,
-       * so the person keeps read access to the very cards the removal was meant to
-       * take away, and every one of those cards then fails `assigneesAreMembers`
-       * on its next edit. The callable clears assignments and membership in one
-       * batch precisely so neither can happen.
+       * Both halves are callables now: `addBoardMember` and `removeBoardMember`.
+       * Adding became one because a non-admin owner cannot `list` the user
+       * directory — rules allow that to admins alone — so the picker had nothing
+       * to offer even though the write was permitted. Since the server does the
+       * write, it also supplies the profile, which is the only way to stop an
+       * owner writing an arbitrary name or address for a uid: `memberProfiles` is
+       * a free-form map here and rules cannot cross-reference `users/`.
        *
-       * Admins are exempt because they are the repair path for a board in a shape
-       * nothing else can fix — the same reason `ownsBoard` short-circuits on them.
+       * Removal was already a callable, and for a sharper reason. "Assignees are
+       * board members" is enforced on CARD writes only, so a board write that
+       * dropped a member would leave their `assigneeUids` and `subscriberUids`
+       * entries behind — and the card read rule has an arm for each, so the person
+       * would keep read access to the very cards the removal was meant to take
+       * away, while every one of those cards started failing its next edit. The
+       * callable clears assignments, subscriptions, ownership and membership in
+       * one batch so none of it can drift.
+       *
+       * NO ADMIN EXEMPTION any more. The old rule let membership grow from a
+       * client and exempted admins from the shrink check, as a repair path. Both
+       * callables gate on `canManageBoard`, which is true for an admin on any
+       * board, so the capability is unchanged — only the direct client write is
+       * gone. A board broken beyond that is a script's job, not a screen's.
+       *
+       * Board CREATE still sets `memberUids: [creator]`; this governs updates.
        */
-      function membershipOnlyGrows() {
-        return isAdmin() || incoming().memberUids.hasAll(existing().memberUids);
+      function membershipIsServerOnly() {
+        return incoming().memberUids == existing().memberUids
+          && incoming().get('memberProfiles', {}) == existing().get('memberProfiles', {});
       }
 
       // Admins see every board; everyone else sees only boards they are on. For
@@ -284,7 +296,7 @@ service cloud.firestore {
       // being prevented.
       allow update: if ownsBoard(existing())
         && keepsCreator()
-        && membershipOnlyGrows()
+        && membershipIsServerOnly()
         && incoming().keys().hasOnly(['name', 'description', 'archived', 'columns',
             'columnIds', 'memberUids', 'memberProfiles', 'boardOwnerUids',
             'activeCardCount', 'createdAt', 'createdBy'])

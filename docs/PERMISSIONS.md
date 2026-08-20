@@ -99,11 +99,24 @@ and only an admin can repair, which is how the labels migration broke board
 editing. The pairing makes the same lapse inert instead: a stray entry grants
 nothing, and `scripts/verify-board-owners.mjs` reports it.
 
-### Membership may only grow from a client
+### Membership only changes through callables
 
-Adding somebody to a board is an ordinary board write. **Removing them is not** —
-that goes through `removeBoardMember`, and the rules refuse a client update that
-shortens `memberUids` (admins excepted, as the repair path).
+**Neither adding nor removing is a client write.** `addBoardMember` and
+`removeBoardMember` are both callables, and the rules refuse any client update
+that touches `memberUids` or `memberProfiles` at all — **admins included**. Board
+*create* still sets `memberUids: [creator]`; this governs updates.
+
+Removal has always had to be server-side, for the reason below. **Adding joined
+it on 2026-08-20, because it did not work**: rules allow `list` on `users/` to
+admins alone, so a non-admin owner could never see whom to add, even though the
+write was permitted the whole time. The bug was not the permission — it was that
+the read feeding the control was gated more narrowly than the control.
+
+Moving it also means the **server supplies the profile**. `memberProfiles` is a
+free-form map and rules cannot cross-reference `users/`, so while the client sent
+it an owner could write any name or address against a uid. `listAddableUsers`
+returns **names only** for the same reason the directory is admin-only: a picker
+needs something to tap, not everybody's address.
 
 This is what makes "assignees are board members" true rather than merely
 intended. That invariant is checked on CARD writes only, so a board write that
@@ -140,7 +153,7 @@ One definition per rule, mirrored rather than duplicated:
 | Create a board | `canCreateBoards()` in `firestore.rules` | `sessionCan.createBoards` |
 | Administer a board | `ownsBoard()` in `firestore.rules`, `canManageBoard` in `removeBoardMember` / `countMemberAssignments` | `canManageBoard(user, board)` |
 | Take the creator off a board | `keepsCreator()` in `firestore.rules`, repeated in `removeBoardMember` | `canUnseatCreator` — the creator's row is disabled |
-| Shorten a board's member list | `membershipOnlyGrows()` in `firestore.rules` | there is no control; removal is `removeBoardMember` |
+| Change a board's member list | `membershipIsServerOnly()` in `firestore.rules` refuses every client write; `canManageBoard` inside `addBoardMember` / `removeBoardMember` | the picker calls `listAddableUsers`, also `canManageBoard` |
 | See a board's contents | `onBoard()` in `firestore.rules` | `canAccessBoard(user, board)` |
 | Curate labels | `isAdmin()` in `firestore.rules`, `canCurateLabels` in `deleteLabel` | `canCurateLabels` |
 | Stats | `isAdmin()` in `firestore.rules` | `canViewStats` |

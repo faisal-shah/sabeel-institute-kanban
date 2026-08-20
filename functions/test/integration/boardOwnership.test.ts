@@ -301,3 +301,139 @@ describe('boardsSolelyOwnedBy', () => {
     expect(res.body.error?.status).toBe('PERMISSION_DENIED');
   });
 });
+
+/**
+ * Adding somebody, which used to be a plain client write and could not work.
+ *
+ * `firestore.rules` allows `list` on `users/` to admins alone, so a non-admin
+ * owner's directory query was refused and the picker had nothing to show — while
+ * the WRITE was permitted the whole time. The bug was never the permission; it
+ * was that the read feeding the control was gated more narrowly than the control.
+ */
+const PENDING = 'bo_pending';
+
+describe('listAddableUsers', () => {
+  it('lets a NON-ADMIN OWNER see who could be added — the bug this fixes', async () => {
+    await adminDb().doc('boards/bo_add1').set(board({ memberUids: [OWNER] }));
+    const res = await callFunction(
+      'listAddableUsers',
+      { boardId: 'bo_add1' },
+      await idTokenFor(OWNER),
+    );
+    expect(res.status).toBe(200);
+    const uids = (res.body.result as { people: { uid: string }[] }).people.map((p) => p.uid);
+    expect(uids).toContain(SECOND);
+    expect(uids).toContain(MEM);
+  });
+
+  it('leaves out people already on the board', async () => {
+    await adminDb().doc('boards/bo_add2').set(board({ memberUids: [OWNER, SECOND] }));
+    const res = await callFunction(
+      'listAddableUsers',
+      { boardId: 'bo_add2' },
+      await idTokenFor(OWNER),
+    );
+    const uids = (res.body.result as { people: { uid: string }[] }).people.map((p) => p.uid);
+    expect(uids).not.toContain(SECOND);
+  });
+
+  it('returns NAMES ONLY — a picker does not need everyone’s address', async () => {
+    await adminDb().doc('boards/bo_add3').set(board({ memberUids: [OWNER] }));
+    const res = await callFunction(
+      'listAddableUsers',
+      { boardId: 'bo_add3' },
+      await idTokenFor(OWNER),
+    );
+    const people = (res.body.result as { people: Record<string, unknown>[] }).people;
+    expect(people.length).toBeGreaterThan(0);
+    // Not toMatchObject: the point is that email, role and status are ABSENT.
+    for (const p of people) expect(Object.keys(p).sort()).toEqual(['displayName', 'uid']);
+  });
+
+  it('omits accounts that are not active', async () => {
+    await makeUser({
+      uid: PENDING, email: `${PENDING}@oursabeel.com`, role: 'member', status: 'pending',
+    });
+    await adminDb().doc('boards/bo_add4').set(board({ memberUids: [OWNER] }));
+    const res = await callFunction(
+      'listAddableUsers',
+      { boardId: 'bo_add4' },
+      await idTokenFor(OWNER),
+    );
+    const uids = (res.body.result as { people: { uid: string }[] }).people.map((p) => p.uid);
+    expect(uids).not.toContain(PENDING);
+  });
+
+  it('is refused to a member who does not own the board', async () => {
+    await adminDb().doc('boards/bo_add5').set(board());
+    const res = await callFunction(
+      'listAddableUsers',
+      { boardId: 'bo_add5' },
+      await idTokenFor(MEM),
+    );
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+  });
+});
+
+describe('addBoardMember', () => {
+  it('lets a non-admin owner add somebody', async () => {
+    await adminDb().doc('boards/bo_put1').set(board({ memberUids: [OWNER] }));
+    const res = await callFunction(
+      'addBoardMember',
+      { boardId: 'bo_put1', uid: MEM },
+      await idTokenFor(OWNER),
+    );
+    expect(res.status).toBe(200);
+    const after = (await adminDb().doc('boards/bo_put1').get()).data();
+    expect(after?.memberUids).toContain(MEM);
+  });
+
+  /**
+   * The profile is the SERVER'S copy. Board update validates `memberProfiles`
+   * only as `is map` and rules cannot cross-reference `users/`, so while the
+   * client supplied it an owner could write any name or address against a uid.
+   */
+  it('writes the profile from users/, ignoring anything the caller sends', async () => {
+    await adminDb().doc('boards/bo_put2').set(board({ memberUids: [OWNER] }));
+    await callFunction(
+      'addBoardMember',
+      { boardId: 'bo_put2', uid: MEM, displayName: 'Someone Else', email: 'evil@example.com' },
+      await idTokenFor(OWNER),
+    );
+    const profiles = (await adminDb().doc('boards/bo_put2').get()).data()?.memberProfiles ?? {};
+    expect(profiles[MEM].email).toBe(`${MEM}@oursabeel.com`);
+    expect(profiles[MEM].email).not.toBe('evil@example.com');
+    expect(profiles[MEM].displayName).not.toBe('Someone Else');
+  });
+
+  it('refuses an account that is not active — the approval queue is not routable around', async () => {
+    await adminDb().doc('boards/bo_put3').set(board({ memberUids: [OWNER] }));
+    const res = await callFunction(
+      'addBoardMember',
+      { boardId: 'bo_put3', uid: PENDING },
+      await idTokenFor(OWNER),
+    );
+    expect(res.body.error?.status).toBe('FAILED_PRECONDITION');
+  });
+
+  it('is refused to a member who does not own the board', async () => {
+    await adminDb().doc('boards/bo_put4').set(board({ memberUids: [OWNER, MEM] }));
+    const res = await callFunction(
+      'addBoardMember',
+      { boardId: 'bo_put4', uid: SECOND },
+      await idTokenFor(MEM),
+    );
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+  });
+
+  it('is idempotent — two owners tapping the same name is ordinary', async () => {
+    await adminDb().doc('boards/bo_put5').set(board({ memberUids: [OWNER] }));
+    const tok = await idTokenFor(OWNER);
+    const a = await callFunction('addBoardMember', { boardId: 'bo_put5', uid: MEM }, tok);
+    const b = await callFunction('addBoardMember', { boardId: 'bo_put5', uid: MEM }, tok);
+    expect((a.body.result as { added: boolean }).added).toBe(true);
+    expect((b.body.result as { added: boolean }).added).toBe(false);
+    const after = (await adminDb().doc('boards/bo_put5').get()).data();
+    expect((after?.memberUids as string[]).filter((u) => u === MEM)).toHaveLength(1);
+  });
+});

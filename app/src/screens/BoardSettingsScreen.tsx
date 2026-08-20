@@ -18,6 +18,7 @@ import {
 } from '@sabeel/shared';
 import {
   addBoardMember,
+  listAddableUsers,
   countMemberAssignments,
   removeBoardMember,
   setBoardOwner,
@@ -32,7 +33,6 @@ import {
   useLabels,
   type LabelUsage,
 } from '../labels';
-import { useAllUsers } from '../users';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
 import {
@@ -92,7 +92,24 @@ export function BoardSettingsScreen({
   // is the honest answer to "who else could I add?". A non-owner has no add
   // control at all, so for them the same failure is a red banner about a query
   // nothing on their screen needed.
-  const allUsers = useAllUsers(canManage);
+  /**
+   * Who could be added. A CALLABLE, not a live query: `firestore.rules` lets
+   * only admins list `users/`, so an owner has to ask the server. Not a
+   * `useLiveQuery` violation — nothing here subscribes to Firestore.
+   *
+   * A one-shot snapshot is enough because the filter below runs against the LIVE
+   * board document, so somebody added drops out of the list without a refetch.
+   */
+  const [addable, setAddable] = useState<{ uid: string; displayName: string }[] | null>(null);
+  const [addableFailed, setAddableFailed] = useState(false);
+  useEffect(() => {
+    if (!canManage) return;
+    let live = true;
+    listAddableUsers(boardId)
+      .then((people) => { if (live) setAddable(people); })
+      .catch(() => { if (live) setAddableFailed(true); });
+    return () => { live = false; };
+  }, [canManage, boardId]);
   // Labels are org-wide. This section edits ONE set that every board shows —
   // the copy below says so, because the screen it sits on does not.
   const labels = useLabels();
@@ -132,19 +149,19 @@ export function BoardSettingsScreen({
   // below, because the effect that closes the picker is a hook and hooks cannot
   // sit after a conditional return.
   //
-  // Current members come from the board (everyone can see them); this list needs
-  // the directory, which only admins may list.
+  // Filtered against the LIVE board doc, not just at fetch time — the callable
+  // already excludes current members, but somebody added while this screen is
+  // open must leave the picker without a round trip.
   const nonMembers = useMemo(() => {
     const bd = board.data;
     if (!bd) return [];
-    return (allUsers.data ?? []).filter(
+    return (addable ?? []).filter(
       (u) =>
         !bd.memberUids.includes(u.uid) &&
-        u.status === 'active' &&
         // You add yourself with Join, not from the add-someone list.
         u.uid !== user.uid,
     );
-  }, [board.data, allUsers.data, user.uid]);
+  }, [board.data, addable, user.uid]);
 
   // Adding the LAST candidate empties the picker while it is still open, which
   // would otherwise render an empty panel directly above the "nobody available
@@ -506,11 +523,7 @@ export function BoardSettingsScreen({
             label="Join this board"
             onPress={() =>
               run(() =>
-                addBoardMember(boardId, {
-                  uid: user.uid,
-                  displayName: user.displayName,
-                  email: user.email,
-                }),
+                addBoardMember(boardId, user.uid),
               )
             }
           />
@@ -590,12 +603,12 @@ export function BoardSettingsScreen({
         {/* Both of these explain why there is no ADD control. Shown to someone
             who would not get one anyway, they read as an apology for a button
             they never expected — so they belong behind the same gate. */}
-        {!canManage ? null : allUsers.status === 'error' ? (
+        {!canManage ? null : addableFailed ? (
           <Hint>
-            Only admins can browse the full directory. Ask an admin to add
-            people to this board.
+            Could not load who can be added. Check your connection and reopen
+            this screen.
           </Hint>
-        ) : nonMembers.length === 0 ? (
+        ) : addable !== null && nonMembers.length === 0 ? (
           /* Said out loud, not left silent: with no add control and no reason
              given, "why can I only assign myself?" reads as a bug rather than
              as an account still waiting for approval. */
@@ -622,11 +635,7 @@ export function BoardSettingsScreen({
                   disabled={busy}
                   onPress={() =>
                     run(() =>
-                      addBoardMember(boardId, {
-                        uid: u.uid,
-                        displayName: u.displayName,
-                        email: u.email,
-                      }),
+                      addBoardMember(boardId, u.uid),
                     )
                   }
                   style={({ pressed }) => [
@@ -638,7 +647,6 @@ export function BoardSettingsScreen({
                   ]}
                 >
                   <Body>{u.displayName}</Body>
-                  <Hint>{u.email}</Hint>
                 </Pressable>
               ))}
             </PickerList>

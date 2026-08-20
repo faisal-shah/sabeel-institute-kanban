@@ -240,3 +240,133 @@ export const boardsSolelyOwnedBy = onCall({ secrets: [sentryDsn] }, guarded(asyn
 
   return { boards: sole };
 }));
+
+/**
+ * Who could still be added to this board — and the ADD itself, below.
+ *
+ * Both are callables for one reason: `firestore.rules` allows `list` on
+ * `users/` to admins alone, so a non-admin board owner could never see who
+ * exists. That was a real gap rather than a design: `docs/PERMISSIONS.md`
+ * promises owners "add and remove members", removal was already a callable, and
+ * adding was a client write whose *enabling read* was refused. The write was
+ * permitted the whole time — an owner who somehow knew a uid could add them.
+ * They simply had nothing to pick from.
+ *
+ * Every other people-picker in the app reads `memberProfiles`, denormalised onto
+ * each board for exactly that purpose. This is the only control whose subject is
+ * by definition NOT on the board yet, which is why it is the only one that needs
+ * the directory, and why it is the only one that broke.
+ *
+ * NAMES ONLY, no email addresses. A picker needs something to tap; the rule
+ * comment on `users/` notes that admins "are the only ones who ever see the full
+ * list", and this widens that to owners for *names* rather than for contact
+ * details. Admins still read the directory directly on the People screen, which
+ * is what that rule was written for.
+ */
+export const listAddableUsers = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ boardId?: unknown }>) => {
+  const auth = request.auth;
+  if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+
+  const actor = {
+    uid: auth.uid,
+    role: (auth.token.role ?? 'member') as Role,
+    status: (auth.token.status ?? 'pending') as UserStatus,
+  };
+
+  const boardId = request.data?.boardId;
+  if (typeof boardId !== 'string' || !boardId) {
+    throw new HttpsError('invalid-argument', 'A boardId is required.');
+  }
+
+  const db = getFirestore();
+  const board = await db.doc(`boards/${boardId}`).get();
+  if (!board.exists) throw new HttpsError('not-found', 'No such board.');
+
+  // The same gate removal uses — `ownsBoard()` from firestore.rules, in
+  // TypeScript. Authorised after the read because authority is per-board.
+  if (!canManageBoard(actor, board.data() as BoardDoc)) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only an owner of this board, or an admin, can change who is on it.',
+    );
+  }
+
+  const members = new Set(((board.data()?.memberUids as string[]) ?? []));
+  // Only `active` accounts. Offering a pending one would let an owner route
+  // around the approval queue by adding somebody to a board before an admin has
+  // decided about them.
+  const snap = await db.collection('users').where('status', '==', 'active').get();
+
+  const people = snap.docs
+    .filter((d) => !members.has(d.id))
+    .map((d) => ({ uid: d.id, displayName: (d.data().displayName as string) ?? '' }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return { people };
+}));
+
+/**
+ * Add somebody to a board.
+ *
+ * The PROFILE COMES FROM THE SERVER, not from the caller. It used to be a client
+ * write carrying `displayName` and `email` from the picker, and board update
+ * validates `memberProfiles` only as `is map` — rules cannot cross-reference
+ * `users/` — so an owner could write any name or address against a uid. Reading
+ * it here removes the possibility rather than trying to validate it.
+ */
+export const addBoardMember = onCall({ secrets: [sentryDsn] }, guarded(async (request: CallableRequest<{ boardId?: unknown; uid?: unknown }>) => {
+  const auth = request.auth;
+  if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+
+  const actor = {
+    uid: auth.uid,
+    role: (auth.token.role ?? 'member') as Role,
+    status: (auth.token.status ?? 'pending') as UserStatus,
+  };
+
+  const boardId = request.data?.boardId;
+  const uid = request.data?.uid;
+  if (typeof boardId !== 'string' || !boardId) {
+    throw new HttpsError('invalid-argument', 'A boardId is required.');
+  }
+  if (typeof uid !== 'string' || !uid) {
+    throw new HttpsError('invalid-argument', 'A uid is required.');
+  }
+
+  const db = getFirestore();
+  const boardRef = db.doc(`boards/${boardId}`);
+  const board = await boardRef.get();
+  if (!board.exists) throw new HttpsError('not-found', 'No such board.');
+
+  if (!canManageBoard(actor, board.data() as BoardDoc)) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only an owner of this board, or an admin, can change who is on it.',
+    );
+  }
+
+  const person = await db.doc(`users/${uid}`).get();
+  if (!person.exists) throw new HttpsError('not-found', 'No such person.');
+  if (person.data()?.status !== 'active') {
+    throw new HttpsError(
+      'failed-precondition',
+      'That account is not active. People must be approved under People before they can join a board.',
+    );
+  }
+
+  // Idempotent: adding somebody already on the board is a no-op rather than an
+  // error, because two owners tapping the same name is ordinary.
+  const already = ((board.data()?.memberUids as string[]) ?? []).includes(uid);
+  if (!already) {
+    await boardRef.update({
+      memberUids: FieldValue.arrayUnion(uid),
+      [`memberProfiles.${uid}`]: {
+        displayName: (person.data()?.displayName as string) ?? '',
+        email: (person.data()?.email as string) ?? '',
+      },
+    });
+    logger.info('Added board member', { boardId, uid, actorUid: auth.uid });
+  }
+
+  return { ok: true, added: !already };
+}));

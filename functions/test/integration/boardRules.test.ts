@@ -297,7 +297,7 @@ describe('creating a board', () => {
 });
 
 describe('updating a board', () => {
-  it('an OWNER can rename it and change columns and membership', async () => {
+  it('an OWNER can rename it and change its columns', async () => {
     const db = ctx('owner1', 'member');
     await assertSucceeds(
       updateDoc(doc(db, 'boards/b_member'), {
@@ -307,7 +307,6 @@ describe('updating a board', () => {
           { id: 'c2', name: 'Doing' },
         ],
         columnIds: ['c1', 'c2'],
-        memberUids: ['owner1', 'member1', 'member2'],
         createdBy: 'owner1',
       }),
     );
@@ -582,25 +581,35 @@ describe('granting and revoking ownership', () => {
  * repair the ones nobody could repair.
  */
 /**
- * Membership may only GROW from a client. Removals belong to the
- * `removeBoardMember` callable, which clears assignments and subscriptions in the
- * same batch — an Admin SDK write, so these rules never see it.
+ * Membership changes ONLY through callables, both ways: `addBoardMember` and
+ * `removeBoardMember`, both Admin SDK writes these rules never see.
  *
- * Enforced here because "assignees are board members" is checked on CARD writes
- * only: a board write that drops a member leaves their `assigneeUids` entries
- * behind, and the card read rule has an arm for those, so the person keeps read
- * access to the very cards the removal was meant to take away.
+ * Removal has always had to be one. "Assignees are board members" is checked on
+ * CARD writes only, so a board write that dropped a member would leave their
+ * `assigneeUids` entries behind — and the card read rule has an arm for those,
+ * so the person would keep read access to the very cards the removal was meant
+ * to take away.
+ *
+ * Adding joined it for a different reason: rules allow `list` on `users/` to
+ * admins alone, so a non-admin owner could never see whom to add even though the
+ * write was permitted. Moving it server-side also means the SERVER supplies the
+ * profile, which is the only way to stop an owner writing an arbitrary name or
+ * address — `memberProfiles` is a free-form map and rules cannot cross-reference
+ * `users/`.
  */
-describe('membership may only grow', () => {
-  it('an owner can ADD a member', async () => {
-    await assertSucceeds(
+describe('membership does not change from a client, in either direction', () => {
+  it('an owner cannot ADD one — that is addBoardMember’s job now', async () => {
+    // It used to be allowed, and it was useless: rules let only admins `list`
+    // users/, so a non-admin owner could never see whom to add. The write was
+    // permitted and the read feeding it was not.
+    await assertFails(
       updateDoc(doc(ctx('owner1', 'member'), 'boards/b_member'), {
         memberUids: ['owner1', 'member1', 'second1'],
       }),
     );
   });
 
-  it('an owner cannot remove one — that is the callable’s job', async () => {
+  it('nor REMOVE one — that is removeBoardMember’s job', async () => {
     await assertFails(
       updateDoc(doc(ctx('owner1', 'member'), 'boards/b_member'), {
         memberUids: ['owner1'],
@@ -617,15 +626,29 @@ describe('membership may only grow', () => {
     );
   });
 
-  it('an admin can, as the repair path for a board nothing else can fix', async () => {
-    await assertSucceeds(
+  it('NOT EVEN AN ADMIN — the old repair exemption is gone', async () => {
+    // Deliberate. Both callables gate on canManageBoard, which is true for an
+    // admin on any board, so the capability is unchanged; only the direct client
+    // write went. A board broken past that is a script's job, not a screen's.
+    await assertFails(
       updateDoc(doc(ctx('admin1', 'admin'), 'boards/b_member'), {
         memberUids: ['owner1'],
       }),
     );
   });
 
-  it('and an ordinary edit that does not touch the list is unaffected', async () => {
+  it('nor may a client rewrite memberProfiles — the server owns the profile', async () => {
+    // The hole this closes: memberProfiles is validated only as `is map`, and
+    // rules cannot cross-reference users/, so while the client supplied it an
+    // owner could put any name or address against a uid.
+    await assertFails(
+      updateDoc(doc(ctx('owner1', 'member'), 'boards/b_member'), {
+        memberProfiles: { member1: { displayName: 'Someone Else', email: 'evil@example.com' } },
+      }),
+    );
+  });
+
+  it('and an ordinary edit that does not touch either list is unaffected', async () => {
     // The positive control that matters: `updateDoc` merges field-by-field, so a
     // rename carries the stored membership through and must not trip this.
     await assertSucceeds(

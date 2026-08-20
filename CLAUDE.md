@@ -45,10 +45,14 @@ Key product invariants (do not silently change):
   does hold — `removeBoardMember` clears both — but it holds because that code
   is right, and rules cannot check an Admin SDK batch; a subset RULE would turn
   any lapse there, or any restore predating the shape, into a board that bounces
-  the next client write. The pairing makes the same lapse inert instead. **`memberUids` may only GROW from a client** (admins excepted): removal
-  belongs to that callable, which clears assignments and subscriptions in the
-  same batch, and without the rule a board write could strand both — leaving a
-  removed person read access through the card rule's assignee arm. And **board create REQUIRES
+  the next client write. The pairing makes the same lapse inert instead. **`memberUids` and `memberProfiles` NEVER change from a client**, admins
+  included: both directions are callables. Removal belongs to one because it
+  clears assignments and subscriptions in the same batch — without that a board
+  write could strand both, leaving a removed person read access through the card
+  rule's assignee arm. Adding became one on 2026-08-20 because it did not work:
+  rules let only admins `list` users, so a non-admin owner had nothing to pick
+  from though the write was permitted. The server now supplies the profile too,
+  which is the only way to stop an owner writing an arbitrary name against a uid. And **board create REQUIRES
   `boardOwnerUids == [creator]`**, which turns "an app too old to know about
   ownership made a board only an admin can manage" from silent and permanent
   into a loud failure.

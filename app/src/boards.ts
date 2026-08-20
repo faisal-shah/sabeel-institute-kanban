@@ -169,21 +169,38 @@ export async function updateBoard(
   await updateDoc(doc(db, 'boards', boardId), { ...patch, createdBy });
 }
 
-export async function addBoardMember(
+/**
+ * Adding somebody is a callable too, for two reasons.
+ *
+ * `firestore.rules` allows `list` on `users/` to admins alone, so a non-admin
+ * board owner had nothing to pick from even though the write was permitted —
+ * which is the bug this replaced. And with the server doing the write it also
+ * supplies the profile, so an owner cannot put an arbitrary name or address
+ * against a uid.
+ */
+const addMemberFn = httpsCallable<
+  { boardId: string; uid: string },
+  { ok: boolean; added: boolean }
+>(functions, 'addBoardMember');
+
+export async function addBoardMember(boardId: string, uid: string): Promise<void> {
+  await addMemberFn({ boardId, uid });
+}
+
+/**
+ * Who could still be added. NAMES ONLY — a picker needs something to tap, not
+ * everybody's address.
+ */
+const addableFn = httpsCallable<
+  { boardId: string },
+  { people: { uid: string; displayName: string }[] }
+>(functions, 'listAddableUsers');
+
+export async function listAddableUsers(
   boardId: string,
-  person: { uid: string; displayName: string; email: string },
-): Promise<void> {
-  const snap = await getDoc(doc(db, 'boards', boardId));
-  await updateDoc(doc(db, 'boards', boardId), {
-    memberUids: arrayUnion(person.uid),
-    // The profile travels with the membership, so board members can see who is
-    // on the board without permission to list the user directory.
-    [`memberProfiles.${person.uid}`]: {
-      displayName: person.displayName,
-      email: person.email,
-    },
-    createdBy: snap.data()?.createdBy,
-  });
+): Promise<{ uid: string; displayName: string }[]> {
+  const res = await addableFn({ boardId });
+  return res.data.people;
 }
 
 /**
