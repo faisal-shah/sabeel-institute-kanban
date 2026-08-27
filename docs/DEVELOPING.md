@@ -3,9 +3,26 @@
 There is **no Firebase project yet** (that's Phase 13, `TODO.md`). Everything runs
 against the Firebase emulators, which need no accounts, no keys and no network.
 
-Prerequisites, all already present on this machine: Node 22+, JDK 21 at
-`~/opt/jdk-21` (the emulators need it; JDK 17 stays the default for Gradle),
-Android SDK at `~/opt/Android/Sdk` with the `tb_emu` AVD.
+## Prerequisites
+
+Node 22+, **two** JDKs — 21 for the emulators (they are Java), 17 as the default
+`java` because the Android Gradle Plugin targets it — and the Android SDK with
+the `tb_emu` AVD.
+
+Do not install these by hand. The `expo-firebase-stack` skill in
+`../agent-skills/` carries a bootstrap that does the lot under `$HOME` with no
+root, and is idempotent:
+
+```sh
+../agent-skills/skills/expo-firebase-stack/tools/check-host.sh   # what is missing
+../agent-skills/skills/expo-firebase-stack/tools/bootstrap-linux.sh \
+    --jdk21-aliases SK --repo "$PWD"
+```
+
+`--jdk21-aliases SK` is what sets `SK_JDK21_HOME`, which `scripts/jdk21.sh`
+reads to find JDK 21 without disturbing the Gradle default. The scripts here
+fall back to `~/opt/jdk-21` and then to whatever `java` is on `PATH`, so a
+machine set up differently still works — but the variable is the reliable route.
 
 ```sh
 npm install     # once
@@ -92,6 +109,29 @@ curl -X DELETE "http://127.0.0.1:9099/emulator/v1/projects/demo-sabeel-kanban/ac
 ```
 
 ## Android
+
+> **The AVD needs hardware virtualization, and a VM may not have it.** Check
+> before assuming a screenshot loop is available:
+>
+> ```sh
+> emulator -accel-check    # "accel: 0" good; "accel: 3" means no KVM
+> ```
+>
+> If `/proc/cpuinfo` shows `hypervisor` but neither `vmx` nor `svm`, nested
+> virtualization is off at the host and nothing inside the machine — root
+> included — can enable it. The AVD still boots, in software: measured at
+> **805 s to boot and ~14 s per `screencap`**, with input events around 1.4 s.
+> Input is usable; the screenshot-based verification this file relies on
+> effectively is not, so plan on a real device over ADB TCP instead.
+> **Builds are unaffected** — Gradle needs no KVM, so `build:aab` and the APK
+> path work normally. `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh`
+> gives the verdict and the numbers.
+>
+> A freshly created AVD also comes up on `com.android.settings.FallbackHome`
+> rather than the launcher, so the first `screencap` is a blank image that looks
+> like a rendering bug. It is unprovisioned:
+> `adb shell settings put global device_provisioned 1` and
+> `adb shell settings put secure user_setup_complete 1`.
 
 Terminal 1 is the same (`npm run emulators`). Then:
 
