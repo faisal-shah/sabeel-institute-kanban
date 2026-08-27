@@ -4,11 +4,53 @@
 
 A kanban board application for Sabeel Institute (small nonprofit, <50 internal
 users), replacing ClickUp. Faisal is the developer; the nonprofit's staff are the
-admins and board owners in the app. Source of truth: `docs/PRODUCT_BRIEF.md`
-(decisions & data model), `docs/PERMISSIONS.md` (who can do what) and
-`docs/PHASE_STATUS.md` (live build status).
+admins and board owners in the app. **The phases are finished and the app is in
+production.**
 
-Key product invariants (do not silently change):
+Source of truth: `docs/PRODUCT_BRIEF.md` (decisions & data model),
+`docs/PERMISSIONS.md` (who can do what), `docs/PHASE_STATUS.md` (live build
+status and the deploy log).
+
+## Stack knowledge lives in a shared skill, not here
+
+Recurring traps of this stack live in the **`expo-firebase-stack` skill** —
+`../agent-skills/skills/expo-firebase-stack/`, a **PUBLIC** repo.
+`docs/STACK-GOTCHAS.md` is a stub for that reason: a stub cannot drift.
+
+**The boundary is one question: would this be true for a different company on
+the same stack?** Yes → the skill. No → this file. Nothing naming this project
+goes into the skill.
+
+Its closing section, **"How this stack fools you"**, is the one to read *before*
+debugging anything subtle. The recurring shape is that **failures imitate
+success**: APIs that run and do nothing (`Keyboard` events under edge-to-edge,
+RNW's unthemeable `Switch`, a stale `EXPO_PUBLIC_*` in the Metro cache),
+verification steps that counterfeit the result, a green web suite that says
+nothing about a native layout bug, and resources that report "deployed" while
+not working. **Prove the mechanism ran before concluding a fix was insufficient,
+re-test without touching anything, and reproduce on the surface that is actually
+broken.**
+
+When something here costs real time, **write the entry into the skill** —
+symptom-first — in the same batch as the fix, not only into a commit message.
+
+The skill also carries `tools/bootstrap-linux.sh`, which installs this whole
+toolchain on a fresh machine under `$HOME` with no root, and `tools/check-host.sh`.
+See `docs/DEVELOPING.md`.
+
+Sibling project `../sabeel-institute-time-tracker/` is the reference
+implementation for every convention here — read its files directly rather than
+trusting a summary when the details matter. `docs/INHERITED-STACK.md` records
+what carries over and, more importantly, what was learned the hard way there.
+
+---
+
+# Product invariants
+
+Do not silently change any of these.
+
+## Scope and shape
+
 - **Restraint is the feature.** They left ClickUp because of interface bloat. No
   dashboards, integrations, automations, alternate board views, or time tracking.
   Every addition must justify itself against "does the team actually use this?" —
@@ -18,153 +60,181 @@ Key product invariants (do not silently change):
 - **Phone-first, not phone-compatible.** The mobile board is its own layout (one
   column at a time, swipe between columns), not a squeezed desktop board. Every
   feature ships with a phone design.
+- **No WIP limits, no card start dates.** Both considered, both declined.
+- **Boards archive, never hard-delete. Cards can be deleted, but only by that
+  board's owners and admins** — members archive.
 - **The team is in Houston — `ORG_TIMEZONE` is `America/Chicago`.** It shipped as
   `America/New_York` and nothing surfaced it: due dates are all-day strings, so
   the only symptoms were cards turning overdue an hour early and the due-soon
   reminder firing at 07:00 local. Do not "align" it with the sibling
   time-tracker — that project has no org timezone at all, by design, because it
   buckets each entry in the timezone where the work happened.
-- **AUTHORITY IS TWO INDEPENDENT THINGS** (changed 2026-08-16, replacing three
-  org roles alone). An **org role** — admin / organizer / member — and
-  **ownership of one board**, a `boardOwnerUids` array on the board document.
-  They are orthogonal: a plain member can own a board, an organizer can own
-  none. `organizer` grants EXACTLY ONE thing, creating a board; label curation
-  and Stats are admin-only; **only an admin sees a board they were not added
-  to**. Everything about one board — settings, columns, membership, ownership,
-  archiving, permanently deleting a card, deleting anyone's comment — is its
-  owners plus admins. `docs/PERMISSIONS.md` is the full statement; do not restate
-  the table anywhere else.
-  Three things that are load-bearing rather than tidy. **The creator is
-  protected**: only an admin may take `createdBy` out of `boardOwnerUids`,
-  including on their own behalf — and the rule is phrased on the CHANGE, so a
-  board whose creator an admin already demoted stays editable, which a
-  value-shaped rule would have bricked — and it checks BOTH lists, because
+
+## Authority is TWO independent things
+
+Changed 2026-08-16, replacing three org roles alone. An **org role** — admin /
+organizer / member — and **ownership of one board**, a `boardOwnerUids` array on
+the board document. They are orthogonal: a plain member can own a board, an
+organizer can own none.
+
+`organizer` grants EXACTLY ONE thing, creating a board; label curation and Stats
+are admin-only; **only an admin sees a board they were not added to**. Everything
+about one board — settings, columns, membership, ownership, archiving,
+permanently deleting a card, deleting anyone's comment — is its owners plus
+admins. `docs/PERMISSIONS.md` is the full statement; **do not restate the table
+anywhere else.**
+
+Three things that are load-bearing rather than tidy:
+
+- **The creator is protected.** Only an admin may take `createdBy` out of
+  `boardOwnerUids`, including on their own behalf — and the rule is phrased on
+  the CHANGE, so a board whose creator an admin already demoted stays editable,
+  which a value-shaped rule would have bricked. It checks BOTH lists, because
   authority is `member AND owner` and nothing makes the two move together.
-  **Ownership is always checked WITH membership**, never alone, which is what
+- **Ownership is always checked WITH membership**, never alone, which is what
   lets the rules skip a `boardOwnerUids ⊆ memberUids` subset check. The subset
-  does hold — `removeBoardMember` clears both — but it holds because that code
-  is right, and rules cannot check an Admin SDK batch; a subset RULE would turn
-  any lapse there, or any restore predating the shape, into a board that bounces
-  the next client write. The pairing makes the same lapse inert instead. **`memberUids` and `memberProfiles` NEVER change from a client**, admins
+  does hold — `removeBoardMember` clears both — but it holds because that code is
+  right, and rules cannot check an Admin SDK batch; a subset RULE would turn any
+  lapse there, or any restore predating the shape, into a board that bounces the
+  next client write. The pairing makes the same lapse inert instead.
+- **`memberUids` and `memberProfiles` NEVER change from a client**, admins
   included: both directions are callables. Removal belongs to one because it
   clears assignments and subscriptions in the same batch — without that a board
   write could strand both, leaving a removed person read access through the card
   rule's assignee arm. Adding became one on 2026-08-20 because it did not work:
   rules let only admins `list` users, so a non-admin owner had nothing to pick
   from though the write was permitted. The server now supplies the profile too,
-  which is the only way to stop an owner writing an arbitrary name against a uid. And **board create REQUIRES
-  `boardOwnerUids == [creator]`**, which turns "an app too old to know about
-  ownership made a board only an admin can manage" from silent and permanent
-  into a loud failure.
-- **Sign-in is restricted to `@oursabeel.com` AND still needs admin approval.**
-  The domain check is server-side — the client `hd` hint is UX, not a boundary.
-- **File attachments exist, and the shape of them is settled** (added 2026-07-26,
-  reversing the original "no attachments" decision). Multiple files per card,
-  **10 MB each**, any type. **Any active member of the board may remove one** —
-  deliberately NOT the owner-only gate permanent card deletion uses, because
-  attaching the wrong file is an ordinary mistake that should not need someone
-  else to undo. Plain rows, no inline previews. Attach and remove are both
-  recorded in the card's activity log.
-- **Storage rules cannot read Firestore, and everything about attachments
-  follows from that.** Board membership is a Firestore document, so
-  `storage.rules` can only ask "is this an active account". Therefore: the
-  attachment DOCUMENT is the upload's authorization (creating it is
-  membership-checked, and the object goes to a path derived from ids only that
-  create could produce); objects are **write-once and unreadable**; every
-  download is a short-lived **V4 signed URL** minted by a callable that repeats
-  the membership check. Never `getDownloadURL()` — its token never expires, so
-  anyone who saw a link would keep access after leaving a board. Clients cannot
-  update or delete an attachment: a client delete would strand the bytes, and a
-  delete trigger cannot name who did it.
-- **Two accepted residuals on attachments, both measured, neither a bug to
-  re-fix.** A signed URL already handed out keeps working for up to an hour
-  after someone is removed from a board — individual signed URLs cannot be
-  revoked, only the signing key rotated, which would kill every URL at once.
-  And there is **no cap on how many files a card may hold**: the 10 MB limit is
-  per file, so cost is bounded only by the budget alert. Both are fine for
-  fewer than fifty colleagues; neither survives contact with untrusted users.
-- **Descriptions and comments are MARKDOWN, restricted to FIVE elements**
-  (changed 2026-07-30, reversing the 2026-07-20 plain-text decision on the
-  explicit request that decision named). Bold, italic, bullet list, ordered
-  list, link. **Nothing else** — no headings, code, quotes, underline,
-  strikethrough, tables or checklists, and no images because attachments cover
-  those. The vocabulary is small because the team's real content needed nothing
-  more (measured, not assumed) and because a small vocabulary is what makes the
-  round trip provable. `packages/shared/src/richtext.ts` is the one definition;
-  `RICH_VOCABULARY` is the list.
+  which is the only way to stop an owner writing an arbitrary name against a uid.
+
+And **board create REQUIRES `boardOwnerUids == [creator]`**, which turns "an app
+too old to know about ownership made a board only an admin can manage" from
+silent and permanent into a loud failure.
+
+**Sign-in is restricted to `@oursabeel.com` AND still needs admin approval.** The
+domain check is server-side — the client `hd` hint is UX, not a boundary.
+
+## Assignees, subscriptions and labels
+
+- **Assignees must be board members**, rules-enforced. This is what makes the
+  cross-board "My Work" collection-group query legal without a parent lookup —
+  breaking it breaks My Work's security model.
+- **Subscribing to a card means subscribing to its COMMENTS** (added 2026-07-28,
+  narrowing the older "no watchers" decision rather than overturning it). Nothing
+  else about the card notifies a subscriber — notifying on every change was
+  considered and dropped, because `myCardMoved` already ships off for firing
+  constantly and ten more triggers beside it would be worse. An assignee may also
+  subscribe, which is how the interest survives being unassigned.
+  **`subscriberUids` is a grant of READ** — the card read rule has a subscriber
+  arm so the cross-board query needs no per-row board lookup — so it carries
+  every constraint `assigneeUids` does: members only, cleared by
+  `removeBoardMember`, filtered on a cross-board move, and absent from a copy.
+- **Labels are ORG-WIDE, not per board** (changed 2026-07-27). One `labels/{id}`
+  collection every board shares; a card's `labelIds` mean the same thing wherever
+  the card is, so a cross-board move and copy **carry them** — the old code
+  cleared them and must not come back. **Any active member creates** one (from
+  the `+` in a card's label picker, since Board Settings opens for that board's
+  owners alone); **ADMINS rename, recolour and delete** — the effect is org-wide,
+  reaching cards on boards the editor cannot open, so the authority is org-wide
+  too. Deleting is a callable that strips the id from every card first and only
+  then removes the document — reversed, a failure would leave cards pointing at
+  nothing findable. A COLLECTION rather than an array on a config doc: concurrent
+  creates are the normal case here, and an array field would lose writes.
+  Uniqueness is case-insensitive and client-checked only; a simultaneous
+  double-create making two same-named labels is an accepted residual.
+
+## Attachments
+
+Added 2026-07-26, reversing the original "no attachments" decision. Multiple
+files per card, **10 MB each**, any type. **Any active member of the board may
+remove one** — deliberately NOT the owner-only gate permanent card deletion uses,
+because attaching the wrong file is an ordinary mistake that should not need
+someone else to undo. Plain rows, no inline previews. Attach and remove are both
+recorded in the card's activity log.
+
+**Storage rules cannot read Firestore, and everything about attachments follows
+from that.** Board membership is a Firestore document, so `storage.rules` can
+only ask "is this an active account". Therefore: the attachment DOCUMENT is the
+upload's authorization (creating it is membership-checked, and the object goes to
+a path derived from ids only that create could produce); objects are
+**write-once and unreadable**; every download is a short-lived **V4 signed URL**
+minted by a callable that repeats the membership check. Never
+`getDownloadURL()` — its token never expires, so anyone who saw a link would keep
+access after leaving a board. Clients cannot update or delete an attachment: a
+client delete would strand the bytes, and a delete trigger cannot name who did it.
+
+**Two accepted residuals, both measured, neither a bug to re-fix.** A signed URL
+already handed out keeps working for up to an hour after someone is removed from
+a board — individual signed URLs cannot be revoked, only the signing key rotated,
+which would kill every URL at once. And there is **no cap on how many files a
+card may hold**: the 10 MB limit is per file, so cost is bounded only by the
+budget alert. Both are fine for fewer than fifty colleagues; neither survives
+contact with untrusted users.
+
+## Descriptions and comments are rich text
+
+- **MARKDOWN, restricted to FIVE elements** (changed 2026-07-30, reversing the
+  2026-07-20 plain-text decision on the explicit request that decision named).
+  Bold, italic, bullet list, ordered list, link. **Nothing else** — no headings,
+  code, quotes, underline, strikethrough, tables or checklists, and no images
+  because attachments cover those. The vocabulary is small because the team's
+  real content needed nothing more (measured, not assumed) and because a small
+  vocabulary is what makes the round trip provable.
+  `packages/shared/src/richtext.ts` is the one definition; `RICH_VOCABULARY` is
+  the list.
 - **Markdown is storage the user never sees.** Both editors are WYSIWYG with a
   toolbar. Nobody types syntax — that was the whole objection to markdown in
   2026-07-20 and it still stands.
 - **ESCAPING IS THE CORRECTNESS CORE, not a detail.** The escape set is exactly
   the parse set: `\`, `*`, `[` and a line-leading `-`/`+`/`N.`. Deliberately NOT
   `_`, backtick or `~` — outside the vocabulary, so escaping them would store
-  `snake\_case\_name`, noise in a field a backfill script will one day read.
-  The hand-written list is **not** the correctness criterion; the criterion is
-  `parseRich(serializeRich(doc))` equalling `doc`, enforced by seeded fuzz. Add
-  a character to one list and you must add it to the other.
+  `snake\_case\_name`, noise in a field a backfill script will one day read. The
+  hand-written list is **not** the correctness criterion; the criterion is
+  `parseRich(serializeRich(doc))` equalling `doc`, enforced by seeded fuzz. Add a
+  character to one list and you must add it to the other.
 - **Autolinking of bare URLs is RENDER-TIME ONLY.** Storage keeps exactly what
-  was typed. If either editor rewrote a bare URL, the same keystrokes would
-  store different bytes on a phone than in a browser — which is why
-  `linkRegex={null}` on native and no AutoLink plugin on web.
+  was typed. If either editor rewrote a bare URL, the same keystrokes would store
+  different bytes on a phone than in a browser — which is why `linkRegex={null}`
+  on native and no AutoLink plugin on web.
 - **The editor is the ONLY thing split by platform.** Lexical on web,
   `react-native-enriched-html` on Android, both behind one markdown-in/
   markdown-out contract and one `richtextHtml` seam. The renderer, toolbar,
   mention policy and converter are shared — `RichText` in particular must never
   gain a `.web` sibling, or the two surfaces could disagree about what a card
   says. `docs/RESEARCH-RICH-TEXT.md` records why, and what the spike measured.
-- **Labels are ORG-WIDE, not per board** (changed 2026-07-27). One `labels/{id}`
-  collection every board shares; a card's `labelIds` mean the same thing
-  wherever the card is, so a cross-board move and copy **carry them** — the old
-  code cleared them and must not come back. **Any active member creates** one
-  (from the `+` in a card's label picker, since Board Settings opens for that
-  board's owners alone); **ADMINS rename, recolour and delete** — the effect is
-  org-wide, reaching cards on boards the editor cannot open, so the authority is
-  org-wide too. Deleting is a callable that strips
-  the id from every card first and only then removes the document — reversed,
-  a failure would leave cards pointing at nothing findable. A COLLECTION rather
-  than an array on a config doc: concurrent creates are the normal case here,
-  and an array field would lose writes. Uniqueness is case-insensitive and
-  client-checked only; a simultaneous double-create making two same-named labels
-  is an accepted residual.
-- **Assignees must be board members**, rules-enforced. This is what makes the
-  cross-board "My Work" collection-group query legal without a parent lookup —
-  breaking it breaks My Work's security model.
-- **No WIP limits, no card start dates.** Both considered, both declined.
-- **Subscribing to a card means subscribing to its COMMENTS** (added 2026-07-28,
-  narrowing the older "no watchers" decision rather than overturning it). Nothing
-  else about the card notifies a subscriber — notifying on every change was
-  considered and dropped, because `myCardMoved` already ships off for firing
-  constantly and ten more triggers beside it would be worse. Assignees are
-  unchanged; an assignee may also subscribe, which is how the interest survives
-  being unassigned. **`subscriberUids` is a grant of READ** — the card read rule
-  has a subscriber arm so the cross-board query needs no per-row board lookup —
-  so it carries every constraint `assigneeUids` does: members only, cleared by
-  `removeBoardMember`, filtered on a cross-board move, and absent from a copy.
-- **BRAND COLORS ARE FIXED.** `docs/BRAND.md` is the authority — it restates the
-  designer's **Option 1** palette (2026-07-21), which **supersedes** the older
-  `docs/brand/sabeel-color-usage-guide.jpg` (kept for history only). The same
-  palette is shared exactly with the sibling time-tracker. **Consult BRAND.md
-  before ANY design or color decision** — new screens, components, illustrations,
-  charts, anything. Warm Ivory `#F6EBDD` (foundation) / Soft Sage `#A8B89A`
-  (calm) / Dark Raspberry `#83114F` (brand identity, used with purpose) / Antique
-  Gold `#C6A15B` (sparingly) / Mushroom Taupe `#A58D7A` (support). The
-  `Caption`-vs-`Hint` question BRAND.md raised is **settled and applied**:
-  `Caption` is only for text you could delete without losing information, 35
-  sites moved to `Hint`, seven genuinely disposable ones stayed, and `Body`'s
-  `muted` variant was **removed** rather than left unused. `text.muted` itself is
-  deliberately NOT darkened — that would collapse it into `text.secondary`.
+
+## Brand, theme and UI conventions
+
+**BRAND COLORS ARE FIXED.** `docs/BRAND.md` is the authority — it restates the
+designer's **Option 1** palette (2026-07-21), which **supersedes** the older
+`docs/brand/sabeel-color-usage-guide.jpg` (kept for history only). The same
+palette is shared exactly with the sibling time-tracker. **Consult BRAND.md
+before ANY design or color decision** — new screens, components, illustrations,
+charts, anything. Warm Ivory `#F6EBDD` (foundation) / Soft Sage `#A8B89A` (calm)
+/ Dark Raspberry `#83114F` (brand identity, used with purpose) / Antique Gold
+`#C6A15B` (sparingly) / Mushroom Taupe `#A58D7A` (support).
+
+**All color goes through semantic theme tokens**, and the app is a **single light
+theme — no dark mode** (decided 2026-07-21; the derived dark palette was removed,
+not disabled). Never hardcode a color; the ESLint rule will reject it.
+`app/src/theme/palette.ts` is the only exception and is where the brand palette
+lives. The `Caption`-vs-`Hint` question BRAND.md raised is **settled and
+applied**: `Caption` is only for text you could delete without losing
+information, 35 sites moved to `Hint`, seven genuinely disposable ones stayed,
+and `Body`'s `muted` variant was **removed** rather than left unused. `text.muted`
+itself is deliberately NOT darkened — that would collapse it into
+`text.secondary`.
+
 - **Ordinary actions are icons, not labelled buttons.** Edit, delete, move,
   archive, assign, close — these have settled conventions, and a full-width
-  labelled button for each costs a row of vertical space every time. This was
-  got wrong three separate times (comment actions, the description editor, the
+  labelled button for each costs a row of vertical space every time. This was got
+  wrong three separate times (comment actions, the description editor, the
   bulk-selection bar) before it was written down, and a fourth on the board
-  itself (`‹ Prev`/`Next ›` and a per-row "Restore to the board"). Give every
-  icon an `accessibilityLabel` carrying the word it replaces. Use `IconAction`
-  in `components/ui.tsx`, which lays out a real **44x44 box** — deliberately NOT
-  `hitSlop`, because neighbouring slops overlap and the touch goes to whichever
-  one the platform feels like. **Reserve labelled buttons for the primary action
-  of a screen** — `+ Add card` is the board's, so it keeps its label while
-  everything beside it is an icon.
+  itself. Give every icon an `accessibilityLabel` carrying the word it replaces.
+  Use `IconAction` in `components/ui.tsx`, which lays out a real **44x44 box** —
+  deliberately NOT `hitSlop`, because neighbouring slops overlap and the touch
+  goes to whichever one the platform feels like. **Reserve labelled buttons for
+  the primary action of a screen** — `+ Add card` is the board's, so it keeps its
+  label while everything beside it is an icon.
 - **A destructive action needs a CONFIRMATION, not a label** (narrowed
   2026-07-30). An icon plus "are you sure" is safer than a labelled button with
   nothing behind it: permanent delete in the archive shipped as a bare labelled
@@ -174,144 +244,115 @@ Key product invariants (do not silently change):
   Never the word. `Screen` is layout-only and every screen hand-rolls its header,
   so nothing enforces this — it was split 7 icons to 7 words before it was
   written down. A control that RESETS to a root instead of popping one screen is
-  a different action and gets a different name (`All boards`, `Inbox`), which
-  also keeps `getByRole('button', { name: 'Back' })` unambiguous.
+  a different action and gets a different name (`All boards`, `Inbox`), which also
+  keeps `getByRole('button', { name: 'Back' })` unambiguous.
 - **ONE icon ink size — 24 — for every `IconAction`, and the 44x44 box is what
-  spaces them.** Four sizes were in use (13/18/22/24) with no rule, three of
-  them on the card screen alone. Ink and crowding are independent here: the box
-  is fixed, so a bigger glyph fills a target already reserved and cannot push a
-  neighbour closer. Crowding is the GAP, held at `space.sm` or more — raising it
-  is what makes bigger icons safe. Raw `<MaterialIcons>` used as inline metadata
-  (a paperclip on a card face) keeps its own small size; it is ornament beside
-  text, not a target.
-- **A control that floats over content must fit on one row WHERE IT CAN, and
-  wrap rather than bleed where it cannot.** The bulk bar sits on top of the
-  board: every row it takes is a row of board the user cannot see. But six 44px
-  actions need 304px and a 320px screen gives 264, so "one row" was not
-  achievable — it pushed the page sideways and took its own close button
-  off-screen. Dismiss moved up beside the count, which left five actions that do
-  fit. Note Yoga defaults `flexShrink` to **0**, unlike CSS: a row that should
-  wrap will instead overflow until something is allowed to give.
-- **All color goes through semantic theme tokens.** The app is a **single light
-  theme — no dark mode** (decided 2026-07-21; the derived dark palette was
-  removed, not disabled). Never hardcode a color; the ESLint rule will reject it.
-  `app/src/theme/palette.ts` is the only exception and is where the brand palette
-  lives.
-- **Boards archive, never hard-delete. Cards can be deleted, but only by that
-  board's owners and admins** — members archive.
-- **Stats are server-written, ADMIN-gated, and must never be able to break what
-  they count.** `recordStat` runs AFTER the primary work commits and never
-  rejects: `guardedEvent` rethrows, so a throw inside a trigger retries it, and
-  `onCardWritten` writes activity with generated ids — a retry would duplicate a
-  card's history rather than repair it. On the attachment paths the counter sits
-  inside the existing winner-only transaction branches, never above them. Day
-  keys use `ORG_TIMEZONE`. Drift is acceptable only because
-  `scripts/backfill-stats.mjs` rebuilds any range from the source documents;
-  `bytesRemoved` is the one series that cannot be reconstructed.
+  spaces them.** Four sizes were in use (13/18/22/24) with no rule, three of them
+  on the card screen alone. Ink and crowding are independent here: the box is
+  fixed, so a bigger glyph fills a target already reserved and cannot push a
+  neighbour closer. Crowding is the GAP, held at `space.sm` or more. Raw
+  `<MaterialIcons>` used as inline metadata (a paperclip on a card face) keeps its
+  own small size; it is ornament beside text, not a target.
+- **A control that floats over content must fit on one row WHERE IT CAN, and wrap
+  rather than bleed where it cannot.** The bulk bar sits on top of the board:
+  every row it takes is a row of board the user cannot see. But six 44px actions
+  need 304px and a 320px screen gives 264, so "one row" was not achievable — it
+  pushed the page sideways and took its own close button off-screen. Dismiss moved
+  up beside the count, which left five actions that do fit. **Note Yoga defaults
+  `flexShrink` to 0, unlike CSS**: a row that should wrap will instead overflow
+  until something is allowed to give.
+
+## State, queries and data
+
 - **A live query has THREE states, not two.** `LiveState` reports
   `data: undefined` for loading AND error, so `?? []` claims "there is none of
   this" when the truth may be "we could not find out". Every failure also
   publishes to a global banner `Screen` renders — keep that banner OUTSIDE the
-  scroll container, or it is invisible to anyone scrolled down. Where the value
-  is a figure someone might act on, branch on `status` explicitly.
+  scroll container, or it is invisible to anyone scrolled down. Where the value is
+  a figure someone might act on, branch on `status` explicitly.
+- Live Firestore reads in `app/src` go through a single `useLiveQuery`/`useLiveDoc`
+  module — never hand-roll `onSnapshot` state in a hook (lint-enforced). See
+  `docs/INHERITED-STACK.md` for why this is non-negotiable.
 - **Every active filter must be visible and removable, even a broken one.** An id
-  can outlive what it points at (a deleted label, an archived board), and
-  building chips by filtering a live list down to chosen ids makes a dead id
-  vanish from the UI while it keeps narrowing the results — empty screen, no
-  cause, nothing to tap.
+  can outlive what it points at (a deleted label, an archived board), and building
+  chips by filtering a live list down to chosen ids makes a dead id vanish from
+  the UI while it keeps narrowing the results — empty screen, no cause, nothing
+  to tap.
 - **Deliberate view state belongs in `app/src/viewState.ts`, not `useState`.**
   `App.tsx` renders one screen per route, so opening a card unmounts the screen
-  behind it. Drafts and busy flags are fine locally; a search, a filter or a
-  chosen tab must outlive the unmount or Back returns you to a blank screen.
-  Derived updates use the FUNCTIONAL form — two taps in one batch otherwise both
-  read the same snapshot and one is lost.
+  behind it. A search, a filter or a chosen tab must outlive the unmount or Back
+  returns you to a blank screen. Derived updates use the FUNCTIONAL form — two
+  taps in one batch otherwise both read the same snapshot and one is lost.
 - **A TEXT DRAFT BELONGS TO THE COMPONENT THAT OWNS THE FIELD — never to the
-  screen.** A draft changes on every keystroke, so a screen holding one
-  re-renders every live-query list, markdown render and `.map` it draws, per
-  character. Measured: 45ms/char on a card with 25 comments (a ~22 char/second
-  ceiling, reported from a phone as "unusable on Android, like a slide show on
-  web"), and 21.1 vs 4.8 ms/char for the comment box on a busy card against an
-  empty one. Own the draft locally and take `run`/`busy`/`onError` from the
-  parent. Three shapes, chosen by lifecycle: `ColumnNameEditor` (one
-  `string | null` owns editing AND the text, so they cannot disagree),
-  `BoardNameEditor`/`AddCardForm` (unmount-scoped — the component renders only
-  while editing, so the lifecycle IS the reset and a dirty flag would be wrong),
-  and `CardDescription` (draft + dirty + reseeding effect, ONLY where the parent
-  keeps it mounted and re-feeds the server's copy).
-  **This does not contradict the `viewState.ts` rule above; they are
-  complements, and the distinction is survival.** A search, a filter or a chosen
-  tab must OUTLIVE the unmount, so it goes in the store. A draft is discarded on
-  cancel and must NOT outlive it, so it stays local.
-  `scripts/typing-perf-e2e.mjs` guards this by asserting a RATIO between a busy
-  screen and an empty one — never absolute ms/char, which moves over 3x per run
-  on a shared runner. Do not "protect" a screen by memoising its lists instead:
-  that was tried, it works, and it leaves inert machinery plus a standing
-  requirement that every prop stay referentially stable forever. The three such
-  wrappers were removed once the drafts moved, and the ratios held.
+  screen.** A draft changes on every keystroke, so a screen holding one re-renders
+  every live-query list, markdown render and `.map` it draws, per character.
+  Measured: 45ms/char on a card with 25 comments (a ~22 char/second ceiling,
+  reported from a phone as "unusable on Android, like a slide show on web"), and
+  21.1 vs 4.8 ms/char for the comment box on a busy card against an empty one.
+  Own the draft locally and take `run`/`busy`/`onError` from the parent. Three
+  shapes, chosen by lifecycle: `ColumnNameEditor` (one `string | null` owns
+  editing AND the text, so they cannot disagree), `BoardNameEditor`/`AddCardForm`
+  (unmount-scoped — the component renders only while editing, so the lifecycle IS
+  the reset and a dirty flag would be wrong), and `CardDescription` (draft + dirty
+  + reseeding effect, ONLY where the parent keeps it mounted and re-feeds the
+  server's copy).
+
+  **This does not contradict the `viewState.ts` rule; they are complements, and
+  the distinction is survival.** A search or a chosen tab must OUTLIVE the
+  unmount, so it goes in the store. A draft is discarded on cancel and must NOT
+  outlive it, so it stays local. `scripts/typing-perf-e2e.mjs` guards this by
+  asserting a RATIO between a busy screen and an empty one — never absolute
+  ms/char, which moves over 3x per run on a shared runner. Do not "protect" a
+  screen by memoising its lists instead: that was tried, it works, and it leaves
+  inert machinery plus a standing requirement that every prop stay referentially
+  stable forever. The three such wrappers were removed once the drafts moved, and
+  the ratios held.
 - **An editor closes only once its write LANDS.** Closing first and handing the
   write up afterwards means a failed save takes your text with it and leaves an
   error pointing at something you can no longer see. So `close()`/`setDraft(null)`
   goes INSIDE the `run` callback, after the `await`. This is why editors take
   `run` plus a raw write that may reject, rather than a pre-wrapped one: `run`
   resolves even on failure, so anything sequenced after it runs regardless.
-- **A suite nothing invokes is not coverage.** `functions/test/unit/suite-coverage`
-  guards the emulator lists and `app/src/ciCoverage.test.ts` guards the e2e ones;
-  add to both when adding a suite. `app/` runs plain `.ts` unit tests only —
-  anything needing a renderer belongs in an e2e suite.
 - **Card ordering is fractional string ranks** in `@sabeel/shared`; a move is one
   document write. Never reintroduce an array-of-ids ordering.
+- **Stats are server-written, ADMIN-gated, and must never be able to break what
+  they count.** `recordStat` runs AFTER the primary work commits and never
+  rejects: `guardedEvent` rethrows, so a throw inside a trigger retries it, and
+  `onCardWritten` writes activity with generated ids — a retry would duplicate a
+  card's history rather than repair it. On the attachment paths the counter sits
+  inside the existing winner-only transaction branches, never above them. Day keys
+  use `ORG_TIMEZONE`. Drift is acceptable only because
+  `scripts/backfill-stats.mjs` rebuilds any range from the source documents;
+  `bytesRemoved` is the one series that cannot be reconstructed.
 
-**Stack-level traps live in the `expo-firebase-stack` skill**, in
-`../agent-skills/` (public repo), NOT in this one. `docs/STACK-GOTCHAS.md` is a
-stub explaining that. When something in this stack costs real time to diagnose,
-**write the entry into the skill** — symptom-first — rather than only into a
-commit message.
+---
 
-The split is: *would this be true for a different company on the same stack?*
-Yes → the skill. No → this file. Nothing naming this project goes into the
-skill; the repo is public.
-
-Its closing section, **"How this stack fools you"**, is the one to read before
-debugging anything subtle here. The recurring shape is that failures imitate
-success: APIs that run and do nothing (`Keyboard` events under edge-to-edge,
-RNW's unthemeable `Switch`, an `EXPO_PUBLIC_*` value stale in the Metro cache),
-verification steps that counterfeit the result, a green web suite that says
-nothing about a native layout bug, and resources that report "deployed" while
-not working. **Prove the mechanism ran before concluding a fix was
-insufficient, re-test without touching anything, and reproduce on the surface
-that is actually broken.**
-
-Sibling project `../sabeel-institute-time-tracker/` is the reference
-implementation for every convention here — read its files directly rather than
-trusting a summary when the details matter. `docs/INHERITED-STACK.md` records what
-carries over and, more importantly, what was learned the hard way there.
+# Working in this repo
 
 ## Stack (locked — mirrors the time tracker)
 
 - **Android 13 (API 33) is the floor**, set explicitly in
   `app/android/app/build.gradle` rather than inherited from Expo's default of 24.
-  Android 12 and older are unsupported (decided 2026-07-27). That is what lets
-  the photo picker be permission-free and both external-storage permissions be
-  removed outright — on 13+ the system photo picker needs neither.
+  Android 12 and older are unsupported (decided 2026-07-27). That is what lets the
+  photo picker be permission-free and both external-storage permissions be removed
+  outright — on 13+ the system photo picker needs neither.
 - One Expo codebase (`app/`) on **three** surfaces: Android (local Gradle builds,
   committed `android/`), **iOS** (added 2026-08-01, local Xcode builds on a cloud
-  Mac, `app/ios/` gitignored) and web via react-native-web (`expo export
-  --platform web` → Firebase Hosting). **NO EAS** on any of them. Platform seams
-  as `.web.ts(x)` siblings.
+  Mac, `app/ios/` gitignored) and web via react-native-web
+  (`expo export --platform web` → Firebase Hosting). **NO EAS** on any of them.
+  Platform seams as `.web.ts(x)` siblings.
 - **`app/android/` is committed and hand-edited; `app/ios/` is a build product.**
   So `npx expo prebuild` must ALWAYS be scoped: `--platform ios`. Prebuild
   defaults to **clean** — it deletes and regenerates the native folder, and
   `--no-clean` is the opt-out — but it only clears the platforms you name. A bare
   prebuild therefore wipes `android/` and silently drops `minSdkVersion 33`.
   Because `ios/` is regenerated, **nothing changed in Xcode's UI survives**;
-  anything that must persist belongs in `app/app.json`. `docs/IOS-BUILD.md` is
-  the runbook, and `npm run check:ios` guards the config that fails late (bundle
-  id vs the plist, the Google Sign-In URL scheme, icon alpha, export compliance).
+  anything that must persist belongs in `app/app.json`. `docs/IOS-BUILD.md` is the
+  runbook, and `npm run check:ios` guards the config that fails late.
 - **One version string for all three surfaces.** `expo.version` only — never
   `ios.version`, which would override it and show Apple a different number.
-  `scripts/check-version.mjs` already holds the version to Apple's `X.Y.Z` shape,
-  which is why no iOS-specific override is needed. `ios.buildNumber` is separate
-  and must increase on every upload.
+  `scripts/check-version.mjs` already holds the version to Apple's `X.Y.Z` shape.
+  `ios.buildNumber` is separate and must increase on every upload.
 - Firebase **JS SDK on all surfaces** (not react-native-firebase — no web support).
 - Backend: Cloud Functions (TS, nodejs22, us-central1) + Firestore + **Cloud
   Storage** (card attachments). The bucket must be a modern
@@ -320,52 +361,113 @@ carries over and, more importantly, what was learned the hard way there.
 - Monorepo (npm workspaces): `app`, `functions`, `packages/shared`. Shared types
   and any cross-surface pure logic live in `@sabeel/shared` — the app and
   functions must never each hold their own copy of a rule.
-- Google sign-in only, `@oursabeel.com` only; every new account lands `pending`;
-  only admins approve/reject/disable users and change roles. Role and status live
-  in **custom claims** (rules trust the token), mirrored onto the user doc for UI
-  display only.
+- Role and status live in **custom claims** (rules trust the token), mirrored
+  onto the user doc for UI display only. The sign-in and approval rules
+  themselves are stated once, under Authority above.
 - Config-as-code: `firestore.rules` / `firestore.indexes.json` / `storage.rules`
   deploy from the repo, never console-edited.
-- Versions to match at scaffold time: Expo ~57, RN 0.86, React 19.2, firebase ^12,
+- Versions to match: Expo ~57, RN 0.86, React 19.2, firebase ^12,
   firebase-functions ^7, TypeScript ~6.0, Vitest ^4, ESLint ^9 flat config, Node 22.
 
-## Dev & test loops (to be scaffolded in Phase 0)
+## Dev & test loops
+
+`docs/DEVELOPING.md` is the full guide, including how to install the toolchain on
+a new machine.
 
 - Unit: `npm test` (Vitest: functions + shared).
-- Rules/integration: `npm run test:emulator` (needs JDK 21; wraps
-  `firebase emulators:exec --project demo-sabeel-kanban`).
-- Android: `scripts/emulator.sh headless` (AVD `tb_emu`, Google-APIs image), then
+- Rules/integration: `npm run test:emulator` (needs JDK 21).
+- Web: `npm run dev:web` (or `scripts/dev.sh web`) — these set
+  `EXPO_PUBLIC_USE_EMULATORS=1`. Bare `npx expo start --web` in `app/` does NOT,
+  and points at **production Firebase**; nothing in the UI says which backend you
+  are on.
+- Android: `scripts/emulator.sh headless` (AVD `tb_emu`), then
   `npm run android -w @sabeel/app`. Firebase emulators from the AVD = `10.0.2.2`.
-  There are NO physical devices — emulator only; verify UI by
-  `scripts/emulator.sh shot NAME`.
+  There are NO physical devices. **Check `emulator -accel-check` first** — see
+  Verification below.
 - **Metro port 8081 is shared with the sibling RN projects on this machine**
   (time-tracker, PineTimeCompanion). The emulator reaches Metro at
   `10.0.2.2:8081` — the host directly — so `adb reverse` does NOT redirect it and
   the port cannot be moved without rebuilding the native app. Whoever holds 8081
   serves this app. `scripts/preflight-metro.mjs` (wired into `npm run
-  android`/`start`) refuses to start when 8081 belongs to another project.
-  Symptom if bypassed: a red screen quoting *another repo's* module paths after a
+  android`/`start`) refuses to start when 8081 belongs to another project. Symptom
+  if bypassed: a red screen quoting *another repo's* module paths after a
   perfectly successful build.
-- Web screenshots: `node scripts/web-shot.mjs` after a web export — captures
-  the (light-only) UI and fails on any page error.
-- **Every screen at every width: `bash scripts/e2e.sh scripts/screens-e2e.mjs`.**
-  Twelve authenticated screens x five widths straddling the breakpoint —
-  including a card with the description editor open and one with the comment
-  composer in use, because an editor is its own layout — each
-  screenshotted to `shots/screens/` AND asserted — sideways scroll, same-layer
-  control overlap, a way out of every screen, the right board layout.
-  `SWEEP_WIDTHS=320` while iterating. Reach for this on any change to a shared
-  component, the theme, or a layout; it is the only check that sees a phone
-  layout, and a bug on one side of the breakpoint is invisible from the other.
-- Web: `npm run dev:web` (or `scripts/dev.sh web`) — these set
-  `EXPO_PUBLIC_USE_EMULATORS=1`. Bare `npx expo start --web` in `app/` does NOT,
-  and points at **production Firebase**; nothing in the UI says which backend
-  you are on.
-- CI (GitHub Actions): lint + typecheck + unit + emulator tests on every push.
-  Keep it green. No deploys from CI.
+- CI (GitHub Actions): lint + typecheck + unit + emulator + every e2e suite on
+  every push. Keep it green. No deploys from CI.
+- **A suite nothing invokes is not coverage.** `functions/test/unit/suite-coverage.test.ts`
+  guards the emulator lists and `app/src/ciCoverage.test.ts` guards the e2e ones;
+  add to both when adding a suite. `app/` runs plain `.ts` unit tests only —
+  anything needing a renderer belongs in an e2e suite.
 
-**Verify UI changes by actually looking at a screenshot** (adb for Android,
-Playwright for web) — never claim a screen works because the code looks right.
+## Verification — what counts as evidence
+
+**Never claim a screen works because the code looks right.** Look at a rendered,
+authenticated screenshot. A colour change once shipped blind and had to be
+redone: content text had drifted to `text.muted` (~2.7:1), every token value was
+correct, and only the *rendered* authenticated screen showed it.
+
+**A check that cannot fail is a screenshot generator.** The tour that
+`screens-e2e.mjs` replaced sat entirely inside a try/catch that logged and
+continued, so it reported success either way — and it had rotted to clicking
+"People" as a top-level button long after that moved into the More sheet.
+
+### The width sweep is the DEFAULT check for layout, on both surfaces
+
+```sh
+bash scripts/e2e.sh scripts/screens-e2e.mjs      # the CI set
+SWEEP_WIDTHS=320 bash scripts/e2e.sh scripts/screens-e2e.mjs   # while iterating
+```
+
+Every authenticated screen at five widths straddling the breakpoint — including a
+card with the description editor open and one with the comment composer in use,
+because an editor is its own layout — each screenshotted to `shots/screens/` AND
+asserted: no sideways scroll, no same-layer control overlap, a way out of every
+screen, the right board layout. The widths straddle the breakpoint rather than
+looking thorough: a layout bug on one side of it is invisible from the other.
+
+**Reach for this on any change to a shared component, the theme, or a layout.**
+It is faster and more thorough than a human on an emulator, and it is what makes
+the emulator unnecessary for routine work.
+
+### The Android emulator is reserved for the seams a browser cannot reach
+
+Not for routine layout work. Use it for:
+
+| Seam | Why the browser cannot cover it |
+|---|---|
+| **The rich-text editor** | The only thing split by platform — Lexical vs `react-native-enriched-html` |
+| **Flex shrink / wrap / overflow** | Yoga ≠ CSS. See the bulk-bar rule above |
+| **Keyboard / IME** | Emulators misreport IME insets; `edgeToEdgeEnabled=true` makes `Keyboard` events no-ops |
+| **Gestures** | Long-press-to-select and the column swipe have no web path. The pager *layout* does render on web at 320px — it is the gestures that do not |
+| **Native modules** | Image/document pickers, sharing, FCM, intent launcher |
+| **Safe area / insets** | No browser equivalent |
+
+Plus **before a release**, and whenever Faisal asks. That pre-release pass is
+mandatory, not optional — see `docs/PHASE_STATUS.md` 2026-07-30 for the shape of
+one that was actually executed.
+
+**Why this is safe, and exactly where it is not.** react-native-web resolves
+flexbox through the browser's engine, so a narrow viewport tests *your layout
+intent* but not *Yoga's behaviour*. The one documented native-only layout bug in
+this family was precisely that — a button shrinking below its basis, which "never
+reproduced under react-native-web at any width" (sibling recording app,
+`docs/PHASE_STATUS.md` 2026-07-24). That is the gap, and it is narrow enough to
+name rather than to fear.
+
+**Two traps when you do run native:** a debug build loads its JS **from Metro at
+launch**, so `EXPO_PUBLIC_USE_EMULATORS` must be set when Metro starts and Metro
+must be restarted with `--clear` after config changes; and `expo run:android`
+printing BUILD SUCCESSFUL is **not** proof the APK installed (if the shared AVD
+drops mid-run, a stale build stays on the device). Confirm with
+`adb shell dumpsys package com.sabeelinstitute.kanban.debug | grep versionName`
+before trusting a native screenshot.
+
+**The AVD needs hardware virtualization and a VM may not have it.**
+`emulator -accel-check` is authoritative; on a host without it the AVD still
+boots in software at ~805 s and ~14 s per screenshot, which retires the
+screenshot loop while leaving input usable. Builds are unaffected — Gradle needs
+no KVM. `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh` gives
+the verdict.
 
 ## Secrets (zero tolerance)
 
@@ -398,68 +500,61 @@ Playwright for web) — never claim a screen works because the code looks right.
 
 ## Conventions
 
-- **The phases are finished and the app is in production.** Work ships as
-  numbered releases; commit at the end of a coherent change and work
-  autonomously within one. Every release gets an entry in the **deploy log** at
-  the top of `docs/PHASE_STATUS.md` — `scripts/build-aab.sh` refuses to build
+- Work ships as **numbered releases**; commit at the end of a coherent change and
+  work autonomously within one. Every release gets an entry in the **deploy log**
+  at the top of `docs/PHASE_STATUS.md` — `scripts/build-aab.sh` refuses to build
   without one, so a missing entry fails the release rather than being noticed
   afterwards. It is the release notes and the only record of why.
 - **The user manual is part of the app.** A change to any screen means
-  `docs/USER-MANUAL.md`, then `node scripts/manual-shots.mjs` for its images,
-  then `python3 docs/render-manual.py` for the PDF — all three, same batch.
-  Add new screens to the generator; an image with no generator goes stale
-  unnoticed.
+  `docs/USER-MANUAL.md`, then `node scripts/manual-shots.mjs` for its images, then
+  `python3 docs/render-manual.py` for the PDF — all three, same batch. Add new
+  screens to the generator; an image with no generator goes stale unnoticed.
+  User-visible changes ship with their documentation in the same batch as the
+  code — never let the manual lag a release.
 - Before ANY significant install (global/system/major framework), ask first;
   routine project-local npm deps of the locked stack are fine.
 - All repo artifacts (docs, plans, protocols) live in this repo.
-- User-visible changes ship with their documentation in the same batch as the
-  code — never let the manual lag a release.
-- Live Firestore reads in `app/src` go through a single `useLiveQuery`/`useLiveDoc`
-  module — never hand-roll `onSnapshot` state in a hook (lint-enforced). See
-  `docs/INHERITED-STACK.md` for why this is non-negotiable.
 - **Deploying needs Faisal's go-ahead** (set 2026-07-25). Do everything up to and
-  including the commit, then **stop and show him what is ready**. Once he says
-  go, ship **every** surface in one batch; never ask platform by platform. The
-  gate exists because a release is only reversible *forwards*, through another
-  release. The surfaces are **web hosting, the APK download page, and Play
-  internal testing** — `docs/DEPLOY.md` § Shipping a release has the order, and
-  the order matters: **push `main` first** (a GitHub Release cannot attach to an
-  unpushed commit), and **build the artifacts after the last commit** or they
-  stamp a superseded hash onto the sign-in screen.
+  including the commit, then **stop and show him what is ready**. Once he says go,
+  ship **every** surface in one batch; never ask platform by platform. The gate
+  exists because a release is only reversible *forwards*, through another release.
+  The surfaces are **web hosting, the APK download page, and Play internal
+  testing** — `docs/DEPLOY.md` § Shipping a release has the order, and the order
+  matters: **push `main` first** (a GitHub Release cannot attach to an unpushed
+  commit), and **build the artifacts after the last commit** or they stamp a
+  superseded hash onto the sign-in screen.
 - **Android ships through Google Play** (decided 2026-08-02), release-signed.
   Build with **`npm run build:aab`**, then **`npm run publish:play -- --internal`**
-  — the upload is scripted through the Play Developer API, so it needs no
-  browser. `-- --check` proves every gate and the Play permission without
-  uploading anything. Play Console is still required for the things the API
-  cannot do: granting permissions, and reading the app-signing fingerprints. Play wants an **AAB**, not APKs: one artifact carrying every
-  ABI, from which Play generates per-device splits. The `splits` block in
-  `app/android/app/build.gradle` therefore switches itself **off** for bundle
-  tasks — both on at once fails with *"Multiple shrunk-resources files found"*.
-  `build-aab.sh` repeats every gate the old publish script held: store-legal
-  version, a deploy-log entry that exists *before* the build, and a signature
-  that is not the debug key.
+  — the upload is scripted through the Play Developer API, so it needs no browser.
+  `-- --check` proves every gate and the Play permission without uploading
+  anything. Play Console is still required for the things the API cannot do:
+  granting permissions, and reading the app-signing fingerprints. Play wants an
+  **AAB**, not APKs: one artifact carrying every ABI, from which Play generates
+  per-device splits. The `splits` block in `app/android/app/build.gradle`
+  therefore switches itself **off** for bundle tasks — both on at once fails with
+  *"Multiple shrunk-resources files found"*. `build-aab.sh` repeats every gate the
+  old publish script held: store-legal version, a deploy-log entry that exists
+  *before* the build, and a signature that is not the debug key.
 - **Signing: the upload key lives outside the repo.** `signingConfigs.release`
-  reads a gitignored `app/android/keystore.properties`. Absent it, a release
-  build still works but is debug-signed and logs a loud warning — every build up
-  to and including v0.7.4 went out that way, signed with the debug keystore
-  committed to this **public** repo. **Play App Signing re-signs with Google's
-  own key**, so the SHA-1 that matters for Google Sign-In on a Play install is
-  under Play Console → App integrity → *App signing key certificate*, NOT the
-  upload key's. Both belong in Firebase; miss the former and sign-in fails with
+  reads a gitignored `app/android/keystore.properties`. Absent it, a release build
+  still works but is debug-signed and logs a loud warning — every build up to and
+  including v0.7.4 went out that way, signed with the debug keystore committed to
+  this **public** repo. **Play App Signing re-signs with Google's own key**, so
+  the SHA-1 that matters for Google Sign-In on a Play install is under Play
+  Console → App integrity → *App signing key certificate*, NOT the upload key's.
+  Both belong in Firebase; miss the former and sign-in fails with
   `DEVELOPER_ERROR` for Play users only, while local builds work.
 - **The GitHub-release APK is the DEVELOPER'S pre-release route** (un-retired
-  2026-08-03, reversing the 2026-08-02 retirement). Testers get builds from
-  Play internal testing; this channel exists because Faisal must test a release
-  build *before* they see it, from a phone, away from the machine — and Play's
-  one feature for that, **internal app sharing, refuses this app**: it requires
-  the app to have been PUBLISHED, and internal-testing releases do not count.
-  The app is a Draft, and for an internal tool it may always be.
-  **The signature rule is permanent**: an APK from here is signed with the
-  UPLOAD key, a Play install with GOOGLE'S app signing key, and neither can
-  replace the other — uninstall first, nothing is lost because all state is in
-  Firestore. That is what made replacing the old frozen asset dangerous while
-  the team still had it sideloaded; they are on Play now.
-  **Never `git add` a binary** to any repo: committing per-release APKs bloated
+  2026-08-03, reversing the 2026-08-02 retirement). Testers get builds from Play
+  internal testing; this channel exists because Faisal must test a release build
+  *before* they see it, from a phone, away from the machine — and Play's one
+  feature for that, **internal app sharing, refuses this app**: it requires the
+  app to have been PUBLISHED, and internal-testing releases do not count. The app
+  is a Draft, and for an internal tool it may always be. **The signature rule is
+  permanent**: an APK from here is signed with the UPLOAD key, a Play install with
+  GOOGLE'S app signing key, and neither can replace the other — uninstall first,
+  nothing is lost because all state is in Firestore.
+- **Never `git add` a binary** to any repo: committing per-release APKs bloated
   the pages history (~31 MB each) and had to be rewritten out. `*.apk` is
   gitignored in the pages repo as the backstop, and that rule still holds in the
   sibling time-tracker.
