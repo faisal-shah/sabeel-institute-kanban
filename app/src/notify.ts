@@ -32,6 +32,45 @@ Notifications.setNotificationHandler({
   }),
 });
 
+/** Mirrors the web sibling — see notify.web.ts for why this is not a boolean. */
+export type PushEnableResult = 'granted' | 'denied' | 'unavailable';
+
+/**
+ * What the notifications screen should offer. Mirrors the web sibling;
+ * `canAskAgain` is Android's way of saying the prompt has been spent, which is
+ * the same dead end as a browser 'denied'.
+ */
+export async function pushPromptState(): Promise<
+  'granted' | 'denied' | 'default' | 'unsupported'
+> {
+  if (USE_EMULATORS) return 'unsupported';
+  try {
+    const perm = await Notifications.getPermissionsAsync();
+    if (perm.granted) return 'granted';
+    return perm.canAskAgain ? 'default' : 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/**
+ * Ask for permission and register — the screen's "turn these on" button.
+ *
+ * The web sibling has to be called straight from a click and may not await
+ * first; Android has no such rule, so this is just `registerPush`, which
+ * already prompts here. Sign-in still prompts on Android for the same reason —
+ * it works — so this button is normally only reached by someone who declined
+ * earlier.
+ */
+export async function enablePush(uid: string): Promise<PushEnableResult> {
+  await registerPush(uid);
+  const state = await pushPromptState();
+  if (state === 'granted') return 'granted';
+  // 'default' here means the system dialog was dismissed rather than refused —
+  // still askable, so the screen re-reads the state and keeps offering.
+  return state === 'unsupported' ? 'unavailable' : 'denied';
+}
+
 export async function registerPush(uid: string): Promise<void> {
   // FCM has no emulator. Registering against the emulator project would file a
   // token nothing can deliver to, and make local runs non-deterministic.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { NOTIFICATION_RETENTION_DAYS, NOTIFY_EVENTS } from '@sabeel/shared';
 import {
@@ -13,6 +13,7 @@ import {
   type InboxItem,
 } from '../notifications';
 import { useMyBoards } from '../boards';
+import { enablePush, pushPromptState } from '../notify';
 import { setBoardMuted } from '../notifications';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -57,6 +58,12 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const boards = useMyBoards(user);
   const t = useTheme();
   const [showSettings, setShowSettings] = useState(false);
+  // What this browser can be offered about notifications. Resolved on mount —
+  // never in the press handler below, which may not await before asking.
+  const [push, setPush] = useState<
+    'checking' | 'granted' | 'denied' | 'default' | 'unsupported'
+  >('checking');
+  const [enabling, setEnabling] = useState(false);
   // Emptying the inbox cannot be undone, so it asks first — same shape as
   // deleting a column.
   const [confirmingDismissAll, setConfirmingDismissAll] = useState(false);
@@ -66,6 +73,34 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const prefs = prefsDoc.data?.prefs ?? {};
   const muted = prefsDoc.data?.mutedBoardIds ?? [];
 
+
+  useEffect(() => {
+    let live = true;
+    void pushPromptState().then((state) => {
+      if (live) setPush(state);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // enablePush must be the FIRST thing this handler does — a browser only
+  // honours a permission request raised directly from a click, and an await
+  // before it loses that. setEnabling is synchronous, so it does not separate
+  // the two. See enablePush in notify.web.ts.
+  function turnOnPush() {
+    setEnabling(true);
+    void enablePush(user.uid).then(async (result) => {
+      setEnabling(false);
+      if (result === 'granted') return setPush('granted');
+      if (result === 'unavailable') return setPush('unsupported');
+      // Re-read rather than assuming 'denied': a browser makes a refusal stick,
+      // but a dismissed Android dialog leaves this askable, and the button
+      // should come back rather than send someone to a settings screen that
+      // shows nothing wrong.
+      setPush(await pushPromptState());
+    });
+  }
 
   function open(item: InboxItem) {
     void markRead(user, item).catch(() => {});
@@ -107,6 +142,45 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
 
       {showSettings ? (
         <>
+          <Heading>This device</Heading>
+          {push === 'default' ? (
+            <Panel>
+              <Body>
+                This device is not set up to receive notifications yet. Everything
+                still arrives in the list here — turning them on also sends them to
+                this device.
+              </Body>
+              <Button
+                label="Turn on notifications"
+                busy={enabling}
+                onPress={turnOnPush}
+              />
+            </Panel>
+          ) : null}
+          {push === 'granted' ? (
+            <Panel>
+              <Body>This device receives notifications.</Body>
+            </Panel>
+          ) : null}
+          {push === 'denied' ? (
+            <Panel>
+              <Body>
+                Notifications are turned off for this app. Turn them back on where
+                this device keeps its permissions — your browser&apos;s site
+                settings, or the system settings for the app — then reopen this
+                screen.
+              </Body>
+            </Panel>
+          ) : null}
+          {push === 'unsupported' ? (
+            <Panel>
+              <Body>
+                This device can&apos;t show notifications. Everything still arrives
+                in the list here.
+              </Body>
+            </Panel>
+          ) : null}
+
           <Heading>What you are told about</Heading>
           {NOTIFY_EVENTS.map((spec) => {
             const on = prefs[spec.event] ?? spec.defaultOn;

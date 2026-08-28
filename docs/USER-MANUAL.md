@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.10.0 · August 2026*
+*For app version 0.10.1 · August 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -463,9 +463,11 @@ on/off switch and you can **mute** individual boards with the bell. One kind is
 off by default — "a card assigned to you was moved" — because on a busy board it
 fires constantly. **You are never notified about your own actions.**
 
-The app asks for notification permission when you sign in — allow it on each
-device where you want push notifications. Notifications follow the account signed
-in on the device.
+Push notifications need the device's own permission. On a phone the app asks
+when you sign in; a browser will not let it ask on its own, so open the **gear**
+and use **Turn on notifications** there. Either way it is once per device, and
+that screen always says where this device stands. Notifications follow the
+account signed in on the device.
 
 ## 1.10 Signing out
 

@@ -200,9 +200,13 @@ async function handleUserSnapshot(fbUser: User, snap: DocumentSnapshot): Promise
   // user doc emits repeatedly (claims refresh, profile edits, prefs changes) and
   // re-registering on each would rewrite the same token document for no reason.
   //
+  // This never prompts — it only claims a token for a browser that is already
+  // permitted. Asking here is what broke web push: a snapshot callback is not a
+  // user gesture, so the request was refused silently. The ask lives on the
+  // notifications screen now; see enablePush in notify.web.ts.
+  //
   // Deliberately not awaited: notifications are best-effort, and nobody should
-  // wait on a permission prompt to reach their boards. registerPush never
-  // throws.
+  // wait on FCM to reach their boards. registerPush never throws.
   if (pushRegisteredFor !== fbUser.uid) {
     pushRegisteredFor = fbUser.uid;
     void registerPush(fbUser.uid);
