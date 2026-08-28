@@ -205,8 +205,15 @@ fake Google token), so they exercise the same trigger, the same domain check and
 the same approval flow as production will.
 
 The dev row is gated on `__DEV__` **and** the emulator flag, so it cannot appear
-in a release build — the e2e suite asserts its absence from the exported
-production bundle on every run.
+in a release build — `web-e2e` loads the exported production bundle in a browser
+and asserts the row does not render, on every run.
+
+That is a check on the RENDER, not on the bytes, and the difference is worth
+knowing before it alarms you: the strings and the branch are still in the
+bundle, because the minifier does not drop them. What is not there is any way to
+reach them — `IS_DEV` and `USE_EMULATORS` both compile to `false`, so
+`devSignInAvailable` is false and `devSignIn` throws if called. Grepping the
+bundle for "Dev sign-in" therefore finds it and proves nothing either way.
 
 ### Becoming an admin
 
