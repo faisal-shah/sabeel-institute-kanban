@@ -27,7 +27,7 @@
 //   node scripts/import-clickup.mjs
 //
 //   # APPLY to the emulators:
-//   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+//   FIRESTORE_EMULATOR_HOST=127.0.0.1:61200 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:61202 \
 //   GCLOUD_PROJECT=demo-sabeel-kanban node scripts/import-clickup.mjs --apply
 //
 //   # APPLY to production (needs gcloud ADC / GOOGLE_APPLICATION_CREDENTIALS):

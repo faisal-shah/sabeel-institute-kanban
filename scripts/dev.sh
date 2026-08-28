@@ -16,6 +16,13 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
+# Named ports for the waits below. Same block as the PORTS sweep list, and
+# `functions/test/unit/emulatorPorts.test.ts` fails if this file mentions any of
+# the old shared defaults — which is how a stale `wait_for` here went unnoticed
+# long enough to break `dev.sh` after the port move.
+FIRESTORE_PORT=61200
+WEB_PORT=61210
+
 PORTS=(61200 61201 61202 61203 61204 61205 61206 61207 61210 8081 10882)
 LABELS=("firestore" "fs-ws" "auth" "functions" "ui" "hub" "logging" "storage" "web" "metro" "idb")
 
@@ -108,16 +115,16 @@ case "${1:-status}" in
     # that dies with its parent is a whole class of "it was running a second ago".
     nohup npm run emulators   >/tmp/sk-emulators.log 2>&1 & disown
     nohup npm run dev:web     >/tmp/sk-web.log       2>&1 & disown
-    wait_for http://127.0.0.1:8080/ firestore || exit 1
-    wait_for http://127.0.0.1:8086/ web       || exit 1
+    wait_for "http://127.0.0.1:${FIRESTORE_PORT}/" firestore || exit 1
+    wait_for "http://127.0.0.1:${WEB_PORT}/" web       || exit 1
     wait_for_auth_trigger || exit 1
     npm run seed
-    echo "Ready: http://127.0.0.1:8086  (logs: /tmp/sk-emulators.log /tmp/sk-web.log)"
+    echo "Ready: http://127.0.0.1:${WEB_PORT}  (logs: /tmp/sk-emulators.log /tmp/sk-web.log)"
     ;;
   android)
     echo "Stopping:"; stop || exit 1
     nohup npm run emulators >/tmp/sk-emulators.log 2>&1 & disown
-    wait_for http://127.0.0.1:8080/ firestore || exit 1
+    wait_for "http://127.0.0.1:${FIRESTORE_PORT}/" firestore || exit 1
     wait_for_auth_trigger || exit 1
     ( cd app && nohup env EXPO_PUBLIC_USE_EMULATORS=1 \
         npx expo start --dev-client --port 8081 >/tmp/sk-metro.log 2>&1 & disown )
@@ -131,8 +138,8 @@ case "${1:-status}" in
     # means no seed, and the simulator comes up signed in to an empty project.
     nohup npm run emulators >/tmp/sk-emulators.log 2>&1 & disown
     nohup npm run dev:web   >/tmp/sk-web.log       2>&1 & disown
-    wait_for http://127.0.0.1:8080/ firestore || exit 1
-    wait_for http://127.0.0.1:8086/ web       || exit 1
+    wait_for "http://127.0.0.1:${FIRESTORE_PORT}/" firestore || exit 1
+    wait_for "http://127.0.0.1:${WEB_PORT}/" web       || exit 1
     wait_for_auth_trigger || exit 1
     npm run seed || exit 1
 

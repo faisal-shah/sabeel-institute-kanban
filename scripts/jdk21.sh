@@ -10,7 +10,7 @@
 #   Error: Process `java -version` has exited with code 1.
 #   Please make sure Java is installed and on your system PATH.
 #
-# printed after "Emulator UI → http://127.0.0.1:4000" has already scrolled past,
+# printed after "Emulator UI → http://127.0.0.1:61204" has already scrolled past,
 # so it reads like the emulators started and then died.
 #
 # Locally JDK 17 may remain the default because Gradle wants it; this points

@@ -64,3 +64,6 @@ app/android/keystore.properties
 # PUBLIC, and a service-account key committed once stays readable in history.
 *play-publisher*.json
 *service-account*.json
+
+# Metro transform cache, kept in-repo (see app/metro.config.js)
+app/.metro-cache/

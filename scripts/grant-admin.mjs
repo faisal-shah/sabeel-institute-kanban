@@ -15,8 +15,8 @@
  *   GCLOUD_PROJECT=<project-id> node scripts/grant-admin.mjs you@oursabeel.com
  *
  *   # against the running emulators
- *   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
- *   FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+ *   FIRESTORE_EMULATOR_HOST=127.0.0.1:61200 \
+ *   FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:61202 \
  *   GCLOUD_PROJECT=demo-sabeel-kanban node scripts/grant-admin.mjs you@oursabeel.com
  */
 import { initializeApp } from 'firebase-admin/app';

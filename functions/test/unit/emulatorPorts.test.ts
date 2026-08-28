@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
@@ -69,8 +69,22 @@ async function portsFromScripts(): Promise<{
   shared: Record<string, number>;
 }> {
   const mod = await import(resolve(REPO, 'scripts/lib/ports.mjs'));
-  return { emulator: mod.EMULATOR_PORTS, web: mod.WEB_PORTS, shared: mod.SHARED_PORTS };
+  return { emulator: mod.EMULATOR_PORTS, web: mod.WEB_PORTS, shared: SHARED_PORTS };
 }
+
+/**
+ * Ports that are machine-wide by nature and CANNOT move into a per-repo block:
+ * Metro (the Android emulator reaches the host directly at 10.0.2.2:8081, so
+ * `adb reverse` cannot redirect it and the port cannot change without rebuilding
+ * the native app) and idb.
+ *
+ * Stated here rather than exported from `scripts/lib/ports.mjs` because no
+ * script reads them — they appear only in `dev.sh`'s sweep list — and an export
+ * nothing imports is exactly what the dead-code check exists to flag. They are
+ * listed so the sweep-list assertion below knows they are deliberate exceptions
+ * rather than strays.
+ */
+const SHARED_PORTS: Record<string, number> = { metro: 8081, idb: 10882 };
 
 /** `dev.sh`'s kill list — a flat set of numbers. */
 function portsFromDevSh(): number[] {
@@ -196,5 +210,47 @@ describe('the ports module is committed, not just present on disk', () => {
     expect(tracked, 'scripts/lib/ports.mjs is not tracked — check .gitignore').toBe(
       'scripts/lib/ports.mjs',
     );
+  });
+});
+
+/**
+ * No script still points at a port this checkout gave up.
+ *
+ * The port move updated firebase.json, the client, ports.mjs and the sweep
+ * lists — and MISSED `dev.sh`'s readiness waits, which are live code, plus the
+ * copy-paste instructions at the top of eleven operator scripts. `dev.sh` is the
+ * main developer entry point; it would have hung waiting on a Firestore that had
+ * moved. Nothing caught it, because no suite runs `dev.sh` and a comment cannot
+ * fail a test.
+ *
+ * Matching `host:port` rather than the bare number on purpose: 4000 and 8000
+ * also appear as millisecond timeouts, and a check that cries wolf gets deleted.
+ */
+const ABANDONED_PORTS = [8080, 9099, 5001, 9199, 9150, 4000, 4400, 4500, 8086, 8083];
+
+function scriptFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(resolve(REPO, dir))) {
+    const rel = `${dir}/${entry}`;
+    if (statSync(resolve(REPO, rel)).isDirectory()) out.push(...scriptFiles(rel));
+    else if (/\.(mjs|sh|js|ts)$/.test(entry)) out.push(rel);
+  }
+  return out;
+}
+
+describe('no script points at a port this checkout gave up', () => {
+  it('scripts/ mentions no abandoned host:port', () => {
+    const files = scriptFiles('scripts');
+    expect(files.length, 'found no scripts to scan — the walk is broken').toBeGreaterThan(5);
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      const text = read(file);
+      for (const port of ABANDONED_PORTS) {
+        const re = new RegExp(`(127\\.0\\.0\\.1|localhost):${port}\\b`);
+        if (re.test(text)) offenders.push(`${file} -> :${port}`);
+      }
+    }
+    expect(offenders, `stale port references:\n  ${offenders.join('\n  ')}`).toEqual([]);
   });
 });

@@ -44,7 +44,7 @@ echo "Starting Expo web dev server on ${WEB_PORT}…"
 # --clear because Metro will otherwise serve a bundle built under different
 # EXPO_PUBLIC_* values (see docs/INHERITED-STACK.md lesson 4).
 ( cd app && CI=1 EXPO_PUBLIC_USE_EMULATORS=1 \
-    npx expo start --web --port "$WEB_PORT" --clear >/tmp/expo-web-e2e.log 2>&1 ) &
+    npx expo start --web --port "$WEB_PORT" --clear >/tmp/sk-web-e2e.log 2>&1 ) &
 WEB_PID=$!
 
 # Wait for the dev server. The pre-kill above means whatever answers on this port
@@ -52,7 +52,7 @@ WEB_PID=$!
 # explicitly, because that is the failure that silently serves stale code.
 ready=""
 for _ in $(seq 1 90); do
-  if grep -qi "is being used by another process" /tmp/expo-web-e2e.log 2>/dev/null; then
+  if grep -qi "is being used by another process" /tmp/sk-web-e2e.log 2>/dev/null; then
     echo "Another process grabbed port ${WEB_PORT}; refusing to test stale code." >&2
     exit 1
   fi
@@ -63,8 +63,8 @@ for _ in $(seq 1 90); do
   sleep 2
 done
 if [ -z "$ready" ]; then
-  echo "Expo web dev server never became ready — see /tmp/expo-web-e2e.log" >&2
-  tail -25 /tmp/expo-web-e2e.log >&2 || true
+  echo "Expo web dev server never became ready — see /tmp/sk-web-e2e.log" >&2
+  tail -25 /tmp/sk-web-e2e.log >&2 || true
   exit 1
 fi
 

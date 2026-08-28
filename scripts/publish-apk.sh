@@ -187,6 +187,14 @@ PUBLISHED="$(TZ=America/Chicago date '+%-d %B %Y, %-I:%M %p %Z')"
 # the same three values. Two places deriving "which build is this" separately is
 # how they come to disagree.
 SIZE_MB="$(( ( $(stat -c %s "$APK") + 524288 ) / 1048576 ))"
+# Set if the download page fails to publish. NOT fatal on the spot: substantial
+# release work follows this block (labelling the rolling release, then cutting
+# the app-repo release with its ABI splits), and aborting midway would leave a
+# half-published version — worse than the stale page label it was guarding
+# against. Reported at the end instead, with a non-zero exit so nothing treats
+# a partial publish as success.
+PAGE_PUSH_FAILED=0
+
 if [ -d "$PAGES_DIR/.git" ]; then
   sed -i -E "s#(Current build: <strong>)v[0-9][^<]*#\\1v${VERSION}#" \
     "$PAGES_DIR/sabeel-kanban/index.html"
@@ -222,9 +230,13 @@ if [ -d "$PAGES_DIR/.git" ]; then
   # is not.
   if git -C "$PAGES_DIR" diff --cached --quiet -- "$PAGE_REL"; then
     echo "(page already current — nothing to commit)"
+  elif git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION} (${PUBLISHED})" -- "$PAGE_REL" \
+    && git -C "$PAGES_DIR" push -q; then
+    echo "Download page committed and pushed."
   else
-    git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION} (${PUBLISHED})" -- "$PAGE_REL"
-    git -C "$PAGES_DIR" push -q
+    PAGE_PUSH_FAILED=1
+    echo "WARNING: the download page did not publish — continuing so the release" >&2
+    echo "         itself completes; this is reported again at the end." >&2
   fi
 else
   echo "NOTE: pages repo not at $PAGES_DIR — set SK_PAGES_DIR to update the version label." >&2
@@ -308,5 +320,13 @@ else
     --title "$title" --notes-file "$astage/notes.md" --target "$(git rev-parse HEAD)"
 fi
 echo "Cut $APP_REPO release v$VERSION (${#assets[@]} ABI splits)."
+
+if [ "$PAGE_PUSH_FAILED" = "1" ]; then
+  echo >&2
+  echo "PUBLISH INCOMPLETE: release assets are up, but the download page still" >&2
+  echo "advertises the previous version. Fix the pages repo and re-run, or edit" >&2
+  echo "$PAGES_DIR/sabeel-kanban/index.html by hand." >&2
+  exit 1
+fi
 
 echo "Published kanban v${VERSION}."

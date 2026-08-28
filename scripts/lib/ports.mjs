@@ -39,13 +39,3 @@ export const WEB_PORTS = {
   e2e: PORT_BASE + 10,
 };
 
-/**
- * Ports that are genuinely machine-wide and cannot be moved into a per-repo
- * block: Metro (the Android emulator reaches the host directly at
- * `10.0.2.2:8081`, so `adb reverse` cannot redirect it) and `idb`. Listed here
- * so the sweeps can free them, and so it is obvious they are shared.
- */
-export const SHARED_PORTS = {
-  metro: 8081,
-  idb: 10882,
-};

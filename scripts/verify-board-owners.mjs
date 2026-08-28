@@ -9,7 +9,7 @@
 // field-level change, and it re-baselines every run — a corruption alerts once
 // at 03:15 and then normalises.
 //
-//   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+//   FIRESTORE_EMULATOR_HOST=127.0.0.1:61200 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:61202 \
 //     GCLOUD_PROJECT=demo-sabeel-kanban node scripts/verify-board-owners.mjs
 //   GCLOUD_PROJECT=sabeel-institute-kanban node scripts/verify-board-owners.mjs --expect-boards 9
 //
