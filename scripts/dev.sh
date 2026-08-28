@@ -16,8 +16,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
-PORTS=(8080 9099 5001 9199 4400 4401 4500 4501 9150 8086 8081 10882)
-LABELS=("firestore" "auth" "functions" "storage" "hub" "hub-alt" "logging" "logging-alt" "fs-ws" "web" "metro" "idb")
+PORTS=(8080 9150 9099 5001 4000 4400 4500 9199 8086 8081 10882)
+LABELS=("firestore" "fs-ws" "auth" "functions" "ui" "hub" "logging" "storage" "web" "metro" "idb")
 
 # The iOS simulator to drive. A name, not a UDID, so it survives a wiped device
 # set; override for a different size without editing this file.
@@ -44,12 +44,18 @@ status() {
 
 stop() {
   for p in "${PORTS[@]}"; do
-    for pid in $(lsof -ti:"$p" -sTCP:LISTEN 2>/dev/null); do
+    # `ss`, not `lsof`: lsof is absent from a non-interactive shell without the
+    # toolchain env sourced, and a missing lsof makes this loop a silent no-op
+    # that always reports the port free.
+    for pid in $(ss -lptn "sport = :$p" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u); do
       kill -9 "$pid" 2>/dev/null && echo "  freed $p (pid $pid)"
     done
   done
-  pkill -9 -f "firebase emulators" 2>/dev/null
-  pkill -9 -f "expo start" 2>/dev/null
+  # NO `pkill -f` for "firebase emulators" or "expo start". Those patterns match
+  # a SIBLING checkout's processes — three Sabeel repos share this machine — and
+  # they also match this script's own command line and the agent shell that
+  # spawned it, which exits 144 mid-run. The per-port loop above is the whole
+  # cleanup: it touches only ports this checkout owns.
   pkill -9 -f "idb_companion" 2>/dev/null
   sleep 3
   # Verify rather than assume: a kill that silently failed is how a "cleared"

@@ -17,6 +17,7 @@ import {
   updateDoc,
   deleteDoc,
 } from 'firebase/firestore';
+import { firestoreHostPort } from './emulatorHosts';
 
 /**
  * Board access, under the per-board ownership model (2026-08-16).
@@ -67,8 +68,7 @@ beforeAll(async () => {
     projectId: 'demo-sabeel-kanban',
     firestore: {
       rules: readFileSync('../firestore.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      ...firestoreHostPort(),
     },
   });
 });

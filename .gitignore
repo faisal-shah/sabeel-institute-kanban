@@ -1,7 +1,12 @@
 node_modules/
 dist/
 dist-web*/
-lib/
+# Compiled TypeScript output. ANCHORED, not a bare `lib/`: an unanchored pattern
+# matches a directory named lib at ANY depth, which silently swallowed
+# scripts/lib/ — source that the test suite imports. A file that is ignored but
+# present looks exactly like a committed one on the machine that wrote it.
+functions/lib/
+packages/shared/lib/
 build/
 coverage/
 .expo/

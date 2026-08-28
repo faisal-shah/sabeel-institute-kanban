@@ -9,15 +9,39 @@
         "**/*.web.tsx",
         "src/**/*.test.ts"
       ],
-      "project": ["src/**/*.{ts,tsx}", "*.{ts,tsx}"]
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "*.{ts,tsx}"
+      ]
     },
     "functions": {
-      "entry": ["src/index.ts", "test/**/*.test.ts"],
+      "entry": [
+        "src/index.ts",
+        "test/**/*.test.ts"
+      ],
       "project": "src/**/*.ts"
     },
-    "packages/shared": { "entry": ["src/index.ts"], "project": "src/**/*.ts" },
-    ".": { "entry": ["scripts/*.mjs"], "project": "scripts/*.mjs" }
+    "packages/shared": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": "src/**/*.ts"
+    },
+    ".": {
+      "entry": [
+        "scripts/*.mjs"
+      ],
+      "project": [
+        "scripts/**/*.mjs"
+      ]
+    }
   },
-  "ignoreDependencies": ["@sentry/react", "@sabeel/shared"],
-  "ignoreBinaries": ["firebase", "expo"]
+  "ignoreDependencies": [
+    "@sentry/react",
+    "@sabeel/shared"
+  ],
+  "ignoreBinaries": [
+    "firebase",
+    "expo"
+  ]
 }

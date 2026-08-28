@@ -17,8 +17,9 @@ import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { EMULATOR_PORTS, WEB_PORTS } from './lib/ports.mjs';
 
-const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:8086/';
+const BASE = process.env.E2E_BASE ?? `http://127.0.0.1:${WEB_PORTS.e2e}/`;
 const SHOTS = resolve(import.meta.dirname, '..', 'shots');
 
 const results = [];
@@ -33,8 +34,8 @@ function grantAdmin(email) {
       env: {
         ...process.env,
         GCLOUD_PROJECT: 'demo-sabeel-kanban',
-        FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
-        FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
+        FIRESTORE_EMULATOR_HOST: `127.0.0.1:${EMULATOR_PORTS.firestore}`,
+        FIREBASE_AUTH_EMULATOR_HOST: `127.0.0.1:${EMULATOR_PORTS.auth}`,
       },
       stdio: 'pipe',
     });

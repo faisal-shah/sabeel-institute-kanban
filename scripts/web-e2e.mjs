@@ -21,13 +21,14 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFile, mkdir } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
+import { EMULATOR_PORTS, WEB_PORTS } from './lib/ports.mjs';
 
 const SHOTS = resolve(import.meta.dirname, '..', 'shots');
 // The Expo web DEV server, started by e2e.sh. It must be the dev server rather
 // than an exported bundle: `expo export` sets __DEV__ to false, which correctly
 // strips the emulator dev sign-in — the very control this flow needs to drive.
 // That the export strips it is asserted separately at the end.
-const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:8086/';
+const BASE = process.env.E2E_BASE ?? `http://127.0.0.1:${WEB_PORTS.e2e}/`;
 const PROD_BUNDLE = resolve(import.meta.dirname, '..', 'app', 'dist-web');
 const PROD_PORT = 4181;
 
@@ -77,8 +78,8 @@ function grantAdmin(email) {
         env: {
           ...process.env,
           GCLOUD_PROJECT: 'demo-sabeel-kanban',
-          FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
-          FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
+          FIRESTORE_EMULATOR_HOST: `127.0.0.1:${EMULATOR_PORTS.firestore}`,
+          FIREBASE_AUTH_EMULATOR_HOST: `127.0.0.1:${EMULATOR_PORTS.auth}`,
         },
         stdio: 'pipe',
       },

@@ -27,10 +27,11 @@ import { shapeMode } from './migration-shape-replay.mjs';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { EMULATOR_PORTS } from './lib/ports.mjs';
 
 const PROJECT = 'demo-sabeel-kanban';
-process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
-process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
+process.env.FIRESTORE_EMULATOR_HOST ??= `127.0.0.1:${EMULATOR_PORTS.firestore}`;
+process.env.FIREBASE_AUTH_EMULATOR_HOST ??= `127.0.0.1:${EMULATOR_PORTS.auth}`;
 process.env.GCLOUD_PROJECT = PROJECT;
 
 const MANIFEST = resolve(import.meta.dirname, '..', 'migration', 'rehearsal-role-rename.json');

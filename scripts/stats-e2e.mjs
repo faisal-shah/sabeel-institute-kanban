@@ -20,13 +20,14 @@ import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { EMULATOR_PORTS, WEB_PORTS } from './lib/ports.mjs';
 
-const BASE = process.env.E2E_BASE ?? 'http://127.0.0.1:8086/';
+const BASE = process.env.E2E_BASE ?? `http://127.0.0.1:${WEB_PORTS.e2e}/`;
 const SHOTS = resolve(import.meta.dirname, '..', 'shots');
 const PROJECT = 'demo-sabeel-kanban';
 
-process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
-process.env.FIREBASE_AUTH_EMULATOR_HOST ??= '127.0.0.1:9099';
+process.env.FIRESTORE_EMULATOR_HOST ??= `127.0.0.1:${EMULATOR_PORTS.firestore}`;
+process.env.FIREBASE_AUTH_EMULATOR_HOST ??= `127.0.0.1:${EMULATOR_PORTS.auth}`;
 process.env.GCLOUD_PROJECT = PROJECT;
 
 const results = [];

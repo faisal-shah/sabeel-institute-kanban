@@ -16,6 +16,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { EMULATOR_PROJECT_ID, LABEL_COLORS, LABEL_NAME_MAX } from '@sabeel/shared';
+import { firestoreHostPort } from './emulatorHosts';
 
 /**
  * Rules for the org-wide `labels` collection.
@@ -55,8 +56,7 @@ beforeAll(async () => {
     projectId: EMULATOR_PROJECT_ID,
     firestore: {
       rules: readFileSync('../firestore.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      ...firestoreHostPort(),
     },
   });
 });

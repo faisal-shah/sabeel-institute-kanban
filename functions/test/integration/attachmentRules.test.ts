@@ -14,6 +14,7 @@ import {
   EMULATOR_PROJECT_ID,
   attachmentStoragePath,
 } from '@sabeel/shared';
+import { firestoreHostPort, storageHostPort } from './emulatorHosts';
 
 /**
  * Rules for card attachments — the Firestore documents AND the Storage objects.
@@ -58,13 +59,11 @@ beforeAll(async () => {
     projectId: EMULATOR_PROJECT_ID,
     firestore: {
       rules: readFileSync('../firestore.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      ...firestoreHostPort(),
     },
     storage: {
       rules: readFileSync('../storage.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 9199,
+      ...storageHostPort(),
     },
   });
 });

@@ -8,6 +8,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { EMULATOR_PROJECT_ID, STATS_ALL_SCOPE } from '@sabeel/shared';
+import { firestoreHostPort } from './emulatorHosts';
 
 /**
  * Rules for the server-written `stats` collection.
@@ -49,8 +50,7 @@ beforeAll(async () => {
     projectId: EMULATOR_PROJECT_ID,
     firestore: {
       rules: readFileSync('../firestore.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      ...firestoreHostPort(),
     },
   });
 });

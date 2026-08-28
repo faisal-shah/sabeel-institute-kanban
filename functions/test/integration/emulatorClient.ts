@@ -9,19 +9,66 @@ import { initializeApp, deleteApp, getApps, type App } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { EMULATOR_PROJECT_ID, EMULATOR_STORAGE_BUCKET } from '@sabeel/shared';
 
 export const PROJECT_ID = EMULATOR_PROJECT_ID;
-export const AUTH_HOST = '127.0.0.1:9099';
-export const STORAGE_HOST = '127.0.0.1:9199';
-export const FUNCTIONS_ORIGIN = `http://127.0.0.1:5001/${PROJECT_ID}/us-central1`;
 
-process.env.FIREBASE_AUTH_EMULATOR_HOST = AUTH_HOST;
-process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
-// Host:port with NO protocol — the Admin SDK throws if you include one, and it
-// reads this only when the Storage service is first constructed, so it has to be
-// set at module load rather than inside a test.
-process.env.FIREBASE_STORAGE_EMULATOR_HOST = STORAGE_HOST;
+/**
+ * READ the emulator hosts; never assign them.
+ *
+ * This file used to *overwrite* what `emulators:exec` had already exported,
+ * pinning every integration test to 127.0.0.1:8080 whatever `firebase.json`
+ * said. On a machine where three checkouts run emulators that is the one
+ * genuinely dangerous state in this codebase: the suite would connect to
+ * whatever sat on 8080 — possibly a SIBLING repo's Firestore — read and write
+ * happily, and pass.
+ *
+ * LAZY, not module-load. The two integration sets run against DIFFERENT emulator
+ * sets (see scripts/test-emulator.sh): the rules set is `--only
+ * firestore,storage`, so FIREBASE_AUTH_EMULATOR_HOST is legitimately absent
+ * there. `concurrentMoves.test.ts` rides along in that set and imports this
+ * module purely for `adminDb()`. Demanding every host at import time broke it —
+ * so each host is required at the point of use, and a test pays only for what
+ * it actually touches.
+ *
+ * There is no fallback. `emulators:exec` exports these
+ * (`firebase-tools/lib/emulator/env.js`) for whichever emulators it started, so
+ * a missing one means either the wrapper was bypassed or that emulator is not in
+ * this set. Both are bugs to surface, not cases to default around.
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} is unset — run via npm run test:emulator, and check the --only list ` +
+        `in scripts/test-emulator.sh includes that emulator for this test set`,
+    );
+  }
+  return value;
+}
+
+const authHost = () => requireEnv('FIREBASE_AUTH_EMULATOR_HOST');
+
+/**
+ * The functions emulator is the exception: firebase-tools exports a host var for
+ * Firestore, Auth, Storage, Database, Pub/Sub, Eventarc and Tasks — but NOT for
+ * functions. So this one comes from `firebase.json`, which is what the emulator
+ * actually bound, rather than from a literal that could disagree with it.
+ */
+function functionsOrigin(): string {
+  const config = JSON.parse(
+    // cwd is the functions workspace under vitest, as elsewhere in these suites.
+    readFileSync(resolve('..', 'firebase.json'), 'utf8'),
+  );
+  const port = config?.emulators?.functions?.port;
+  if (typeof port !== 'number') {
+    throw new Error('firebase.json has no emulators.functions.port');
+  }
+  return `http://127.0.0.1:${port}/${PROJECT_ID}/us-central1`;
+}
+
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 
 let app: App | undefined;
@@ -85,7 +132,7 @@ export async function waitUntilGone(
 export async function idTokenFor(uid: string): Promise<string> {
   const customToken = await adminAuth().createCustomToken(uid);
   const res = await fetch(
-    `http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=fake-api-key`,
+    `http://${authHost()}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=fake-api-key`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -109,7 +156,7 @@ export async function callFunction(
   data: unknown,
   idToken?: string,
 ): Promise<CallResult> {
-  const res = await fetch(`${FUNCTIONS_ORIGIN}/${name}`, {
+  const res = await fetch(`${functionsOrigin()}/${name}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

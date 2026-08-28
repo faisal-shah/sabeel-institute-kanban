@@ -19,12 +19,19 @@ const APP_DIR = resolve(import.meta.dirname, '..', 'app');
 
 function pidsOnPort(port) {
   try {
-    return execSync(`lsof -ti:${port} -sTCP:LISTEN`, { stdio: ['ignore', 'pipe', 'ignore'] })
+    // `ss`, not `lsof`. This guard protects the ONE port that cannot be moved
+    // into a per-repo block (Metro 8081, which the Android emulator reaches
+    // directly at 10.0.2.2:8081), and `lsof` is not on PATH in a
+    // non-interactive shell without the toolchain env sourced — so the catch
+    // below turned the whole guard into a no-op that always said "free",
+    // exactly where it mattered most. `ss` is in /usr/bin and always present.
+    return execSync(`ss -lptn 'sport = :${port}'`, { stdio: ['ignore', 'pipe', 'ignore'] })
       .toString()
       .split('\n')
-      .filter(Boolean);
+      .flatMap((line) => line.match(/pid=(\d+)/)?.[1] ?? [])
+      .filter((v, i, a) => a.indexOf(v) === i);
   } catch {
-    return []; // nothing listening, or lsof unavailable
+    return []; // nothing listening
   }
 }
 

@@ -32,9 +32,10 @@ import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { EMULATOR_PORTS, WEB_PORTS } from './lib/ports.mjs';
 
 const OUT = 'docs/manual/img';
-const BASE = process.env.MANUAL_BASE ?? 'http://127.0.0.1:8086';
+const BASE = process.env.MANUAL_BASE ?? `http://127.0.0.1:${WEB_PORTS.e2e}`;
 const BOARD = 'Fundraising 2026';
 const CARD = 'Draft the donor letter';
 
@@ -61,7 +62,7 @@ const wanted = (name) => only.length === 0 || only.includes(name);
  * priorities, labels on a card face, and one card carrying a file.
  */
 async function enrich() {
-  process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8080';
+  process.env.FIRESTORE_EMULATOR_HOST ??= `127.0.0.1:${EMULATOR_PORTS.firestore}`;
   process.env.GCLOUD_PROJECT = 'demo-sabeel-kanban';
   initializeApp({ projectId: 'demo-sabeel-kanban' });
   const db = getFirestore();
