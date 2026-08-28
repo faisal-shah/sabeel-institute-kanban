@@ -501,6 +501,32 @@ async function tour(page, tag, width) {
   };
 
   await visit('boards', () => nav('Boards'));
+
+  /*
+   * The push nudge is ON this screenshot, and that has to be asserted or the
+   * stub above is a screenshot generator.
+   *
+   * The card renders only while the device can still be asked, and headless
+   * Chromium reports 'denied' — so it is here only because an init script
+   * replaces the permission getter. Should that quietly stop working (a
+   * react-native-web change, a getter that stops being configurable), the card
+   * would vanish from every screenshot at every width and all of these checks
+   * would still pass, which is exactly the hole the stub was added to close.
+   *
+   * It is also the layout check for the card itself: it is the one thing in the
+   * app whose layout has been got wrong three times, and until now it appeared
+   * in no sweep at all.
+   */
+  check(
+    `${tag} / boards shows the push nudge`,
+    await page
+      .getByRole('button', { name: 'Enable notifications' })
+      .first()
+      .isVisible()
+      .catch(() => false),
+    'the permission stub is not taking effect — the card is in no screenshot',
+  );
+
   await visit('mywork', () => nav('My Work'));
   await visit('search', () => nav('Search'));
   /**

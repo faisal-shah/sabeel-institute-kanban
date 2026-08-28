@@ -200,10 +200,14 @@ async function handleUserSnapshot(fbUser: User, snap: DocumentSnapshot): Promise
   // user doc emits repeatedly (claims refresh, profile edits, prefs changes) and
   // re-registering on each would rewrite the same token document for no reason.
   //
-  // This never prompts — it only claims a token for a browser that is already
+  // This never prompts — it only claims a token for a device that is already
   // permitted. Asking here is what broke web push: a snapshot callback is not a
-  // user gesture, so the request was refused silently. The ask lives on the
-  // notifications screen now; see enablePush in notify.web.ts.
+  // user gesture, so the request was refused silently. Android would have
+  // allowed it, which is worse rather than better — it put the system dialog on
+  // whatever screen sign-in happened to land on, and Android only offers that
+  // dialog twice. The ask lives behind a press on both surfaces now: the nudge
+  // card on Boards, or the notifications screen. See enablePush in either
+  // notify.web.ts or notify.ts.
   //
   // Deliberately not awaited: notifications are best-effort, and nobody should
   // wait on FCM to reach their boards. registerPush never throws.

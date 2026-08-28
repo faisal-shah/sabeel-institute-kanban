@@ -65,8 +65,9 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const boards = useMyBoards(user);
   const t = useTheme();
   const [showSettings, setShowSettings] = useState(false);
-  // What this browser can be offered about notifications. Resolved on mount —
-  // never in the press handler below, which may not await before asking.
+  // What this device can be offered about notifications. Resolved on mount and
+  // on every return to the front — never in the press handler below, which may
+  // not await before asking.
   const [push, setPush] = useState<
     'checking' | 'granted' | 'denied' | 'default' | 'unsupported'
   >('checking');
@@ -118,7 +119,9 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   // enablePush must be the FIRST thing this handler does — a browser only
   // honours a permission request raised directly from a click, and an await
   // before it loses that. setEnabling is synchronous, so it does not separate
-  // the two. See enablePush in notify.web.ts.
+  // the two. See enablePush in notify.web.ts; on native the rule holds for a
+  // different reason (notify.ts), which is that Android would let us ask from
+  // anywhere and the wrong moment costs one of only two prompts.
   function turnOnPush() {
     setEnabling(true);
     // .catch as well: a rejection reaching here would leave the button spinning
