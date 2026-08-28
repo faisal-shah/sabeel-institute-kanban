@@ -16,7 +16,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
-PORTS=(8080 9150 9099 5001 4000 4400 4500 9199 8086 8081 10882)
+PORTS=(61200 61201 61202 61203 61204 61205 61206 61207 61210 8081 10882)
 LABELS=("firestore" "fs-ws" "auth" "functions" "ui" "hub" "logging" "storage" "web" "metro" "idb")
 
 # The iOS simulator to drive. A name, not a UDID, so it survives a wiped device

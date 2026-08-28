@@ -38,7 +38,26 @@ Two terminals.
 npm run emulators
 ```
 
-Leave it running. The Emulator UI is at http://127.0.0.1:4000 — useful for
+> **This checkout owns ports 61200-61207** (firestore 61200, its websocket
+> 61201, auth 61202, functions 61203, ui 61204, hub 61205, logging 61206,
+> storage 61207) and **61210** for the Expo web dev server. The sibling Sabeel
+> repos own 61000+ and 61100+.
+>
+> Three of them share this machine and all three used to pin 8080/9099/5001/9199,
+> so whichever suite started second killed the other's Firestore — and the
+> victim's symptoms looked like bugs in its own code. 61200+ because this box's
+> ephemeral range is 32768-60999 and Firebase's own defaults stop at 9499, so the
+> block collides with nothing chosen at random or by the CLI.
+>
+> `functions/test/unit/emulatorPorts.test.ts` holds firebase.json, `app/src/env.ts`,
+> `scripts/lib/ports.mjs`, `dev.sh`'s PORTS and `e2e.sh`'s WEB_PORT in step, and
+> refuses a sweep list containing anything this checkout does not own.
+>
+> **Metro's 8081 and idb's 10882 stay shared** — the Android emulator reaches the
+> host directly at `10.0.2.2:8081`, so that port cannot move. Concurrent *web*
+> work across repos is fine; concurrent *native* work is one session at a time.
+
+Leave it running. The Emulator UI is at http://127.0.0.1:61204 — useful for
 inspecting Firestore documents and Auth users directly.
 
 > You will see `dueSoonReminders: function ignored because the pubsub emulator
@@ -60,7 +79,7 @@ scripts/dev.sh e2e        # stop, then run the full suite
 
 Always `stop` before starting anything. A stale emulator or Metro holding a port
 fails in ways that look like application bugs — `Could not start Authentication
-Emulator, port taken`, or worse, a dev server that answers on 8086 while serving
+Emulator, port taken`, or worse, a dev server that answers on 61210 while serving
 code from a different checkout. `stop` re-checks the ports afterwards rather than
 trusting that a kill worked, because a silently-failed kill is exactly how a
 "cleared" port keeps serving yesterday's bundle.
@@ -88,7 +107,7 @@ trusting that a kill worked, because a silently-failed kill is exactly how a
 npm run dev:web
 ```
 
-Opens on http://localhost:8086.
+Opens on http://localhost:61210.
 
 **Terminal 3 — something to look at (optional):**
 
@@ -104,8 +123,8 @@ The emulators start empty every time. To wipe them mid-session without a
 restart:
 
 ```sh
-curl -X DELETE "http://127.0.0.1:8080/emulator/v1/projects/demo-sabeel-kanban/databases/(default)/documents"
-curl -X DELETE "http://127.0.0.1:9099/emulator/v1/projects/demo-sabeel-kanban/accounts"
+curl -X DELETE "http://127.0.0.1:61200/emulator/v1/projects/demo-sabeel-kanban/databases/(default)/documents"
+curl -X DELETE "http://127.0.0.1:61202/emulator/v1/projects/demo-sabeel-kanban/accounts"
 ```
 
 ## Android

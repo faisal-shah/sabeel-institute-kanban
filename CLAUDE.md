@@ -374,6 +374,21 @@ itself is deliberately NOT darkened — that would collapse it into
 `docs/DEVELOPING.md` is the full guide, including how to install the toolchain on
 a new machine.
 
+- **This checkout owns emulator ports 61200-61207** and web dev-server port
+  61210; the sibling Sabeel repos own 61000+ and 61100+. All three used to pin
+  8080/9099/5001/9199, so whichever suite started second killed the other's
+  Firestore. Five files state the ports and
+  `functions/test/unit/emulatorPorts.test.ts` asserts they agree, that every one
+  is inside the block, and that `dev.sh` sweeps **nothing this checkout does not
+  own** — never widen that array. `61203` also reads as "this project,
+  functions" in a `ps` line, which is the diagnostic that was missing when one
+  session killed another's emulator.
+- **Kill by port, never by pattern.** `pkill -f "firebase emulators"` or
+  `-f "expo start"` matches a sibling checkout's processes *and* this shell's
+  own command line (exit 144 mid-run). Use `ss`, not `lsof`: `lsof` is absent
+  from a non-interactive shell without the toolchain env sourced, which silently
+  turns a port guard into "always free". To find an owner:
+  `readlink /proc/$(ss -lptn "sport = :$PORT" | grep -oP 'pid=\K[0-9]+' | head -1)/cwd`.
 - Unit: `npm test` (Vitest: functions + shared).
 - Rules/integration: `npm run test:emulator` (needs JDK 21).
 - Web: `npm run dev:web` (or `scripts/dev.sh web`) — these set
@@ -384,7 +399,7 @@ a new machine.
   `npm run android -w @sabeel/app`. Firebase emulators from the AVD = `10.0.2.2`.
   There are NO physical devices. **Check `emulator -accel-check` first** — see
   Verification below.
-- **Metro port 8081 is shared with the sibling RN projects on this machine**
+- **Metro port 8081 is shared with the sibling RN projects on this machine** — the one emulator-facing port that is NOT in the block above, and cannot be
   (time-tracker, PineTimeCompanion). The emulator reaches Metro at
   `10.0.2.2:8081` — the host directly — so `adb reverse` does NOT redirect it and
   the port cannot be moved without rebuilding the native app. Whoever holds 8081
@@ -425,9 +440,11 @@ asserted: no sideways scroll, no same-layer control overlap, a way out of every
 screen, the right board layout. The widths straddle the breakpoint rather than
 looking thorough: a layout bug on one side of it is invisible from the other.
 
-**Reach for this on any change to a shared component, the theme, or a layout.**
-It is faster and more thorough than a human on an emulator, and it is what makes
-the emulator unnecessary for routine work.
+**Prove a change on the web app unless it touches a seam a browser cannot
+reach.** That is the default for layout, flows, rules, data and copy — not only
+for shared components and the theme. The browser suites are faster and more
+thorough than a human on an emulator, and they are what makes the emulator
+unnecessary for routine work.
 
 ### The Android emulator is reserved for the seams a browser cannot reach
 
@@ -445,6 +462,21 @@ Not for routine layout work. Use it for:
 Plus **before a release**, and whenever Faisal asks. That pre-release pass is
 mandatory, not optional — see `docs/PHASE_STATUS.md` 2026-07-30 for the shape of
 one that was actually executed.
+
+**Check who owns the AVD before booting it.** There is one `tb_emu` on this
+machine and all three Sabeel repos default to it, so a boot can walk into
+another session's run:
+
+```sh
+ps -eo pid,args --no-headers | grep "[q]emu-system"   # empty = no AVD running
+```
+
+Use that, not `adb devices` — `adb devices` *starts* a daemon as a side effect,
+and a live adb server does **not** mean an emulator is running. If one is
+already running it belongs to someone else: ask before killing it or starting a
+second. The box has 15 GiB of RAM and a 16 GiB swapfile, so a second AVD (~5 GB)
+will swap rather than be killed outright — and an AVD that is swapping is slower
+than the software renderer already is.
 
 **Why this is safe, and exactly where it is not.** react-native-web resolves
 flexbox through the browser's engine, so a narrow viewport tests *your layout

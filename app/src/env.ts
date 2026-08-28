@@ -15,10 +15,10 @@ export const USE_EMULATORS = process.env.EXPO_PUBLIC_USE_EMULATORS === '1';
 export const EMULATOR_HOST = Platform.OS === 'android' ? '10.0.2.2' : '127.0.0.1';
 
 export const EMULATOR_PORTS = {
-  auth: 9099,
-  firestore: 8080,
-  functions: 5001,
-  storage: 9199,
+  auth: 61202,
+  firestore: 61200,
+  functions: 61203,
+  storage: 61207,
 } as const;
 
 /** Dev-only affordances (the emulator sign-in row) must never ship. */

@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 # shellcheck source=scripts/jdk21.sh
 . "$(dirname "$0")/jdk21.sh"
 
-WEB_PORT=8086
+WEB_PORT=61210
 export E2E_BASE="http://127.0.0.1:${WEB_PORT}/"
 
 npm run build -w @sabeel/shared

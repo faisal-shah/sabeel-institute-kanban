@@ -16,7 +16,7 @@ if [ $# -lt 1 ]; then
 fi
 
 export GCLOUD_PROJECT=demo-sabeel-kanban
-export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
-export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+export FIRESTORE_EMULATOR_HOST=127.0.0.1:61200
+export FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:61202
 
 exec node scripts/grant-admin.mjs "$@"

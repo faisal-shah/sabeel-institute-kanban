@@ -15,7 +15,7 @@ npm run build -w @sabeel/shared
 npm run build -w functions
 
 echo
-echo "Emulator UI → http://127.0.0.1:4000"
+echo "Emulator UI → http://127.0.0.1:61204"
 echo "Data is discarded when you stop these. Ctrl-C to quit."
 echo
 

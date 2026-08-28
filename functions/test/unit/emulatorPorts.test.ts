@@ -86,7 +86,37 @@ function webPortFromE2eSh(): number {
   return Number(m[1]);
 }
 
+/**
+ * This checkout's block. Bases are 100 apart, one per repo on this machine.
+ *
+ * 61200+ because the ephemeral range here is 32768-60999
+ * (`/proc/sys/net/ipv4/ip_local_port_range`) so nothing above it is handed out
+ * at random, and Firebase's own defaults top out at 9499
+ * (`firebase-tools/lib/emulator/constants.js`) so the block collides with
+ * nothing the CLI would choose for itself.
+ *
+ * Metro (8081) and idb (10882) are deliberately OUTSIDE it: the Android
+ * emulator reaches the host directly at 10.0.2.2:8081, so that port cannot be
+ * redirected or moved. They are machine-wide and shared by agreement, not by
+ * allocation.
+ */
+const BLOCK_START = 61200;
+const BLOCK_END = BLOCK_START + 99;
+
 describe('emulator ports agree across every file that states them', () => {
+  it('every allocated port is inside this checkout\u2019s block', async () => {
+    const { emulator, web } = await portsFromScripts();
+    const all = { ...emulator, ...web };
+    expect(Object.keys(all).length).toBeGreaterThan(0);
+
+    for (const [service, port] of Object.entries(all)) {
+      expect(
+        port >= BLOCK_START && port <= BLOCK_END,
+        `${service}=${port} is outside ${BLOCK_START}-${BLOCK_END} — that is another checkout's territory`,
+      ).toBe(true);
+    }
+  });
+
   it('no two services claim the same port', async () => {
     const { emulator, web, shared } = await portsFromScripts();
     expect(Object.keys(emulator).length).toBeGreaterThan(0);
