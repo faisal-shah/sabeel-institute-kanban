@@ -71,72 +71,117 @@ export async function pushPromptState(): Promise<
 }
 
 /**
- * Ask for permission and register — the screen's "turn these on" button.
+ * Ask for permission and register — the ONLY function that may prompt.
  *
- * The web sibling has to be called straight from a click and may not await
- * first; Android has no such rule, so this is just `registerPush`, which
- * already prompts here. Sign-in still prompts on Android for the same reason —
- * it works — so this button is normally only reached by someone who declined
- * earlier.
+ * The same rule as the web sibling, for a different reason. A browser refuses a
+ * request that does not follow a click; Android honours one from anywhere, and
+ * that is exactly the trap. Asking from the sign-in path put the system dialog
+ * on the **Waiting for approval** screen — before the account is approved,
+ * before a single board is visible, with nothing yet to be notified about. Seen
+ * on the device; see the note on `registerPush`.
+ *
+ * The RETURN, not just the permission afterwards. Permission granted with no
+ * token filed — an emulator run, a device that refused the token — is not a
+ * success, and reporting it as one puts "enabled" over a device that will
+ * receive nothing. Same three outcomes as the web sibling.
  */
 export async function enablePush(uid: string): Promise<PushEnableResult> {
-  // The RETURN, not just the permission afterwards. Permission granted with no
-  // token filed — an emulator run, a device that refused the token — is not a
-  // success, and reporting it as one puts "enabled" over a device that will
-  // receive nothing. Same three outcomes as the web sibling.
-  if (await registerPush(uid)) return 'granted';
-  const state = await pushPromptState();
-  if (state === 'granted' || state === 'unsupported') return 'unavailable';
-  // 'default' here means the system dialog was dismissed rather than refused —
-  // still askable, so the screen re-reads the state and keeps offering.
-  return 'denied';
+  try {
+    const perm = await Notifications.requestPermissionsAsync();
+    // Covers a spent prompt too: Android answers a `canAskAgain: false` request
+    // immediately, showing nothing, so this is 'denied' without a dialog and the
+    // screen goes on to offer **Open settings**.
+    if (!perm.granted) return 'denied';
+    return (await claimToken(uid)) ? 'granted' : 'unavailable';
+  } catch (e) {
+    captureError(e, { source: 'enablePush' });
+    return 'unavailable';
+  }
 }
 
+/**
+ * Register this device for push if it is ALREADY permitted. Never prompts.
+ *
+ * This is the sign-in path, and it is silent for the same reason the web
+ * sibling's is — arrived at from a Firestore snapshot callback, nowhere near a
+ * decision the person was making.
+ *
+ * On web the browser enforces that. Android does not, and prompting anyway is
+ * what the device pass caught: signing in raised **"Allow Kanban dev to send
+ * you notifications?"** on top of the *Waiting for approval* screen, where the
+ * account is not yet approved and no board can be seen. Android 13 spends that
+ * prompt — a second refusal fixes it permanently — so the worst possible moment
+ * to ask is also very nearly the last chance to. Someone who declines there is
+ * left with the nudge card's one remaining ask, and after that only Settings.
+ *
+ * Asking belongs to `enablePush`, reached from a press: the nudge on the Boards
+ * screen, or the notifications screen itself. A device permitted on an earlier
+ * run still registers silently right here, so nothing that already works stops.
+ */
 export async function registerPush(uid: string): Promise<boolean> {
-  // FCM has no emulator. Registering against the emulator project would file a
-  // token nothing can deliver to, and make local runs non-deterministic.
-  if (USE_EMULATORS) return false;
   try {
-    // The channel the server addresses by id — see PUSH_CHANNEL_ID for why the
-    // two must agree and why the importance has to be right the first time.
-    await Notifications.setNotificationChannelAsync(PUSH_CHANNEL_ID, {
-      name: PUSH_CHANNEL_NAME,
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-    // The old channel, which nothing ever posted to because the server sent no
-    // channel id at all. Left alone it sits in Android's notification settings
-    // as a second, permanently silent "Default" that people would reasonably
-    // try to configure.
-    await Notifications.deleteNotificationChannelAsync('default').catch(() => {});
-    const perm = await Notifications.requestPermissionsAsync();
+    const perm = await Notifications.getPermissionsAsync();
     if (!perm.granted) return false;
-
-    // getDevicePushTokenAsync gives the native FCM token, which is what the
-    // Admin SDK sends to. getExpoPushTokenAsync would return an Expo token and
-    // route through Expo's service instead — a different delivery path that the
-    // functions do not use.
-    const { data: token } = await Notifications.getDevicePushTokenAsync();
-    if (typeof token !== 'string' || !token) return false;
-
-    await storeToken(uid, token);
-
-    // FCM rotates a token on its own schedule — a restore to a new device, an
-    // app-data clear, a long enough gap. When it does, the stored one is dead:
-    // the server prunes it on the next send and that person silently stops
-    // getting notifications until they happen to sign out and back in. Nothing
-    // else would ever tell us, because registration only runs at sign-in.
-    if (!tokenListener) {
-      tokenListener = Notifications.addPushTokenListener((next) => {
-        if (typeof next.data === 'string' && next.data) {
-          void storeToken(uid, next.data).catch(() => undefined);
-        }
-      });
-    }
-    return true;
+    return await claimToken(uid);
   } catch (e) {
     captureError(e, { source: 'registerPush' });
     return false;
   }
+}
+
+/**
+ * Take the FCM token for this device and file it under the user.
+ *
+ * Callers have already established permission; this half may await freely. The
+ * web sibling's function of the same name does the same job.
+ */
+async function claimToken(uid: string): Promise<boolean> {
+  // The channel the server addresses by id — see PUSH_CHANNEL_ID for why the
+  // two must agree and why the importance has to be right the first time.
+  await Notifications.setNotificationChannelAsync(PUSH_CHANNEL_ID, {
+    name: PUSH_CHANNEL_NAME,
+    importance: Notifications.AndroidImportance.HIGH,
+  });
+  // The old channel, which nothing ever posted to because the server sent no
+  // channel id at all. Left alone it sits in Android's notification settings
+  // as a second, permanently silent "Default" that people would reasonably
+  // try to configure.
+  await Notifications.deleteNotificationChannelAsync('default').catch(() => {});
+
+  // FCM has no emulator. A token minted here could never be delivered to and
+  // would make local runs non-deterministic — so registration stops at the
+  // token, exactly where the web sibling stops it.
+  //
+  // BELOW the channel setup, not above the whole function, and that placement
+  // is the point: with the gate on the first line of `registerPush` a local
+  // build could never once raise the Android dialog or create the channel, so
+  // the one native surface a browser cannot reach was unreachable from the only
+  // build this project can put on a device. Everything above this line is real
+  // on a local run now; only the token is withheld.
+  if (USE_EMULATORS) return false;
+
+  // getDevicePushTokenAsync gives the native FCM token, which is what the
+  // Admin SDK sends to. getExpoPushTokenAsync would return an Expo token and
+  // route through Expo's service instead — a different delivery path that the
+  // functions do not use.
+  const { data: token } = await Notifications.getDevicePushTokenAsync();
+  if (typeof token !== 'string' || !token) return false;
+
+  await storeToken(uid, token);
+
+  // FCM rotates a token on its own schedule — a restore to a new device, an
+  // app-data clear, a long enough gap. When it does, the stored one is dead:
+  // the server prunes it on the next send and that person silently stops
+  // getting notifications until they happen to sign out and back in. Nothing
+  // else would ever tell us, because registration only runs at sign-in.
+  if (!tokenListener) {
+    tokenListener = Notifications.addPushTokenListener((next) => {
+      if (typeof next.data === 'string' && next.data) {
+        void storeToken(uid, next.data).catch(() => undefined);
+      }
+    });
+  }
+  return true;
 }
 
 async function storeToken(uid: string, token: string): Promise<void> {

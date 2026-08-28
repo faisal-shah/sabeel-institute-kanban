@@ -12,7 +12,7 @@
 # Why this exists: half a dozen debugging sessions were lost to a stale emulator
 # or Metro holding a port, which fails in ways that look like application bugs —
 # "Could not start Authentication Emulator, port taken", or worse, a dev server
-# that answers on 8086 while serving code from another checkout.
+# that answers on 61210 while serving code from another checkout.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 

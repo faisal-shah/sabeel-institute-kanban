@@ -372,6 +372,69 @@ the team.
 
 ## Deploy log
 
+### 2026-08-28 — The Android device pass web push never got — v0.10.2
+
+**The seam was called total on both surfaces and had only ever been run on one.**
+v0.10.1 shipped saying "Android unverified on device", and this is that pass. It
+found three defects, none of which any suite could have caught: every unit test,
+both e2e flows and the width sweep passed identically before and after each one.
+
+**Signing in raised the system permission dialog on *Waiting for approval*.** The
+account is not approved at that point and not one board is visible — there is
+nothing yet to be notified about, and no reason given for the ask. That is the
+web bug the previous release existed to fix, left in place on native on the
+argument that Android permits a prompt from anywhere. It does, and that is the
+trap: **Android 13 spends the prompt**, so a second refusal fixes it for good.
+The worst moment to ask was also very nearly the last chance to, and someone who
+declined there had one ask left — the nudge card — and then only Settings. It
+also meant the card was dead weight on Android, always arriving after the OS had
+already asked. `registerPush` is now silent on both surfaces, registering only a
+device that is already permitted, and `enablePush` behind the button is the only
+thing that may prompt. Verified on the device: sign-in leaves the permission
+untouched, with no `USER_SET` flag — nothing asked, nothing spent.
+
+**"Open settings" led to a closed loop.** A blocked device was told to open
+system settings; turning notifications on there and coming back left the screen
+still reading *"Notifications are blocked for this app on this device"*, beside
+the same button back to the setting just fixed. `dumpsys` said `granted=true`
+throughout. `App.tsx` renders one screen per route, so returning from an
+external activity remounts nothing and re-runs no effect, and the only way to
+make the screen honest was to navigate elsewhere and back — which it never
+suggested. `useCheckOnForeground` re-reads on every return to the front. One
+implementation covers both surfaces: react-native-web maps `AppState` onto
+document visibility, so a browser tab returning from its site-settings panel
+re-reads the same way.
+
+**The emulator gate made the whole thing unreachable from the only build we can
+put on a device.** It sat on the first line of `registerPush`, above the channel
+setup and above the permission request, so a local run could never once raise
+the Android dialog or create the channel. Worse, `enablePush` then answered
+'denied' for a device that had merely not been asked, so the nudge card vanished
+on a press that had done nothing — a failure wearing success's face, and the
+exact shape the release before this one was written to eliminate. The gate now
+stops at the token, where the web sibling stops, and everything above it is real
+on a local build.
+
+Also fixed, and unrelated: `npm run dev:web` still served the abandoned port
+8086 after the port move, while `dev.sh web` waited on 61210 and `seed-dev.mjs`
+fetched 61210 — so the documented web dev loop could not complete at all, and
+left a server on a port `dev.sh stop` does not sweep. The guard that exists for
+exactly this missed it twice over: it reads only `scripts/`, and only the
+`host:port` form. It reads `package.json` and `--port N` now.
+
+**Verified on the device, which is the point of the release**: no dialog at
+sign-in; the dialog raised from the button press; `dumpsys notification` showing
+one channel for the package, `sabeel-alerts` at `mImportance=4`, with the stale
+"Default" gone; **Open settings** landing on App info; and the panel correcting
+itself on return with no navigation. Delivery itself still needs a real phone
+against production — an emulator cannot receive an FCM message — and that stays
+open in `TODO.md` § I.
+
+Every new assertion was checked by mutation: the fix reverted, the suite watched
+to go red, the fix restored. One of them did not go red at first — the device
+mock held permission at 'default' after the grant, which no real device does —
+and it was rewritten rather than kept.
+
 ### 2026-08-20 — Board owners can add members, which they never could — v0.10.1
 
 **The promise was half-kept.** `docs/PERMISSIONS.md` and the manual both say a

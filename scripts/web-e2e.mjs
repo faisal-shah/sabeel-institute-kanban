@@ -1550,6 +1550,67 @@ try {
     deviceShown.length === 1,
     `saw ${deviceShown.length}: ${deviceShown.join(' | ') || '(none)'}`,
   );
+
+  /*
+   * The panel must CORRECT ITSELF when the permission changes outside the app.
+   *
+   * Found on an Android device and invisible to every suite: the only advice a
+   * blocked device gets is **Open settings**, which leaves the app — and coming
+   * back left the screen still reading "blocked", beside the same button back
+   * to the setting just fixed. `dumpsys` said granted the whole time. This app
+   * renders one screen per route, so returning from an external activity
+   * remounts nothing and re-runs no effect.
+   *
+   * Driven here the way a browser drives it: grant the permission on the
+   * context, then dispatch `visibilitychange`, which is exactly what
+   * react-native-web's AppState listens for — it emits `currentState` with no
+   * diffing, so one event is a faithful return-to-front.
+   *
+   * The DESTINATION is browser-independent even though the starting state is
+   * not (headless Chromium reports 'denied', a full browser 'default'): once
+   * permission is granted, an emulator-backed run can never file a token, so
+   * 'unsupported' is the only honest answer either way.
+   */
+  const UNSUPPORTED = 'This device can\u2019t show notifications.';
+  // Guard the guard. If the panel already reads the message we are waiting for,
+  // the check below passes without anything having happened — which is the
+  // failure mode this whole file exists to avoid. It is reachable: with no
+  // EXPO_PUBLIC_FCM_VAPID_KEY every state collapses to 'unsupported', which is
+  // how CI ran until e2e.sh started supplying a fake one.
+  check(
+    'the device panel starts somewhere a re-read could move it from',
+    deviceShown[0] !== UNSUPPORTED,
+    `panel already reads "${UNSUPPORTED}" — the re-read check below would prove nothing`,
+  );
+
+  // The permission is CHANGED UNDER THE PAGE, which is the only way to pose the
+  // question here: headless Chromium reports `Notification.permission` as
+  // 'denied' and will not move it — `context.grantPermissions(['notifications'])`
+  // updates the permission manager and leaves the getter saying 'denied'
+  // (measured, not assumed). Stubbing the getter is honest for what is under
+  // test: the subject is OUR re-read, not Chromium's permission store, and the
+  // question is whether the panel catches up when the answer changes while the
+  // app is away. Mutation-checked — drop the AppState subscription from
+  // useCheckOnForeground and this goes red.
+  await sara.evaluate(() => {
+    Object.defineProperty(window.Notification, 'permission', {
+      configurable: true,
+      get: () => 'granted',
+    });
+  });
+  await sara.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  const reRead = await sara
+    .getByText(UNSUPPORTED, { exact: false })
+    .first()
+    .waitFor({ timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  check(
+    'the device panel re-reads when the app returns to the front',
+    reRead,
+    `panel never moved to "${UNSUPPORTED}" after the permission changed`,
+  );
+
   const movedDefaultOff = await sara
     .getByText('A card assigned to you was moved')
     .first()

@@ -22,7 +22,7 @@
     "e2e": "bash scripts/e2e.sh",
     "build": "npm run build -w @sabeel/shared && npm run build -w functions",
     "emulators": "bash scripts/emulators.sh",
-    "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 8086",
+    "dev:web": "npm run build -w @sabeel/shared && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo start --web --port 61210",
     "dev:android": "npm run build -w @sabeel/shared && node scripts/preflight-metro.mjs && cd app && EXPO_PUBLIC_USE_EMULATORS=1 npx expo run:android --app-id com.sabeelinstitute.kanban.debug",
     "dev:ios": "bash scripts/dev.sh ios",
     "build:apk": "node scripts/gen-build-info.mjs && cd app/android && ./gradlew assembleRelease --no-daemon",

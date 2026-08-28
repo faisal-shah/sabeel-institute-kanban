@@ -11,13 +11,14 @@ import { resolve } from 'node:path';
  * Firestore, and both sessions spent real time diagnosing symptoms that belonged
  * to the other process. Each checkout now owns a disjoint block.
  *
- * The ports cannot live in one file. Five consumers need five representations:
+ * The ports cannot live in one file. Six consumers need six representations:
  *
  *   firebase.json               JSON   what the emulators actually bind
  *   app/src/env.ts              TS     inlined into the client bundle
  *   scripts/lib/ports.mjs       ESM    read by scripts/*.mjs
  *   scripts/dev.sh              shell  the kill list
  *   scripts/e2e.sh              shell  the web dev-server port
+ *   package.json                JSON   the `dev:web` command line
  *
  * So the goal is not one copy, it is copies that cannot drift. A mismatch is
  * otherwise silent until something connects to a port nobody is serving — or,
@@ -97,6 +98,24 @@ function portsFromDevSh(): number[] {
 function webPortFromE2eSh(): number {
   const m = read('scripts/e2e.sh').match(/^WEB_PORT=(\d+)/m);
   if (!m) throw new Error('WEB_PORT not found in scripts/e2e.sh');
+  return Number(m[1]);
+}
+
+/**
+ * `npm run dev:web`'s port — a SIXTH representation, and the one that got away.
+ *
+ * The port move updated the five files listed above and missed this, because
+ * nothing here reads `package.json`. It served on the abandoned 8086 while
+ * `dev.sh web` waited on 61210 and `seed-dev.mjs` fetched 61210, so the
+ * documented web dev loop could not complete at all — three minutes of waiting
+ * and a "web NEVER CAME UP", with a dev server left on a port `dev.sh stop`
+ * does not sweep. Same failure as the `dev.sh` readiness waits below, one file
+ * further out.
+ */
+function webPortFromDevWebScript(): number {
+  const script = JSON.parse(read('package.json')).scripts['dev:web'] as string;
+  const m = script.match(/--port (\d+)/);
+  if (!m) throw new Error('--port not found in package.json scripts["dev:web"]');
   return Number(m[1]);
 }
 
@@ -189,6 +208,13 @@ describe('emulator ports agree across every file that states them', () => {
     const { web } = await portsFromScripts();
     expect(webPortFromE2eSh(), 'e2e.sh WEB_PORT vs WEB_PORTS.e2e').toBe(web.e2e);
   });
+
+  it('npm run dev:web serves the port dev.sh and the seed wait on', async () => {
+    const { web } = await portsFromScripts();
+    expect(webPortFromDevWebScript(), 'package.json dev:web --port vs WEB_PORTS.e2e').toBe(
+      web.e2e,
+    );
+  });
 });
 
 /**
@@ -223,8 +249,11 @@ describe('the ports module is committed, not just present on disk', () => {
  * moved. Nothing caught it, because no suite runs `dev.sh` and a comment cannot
  * fail a test.
  *
- * Matching `host:port` rather than the bare number on purpose: 4000 and 8000
- * also appear as millisecond timeouts, and a check that cries wolf gets deleted.
+ * Matching `host:port` and `--port N` rather than the bare number on purpose:
+ * 4000 and 8000 also appear as millisecond timeouts, and a check that cries wolf
+ * gets deleted. `--port` was added after `package.json` was found still serving
+ * `dev:web` on 8086 — the abandoned port was there in plain sight, in the one
+ * form this scan did not read, in the one file it did not open.
  */
 const ABANDONED_PORTS = [8080, 9099, 5001, 9199, 9150, 4000, 4400, 4500, 8086, 8083];
 
@@ -239,15 +268,15 @@ function scriptFiles(dir: string): string[] {
 }
 
 describe('no script points at a port this checkout gave up', () => {
-  it('scripts/ mentions no abandoned host:port', () => {
-    const files = scriptFiles('scripts');
+  it('nothing in scripts/ or package.json points at an abandoned port', () => {
+    const files = [...scriptFiles('scripts'), 'package.json'];
     expect(files.length, 'found no scripts to scan — the walk is broken').toBeGreaterThan(5);
 
     const offenders: string[] = [];
     for (const file of files) {
       const text = read(file);
       for (const port of ABANDONED_PORTS) {
-        const re = new RegExp(`(127\\.0\\.0\\.1|localhost):${port}\\b`);
+        const re = new RegExp(`((127\\.0\\.0\\.1|localhost):|--port )${port}\\b`);
         if (re.test(text)) offenders.push(`${file} -> :${port}`);
       }
     }

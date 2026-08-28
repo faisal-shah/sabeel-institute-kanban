@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { NOTIFICATION_RETENTION_DAYS, NOTIFY_EVENTS } from '@sabeel/shared';
 import {
@@ -22,6 +22,7 @@ import {
 } from '../notify';
 import { setBoardMuted } from '../notifications';
 import type { SessionUser } from '../session';
+import { useCheckOnForeground } from '../foreground';
 import { useNav } from '../nav';
 import {
   Body,
@@ -80,7 +81,12 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   const muted = prefsDoc.data?.mutedBoardIds ?? [];
 
 
-  useEffect(() => {
+  // Re-read on every return to the foreground, not only on mount. **Open
+  // settings** below leaves the app, and coming back remounts nothing — so this
+  // panel went on saying "blocked" over a device that had just been unblocked,
+  // offering the same button back to the setting the person had already fixed.
+  // See useCheckOnForeground.
+  useCheckOnForeground(() => {
     let live = true;
     void (async () => {
       const state = await pushPromptState();

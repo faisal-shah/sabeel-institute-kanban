@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { enablePush, pushPromptState } from './notify';
+import { useCheckOnForeground } from './foreground';
 
 /**
  * The one-time nudge to switch notifications on, shown on the first screen
@@ -47,11 +48,13 @@ export function usePushNudge(uid: string): {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  // A plain mount effect is right HERE, unlike in the two sibling apps: this app
-  // renders one screen per route rather than stacking them, so returning to the
-  // board list remounts it and re-runs this. The siblings keep their home screen
-  // mounted under a pushed settings screen and need useFocusEffect instead.
-  useEffect(() => {
+  // Remounting covers most of it — this app renders one screen per route rather
+  // than stacking them, so returning to the board list re-runs this, where the
+  // two sibling apps keep their home screen mounted and need useFocusEffect.
+  // What remounting does NOT cover is leaving the app entirely for the system
+  // settings screen and coming back, which is where the card sends a blocked
+  // device; see useCheckOnForeground.
+  useCheckOnForeground(() => {
     let live = true;
     void (async () => {
       // Only 'default' is worth a nudge: granted needs nothing, and denied

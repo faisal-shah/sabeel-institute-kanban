@@ -119,6 +119,106 @@ describe('against the emulators', () => {
     await expect(reg('user-1')).resolves.toBe(false);
     expect(setDoc).not.toHaveBeenCalled();
   });
+
+  /**
+   * The gate sits BELOW the channel setup, and this is what says so.
+   *
+   * With it on the first line of registerPush — where it was — an
+   * emulator-backed build could never create the channel or raise the system
+   * dialog even once. That is the only build this project can put on a device,
+   * so the one native surface a browser cannot reach was unreachable from the
+   * only place it could be looked at, and `PUSH_CHANNEL_ID`'s importance was
+   * unverifiable with it.
+   *
+   * It is checked on the device now: `dumpsys notification` shows exactly one
+   * channel for the package, `sabeel-alerts` at `mImportance=4`.
+   */
+  it('still sets the channel up, and asks, before stopping at the token', async () => {
+    device({ granted: true });
+    const { enablePush: enable } = await loadWithEmulators();
+    await enable('user-1');
+    expect(Notifications.requestPermissionsAsync).toHaveBeenCalled();
+    expect(Notifications.setNotificationChannelAsync).toHaveBeenCalled();
+  });
+
+  /**
+   * A device that has NEVER BEEN ASKED, whose owner then says yes.
+   *
+   * The two permission mocks have to disagree for this to mean anything, which
+   * is the whole point: `getPermissionsAsync` reports 'default' because nothing
+   * has been asked yet, and `requestPermissionsAsync` grants because the person
+   * taps Allow. Seeding both 'granted' — as the `device()` helper does — makes
+   * this pass with the gate in either place, and the first draft of this test
+   * did exactly that and proved nothing.
+   *
+   * With the gate at the top of registerPush the dialog never ran, so the state
+   * stayed 'default' and `enablePush` called it 'denied' — a refusal invented
+   * for a device that had not been asked. The nudge hides on 'denied' and
+   * reports a failure only on 'unavailable', so the card vanished on a press
+   * that had done nothing at all.
+   */
+  it('says unavailable, not denied, when the ask was granted but no token could be filed', async () => {
+    // A real device, not a frozen pair of values: it starts unasked, and the
+    // grant CHANGES what getPermissionsAsync reports afterwards. `enablePush`
+    // re-reads the state rather than trusting the request's own return, so a
+    // mock stuck at 'default' forever answers 'denied' whichever place the gate
+    // is in — which is how the first draft of this test proved nothing.
+    const unasked = { granted: false, canAskAgain: true };
+    const allowed = { granted: true, canAskAgain: true };
+    asMock(Notifications.getPermissionsAsync).mockResolvedValue(unasked);
+    asMock(Notifications.requestPermissionsAsync).mockImplementation(async () => {
+      asMock(Notifications.getPermissionsAsync).mockResolvedValue(allowed);
+      return allowed;
+    });
+    const { enablePush: enable } = await loadWithEmulators();
+    await expect(enable('user-1')).resolves.toBe('unavailable');
+  });
+});
+
+/**
+ * WHICH function may raise the system dialog. The whole point of the batch, and
+ * the half that was left undone on native.
+ *
+ * A browser enforces this by refusing a request that does not follow a click.
+ * Android honours one from anywhere, so nothing but this suite holds it down —
+ * and nothing did: signing in raised "Allow Kanban dev to send you
+ * notifications?" over the *Waiting for approval* screen, before the account was
+ * approved and before any board existed to be notified about. Android 13 spends
+ * that prompt after a second refusal, so the worst moment to ask was also nearly
+ * the last chance to.
+ */
+describe('only the button asks', () => {
+  it('sign-in never raises the dialog, whatever the device would say', async () => {
+    // Would grant if asked — so a passing result here cannot come from the
+    // device refusing. The point is that nothing is asked at all.
+    device({ granted: false, canAskAgain: true });
+    asMock(Notifications.requestPermissionsAsync).mockResolvedValue({
+      granted: true,
+      canAskAgain: true,
+    });
+
+    await expect(registerPush('user-1')).resolves.toBe(false);
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it('sign-in still registers a device that was already permitted', async () => {
+    device({ granted: true });
+    await expect(registerPush('user-1')).resolves.toBe(true);
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(setDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('the button is what asks', async () => {
+    device({ granted: false, canAskAgain: true });
+    asMock(Notifications.requestPermissionsAsync).mockResolvedValue({
+      granted: true,
+      canAskAgain: true,
+    });
+
+    await expect(enablePush('user-1')).resolves.toBe('granted');
+    expect(Notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('pushPromptState', () => {

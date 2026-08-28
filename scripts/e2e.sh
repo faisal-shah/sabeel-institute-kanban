@@ -43,7 +43,25 @@ trap cleanup EXIT
 echo "Starting Expo web dev server on ${WEB_PORT}…"
 # --clear because Metro will otherwise serve a bundle built under different
 # EXPO_PUBLIC_* values (see docs/INHERITED-STACK.md lesson 4).
+#
+# EXPO_PUBLIC_FCM_VAPID_KEY is set to a FAKE value on purpose, and only here.
+#
+# `canRequestPush()` in notify.web.ts needs nothing but a truthy key, and
+# without one it reports 'unsupported' whatever the browser would actually
+# permit — so the notifications panel had exactly one reachable state in CI, and
+# the check that it "says exactly one thing about this device" could never see
+# the other three. The permission states are the point of that panel.
+#
+# The value is deliberately NOT shaped like a VAPID key: `check-web-push.mjs`
+# looks for 87 base64url characters, so if this ever reached an exported bundle
+# the release gate would fail with "no VAPID key" rather than pass on a fake.
+# Nothing here can reach `getToken` in any case — `claimToken` returns on
+# USE_EMULATORS before the key is ever used.
+#
+# Set on THIS LINE, never exported: the production export above must stay
+# keyless, which is what makes the dev-row and gate checks mean anything.
 ( cd app && CI=1 EXPO_PUBLIC_USE_EMULATORS=1 \
+    EXPO_PUBLIC_FCM_VAPID_KEY=e2e-fake-vapid-key-not-a-real-one \
     npx expo start --web --port "$WEB_PORT" --clear >/tmp/sk-web-e2e.log 2>&1 ) &
 WEB_PID=$!
 

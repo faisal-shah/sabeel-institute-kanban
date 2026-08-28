@@ -1020,6 +1020,22 @@ try {
   ];
   for (const [tag, contextOptions, width] of runs) {
     const ctx = await browser.newContext(contextOptions);
+    // Make the push nudge RENDER. Headless Chromium reports
+    // `Notification.permission` as 'denied', so the card on the Boards screen —
+    // which only shows while the device can still be asked — was absent from
+    // every screenshot at every width. That is the one card in the app whose
+    // layout has already been got wrong three times (it ate a quarter of a
+    // narrow screen, it outranked an urgent alert, its dismiss link floated off
+    // alone on a wide one), and the sweep that exists to catch exactly that
+    // could not see it. `grantPermissions` does not move the getter, so the
+    // getter is what gets replaced; the alternative was a permanent hole in the
+    // default layout check.
+    await ctx.addInitScript(() => {
+      Object.defineProperty(window.Notification, 'permission', {
+        configurable: true,
+        get: () => 'default',
+      });
+    });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => check(`${tag} page error`, false, String(e).slice(0, 90)));
     await page.goto(BASE, { waitUntil: 'networkidle' });

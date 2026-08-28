@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.10.1 · August 2026*
+*For app version 0.10.2 · August 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -466,7 +466,8 @@ fires constantly. **You are never notified about your own actions.**
 Push notifications need the device's own permission. The app offers to set it up
 once, on the Boards screen after you sign in — or you can open the **gear** here
 any time and use **Enable notifications**. It is once per device, and this screen
-always says where this device stands. If notifications have been blocked, the
+always says where this device stands — including after you change the setting
+outside the app and come back to it. If notifications have been blocked, the
 button becomes **Open settings** on a phone; in a browser, allow them from the
 site settings behind the icon in the address bar. Notifications follow the
 account signed in on the device.
