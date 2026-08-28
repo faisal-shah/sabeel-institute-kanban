@@ -176,6 +176,42 @@ describe('against the emulators', () => {
 });
 
 /**
+ * TOTALITY. Every caller treats these three as functions that always answer, and
+ * the failure they were rewritten for is a button left spinning with no way
+ * back. The web sibling asserts this; native had the same catch blocks and
+ * nothing holding them down, which is how it drifted apart from web twice.
+ */
+describe('when the platform itself throws', () => {
+  it('enablePush answers unavailable rather than rejecting', async () => {
+    asMock(Notifications.requestPermissionsAsync).mockRejectedValue(
+      new Error('no notification module'),
+    );
+    await expect(enablePush('user-1')).resolves.toBe('unavailable');
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it('registerPush answers false rather than rejecting', async () => {
+    asMock(Notifications.getPermissionsAsync).mockRejectedValue(
+      new Error('no notification module'),
+    );
+    await expect(registerPush('user-1')).resolves.toBe(false);
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Reported as 'unsupported', which is the honest answer: we could not find out
+   * what this device permits. It is also the only one of the four that renders a
+   * message with no control under it, so it cannot send anyone to a setting.
+   */
+  it('pushPromptState answers unsupported rather than rejecting', async () => {
+    asMock(Notifications.getPermissionsAsync).mockRejectedValue(
+      new Error('no notification module'),
+    );
+    await expect(pushPromptState()).resolves.toBe('unsupported');
+  });
+});
+
+/**
  * WHICH function may raise the system dialog. The whole point of the batch, and
  * the half that was left undone on native.
  *
