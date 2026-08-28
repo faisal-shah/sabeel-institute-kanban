@@ -209,10 +209,23 @@ if [ -d "$PAGES_DIR/.git" ]; then
     "$PAGES_DIR/sabeel-kanban/index.html" \
     || { echo "FAILED to update the download size on the page" >&2; exit 1; }
   echo "Page labelled v${VERSION}, ${SIZE_MB} MB, published ${PUBLISHED}"
-  git -C "$PAGES_DIR" add sabeel-kanban/index.html
-  git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION} (${PUBLISHED})" \
-    && git -C "$PAGES_DIR" push -q \
-    || echo "(page unchanged)"
+  # PATHSPEC on every git call below. The pages repo is SHARED with the
+  # time-tracker publisher, and an unscoped `git commit` sweeps up whatever that
+  # script has staged — so a concurrent publish commits the other project's page
+  # under this project's message, or worse, ships it half-written.
+  PAGE_REL="sabeel-kanban/index.html"
+  git -C "$PAGES_DIR" add -- "$PAGE_REL"
+  # Separated, not `commit && push || echo`. That chain reports "(page
+  # unchanged)" when the PUSH fails, which is indistinguishable from nothing
+  # having changed and leaves the team downloading a stale build. The sibling
+  # repo hit exactly this and documented it; no changes is fine, a failed push
+  # is not.
+  if git -C "$PAGES_DIR" diff --cached --quiet -- "$PAGE_REL"; then
+    echo "(page already current — nothing to commit)"
+  else
+    git -C "$PAGES_DIR" commit -q -m "Kanban page: v${VERSION} (${PUBLISHED})" -- "$PAGE_REL"
+    git -C "$PAGES_DIR" push -q
+  fi
 else
   echo "NOTE: pages repo not at $PAGES_DIR — set SK_PAGES_DIR to update the version label." >&2
 fi
