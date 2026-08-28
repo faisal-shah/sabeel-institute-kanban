@@ -94,7 +94,15 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
     void (async () => {
       const state = await pushPromptState();
       if (!live) return;
-      if (state !== 'granted') return setPush(state);
+      if (state !== 'granted') {
+        // Anything but granted retires what we knew. A browser that has its
+        // notification permission revoked drops the push subscription with it,
+        // so the token we filed is dead — and if permission comes back, the
+        // shortcut below would otherwise report "enabled" over a token nothing
+        // can be delivered to. Forgetting here makes the next grant re-register.
+        claimedFor.current = null;
+        return setPush(state);
+      }
       // Permission alone is not enough to promise delivery. Claim the token and
       // report what actually happened, or this says "enabled" over a device
       // with nothing registered behind it.

@@ -125,10 +125,15 @@ export function usePushNudge(uid: string): {
       .catch(() => 'unavailable' as const)
       .then((result) => {
         setBusy(false);
-        // Granted needs no further nudge, and a refusal is sticky — both just
-        // go away. But permission granted with NO TOKEN behind it is a silent
-        // failure that looks exactly like success: the card would vanish and
-        // nothing would ever arrive. Say so instead.
+        // Granted needs no further nudge. A refusal hides the card too — NOT
+        // because the refusal is final, which on Android it is not until the
+        // second one, but because nagging in the same breath as a "no" is how a
+        // one-time offer becomes an irritant. It comes back on the next remount
+        // while the device is still askable, which is the right cadence for it.
+        //
+        // But permission granted with NO TOKEN behind it is a silent failure
+        // that looks exactly like success: the card would vanish and nothing
+        // would ever arrive. Say so instead.
         setState(result === 'unavailable' ? 'failed' : 'hidden');
         // Released LAST, after the outcome is recorded, so a foreground event
         // arriving in between cannot overwrite it.
