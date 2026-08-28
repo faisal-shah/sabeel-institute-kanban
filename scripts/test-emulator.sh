@@ -9,20 +9,37 @@ set -euo pipefail
 # Stop any resident Gradle daemon FIRST.
 #
 # `npm run build:apk` passes --no-daemon, but `npm run android` (expo run:android)
-# does not, so a debug build leaves a daemon sitting on ~3.7 GB. This machine runs
-# earlyoom with `--prefer ^(...|java|gradle)$`, so under the memory pressure of
-# three emulators plus that daemon it kills a JVM — and the one it takes is
-# usually the Firestore emulator, mid-suite.
+# does not, so a debug build leaves a daemon sitting on ~3.7 GB, which can matter
+# alongside three emulators.
 #
-# The reason this is worth a guard rather than a note: the symptom does not look
-# like memory pressure. It presents as ECONNREFUSED and a wall of failed and
-# skipped tests, i.e. exactly like a broken diff, and you go looking at your own
-# changes. Reported by the time-tracker maintainer, who lost three runs to it.
+# This used to run `./gradlew --stop` unconditionally. It no longer does, for two
+# reasons, both established on 2026-08-28:
 #
-# Stopping the daemon here rather than disabling it globally keeps the dev build
-# loop fast; it only costs a cold Gradle start on the next build.
+#   1. `--stop` is MACHINE-WIDE. GRADLE_USER_HOME is unset in all three Sabeel
+#      checkouts, so they share one daemon registry and stopping "the" daemon
+#      stops the one a SIBLING session is mid-build on. It surfaces there as
+#      "Gradle build daemon disappeared unexpectedly" in a repo nobody touched —
+#      the same class of cross-repo damage the per-repo emulator ports fixed.
+#
+#   2. The justification was wrong. The old comment here said this machine runs
+#      earlyoom with a --prefer list making the Firestore emulator the designated
+#      victim. It does not run earlyoom at all — no binary, no unit, no process —
+#      and the box has 15 GiB of RAM plus a 16 GiB swapfile, so contention shows
+#      up first as thrashing, not as a kill.
+#
+# So: report, do not kill. Set SK_STOP_GRADLE=1 to opt in when you know no other
+# session is building.
 if [ -x app/android/gradlew ]; then
-  (cd app/android && ./gradlew --stop >/dev/null 2>&1) || true
+  if [ "${SK_STOP_GRADLE:-0}" = "1" ]; then
+    (cd app/android && ./gradlew --stop >/dev/null 2>&1) || true
+    echo "Gradle daemons stopped (SK_STOP_GRADLE=1) — machine-wide, all checkouts."
+  elif pgrep -f GradleDaemon >/dev/null 2>&1; then
+    # pgrep is safe HERE (unlike in free-emulator-ports.sh): this script's own
+    # command line is `bash scripts/test-emulator.sh`, which cannot match.
+    echo "note: a Gradle daemon is running (~3.7 GB). It is shared with the sibling"
+    echo "      checkouts, so this script will not stop it. If memory is tight and"
+    echo "      nothing else is building:  SK_STOP_GRADLE=1 npm run test:emulator"
+  fi
 fi
 
 # The functions emulator runs the BUILT bundle, so build before starting it.
