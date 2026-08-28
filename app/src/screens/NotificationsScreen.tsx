@@ -103,16 +103,20 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   // the two. See enablePush in notify.web.ts.
   function turnOnPush() {
     setEnabling(true);
-    void enablePush(user.uid).then(async (result) => {
-      setEnabling(false);
-      if (result === 'granted') return setPush('granted');
-      if (result === 'unavailable') return setPush('unsupported');
-      // Re-read rather than assuming 'denied': a browser makes a refusal stick,
-      // but a dismissed Android dialog leaves this askable, and the button
-      // should come back rather than send someone to a settings screen that
-      // shows nothing wrong.
-      setPush(await pushPromptState());
-    });
+    // .catch as well: a rejection reaching here would leave the button spinning
+    // with no way back, which is worse than any answer it could have given.
+    void enablePush(user.uid)
+      .catch(() => 'unavailable' as const)
+      .then(async (result) => {
+        setEnabling(false);
+        if (result === 'granted') return setPush('granted');
+        if (result === 'unavailable') return setPush('unsupported');
+        // Re-read rather than assuming 'denied': a browser makes a refusal
+        // stick, but a dismissed Android dialog leaves this askable, and the
+        // button should come back rather than send someone to a settings screen
+        // that shows nothing wrong.
+        setPush(await pushPromptState());
+      });
   }
 
   function open(item: InboxItem) {
@@ -155,7 +159,9 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
 
       {showSettings ? (
         <>
-          <Heading>This device</Heading>
+          {/* Held back until the state is known. The check opens IndexedDB, so
+              rendering the heading first left it standing over an empty gap. */}
+          {push !== 'checking' ? <Heading>This device</Heading> : null}
           {push === 'default' ? (
             <Panel>
               <Body>Notifications are not enabled on this device.</Body>

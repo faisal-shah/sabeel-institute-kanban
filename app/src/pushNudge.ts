@@ -38,19 +38,31 @@ async function isDismissed(uid: string): Promise<boolean> {
 export function usePushNudge(uid: string): {
   visible: boolean;
   busy: boolean;
-  enable: () => void;
+  /** Permission was granted but no token came back — say so, do not vanish. */
+  failed: boolean;
+  enable: () => Promise<void>;
   dismiss: () => void;
 } {
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
 
+  // A plain mount effect is right HERE, unlike in the two sibling apps: this app
+  // renders one screen per route rather than stacking them, so returning to the
+  // board list remounts it and re-runs this. The siblings keep their home screen
+  // mounted under a pushed settings screen and need useFocusEffect instead.
   useEffect(() => {
     let live = true;
     void (async () => {
       // Only 'default' is worth a nudge: granted needs nothing, and denied
       // cannot be re-asked from here at all.
       const [state, dismissed] = await Promise.all([pushPromptState(), isDismissed(uid)]);
-      if (live) setVisible(state === 'default' && !dismissed);
+      if (!live) return;
+      // Cleared on every re-check: a failure is about one attempt, not about the
+      // device forever, and leaving it set would strand the card on an error
+      // with no way to try again.
+      setFailed(false);
+      setVisible(state === 'default' && !dismissed);
     })();
     return () => {
       live = false;
@@ -62,13 +74,29 @@ export function usePushNudge(uid: string): {
   // loses that. setBusy is synchronous, so it does not separate the two.
   const enable = () => {
     setBusy(true);
-    void enablePush(uid).then(() => {
-      setBusy(false);
-      // Hidden whatever the answer: granted needs no nudge, denied cannot be
-      // asked again, and unavailable has nothing behind it. The notifications
-      // screen reports whichever state resulted.
-      setVisible(false);
-    });
+    // RETURNED, not voided: a Button that awaits its handler to drive its own
+    // progress (the time tracker's does) gets nothing from a void. Returning
+    // the promise does not await it, so the request above is still raised
+    // synchronously inside the press.
+    //
+    // .catch as well as .then: enablePush is total by construction, but a
+    // rejection slipping through here would leave the button spinning with no
+    // way back, which is worse than any answer it could have given.
+    //
+    // It maps to 'unavailable', NOT to undefined: undefined fell through to the
+    // hide-the-card branch below, so a rejection vanished silently and looked
+    // exactly like success — the very thing the failed state exists to prevent.
+    return enablePush(uid)
+      .catch(() => 'unavailable' as const)
+      .then((result) => {
+        setBusy(false);
+        // Granted needs no further nudge, and a refusal is sticky — both just
+        // go away. But permission granted with NO TOKEN behind it is a silent
+        // failure that looks exactly like success: the card would vanish and
+        // nothing would ever arrive. Say so instead.
+        if (result === 'unavailable') return setFailed(true);
+        setVisible(false);
+      });
   };
 
   const dismiss = () => {
@@ -76,5 +104,5 @@ export function usePushNudge(uid: string): {
     void AsyncStorage.setItem(key(uid), '1').catch(() => undefined);
   };
 
-  return { visible, busy, enable, dismiss };
+  return { visible, busy, failed, enable, dismiss };
 }

@@ -40,7 +40,10 @@ Notifications.setNotificationHandler({
 export const canOpenPushSettings = true;
 
 export function openPushSettings(): void {
-  void Linking.openSettings();
+  // openSettings REJECTS when the platform cannot honour it, and a bare `void`
+  // would leave that unhandled. There is nothing useful to do about it: the
+  // screen has already said where the setting lives.
+  void Linking.openSettings().catch(() => undefined);
 }
 
 /** Mirrors the web sibling — see notify.web.ts for why this is not a boolean. */
@@ -54,7 +57,10 @@ export type PushEnableResult = 'granted' | 'denied' | 'unavailable';
 export async function pushPromptState(): Promise<
   'granted' | 'denied' | 'default' | 'unsupported'
 > {
-  if (USE_EMULATORS) return 'unsupported';
+  // Deliberately says nothing about USE_EMULATORS — the web sibling explains
+  // why. What the DEVICE will permit does not depend on which Firebase backend
+  // it is pointed at, and reporting 'unsupported' locally hid the whole control
+  // from every emulator-backed run. Registration is what the emulator gates.
   try {
     const perm = await Notifications.getPermissionsAsync();
     if (perm.granted) return 'granted';
@@ -74,12 +80,16 @@ export async function pushPromptState(): Promise<
  * earlier.
  */
 export async function enablePush(uid: string): Promise<PushEnableResult> {
-  await registerPush(uid);
+  // The RETURN, not just the permission afterwards. Permission granted with no
+  // token filed — an emulator run, a device that refused the token — is not a
+  // success, and reporting it as one puts "enabled" over a device that will
+  // receive nothing. Same three outcomes as the web sibling.
+  if (await registerPush(uid)) return 'granted';
   const state = await pushPromptState();
-  if (state === 'granted') return 'granted';
+  if (state === 'granted' || state === 'unsupported') return 'unavailable';
   // 'default' here means the system dialog was dismissed rather than refused —
   // still askable, so the screen re-reads the state and keeps offering.
-  return state === 'unsupported' ? 'unavailable' : 'denied';
+  return 'denied';
 }
 
 export async function registerPush(uid: string): Promise<boolean> {

@@ -681,18 +681,38 @@ Android push is wired and ships in the next APK. Two items are console work.
 
 - [ ] **Verify a push actually arrives.** Install the new APK, sign in, and let
       it ask for notification permission (Android 13+ prompts; if you dismissed
-      it, Settings → Apps → Sabeel Kanban → Notifications). Then have the app
+      it, the notifications screen now offers **Open settings**, or go to
+      Settings → Apps → Sabeel Kanban → Notifications). Then have the app
       notify you: from a second account, or the web app in a browser, `@`-mention
       yourself in a comment or assign yourself a card. The banner should arrive
       within a few seconds. An emulator cannot prove this — it needs the phone.
       If nothing arrives, say so and I'll read the function logs.
 
-- [ ] **Web push — confirm the VAPID key is live** (was "generate a key"). A key
-      is already present in `app/.env.local` as `EXPO_PUBLIC_FCM_VAPID_KEY` (added
-      mid-session). What remains is to confirm it is the REAL key from the Firebase
-      console (not a placeholder), that a web deploy since then carried it into the
-      bundle, and that a web push actually arrives. The service worker half is
-      written, committed, and verified to land at the site root on export.
+- [ ] **Web push — confirm a push actually ARRIVES.** The configuration half is
+      done and verified against the live site, so this is now one question, not
+      three. Confirmed by reading the deployed bundle and the deployed origin:
+      the VAPID key is present and non-empty (the minifier folded the
+      `!VAPID_KEY` guard away, which it can only do for a truthy literal),
+      `USE_EMULATORS` compiles to `false`, and `/firebase-messaging-sw.js`
+      returns HTTP 200.
+
+      What was actually broken was neither of those: permission was requested
+      from a Firestore snapshot callback, and a browser only honours that
+      request straight from a click. Safari refused it silently and Chrome
+      demoted it to the quiet chip, so the site sat at `default` — in neither
+      the allowed nor the blocked list. Fixed; the ask is now on a button.
+
+      So: after the next web deploy, open the site, use **Enable notifications**
+      (the card on Boards, or the gear on Alerts), allow it, and have someone
+      `@`-mention you. Note the deployed bundle predates this fix, so nothing
+      changes until that deploy.
+
+      Expect the TAP to only focus the app, not open the card. That is
+      deliberate and is not part of this item: the web app has no URLs for board
+      and card ids, so `firebase-messaging-sw.js` focuses rather than opening a
+      link that would land on the home screen anyway. Worth revisiting now that
+      web push actually arrives — the ids are already in the notification data,
+      and that handler is where it goes.
 
       A VAPID key is a public/private pair identifying *your server* to the
       browser's push service (Google's for Chrome, Mozilla's for Firefox). The
@@ -701,14 +721,18 @@ Android push is wired and ships in the next APK. Two items are console work.
       signs each push. Android needs none of this because FCM reaches Play
       services on the device directly.
 
-      Firebase console → **Project settings** → **Cloud Messaging** →
-      *Web configuration* → **Web Push certificates** → **Generate key pair**.
-      Copy the key into `app/.env.local` as `EXPO_PUBLIC_FCM_VAPID_KEY=…`. It is
-      a public key, not a secret, but keep it out of chat by convention.
+      The key already exists and is already deployed — nothing to generate. It
+      lives in `app/.env.local` as `EXPO_PUBLIC_FCM_VAPID_KEY` and reaches the
+      bundle from the environment that runs `expo export`. If it is ever lost or
+      rotated: Firebase console → **Project settings** → **Cloud Messaging** →
+      *Web configuration* → **Web Push certificates**. Console-only — there is
+      no `firebase` CLI command and no REST endpoint for it (checked, not
+      assumed).
 
-      Console-only — there is no `firebase` CLI command and no REST endpoint for
-      it (checked, not assumed). Tell me when it's there and I'll rebuild and
-      redeploy the web app. Until then web push does nothing, deliberately.
+      `npm run check:web-push` now reads the exported bundle and refuses when
+      the key is missing or the wrong shape, so a keyless deploy — which would
+      silently make every device report that it cannot receive notifications —
+      cannot go out unnoticed. Run it between `web:export` and the deploy.
 
 - [x] **Functions Sentry verified 2026-07-20.** Marker
       `functions-sentry-check 2026-07-20T16:01:17.471Z` arrived in

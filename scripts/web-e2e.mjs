@@ -1523,6 +1523,33 @@ try {
   // Preferences are per-event and per-board.
   await sara.getByRole('button', { name: 'Settings' }).click();
   await sara.getByText('What you are told about').first().waitFor({ timeout: 15000 });
+
+  /*
+   * The panel must always say SOMETHING about this device — exactly one of the
+   * four states, never none and never two. Browser-independent on purpose:
+   * headless Chromium reports permission as 'denied' and the full browser
+   * reports 'default', so asserting a particular message would hold under only
+   * one of them. What must hold under both is that the section exists at all —
+   * without this the run merely screenshots whatever renders, and the whole
+   * control could vanish with every check still green.
+   */
+  const deviceStates = [
+    'Notifications are not enabled on this device.',
+    'Notifications are enabled on this device.',
+    'Notifications are blocked for this app on this device.',
+    'This device can\u2019t show notifications.',
+  ];
+  const deviceShown = [];
+  for (const m of deviceStates) {
+    if (await sara.getByText(m, { exact: false }).first().isVisible().catch(() => false)) {
+      deviceShown.push(m);
+    }
+  }
+  check(
+    'the panel says exactly one thing about this device',
+    deviceShown.length === 1,
+    `saw ${deviceShown.length}: ${deviceShown.join(' | ') || '(none)'}`,
+  );
   const movedDefaultOff = await sara
     .getByText('A card assigned to you was moved')
     .first()

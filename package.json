@@ -2,7 +2,7 @@
   "name": "sabeel-institute-kanban",
   "version": "0.0.0",
   "private": true,
-  "description": "Sabeel Institute Kanban — access-controlled kanban boards for a small nonprofit (Android + web from one Expo codebase, Firebase backend)",
+  "description": "Sabeel Institute Kanban \u2014 access-controlled kanban boards for a small nonprofit (Android + web from one Expo codebase, Firebase backend)",
   "workspaces": [
     "packages/*",
     "functions",
@@ -33,7 +33,8 @@
     "probe-indexes": "GCLOUD_PROJECT=sabeel-institute-kanban node scripts/probe-indexes.mjs",
     "deadcode": "knip",
     "publish:play": "node scripts/publish-play.mjs",
-    "build:ios": "bash scripts/build-ios.sh"
+    "build:ios": "bash scripts/build-ios.sh",
+    "check:web-push": "node scripts/check-web-push.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

@@ -146,6 +146,21 @@ describe('enablePush — the gesture path', () => {
     expect(setDoc).not.toHaveBeenCalled();
   });
 
+  /**
+   * Callers treat this as total — the nudge and the settings screen both reset
+   * their busy state in a .then. A synchronous throw from requestPermission
+   * used to escape (it was raised outside the try) and leave a button spinning
+   * with no way back.
+   */
+  it('never rejects, even when the prompt itself throws', async () => {
+    browser('default');
+    requestPermission.mockImplementation(() => {
+      throw new TypeError('Illegal invocation');
+    });
+    await expect(enablePush('user-1')).resolves.toBe('unavailable');
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
   it('does not re-ask a browser that already granted', async () => {
     browser('granted');
     await expect(enablePush('user-1')).resolves.toBe('granted');
@@ -188,6 +203,49 @@ describe('against the emulators', () => {
  * site settings, so the screen must show instructions there rather than a
  * button that silently does nothing.
  */
+/**
+ * The SYNCHRONOUS half of the support check — the part that gates the prompt.
+ * Every other test hands it a fully capable browser, so without these a
+ * deleted capability check would pass the whole suite while letting the app
+ * call requestPermission on a browser that cannot do web push at all.
+ */
+describe('a browser missing a capability', () => {
+  it('asks nothing when PushManager is absent', async () => {
+    browser('default');
+    // @ts-expect-error deleting a global we installed for the test
+    delete globalThis.PushManager;
+    await expect(pushPromptState()).resolves.toBe('unsupported');
+    await expect(enablePush('user-1')).resolves.toBe('unavailable');
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing when the browser has no Notification at all', async () => {
+    browser('default');
+    const asked = requestPermission;
+    // @ts-expect-error deleting a global we installed for the test
+    delete globalThis.Notification;
+    await expect(pushPromptState()).resolves.toBe('unsupported');
+    await expect(enablePush('user-1')).resolves.toBe('unavailable');
+    expect(asked).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing when there is no service worker', async () => {
+    browser('default');
+    Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true });
+    await expect(pushPromptState()).resolves.toBe('unsupported');
+    await expect(enablePush('user-1')).resolves.toBe('unavailable');
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('registers nothing rather than throwing', async () => {
+    browser('granted');
+    // @ts-expect-error deleting a global we installed for the test
+    delete globalThis.PushManager;
+    await expect(registerPush('user-1')).resolves.toBe(false);
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+});
+
 describe('opening settings', () => {
   it('is not possible from a browser', () => {
     expect(canOpenPushSettings).toBe(false);

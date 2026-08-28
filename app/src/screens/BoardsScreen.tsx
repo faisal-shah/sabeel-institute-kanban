@@ -195,6 +195,12 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           screen keeps only its own title and the create-board control. */}
       <Title>Boards</Title>
 
+      {/* Top of the content, below the alert only. Same place in all three apps:
+          first thing after anything that needs acting on today. This screen has
+          no alert, so it leads. It is one-time and dismissible, so it earns the
+          position. */}
+      <PushNudge uid={user.uid} />
+
       {sessionCan.createBoards(user) ? (
         creating ? (
           <NewBoardForm busy={busy} onCreate={create} onCancel={() => setCreating(false)} />
@@ -208,10 +214,6 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           <Body>{error}</Body>
         </Card>
       ) : null}
-
-      {/* Below the screen's own primary action, above the list. A one-time
-          setup prompt must not outrank the button someone came here to press. */}
-      <PushNudge uid={user.uid} />
 
       {(boards.data?.length ?? 0) > 6 ? (
         <TextInput

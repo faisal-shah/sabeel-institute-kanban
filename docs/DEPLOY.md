@@ -475,6 +475,7 @@ its own runbook.)
 # 1. WRITE THE "What's new" PARAGRAPH on the download page — see below, nothing checks it
 git push origin main            # FIRST — a release attaches to a commit GitHub already has
 npm run web:export -w @sabeel/app
+npm run check:web-push      # the VAPID key actually reached the bundle
 npx firebase deploy --only hosting --project sabeel-institute-kanban
 npm run build:apk && scripts/publish-apk.sh          # download page + versioned GitHub release
 npm run build:aab && npm run publish:play -- --internal   # the team, via Play

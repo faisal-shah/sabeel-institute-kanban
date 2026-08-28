@@ -1,15 +1,20 @@
 /**
  * Taps on a push notification — WEB (native sibling: pushOpen.ts).
  *
- * Inert, and honestly so. Web push in this app is dormant: `notify.web.ts`
- * returns before registering unless EXPO_PUBLIC_FCM_VAPID_KEY is set, and no
- * key is (see TODO.md § I), so no browser here can receive a notification to
- * tap. Wiring a service-worker `notificationclick` path would be code that has
- * never once run.
+ * Inert, deliberately — but no longer because nothing arrives. A VAPID key IS
+ * deployed (verified in the live bundle), and permission is now asked from a
+ * press rather than from a snapshot callback, so browsers DO receive these.
+ *
+ * What is still missing is a destination. The web app has no URL handling for
+ * board and card ids, so `firebase-messaging-sw.js` deliberately focuses the
+ * app on click instead of opening a link that would look meaningful and land on
+ * the home screen anyway. The ids are already in `event.notification.data`, and
+ * that handler — not this file — is where routing goes when the web app grows
+ * URLs for them. Until then a tapped web push opens the app, and the
+ * notification is in Alerts either way.
  *
  * The seam exists so App.tsx mounts one hook for both platforms instead of
- * branching on Platform.OS. If web push is ever turned on, this file — not the
- * caller — is what changes.
+ * branching on Platform.OS.
  */
 export type PushData = Record<string, string>;
 
