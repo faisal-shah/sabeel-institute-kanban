@@ -470,6 +470,20 @@ left a server on a port `dev.sh stop` does not sweep. The guard that exists for
 exactly this missed it twice over: it reads only `scripts/`, and only the
 `host:port` form. It reads `package.json` and `--port N` now.
 
+**Twelve review cycles in total, run until two consecutive found nothing.**
+After the five above: the sweep was made to ASSERT the nudge is in the shot
+rather than merely stubbing it into one — otherwise the stub could stop working
+and the card would vanish from every screenshot with every check still green;
+the screen was taught to forget its filed token whenever permission stops being
+granted, closing a hole the "register once" optimisation had opened two cycles
+earlier; the native seam got the three totality tests the web sibling already
+had, since that asymmetry is how the two halves drifted apart twice; and
+DEVELOPING.md stopped claiming the e2e asserts the dev row's absence from the
+exported bundle, which it cannot — the strings are in the bundle and the check is
+on the render. Two of the twelve findings were regressions from fixes earlier in
+the same pass, both from adding a guard or a cache without tracing its
+invalidation.
+
 **Verified on the device, which is the point of the release**: no dialog at
 sign-in; the dialog raised from the button press; `dumpsys notification` showing
 one channel for the package, `sabeel-alerts` at `mImportance=4`, with the stale
