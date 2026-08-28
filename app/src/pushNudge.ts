@@ -1,21 +1,24 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { enablePush, pushPromptState } from './notify';
 import { useCheckOnForeground } from './foreground';
+import { afterRecheck, type NudgeState } from './pushNudgeState';
 
 /**
  * The one-time nudge to switch notifications on, shown on the first screen
  * after signing in.
  *
  * It exists because the permission prompt has to follow a press (see
- * notify.web.ts), and the only control that does that lives on the
- * notifications screen — which someone who never goes looking will never find.
- * This is the discoverable route to the same call.
+ * notify.web.ts and notify.ts — the rule holds on both surfaces, for different
+ * reasons), and the only control that does that lives on the notifications
+ * screen — which someone who never goes looking will never find. This is the
+ * discoverable route to the same call.
  *
  * Dismissing costs NOTHING. That is the whole point of asking on our own card
- * before the browser's: a "not now" here is free and repeatable, while a
- * dismissed browser or OS dialog can never be raised again. The notifications
- * screen always offers the same control, so nobody is trapped by dismissing.
+ * before the browser's or the OS's: a "not now" here is free and repeatable,
+ * while a dismissed browser or OS dialog can never be raised again. The
+ * notifications screen always offers the same control, so nobody is trapped by
+ * dismissing.
  */
 
 /**
@@ -36,6 +39,19 @@ async function isDismissed(uid: string): Promise<boolean> {
   }
 }
 
+/**
+ * ONE state owns whether the card shows AND what it says, so the two cannot
+ * disagree — the same shape `ColumnNameEditor` uses for editing-and-text.
+ *
+ * They did disagree, and it took a device to see it. Two independent flags let
+ * the foreground re-check below clear a failure the press had just recorded:
+ * the OS permission dialog is its own activity, so ALLOWING it returns the app
+ * to the front and fires that re-check, which found permission granted, decided
+ * the card was no longer needed and hid it — while the attempt behind it was
+ * still failing to file a token. The card vanished on a press that achieved
+ * nothing, which is precisely the silent failure the failed state exists to
+ * prevent, reintroduced by the fix for a different silent failure.
+ */
 export function usePushNudge(uid: string): {
   visible: boolean;
   busy: boolean;
@@ -44,28 +60,37 @@ export function usePushNudge(uid: string): {
   enable: () => Promise<void>;
   dismiss: () => void;
 } {
-  const [visible, setVisible] = useState(false);
+  const [state, setState] = useState<NudgeState>('hidden');
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /**
+   * An attempt is in flight, so any foreground event is OUR OWN prompt closing
+   * rather than news from outside. `enable` owns the outcome; a re-check racing
+   * it can only get the answer wrong, because it reads the permission alone and
+   * cannot see whether a token was filed.
+   *
+   * A ref, not state: it is read inside an async callback that would otherwise
+   * close over a stale value, and nothing renders from it.
+   */
+  const attempting = useRef(false);
 
   // Remounting covers most of it — this app renders one screen per route rather
   // than stacking them, so returning to the board list re-runs this, where the
   // two sibling apps keep their home screen mounted and need useFocusEffect.
-  // What remounting does NOT cover is leaving the app entirely for the system
-  // settings screen and coming back, which is where the card sends a blocked
-  // device; see useCheckOnForeground.
+  // What remounting does NOT cover is leaving the app entirely — for the system
+  // settings screen, or for the permission dialog — and coming back. See
+  // useCheckOnForeground.
   useCheckOnForeground(() => {
     let live = true;
     void (async () => {
+      const [permission, dismissed] = await Promise.all([
+        pushPromptState(),
+        isDismissed(uid),
+      ]);
+      if (!live || attempting.current) return;
       // Only 'default' is worth a nudge: granted needs nothing, and denied
       // cannot be re-asked from here at all.
-      const [state, dismissed] = await Promise.all([pushPromptState(), isDismissed(uid)]);
-      if (!live) return;
-      // Cleared on every re-check: a failure is about one attempt, not about the
-      // device forever, and leaving it set would strand the card on an error
-      // with no way to try again.
-      setFailed(false);
-      setVisible(state === 'default' && !dismissed);
+      const askable = permission === 'default' && !dismissed;
+      setState((prev) => afterRecheck(prev, askable));
     })();
     return () => {
       live = false;
@@ -74,8 +99,10 @@ export function usePushNudge(uid: string): {
 
   // enablePush must be the FIRST thing this does — a browser only honours a
   // permission request raised directly from a press, and an await before it
-  // loses that. setBusy is synchronous, so it does not separate the two.
+  // loses that. setBusy and the ref are synchronous, so they do not separate
+  // the two.
   const enable = () => {
+    attempting.current = true;
     setBusy(true);
     // RETURNED, not voided: a Button that awaits its handler to drive its own
     // progress (the time tracker's does) gets nothing from a void. Returning
@@ -97,15 +124,17 @@ export function usePushNudge(uid: string): {
         // go away. But permission granted with NO TOKEN behind it is a silent
         // failure that looks exactly like success: the card would vanish and
         // nothing would ever arrive. Say so instead.
-        if (result === 'unavailable') return setFailed(true);
-        setVisible(false);
+        setState(result === 'unavailable' ? 'failed' : 'hidden');
+        // Released LAST, after the outcome is recorded, so a foreground event
+        // arriving in between cannot overwrite it.
+        attempting.current = false;
       });
   };
 
   const dismiss = () => {
-    setVisible(false);
+    setState('hidden');
     void AsyncStorage.setItem(key(uid), '1').catch(() => undefined);
   };
 
-  return { visible, busy, failed, enable, dismiss };
+  return { visible: state !== 'hidden', busy, failed: state === 'failed', enable, dismiss };
 }

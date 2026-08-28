@@ -415,6 +415,27 @@ exact shape the release before this one was written to eliminate. The gate now
 stops at the token, where the web sibling stops, and everything above it is real
 on a local build.
 
+**A fourth defect, introduced by the second fix and caught the same way.** With
+the foreground re-read in, pressing *Enable notifications* on the device made the
+card VANISH rather than report the failure — the silent hide that v0.10.1 had
+just removed, back again by a different route. The OS permission dialog is its
+own activity, so allowing it returns the app to the front and fires the very
+re-check that was added for settings changed outside the app; that re-check reads
+the permission alone, cannot see whether a token was filed, found "granted" and
+concluded the card was no longer needed. Two independent flags let it overwrite
+what the press had just recorded, so one state owns the card now — hidden, offer
+or failed — the shape `ColumnNameEditor` already uses, and an in-flight attempt
+owns its own outcome. Neither browser suite could have caught it: web grants
+permission without ever leaving the page, so no foreground event collides with
+the attempt, and both suites were green with the bug present. The transition is
+`afterRecheck` in its own dependency-free module for that reason, with tests,
+because a pure function is the only part of a two-source race that can be pinned
+down without a device.
+
+That one is worth stating plainly: the fix for a silent failure reintroduced a
+silent failure, every suite stayed green across both, and what caught it was
+looking at the screen after the change rather than before.
+
 Also fixed, and unrelated: `npm run dev:web` still served the abandoned port
 8086 after the port move, while `dev.sh web` waited on 61210 and `seed-dev.mjs`
 fetched 61210 — so the documented web dev loop could not complete at all, and
