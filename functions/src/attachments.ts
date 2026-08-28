@@ -420,7 +420,13 @@ async function readUrl(path: string, expiresAt: number): Promise<string> {
   const file = bucket().file(path);
 
   if (isEmulatorProject()) {
-    const host = process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? '127.0.0.1:9199';
+    // No fallback port. This branch only runs under the emulator suite, which
+    // always exports the var, and a default would aim at whatever holds that
+    // port — on this machine, potentially a sibling checkout's Storage.
+    const host = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+    if (!host) {
+      throw new Error('FIREBASE_STORAGE_EMULATOR_HOST is unset under an emulator project');
+    }
     // A plain `?alt=media` URL is RULES-governed, and storage.rules denies every
     // read — deliberately, since production reads bypass rules by being signed.
     // So the emulator needs the one other thing that bypasses them: a token.
