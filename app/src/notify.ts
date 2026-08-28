@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { PUSH_CHANNEL_ID, PUSH_CHANNEL_NAME } from '@sabeel/shared';
@@ -31,6 +32,16 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+/**
+ * Native can deep-link to its own settings page, so a blocked device gets a
+ * button rather than instructions. The web sibling cannot — see there.
+ */
+export const canOpenPushSettings = true;
+
+export function openPushSettings(): void {
+  void Linking.openSettings();
+}
 
 /** Mirrors the web sibling — see notify.web.ts for why this is not a boolean. */
 export type PushEnableResult = 'granted' | 'denied' | 'unavailable';
@@ -71,10 +82,10 @@ export async function enablePush(uid: string): Promise<PushEnableResult> {
   return state === 'unsupported' ? 'unavailable' : 'denied';
 }
 
-export async function registerPush(uid: string): Promise<void> {
+export async function registerPush(uid: string): Promise<boolean> {
   // FCM has no emulator. Registering against the emulator project would file a
   // token nothing can deliver to, and make local runs non-deterministic.
-  if (USE_EMULATORS) return;
+  if (USE_EMULATORS) return false;
   try {
     // The channel the server addresses by id — see PUSH_CHANNEL_ID for why the
     // two must agree and why the importance has to be right the first time.
@@ -88,14 +99,14 @@ export async function registerPush(uid: string): Promise<void> {
     // try to configure.
     await Notifications.deleteNotificationChannelAsync('default').catch(() => {});
     const perm = await Notifications.requestPermissionsAsync();
-    if (!perm.granted) return;
+    if (!perm.granted) return false;
 
     // getDevicePushTokenAsync gives the native FCM token, which is what the
     // Admin SDK sends to. getExpoPushTokenAsync would return an Expo token and
     // route through Expo's service instead — a different delivery path that the
     // functions do not use.
     const { data: token } = await Notifications.getDevicePushTokenAsync();
-    if (typeof token !== 'string' || !token) return;
+    if (typeof token !== 'string' || !token) return false;
 
     await storeToken(uid, token);
 
@@ -111,8 +122,10 @@ export async function registerPush(uid: string): Promise<void> {
         }
       });
     }
+    return true;
   } catch (e) {
     captureError(e, { source: 'registerPush' });
+    return false;
   }
 }
 

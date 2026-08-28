@@ -53,6 +53,15 @@ function canRequestPush(): boolean {
  * be done here. Read on mount, never in a press handler — it awaits.
  */
 /**
+ * A browser deliberately offers no way to open its own site settings — the
+ * permission would be worth little if a site could reach past it. So a blocked
+ * browser gets told where to look instead of a button that cannot work.
+ */
+export const canOpenPushSettings = false;
+
+export function openPushSettings(): void {}
+
+/**
  * What came of asking. Three outcomes, not a boolean: permission granted but no
  * token — a browser pointed at the emulators, a service worker that failed to
  * activate — is not a refusal, and telling someone their notifications are
@@ -84,12 +93,13 @@ export async function pushPromptState(): Promise<
  * that was permitted in an earlier visit still registers silently right here,
  * so every already-working device keeps working with no extra click.
  */
-export async function registerPush(uid: string): Promise<void> {
-  if (!canRequestPush() || Notification.permission !== 'granted') return;
+export async function registerPush(uid: string): Promise<boolean> {
+  if (!canRequestPush() || Notification.permission !== 'granted') return false;
   try {
-    await claimToken(uid);
+    return await claimToken(uid);
   } catch (e) {
     captureError(e, { source: 'registerPush' });
+    return false;
   }
 }
 

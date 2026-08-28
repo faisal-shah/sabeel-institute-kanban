@@ -13,7 +13,13 @@ import {
   type InboxItem,
 } from '../notifications';
 import { useMyBoards } from '../boards';
-import { enablePush, pushPromptState } from '../notify';
+import {
+  canOpenPushSettings,
+  enablePush,
+  openPushSettings,
+  pushPromptState,
+  registerPush,
+} from '../notify';
 import { setBoardMuted } from '../notifications';
 import type { SessionUser } from '../session';
 import { useNav } from '../nav';
@@ -76,13 +82,20 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
 
   useEffect(() => {
     let live = true;
-    void pushPromptState().then((state) => {
-      if (live) setPush(state);
-    });
+    void (async () => {
+      const state = await pushPromptState();
+      if (!live) return;
+      if (state !== 'granted') return setPush(state);
+      // Permission alone is not enough to promise delivery. Claim the token and
+      // report what actually happened, or this says "enabled" over a device
+      // with nothing registered behind it.
+      const ok = await registerPush(user.uid);
+      if (live) setPush(ok ? 'granted' : 'unsupported');
+    })();
     return () => {
       live = false;
     };
-  }, []);
+  }, [user.uid]);
 
   // enablePush must be the FIRST thing this handler does — a browser only
   // honours a permission request raised directly from a click, and an await
@@ -145,13 +158,9 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
           <Heading>This device</Heading>
           {push === 'default' ? (
             <Panel>
-              <Body>
-                This device is not set up to receive notifications yet. Everything
-                still arrives in the list here — turning them on also sends them to
-                this device.
-              </Body>
+              <Body>Notifications are not enabled on this device.</Body>
               <Button
-                label="Turn on notifications"
+                label="Enable notifications"
                 busy={enabling}
                 onPress={turnOnPush}
               />
@@ -159,25 +168,31 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
           ) : null}
           {push === 'granted' ? (
             <Panel>
-              <Body>This device receives notifications.</Body>
+              <Body>Notifications are enabled on this device.</Body>
             </Panel>
           ) : null}
           {push === 'denied' ? (
             <Panel>
-              <Body>
-                Notifications are turned off for this app. Turn them back on where
-                this device keeps its permissions — your browser&apos;s site
-                settings, or the system settings for the app — then reopen this
-                screen.
-              </Body>
+              <Body>Notifications are blocked for this app on this device.</Body>
+              {/* Native can open its own settings page; a browser cannot, so
+                  there it is instructions or nothing. */}
+              {canOpenPushSettings ? (
+                <Button
+                  label="Open settings"
+                  variant="secondary"
+                  onPress={openPushSettings}
+                />
+              ) : (
+                <Hint>
+                  Allow them in your browser’s site settings, then reopen this
+                  screen.
+                </Hint>
+              )}
             </Panel>
           ) : null}
           {push === 'unsupported' ? (
             <Panel>
-              <Body>
-                This device can&apos;t show notifications. Everything still arrives
-                in the list here.
-              </Body>
+              <Body>This device can’t show notifications.</Body>
             </Panel>
           ) : null}
 

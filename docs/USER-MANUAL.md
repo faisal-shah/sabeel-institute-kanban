@@ -463,10 +463,12 @@ on/off switch and you can **mute** individual boards with the bell. One kind is
 off by default — "a card assigned to you was moved" — because on a busy board it
 fires constantly. **You are never notified about your own actions.**
 
-Push notifications need the device's own permission. On a phone the app asks
-when you sign in; a browser will not let it ask on its own, so open the **gear**
-and use **Turn on notifications** there. Either way it is once per device, and
-that screen always says where this device stands. Notifications follow the
+Push notifications need the device's own permission. The app offers to set it up
+once, on the Boards screen after you sign in — or you can open the **gear** here
+any time and use **Enable notifications**. It is once per device, and this screen
+always says where this device stands. If notifications have been blocked, the
+button becomes **Open settings** on a phone; in a browser, allow them from the
+site settings behind the icon in the address bar. Notifications follow the
 account signed in on the device.
 
 ## 1.10 Signing out

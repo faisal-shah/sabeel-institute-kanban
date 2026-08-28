@@ -28,6 +28,7 @@ import {
   Spinner,
   Title,
 } from '../components/ui';
+import { PushNudge } from '../components/PushNudge';
 import { radius, space, type, useTheme } from '../theme';
 
 /** Shared empty array, so absent preferences keep a stable identity. */
@@ -207,6 +208,10 @@ export function BoardsScreen({ user }: { user: SessionUser }) {
           <Body>{error}</Body>
         </Card>
       ) : null}
+
+      {/* Below the screen's own primary action, above the list. A one-time
+          setup prompt must not outrank the button someone came here to press. */}
+      <PushNudge uid={user.uid} />
 
       {(boards.data?.length ?? 0) > 6 ? (
         <TextInput

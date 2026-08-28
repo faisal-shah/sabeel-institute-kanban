@@ -36,7 +36,8 @@ import { setDoc } from 'firebase/firestore';
 // Read at module scope by notify.web.ts, so it has to be in place before the
 // import below — hence the dynamic import rather than a static one.
 process.env.EXPO_PUBLIC_FCM_VAPID_KEY = 'test-vapid-public-key';
-const { enablePush, registerPush, pushPromptState } = await import('./notify.web');
+const { canOpenPushSettings, enablePush, openPushSettings, registerPush, pushPromptState } =
+  await import('./notify.web');
 
 const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>;
 
@@ -76,9 +77,27 @@ describe('registerPush — the sign-in path', () => {
 
   it('registers silently when permission was already granted', async () => {
     browser('granted');
-    await registerPush('user-1');
+    await expect(registerPush('user-1')).resolves.toBe(true);
     expect(requestPermission).not.toHaveBeenCalled();
     expect(setDoc).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * It reports DELIVERABILITY, not permission. The settings screen reads this to
+   * decide whether to say "enabled" — and permission granted over a device with
+   * no token filed is a switch with nothing behind it.
+   */
+  it('reports false when permission is granted but no token can be had', async () => {
+    browser('granted');
+    asMock(getToken).mockResolvedValue('');
+    await expect(registerPush('user-1')).resolves.toBe(false);
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it('reports false, and writes nothing, when it was never permitted', async () => {
+    browser('default');
+    await expect(registerPush('user-1')).resolves.toBe(false);
+    expect(setDoc).not.toHaveBeenCalled();
   });
 });
 
@@ -161,6 +180,21 @@ describe('against the emulators', () => {
     await expect(enable('user-1')).resolves.toBe('unavailable');
     expect(requestPermission).toHaveBeenCalledTimes(1);
     expect(setDoc).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The blocked state branches on this. A browser offers no way to open its own
+ * site settings, so the screen must show instructions there rather than a
+ * button that silently does nothing.
+ */
+describe('opening settings', () => {
+  it('is not possible from a browser', () => {
+    expect(canOpenPushSettings).toBe(false);
+  });
+
+  it('is a no-op rather than a throw, so a mis-wired caller cannot crash a screen', () => {
+    expect(() => openPushSettings()).not.toThrow();
   });
 });
 
