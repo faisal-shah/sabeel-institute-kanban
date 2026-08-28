@@ -19,21 +19,29 @@ export function PushNudge({ uid }: { uid: string }) {
     <Card>
       <Body>
         {failed
-          ? 'This device can’t show notifications.'
+          ? 'Notifications can’t be set up on this device.'
           : 'Notifications are not enabled on this device.'}
       </Body>
       {/* No Enable button once it has failed — pressing again would do the same
           nothing. Dismissing is the only useful action left. */}
       {failed ? null : <Button label="Enable notifications" busy={busy} onPress={enable} />}
+      {/* Disabled while the attempt runs, for the same reason `Button` disables
+          itself: on web the page stays interactive behind the permission chip,
+          so this was clickable mid-attempt — and the attempt's own result then
+          landed after the dismissal and put the card back, against a stored flag
+          that said it had been waved away. */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Not now"
         onPress={dismiss}
+        disabled={busy}
         style={styles.dismiss}
       >
         {/* Accent + underline, the link treatment: Hint's secondary grey read
             as a caption under the button rather than something to tap. */}
-        <Text style={[styles.dismissText, { color: t.text.accent }]}>Not now</Text>
+        <Text style={[styles.dismissText, { color: t.text.accent, opacity: busy ? 0.45 : 1 }]}>
+          Not now
+        </Text>
       </Pressable>
     </Card>
   );

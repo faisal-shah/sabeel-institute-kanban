@@ -63,15 +63,20 @@ export function usePushNudge(uid: string): {
   const [state, setState] = useState<NudgeState>('hidden');
   const [busy, setBusy] = useState(false);
   /**
-   * An attempt is in flight, so any foreground event is OUR OWN prompt closing
-   * rather than news from outside. `enable` owns the outcome; a re-check racing
-   * it can only get the answer wrong, because it reads the permission alone and
-   * cannot see whether a token was filed.
+   * How many attempts are in flight. While any is, a foreground event is OUR OWN
+   * prompt closing rather than news from outside: `enable` owns the outcome, and
+   * a re-check racing it can only get the answer wrong, because it reads the
+   * permission alone and cannot see whether a token was filed.
+   *
+   * A COUNT rather than a flag. `busy` disables the button, but busy is state,
+   * so it cannot stop a second press in the same frame — and with a flag the
+   * first attempt to finish would clear it while the second was still running,
+   * reopening the window it exists to close.
    *
    * A ref, not state: it is read inside an async callback that would otherwise
    * close over a stale value, and nothing renders from it.
    */
-  const attempting = useRef(false);
+  const attempts = useRef(0);
 
   // Remounting covers most of it — this app renders one screen per route rather
   // than stacking them, so returning to the board list re-runs this, where the
@@ -86,7 +91,7 @@ export function usePushNudge(uid: string): {
         pushPromptState(),
         isDismissed(uid),
       ]);
-      if (!live || attempting.current) return;
+      if (!live || attempts.current > 0) return;
       // Only 'default' is worth a nudge: granted needs nothing, and denied
       // cannot be re-asked from here at all.
       const askable = permission === 'default' && !dismissed;
@@ -102,7 +107,7 @@ export function usePushNudge(uid: string): {
   // loses that. setBusy and the ref are synchronous, so they do not separate
   // the two.
   const enable = () => {
-    attempting.current = true;
+    attempts.current += 1;
     setBusy(true);
     // RETURNED, not voided: a Button that awaits its handler to drive its own
     // progress (the time tracker's does) gets nothing from a void. Returning
@@ -127,7 +132,7 @@ export function usePushNudge(uid: string): {
         setState(result === 'unavailable' ? 'failed' : 'hidden');
         // Released LAST, after the outcome is recorded, so a foreground event
         // arriving in between cannot overwrite it.
-        attempting.current = false;
+        attempts.current -= 1;
       });
   };
 

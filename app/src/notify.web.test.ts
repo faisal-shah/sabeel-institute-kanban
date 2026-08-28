@@ -209,6 +209,44 @@ describe('against the emulators', () => {
  * deleted capability check would pass the whole suite while letting the app
  * call requestPermission on a browser that cannot do web push at all.
  */
+/**
+ * A support probe that never settles must not take the screen down with it.
+ *
+ * `isSupported()` opens IndexedDB, and an `open()` can neither resolve nor
+ * reject — a blocked upgrade, a locked-down or private window. Unguarded, that
+ * left `pushPromptState` pending for ever, so the notifications screen rendered
+ * no "This device" section at all and the nudge never appeared: no throw, no
+ * log, the one control the feature depends on silently absent.
+ */
+describe('a support check that hangs', () => {
+  it('reports unsupported rather than never answering', async () => {
+    vi.useFakeTimers();
+    try {
+      browser('default');
+      asMock(isSupported).mockReturnValue(new Promise(() => {}));
+      const pending = pushPromptState();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(pending).resolves.toBe('unsupported');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not file a token on a browser it could not establish support for', async () => {
+    vi.useFakeTimers();
+    try {
+      browser('granted');
+      asMock(isSupported).mockReturnValue(new Promise(() => {}));
+      const pending = registerPush('user-1');
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(pending).resolves.toBe(false);
+      expect(setDoc).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('a browser missing a capability', () => {
   it('asks nothing when PushManager is absent', async () => {
     browser('default');

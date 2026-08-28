@@ -1031,6 +1031,10 @@ try {
     // getter is what gets replaced; the alternative was a permanent hole in the
     // default layout check.
     await ctx.addInitScript(() => {
+      // Guarded: an init script runs in EVERY frame, and a blank one has no
+      // Notification to define a property on. A throw here would surface through
+      // the pageerror handler below as a failed check about something else.
+      if (typeof window.Notification === 'undefined') return;
       Object.defineProperty(window.Notification, 'permission', {
         configurable: true,
         get: () => 'default',

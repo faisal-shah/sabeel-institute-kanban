@@ -49,9 +49,27 @@ function canRequestPush(): boolean {
 }
 
 /**
- * What the notifications screen should offer: ask, explain, or say nothing can
- * be done here. Read on mount, never in a press handler — it awaits.
+ * `isSupported()`, but it cannot hang.
+ *
+ * It probes IndexedDB, and an `open()` can neither resolve nor reject — a
+ * blocked upgrade, a locked-down or private window. An unsettled promise here is
+ * worse than a false one, because everything downstream simply never happens:
+ * `pushPromptState` never returns, so the notifications screen renders no
+ * "This device" section at all and the nudge never appears. Nothing throws,
+ * nothing logs, and the control the whole feature depends on is silently absent
+ * — which is the exact failure shape this file was rewritten to remove.
+ *
+ * Same reasoning as the `serviceWorker.ready` race in `claimToken`, and the same
+ * answer. Timing out means "we could not establish support", which is reported
+ * as unsupported: an honest answer a person can act on, rather than none.
  */
+async function supported(): Promise<boolean> {
+  return Promise.race([
+    isSupported().catch(() => false),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
+  ]);
+}
+
 /**
  * A browser deliberately offers no way to open its own site settings — the
  * permission would be worth little if a site could reach past it. So a blocked
@@ -70,13 +88,17 @@ export function openPushSettings(): void {}
  */
 export type PushEnableResult = 'granted' | 'denied' | 'unavailable';
 
+/**
+ * What the notifications screen should offer: ask, explain, or say nothing can
+ * be done here. Read on mount, never in a press handler — it awaits.
+ */
 export async function pushPromptState(): Promise<
   'granted' | 'denied' | 'default' | 'unsupported'
 > {
   if (!canRequestPush()) return 'unsupported';
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
-  return (await isSupported().catch(() => false)) ? 'default' : 'unsupported';
+  return (await supported()) ? 'default' : 'unsupported';
 }
 
 /**
@@ -153,7 +175,7 @@ async function claimToken(uid: string): Promise<boolean> {
   // do. That split is deliberate: it keeps the notification screen reviewable
   // locally without pretending a local device can receive a push.
   if (USE_EMULATORS) return false;
-  if (!(await isSupported().catch(() => false))) return false;
+  if (!(await supported())) return false;
   await navigator.serviceWorker.register('/firebase-messaging-sw.js');
   // `register()` resolves as soon as the script is FETCHED, not once a worker is
   // running it. Handing that registration straight to getToken fails with
@@ -193,7 +215,7 @@ export async function unregisterPush(uid: string): Promise<void> {
   if (USE_EMULATORS) return;
   if (!canRequestPush() || Notification.permission !== 'granted') return;
   try {
-    if (!(await isSupported().catch(() => false))) return;
+    if (!(await supported())) return;
     const sw = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     const token = await getToken(getMessaging(app), {
       vapidKey: VAPID_KEY,

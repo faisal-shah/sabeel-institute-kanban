@@ -436,6 +436,33 @@ That one is worth stating plainly: the fix for a silent failure reintroduced a
 silent failure, every suite stayed green across both, and what caught it was
 looking at the screen after the change rather than before.
 
+**Five more, from review cycles run after the device pass** — because four
+defects surviving two prior review rounds is an argument for more rounds, not
+for confidence.
+
+- `isSupported()` probes IndexedDB, and an `open()` can hang rather than fail —
+  a blocked upgrade, a locked-down window. Unguarded that left `pushPromptState`
+  pending for ever, so the "This device" section never rendered and the nudge
+  never appeared: no throw, no log, the control silently absent. It is raced
+  against a timeout now, the same shape `claimToken` already used for
+  `serviceWorker.ready`, and timing out reports unsupported rather than nothing.
+- The notifications screen re-claimed a token on **every** return to the front —
+  which on web is every tab switch, because react-native-web maps that onto
+  document visibility. A service-worker registration, an FCM round trip and a
+  Firestore write, per tab switch, telling us nothing the first one had not.
+  Once per account now; the token listener is what catches a rotation.
+- The nudge's in-flight guard was a flag, so the first of two presses in the same
+  frame cleared it while the second was still running. A count.
+- "This device can't show notifications" was shown for two different situations:
+  a browser that genuinely cannot, and a device that granted permission and then
+  failed to register. It was wrong about the second — blaming the hardware for
+  something the app failed at, to someone who has just pressed Allow.
+  "Notifications can't be set up on this device" is true of both.
+- "Not now" stayed clickable while an attempt ran. On web the page is still
+  interactive behind the permission chip, so a dismissal could be overwritten by
+  the attempt landing after it — the card returning against a stored flag saying
+  it had been waved away. Disabled while busy, as `Button` already does.
+
 Also fixed, and unrelated: `npm run dev:web` still served the abandoned port
 8086 after the port move, while `dev.sh web` waited on 61210 and `seed-dev.mjs`
 fetched 61210 — so the documented web dev loop could not complete at all, and

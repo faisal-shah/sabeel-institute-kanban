@@ -1533,11 +1533,15 @@ try {
    * without this the run merely screenshots whatever renders, and the whole
    * control could vanish with every check still green.
    */
+  // One literal for the message the re-read check waits for, shared with the
+  // list below rather than written twice: two copies of the same string in one
+  // file is two places for it to drift from the app.
+  const UNSUPPORTED = 'Notifications can\u2019t be set up on this device.';
   const deviceStates = [
     'Notifications are not enabled on this device.',
     'Notifications are enabled on this device.',
     'Notifications are blocked for this app on this device.',
-    'This device can\u2019t show notifications.',
+    UNSUPPORTED,
   ];
   const deviceShown = [];
   for (const m of deviceStates) {
@@ -1571,7 +1575,6 @@ try {
    * permission is granted, an emulator-backed run can never file a token, so
    * 'unsupported' is the only honest answer either way.
    */
-  const UNSUPPORTED = 'This device can\u2019t show notifications.';
   // Guard the guard. If the panel already reads the message we are waiting for,
   // the check below passes without anything having happened — which is the
   // failure mode this whole file exists to avoid. It is reachable: with no
@@ -1593,6 +1596,13 @@ try {
   // app is away. Mutation-checked — drop the AppState subscription from
   // useCheckOnForeground and this goes red.
   await sara.evaluate(() => {
+    // Explicit, because the failure to avoid is a silent one: without
+    // Notification the defineProperty throws a TypeError about an undefined
+    // object, and the check below then fails for a reason unrelated to what it
+    // is about.
+    if (typeof window.Notification === 'undefined') {
+      throw new Error('no window.Notification to stub — the re-read check cannot run');
+    }
     Object.defineProperty(window.Notification, 'permission', {
       configurable: true,
       get: () => 'granted',

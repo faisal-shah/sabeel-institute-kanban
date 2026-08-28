@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { NOTIFICATION_RETENTION_DAYS, NOTIFY_EVENTS } from '@sabeel/shared';
 import {
@@ -75,6 +75,8 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
   // deleting a column.
   const [confirmingDismissAll, setConfirmingDismissAll] = useState(false);
   const { run, busy, error } = useAction('notifications');
+  /** The account this screen has already filed a token for — see the effect below. */
+  const claimedFor = useRef<string | null>(null);
 
   const items = inbox.data ?? [];
   const prefs = prefsDoc.data?.prefs ?? {};
@@ -95,8 +97,18 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
       // Permission alone is not enough to promise delivery. Claim the token and
       // report what actually happened, or this says "enabled" over a device
       // with nothing registered behind it.
+      //
+      // But ONCE ONLY, per account. Reading the permission is cheap; claiming a
+      // token is a service-worker registration, an FCM round trip and a
+      // Firestore write, and this now runs on every return to the front — which
+      // on web is every tab switch, because react-native-web maps that onto
+      // document visibility. Registering again tells us nothing we did not
+      // learn the first time; the token listener is what catches a rotation.
+      if (claimedFor.current === user.uid) return setPush('granted');
       const ok = await registerPush(user.uid);
-      if (live) setPush(ok ? 'granted' : 'unsupported');
+      if (!live) return;
+      if (ok) claimedFor.current = user.uid;
+      setPush(ok ? 'granted' : 'unsupported');
     })();
     return () => {
       live = false;
@@ -115,7 +127,10 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
       .catch(() => 'unavailable' as const)
       .then(async (result) => {
         setEnabling(false);
-        if (result === 'granted') return setPush('granted');
+        if (result === 'granted') {
+          claimedFor.current = user.uid;
+          return setPush('granted');
+        }
         if (result === 'unavailable') return setPush('unsupported');
         // Re-read rather than assuming 'denied': a browser makes a refusal
         // stick, but a dismissed Android dialog leaves this askable, and the
@@ -204,7 +219,15 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
           ) : null}
           {push === 'unsupported' ? (
             <Panel>
-              <Body>This device can’t show notifications.</Body>
+              {/* Covers two situations that cannot be told apart from here and
+                  should not be: a browser that genuinely lacks the capability,
+                  and a device that granted permission but could not be
+                  registered. "This device can't SHOW notifications" was true of
+                  the first and wrong about the second — it blames the hardware
+                  for something the app failed at, to someone who has just
+                  pressed Allow and would reasonably go looking for a setting.
+                  Set up is what failed, in both. */}
+              <Body>Notifications can’t be set up on this device.</Body>
             </Panel>
           ) : null}
 
