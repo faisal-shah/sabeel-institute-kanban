@@ -33,12 +33,52 @@ IOS_SIM="${SK_IOS_SIM:-iPhone 17 Pro}"
 # the same bundle id as the App Store build, because they never coexist.
 IOS_BUNDLE_ID="com.sabeelinstitute.kanban"
 
+# WHO HOLDS A PORT — one answer, used by `status`, by the kill loop and by the
+# verification that follows it.
+#
+# It used to be three answers and two were wrong somewhere. The kill loop used
+# `ss` with `grep -oP`; NEITHER exists on macOS (BSD grep has no -P), so on the
+# build Mac the loop was a silent no-op while the verification below it — which
+# uses `lsof` — correctly reported the port still held. `dev.sh stop` could not
+# clear a port there and exited 1 with nothing able to fix it. It blocked the
+# iOS build twice.
+#
+# The reverse holds on Linux, and the old comment said so about the kill loop
+# while the verification did the very thing it warned against: `lsof` is absent
+# from a non-interactive shell without the toolchain env sourced, and the check
+# then reports every port free — which is how a "cleared" port ends up serving
+# the previous session's code.
+#
+# So: one helper, whichever tool the platform has, and a HARD FAILURE up front
+# when it has neither. An empty answer must mean "nothing holds it" and never
+# "I could not look".
+if command -v ss >/dev/null 2>&1; then
+  PORT_TOOL=ss
+elif command -v lsof >/dev/null 2>&1; then
+  PORT_TOOL=lsof
+else
+  # Checked HERE, at the top, not inside the helper: `exit` within a `$(...)`
+  # ends only the substitution, so a helper that "exits" returns an empty list
+  # and reads as "the port is free" — the exact failure this guards against.
+  echo "dev.sh: neither ss nor lsof found; cannot inspect ports" >&2
+  exit 1
+fi
+
+port_pids() {
+  if [ "$PORT_TOOL" = ss ]; then
+    # sed, not `grep -oP`: BSD grep has no -P and fails closed, silently.
+    ss -lptn "sport = :$1" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u
+  else
+    lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | sort -u
+  fi
+}
+
 status() {
   local any=0
   for i in "${!PORTS[@]}"; do
     local p="${PORTS[$i]}"
     local pid
-    pid=$(lsof -ti:"$p" -sTCP:LISTEN 2>/dev/null | head -1)
+    pid=$(port_pids "$p" | head -1)
     if [ -n "$pid" ]; then
       any=1
       printf '  %-12s %-6s pid %-8s %s\n' "${LABELS[$i]}" "$p" "$pid" \
@@ -51,10 +91,7 @@ status() {
 
 stop() {
   for p in "${PORTS[@]}"; do
-    # `ss`, not `lsof`: lsof is absent from a non-interactive shell without the
-    # toolchain env sourced, and a missing lsof makes this loop a silent no-op
-    # that always reports the port free.
-    for pid in $(ss -lptn "sport = :$p" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u); do
+    for pid in $(port_pids "$p"); do
       kill -9 "$pid" 2>/dev/null && echo "  freed $p (pid $pid)"
     done
   done
@@ -69,7 +106,7 @@ stop() {
   # port ends up serving the previous session's code.
   local left=""
   for p in "${PORTS[@]}"; do
-    lsof -ti:"$p" -sTCP:LISTEN >/dev/null 2>&1 && left="$left $p"
+    [ -n "$(port_pids "$p")" ] && left="$left $p"
   done
   if [ -n "$left" ]; then
     echo "  STILL HELD:$left — investigate before starting anything" >&2

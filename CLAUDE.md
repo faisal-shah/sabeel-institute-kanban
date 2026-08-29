@@ -392,9 +392,17 @@ a new machine.
   this rule was already written down, which is why it is now stated as one rule
   about matching rather than one about killing. Wait on a **pid** (`kill -0`),
   on a **file** the job writes, or on the harness's own completion signal.
-  Use `ss`, not `lsof`: `lsof` is absent from a non-interactive shell without the
-  toolchain env sourced, which silently turns a port guard into "always free".
-  To find an owner:
+  For ports, go through `scripts/dev.sh` rather than inspecting them by hand: it
+  now has ONE `port_pids` helper behind `status`, the kill loop and the
+  verification, because it had three and two were wrong somewhere. `ss` and
+  `grep -oP` are Linux-only, so on the build Mac the kill loop was a silent
+  no-op while the `lsof` verification correctly said the port was still held —
+  `dev.sh stop` could not clear a port there at all. And `lsof` is absent from a
+  non-interactive Linux shell without the toolchain env, so the verification was
+  the silent no-op on this box. Neither tool is universal; the script now picks
+  one and fails loudly up front if it has neither, because an empty answer must
+  mean "nothing holds it" and never "I could not look".
+  To find an owner by hand on Linux:
   `readlink /proc/$(ss -lptn "sport = :$PORT" | grep -oP 'pid=\K[0-9]+' | head -1)/cwd`.
 - **Run e2e suites with `scripts/e2e-all.sh`, never a hand-rolled chain.**
   `e2e.sh` runs ONE suite because CI wants it that way; locally that invited
