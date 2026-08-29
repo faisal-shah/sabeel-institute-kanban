@@ -683,13 +683,22 @@ Android push is wired and ships in the next APK. Two items are console work.
       **Signing in no longer asks for permission** — that changed in v0.10.2,
       because the prompt used to land on the *Waiting for approval* screen, and
       Android only offers it twice ever. Press **Enable notifications** instead:
-      the card at the top of Boards, or the gear on Alerts. Allow it. Then have
-      the app notify you — from a second account, or the web app in a browser,
-      `@`-mention yourself in a comment or assign yourself a card. The banner
-      should arrive within a few seconds. An emulator cannot prove this: it has
-      no FCM delivery, which is why everything up to and including the permission
-      grant is now verified on the emulator and this last step is not. It needs
-      the phone. If nothing arrives, say so and I'll read the function logs.
+      the card at the top of Boards, or the gear on Alerts. Allow it, and check
+      the screen then says *Notifications are enabled on this device* — if it
+      says *can't be set up*, no token was filed and nothing will arrive, so
+      stop there and tell me.
+
+      Then get **SOMEONE ELSE** to `@`-mention you in a comment or assign you a
+      card. It cannot be you: `shouldNotify` drops the actor first
+      (`recipientUid === actorUid`), so mentioning yourself from the web app
+      while signed in as yourself is silently a no-op — the test would look
+      failed when nothing was ever sent. A second account you own works too.
+      The banner should arrive within a few seconds.
+
+      An emulator cannot prove this: it has no FCM delivery, which is why
+      everything up to and including the permission grant and the channel is
+      verified on the emulator and this last step is not. It needs the phone.
+      If nothing arrives, say so and I'll read the function logs.
 
 - [ ] **Web push — confirm a push actually ARRIVES.** The configuration half is
       done and verified against the live site, so this is now one question, not
