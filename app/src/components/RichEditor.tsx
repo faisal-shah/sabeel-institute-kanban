@@ -319,8 +319,12 @@ export function RichEditor({
   );
   useMentionOverlay(overlay);
 
+  // `lifted` ONLY for the inline fallback. Applying it whenever the popover was
+  // open is what made the list flash and vanish on Android — see `lifted`.
+  const inlineList = policy.open && !anchor;
+
   return (
-    <View style={[styles.wrap, policy.open ? styles.lifted : null]}>
+    <View style={[styles.wrap, inlineList ? styles.lifted : null]}>
       <RichToolbar commands={commands()} marks={marks} />
 
       {/* Positioning context for the popover, which is absolute. RN Views are
@@ -332,7 +336,7 @@ export function RichEditor({
             Only the no-caret fallback renders here, where `bottom: 100%` still
             refers to this field. Rendering both would put two copies of the same
             list on screen at once. */}
-        {policy.open && !anchor ? (
+        {inlineList ? (
           <MentionList
             suggestions={policy.suggestions}
             index={policy.index}
@@ -414,16 +418,22 @@ export function RichEditor({
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   /**
-   * The editor, lifted over its own siblings, WHILE the popover is open.
+   * The editor, raised over its own siblings, for the INLINE FALLBACK only.
    *
-   * Kept for the no-caret FALLBACK only: an anchored popover is drawn at the app
-   * root by `MentionOverlay` and needs nothing from this. The fallback still
-   * renders the list inside this View, where the Comment button that follows the
-   * editor would otherwise draw across the names.
+   * ELEVATION, AND DELIBERATELY NOT `zIndex`. React Native implements `zIndex`
+   * on Android by REORDERING the children of the parent ViewGroup, which
+   * detaches and re-attaches the view — and this View contains the focused
+   * input. Re-attaching it drops focus, the IME hides, and the blur grace in
+   * `useMentionPolicy` then closes the popover 200ms later.
    *
-   * Both `zIndex` and `elevation`, and the same value as the web sibling,
-   * because the ordering question is the same one and the answer must not differ
-   * by surface.
+   * That is not a theory: on a device the list appeared with the keyboard fully
+   * up, the keyboard began dismissing ~80ms after, and every one of eighteen
+   * recorded appearances lasted 200-233ms — BLUR_GRACE_MS exactly. Web never
+   * showed it because CSS `z-index` reparents nothing.
+   *
+   * `elevation` alone raises the draw order on Android without touching the
+   * view tree, which is all the fallback needs. The anchored path needs neither:
+   * `MentionOverlay` draws it at the app root.
    */
-  lifted: { zIndex: 30, elevation: 30 },
+  lifted: { elevation: 30 },
 });

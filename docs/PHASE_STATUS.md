@@ -98,28 +98,24 @@ See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
   hold. Both are fine below fifty colleagues; neither survives untrusted users.
 - **A simultaneous double-create can make two labels with the same name.**
   Uniqueness is case-insensitive and checked on the client only.
-- **The @mention popover does not open at all on Android under an adb-driven
-  emulator, and the caret anchoring is therefore still unverified there**
-  (v0.11.0). Web is proven by e2e assertions, a paint-order guard and screenshots
-  at five widths. On Android, a second attempt on 2026-08-29 — this time on an
-  **accelerated** AVD with a build confirmed fresh (`versionName=0.11.0`, after
-  catching a stale 0.10.1 already installed) — got further and still could not
-  settle it. The popover never rendered: **no `Mention` node appears in the view
-  hierarchy at all**, so it is not mispositioned, it does not open. That
-  reproduced across four input paths — long text mid-string, a word-boundary `@`
-  as a single-character commit, hardware key events (`KEYCODE_AT`), and `@` as
-  the first character of an empty composer — each with the editor demonstrably
-  focused and receiving the characters. The identical action on web opens a
-  three-row list 31px below and 9px left of the caret.
+- **The @mention popover works on Android, and `adb` cannot show you that.**
+  Settled on a device 2026-08-29 with screen recordings: the list opens, is
+  anchored at the caret, and draws over the sections below it. An earlier
+  emulator session concluded the opposite — no `Mention` node in the view
+  hierarchy across four input paths, including hardware key events and `@` as
+  the first character of an empty composer, each with the editor demonstrably
+  focused. **That conclusion was wrong**, and it is worth keeping the shape of
+  the error: every one of those checks was sound, the editor really did have
+  focus, the characters really did land, and the popover really did not appear —
+  because `adb`-injected input does not drive this editor's mention detection.
+  A negative result from a harness that cannot exercise the feature is not
+  evidence about the feature. Verifying anything behind this editor's focus or
+  IME needs a real keyboard: a device, or an emulator someone types into.
 
-  **This is not caused by the caret work.** `mentionIndicators` and
-  `onStartMention` are untouched by it; that change only added `setCaret(...)` to
-  the trigger. Whether the cause is the editor library's mention detection under
-  injected input or a real gap on the surface is **unknown**, and adb cannot
-  distinguish them — settling it needs a real keyboard, which means a device or a
-  windowed emulator someone types into. Until then the native caret path is
-  unexercised rather than broken, and if the handler reports nothing the popover
-  keeps its old placement above the field.
+  The device pass then found a real bug that no browser check could see — the
+  list closed itself 200ms after opening, because lifting the editor with
+  `zIndex` re-parents the focused input on Android. Fixed in v0.11.1; see the
+  deploy log.
 
 Faisal's console tasks are tracked in `TODO.md`.
 
@@ -398,6 +394,39 @@ the team.
 ---
 
 ## Deploy log
+
+### 2026-08-29 — The mention list stopped closing itself — v0.11.1
+
+**On a device the popover opened, drew at the caret, and vanished again in
+under a quarter of a second.** Eighteen appearances across two screen
+recordings, every one of them 200-233ms long. That is `BLUR_GRACE_MS`
+exactly, which named the mechanism: the editor was losing focus, the grace
+timer was running, and `useMentionPolicy` was closing the list because
+`open` requires `focused`.
+
+Frame-by-frame at 60fps gave the order, and it is the opposite of the
+obvious guess. The list appears with the keyboard FULLY UP; the keyboard only
+starts dismissing about 80ms later. So the list's own appearance cost the
+editor its focus.
+
+**`zIndex` on Android is not a paint order, it is a re-parent.** React Native
+implements it by REORDERING the children of the parent ViewGroup, which
+detaches and re-attaches the view — and the view being lifted contained the
+focused input. `styles.lifted` was applied whenever the popover was open, so
+every open dropped focus, hid the IME, and closed the list 200ms later. Web
+never showed it, at any width, because CSS `z-index` reparents nothing; this
+is a genuine Yoga-vs-CSS seam of the kind the emulator table exists for.
+
+The lift is now scoped to the inline no-caret FALLBACK, which is the only
+path that still draws the list inside the editor, and it uses `elevation`
+alone — which raises the draw order on Android without touching the view
+tree. The anchored path needs neither, because `MentionOverlay` draws it at
+the app root.
+
+**Verified:** lint, typecheck, 33 rich-text and 229 sweep checks still green
+on web, which is exactly what they were before — the bug was never visible
+there, and that is the point worth remembering about this one.
+
 
 ### 2026-08-29 — Alerts you can re-flag, a named switch, a caret-anchored mention list — v0.11.0
 

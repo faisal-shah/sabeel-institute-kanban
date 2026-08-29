@@ -442,10 +442,13 @@ function MentionPlugin({
     );
   }, [editor, policy]);
 
+  // Only the INLINE fallback needs the editor lifted; the anchored list is drawn
+  // at the app root. Kept in step with the native sibling, where lifting the
+  // editor while the popover was open cost the input its focus.
   useEffect(() => {
-    onOpenChange(policy.open);
+    onOpenChange(policy.open && !anchor);
     return () => onOpenChange(false);
-  }, [policy.open, onOpenChange]);
+  }, [policy.open, anchor, onOpenChange]);
 
   const onMeasureRow = useCallback((p: number) => {
     pitch.current = p;
@@ -728,12 +731,16 @@ export function RichEditor({
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   /**
-   * The editor, lifted over its own siblings, WHILE the popover is open.
+   * The editor, lifted over its own siblings, for the INLINE FALLBACK only.
    *
    * This is NOT what makes the anchored popover visible — `MentionOverlay` is,
    * by drawing it at the app root. Lifting is kept for the no-caret FALLBACK,
    * which still renders the list inside this View and still has to clear the
    * Comment button beside it.
+   *
+   * Scoped to the fallback rather than to "the popover is open" because the
+   * native sibling MUST scope it: RN implements zIndex on Android by reordering
+   * the parent's children, which re-attaches the focused input and drops focus.
    *
    * Lifting alone was tried and is not enough, which is worth stating because it
    * looks sufficient: react-native-web gives every View `position: relative` AND
