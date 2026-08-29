@@ -445,6 +445,38 @@ check('the mention resolved to a uid', !!comment && comment.mentionUids.includes
 check('the handle is literal text in the stored markdown', !!comment && comment.body.includes('@'));
 
 /**
+ * A LINE BREAK ENDS THE MENTION.
+ *
+ * Reported from a device: after typing a bare `@` and moving the caret to the
+ * line below without picking anyone, the whole roster opened again with the
+ * caret nowhere near the `@`. Picking from that list would have inserted the
+ * handle on the wrong line and left the `@` orphaned above it.
+ *
+ * The cause was native-only — the editor library decides when a mention is
+ * live, and its word boundaries use `Character.isWhitespace`, which includes
+ * `\n`, so the lookback walked over the line break and found the bare `@`.
+ * Web is structurally immune: it derives the query from the anchor TEXT NODE up
+ * to the caret, so a new line is a different node and matches nothing.
+ *
+ * Asserted here anyway, because "immune by construction" is a property of the
+ * current construction. `isMentionQuery` is now the shared statement of the
+ * rule, applied on native and unit-tested in @sabeel/shared; this is the same
+ * rule observed end-to-end on the surface that can be automated. If someone
+ * loosens `activeMentionQuery`'s character class, this fails.
+ */
+await page.waitForTimeout(400);
+await box.click();
+await page.keyboard.type(' @');
+await page.waitForTimeout(800);
+check('the list opens on a bare "@"', (await rows.count()) > 0);
+await page.keyboard.press('Enter');
+await page.waitForTimeout(800);
+check(
+  'moving to the next line closes it — a mention cannot span a line break',
+  (await rows.count()) === 0,
+);
+
+/**
  * A SPACE typed into a sheet must not dismiss it.
  *
  * `accessibilityRole="button"` on the Sheet backdrop made react-native-web

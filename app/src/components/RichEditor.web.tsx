@@ -74,8 +74,8 @@ import {
 } from '@sabeel/shared';
 import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
-import { MentionList, MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
-import { anchorForCaret, type MentionAnchor } from './mentionAnchor';
+import { MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
+import { anchorForCaret, anchorForField, type MentionAnchor } from './mentionAnchor';
 import { useMentionOverlay } from './MentionOverlay';
 import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, type as type_, useTheme } from '../theme';
@@ -318,6 +318,24 @@ function measureCaret(anchorTo: React.RefObject<unknown>): MentionAnchor | null 
 }
 
 /**
+ * The field's own box, for when no caret can be measured.
+ *
+ * Same coordinate space as `measureCaret` — the viewport, which is what the
+ * overlay is positioned against — so the two are interchangeable and there is
+ * only ONE rendering path to keep correct.
+ */
+function measureField(anchorTo: React.RefObject<unknown>): MentionAnchor | null {
+  const host = anchorTo.current as HTMLElement | null;
+  if (!host) return null;
+  const box = host.getBoundingClientRect();
+  if (box.width === 0) return null;
+  return anchorForField(
+    { x: box.left, y: box.top, width: box.width },
+    MENTION_DESIRED_HEIGHT,
+  );
+}
+
+/**
  * @mention autocomplete, using a REAL caret.
  *
  * This is the half a plain `TextInput` cannot have. The old box passed its
@@ -334,14 +352,11 @@ function MentionPlugin({
   candidates,
   prioritiseUids,
   anchorTo,
-  onOpenChange,
 }: {
   candidates: readonly MentionCandidate[];
   prioritiseUids?: readonly string[];
-  /** The popover's positioned ancestor — what `anchor` is measured against. */
+  /** The element `anchor` is measured against. */
   anchorTo: React.RefObject<unknown>;
-  /** So the editor can lift itself over its siblings — see `styles.lifted`. */
-  onOpenChange: (open: boolean) => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const [query, setQuery] = useState<string | null>(null);
@@ -373,7 +388,7 @@ function MentionPlugin({
         // Read the caret's position AFTER the editor-state read, and only while
         // a mention is actually being typed — a rect per keystroke otherwise,
         // and `getBoundingClientRect` forces layout.
-        setAnchor(open ? measureCaret(anchorTo) : null);
+        setAnchor(open ? (measureCaret(anchorTo) ?? measureField(anchorTo)) : null);
       }),
     [editor, anchorTo],
   );
@@ -442,14 +457,6 @@ function MentionPlugin({
     );
   }, [editor, policy]);
 
-  // Only the INLINE fallback needs the editor lifted; the anchored list is drawn
-  // at the app root. Kept in step with the native sibling, where lifting the
-  // editor while the popover was open cost the input its focus.
-  useEffect(() => {
-    onOpenChange(policy.open && !anchor);
-    return () => onOpenChange(false);
-  }, [policy.open, anchor, onOpenChange]);
-
   const onMeasureRow = useCallback((p: number) => {
     pitch.current = p;
   }, []);
@@ -483,21 +490,7 @@ function MentionPlugin({
   );
   useMentionOverlay(overlay);
 
-  if (!policy.open) return null;
-  // Anchored: the root layer draws it, and drawing it here as well would put two
-  // copies of the same list on screen. Only the no-caret fallback renders inline,
-  // where `bottom: 100%` still refers to this field.
-  if (anchor) return null;
-  return (
-    <MentionList
-      suggestions={policy.suggestions}
-      index={policy.index}
-      listRef={policy.listRef}
-      onPick={policy.accept}
-      onMeasureRow={onMeasureRow}
-      anchor={null}
-    />
-  );
+  return null;
 }
 
 export function RichEditor({
@@ -534,11 +527,6 @@ export function RichEditor({
    * viewport rect into the popover's own coordinate space.
    */
   const wrapRef = useRef(null);
-  /**
-   * Whether the mention popover is up — and therefore whether this editor has to
-   * out-rank its own siblings. See `styles.lifted`.
-   */
-  const [mentionOpen, setMentionOpen] = useState(false);
   /**
    * The link sheet, and the selected text CAPTURED at the moment it opens.
    *
@@ -626,7 +614,7 @@ export function RichEditor({
   }, [css]);
 
   return (
-    <View ref={wrapRef} style={[styles.wrap, mentionOpen ? styles.lifted : null]}>
+    <View ref={wrapRef} style={styles.wrap}>
       {/*
         Pressing a toolbar button steals focus and collapses the selection
         before the command runs, so the format applies to nothing. Preventing
@@ -704,7 +692,6 @@ export function RichEditor({
             candidates={candidates}
             prioritiseUids={prioritiseUids}
             anchorTo={wrapRef}
-            onOpenChange={setMentionOpen}
           />
         ) : null}
         <Bridge
@@ -730,23 +717,4 @@ export function RichEditor({
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
-  /**
-   * The editor, lifted over its own siblings, for the INLINE FALLBACK only.
-   *
-   * This is NOT what makes the anchored popover visible — `MentionOverlay` is,
-   * by drawing it at the app root. Lifting is kept for the no-caret FALLBACK,
-   * which still renders the list inside this View and still has to clear the
-   * Comment button beside it.
-   *
-   * Scoped to the fallback rather than to "the popover is open" because the
-   * native sibling MUST scope it: RN implements zIndex on Android by reordering
-   * the parent's children, which re-attaches the focused input and drops focus.
-   *
-   * Lifting alone was tried and is not enough, which is worth stating because it
-   * looks sufficient: react-native-web gives every View `position: relative` AND
-   * `zIndex: 0`, so every View is a stacking context. Raising this one wins
-   * against the Comment button in the same card and loses to the card's Activity
-   * section below, which covered the third name entirely.
-   */
-  lifted: { zIndex: 30 },
 });

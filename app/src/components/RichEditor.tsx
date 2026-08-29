@@ -45,13 +45,14 @@ import {
 import {
   handleFor,
   htmlToMarkdown,
+  isMentionQuery,
   markdownToHtml,
   type MentionCandidate,
 } from '@sabeel/shared';
 import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
-import { MentionList, MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
-import { anchorForCaret, type MentionAnchor } from './mentionAnchor';
+import { MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
+import { anchorForCaret, anchorForField, type MentionAnchor } from './mentionAnchor';
 import { useMentionOverlay } from './MentionOverlay';
 import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, type as type_, useTheme } from '../theme';
@@ -209,7 +210,21 @@ export function RichEditor({
   const keyboardHeight = useKeyboardState((k) => k.height);
   const { input } = useReanimatedFocusedInput();
   const [caret, setCaret] = useState<NativeCaret | null>(null);
-  const [fieldWidth, setFieldWidth] = useState(screenW);
+  /**
+   * The field's box ON SCREEN, for the no-caret fallback.
+   *
+   * `measureInWindow` rather than `onLayout`'s own numbers: the layout event
+   * gives a position relative to the parent, and the overlay that draws the
+   * popover is positioned against the screen. Measured on every layout, so a
+   * keyboard opening or the card scrolling keeps it honest.
+   */
+  const fieldRef = useRef<View>(null);
+  const [field, setField] = useState<{ x: number; y: number; width: number } | null>(
+    null,
+  );
+  const measureField = useCallback(() => {
+    fieldRef.current?.measureInWindow((x, y, width) => setField({ x, y, width }));
+  }, []);
   /**
    * The latest caret, kept in a REF as well as state.
    *
@@ -254,10 +269,20 @@ export function RichEditor({
     [onCaret],
   );
 
-  const anchor = useMemo(
-    () => nativeAnchor({ caret, fieldWidth, screenH, keyboardHeight }),
-    [caret, fieldWidth, screenH, keyboardHeight],
-  );
+  /**
+   * ONE anchor, always. The caret when the OS reports one, the field's own box
+   * when it does not — both in screen coordinates, both drawn by the overlay.
+   * There is no second rendering path any more: the fallback used to draw
+   * inside the editor and needed a `zIndex` lift to escape it, and that lift is
+   * what cost the input its focus on Android.
+   */
+  const anchor = useMemo(() => {
+    const width = field?.width ?? screenW;
+    return (
+      nativeAnchor({ caret, fieldWidth: width, screenH, keyboardHeight }) ??
+      (field ? anchorForField(field, MENTION_DESIRED_HEIGHT) : null)
+    );
+  }, [caret, field, screenW, screenH, keyboardHeight]);
   /**
    * `setLink` takes an explicit [start, end) range rather than "the current
    * selection", so the caret has to be tracked. Read out of the library's
@@ -319,34 +344,14 @@ export function RichEditor({
   );
   useMentionOverlay(overlay);
 
-  // `lifted` ONLY for the inline fallback. Applying it whenever the popover was
-  // open is what made the list flash and vanish on Android — see `lifted`.
-  const inlineList = policy.open && !anchor;
-
   return (
-    <View style={[styles.wrap, inlineList ? styles.lifted : null]}>
+    <View style={styles.wrap}>
       <RichToolbar commands={commands()} marks={marks} />
 
-      {/* Positioning context for the popover, which is absolute. RN Views are
-          `relative` by default. The input is this View's ONLY child at offset
-          zero, which is what lets a caret measured against the input be used
-          against this View unchanged. */}
-      <View onLayout={(e) => setFieldWidth(e.nativeEvent.layout.width)}>
-        {/* Anchored, and the root layer is drawing it — see MentionOverlay.tsx.
-            Only the no-caret fallback renders here, where `bottom: 100%` still
-            refers to this field. Rendering both would put two copies of the same
-            list on screen at once. */}
-        {inlineList ? (
-          <MentionList
-            suggestions={policy.suggestions}
-            index={policy.index}
-            listRef={policy.listRef}
-            onPick={policy.accept}
-            onMeasureRow={onMeasureRow}
-            anchor={null}
-          />
-        ) : null}
-
+      {/* The field, measured against the SCREEN. Nothing floats inside it any
+          more — `MentionOverlay` draws the popover at the app root — so this
+          View exists only to give the input a box worth measuring. */}
+      <View ref={fieldRef} onLayout={measureField}>
         <EnrichedTextInput
           ref={ref}
           defaultValue={initialHtml.current}
@@ -382,7 +387,15 @@ export function RichEditor({
             setCaret(caretRef.current);
             setQuery('');
           }}
-          onChangeMention={(e) => setQuery(e.text)}
+          // The SHARED rule, not the library's. Its own notion of "still in a
+          // mention" looks at the word before the caret with whitespace
+          // boundaries that include `\n`, so putting the caret on the line below
+          // a bare `@` reported an active mention whose query was a line break —
+          // which trims to empty, and empty means "show everyone". Picking from
+          // that list would have inserted the handle at the caret, on the wrong
+          // line, orphaning the `@`. `isMentionQuery` is the same rule web gets
+          // for free from `activeMentionQuery`'s character class.
+          onChangeMention={(e) => setQuery(isMentionQuery(e.text) ? e.text : null)}
           onEndMention={() => setQuery(null)}
           onFocus={policy.onFocus}
           onBlur={policy.onBlur}
@@ -417,23 +430,4 @@ export function RichEditor({
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
-  /**
-   * The editor, raised over its own siblings, for the INLINE FALLBACK only.
-   *
-   * ELEVATION, AND DELIBERATELY NOT `zIndex`. React Native implements `zIndex`
-   * on Android by REORDERING the children of the parent ViewGroup, which
-   * detaches and re-attaches the view — and this View contains the focused
-   * input. Re-attaching it drops focus, the IME hides, and the blur grace in
-   * `useMentionPolicy` then closes the popover 200ms later.
-   *
-   * That is not a theory: on a device the list appeared with the keyboard fully
-   * up, the keyboard began dismissing ~80ms after, and every one of eighteen
-   * recorded appearances lasted 200-233ms — BLUR_GRACE_MS exactly. Web never
-   * showed it because CSS `z-index` reparents nothing.
-   *
-   * `elevation` alone raises the draw order on Android without touching the
-   * view tree, which is all the fallback needs. The anchored path needs neither:
-   * `MentionOverlay` draws it at the app root.
-   */
-  lifted: { elevation: 30 },
 });

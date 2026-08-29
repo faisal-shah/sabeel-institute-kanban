@@ -33,11 +33,8 @@ import { StyleSheet, View } from 'react-native';
 import { MentionList, type MentionListProps } from './MentionList';
 import { createViewStore } from '../viewState';
 
-/**
- * `anchor` is non-null on this path by construction: the editor renders the list
- * inline when it has no caret to anchor to, and only hands it here once it does.
- */
-type OpenMention = MentionListProps & { anchor: NonNullable<MentionListProps['anchor']> };
+/** Everything the list needs, exactly as `MentionList` takes it. */
+type OpenMention = MentionListProps;
 
 /**
  * `owner` is which editor put it there.

@@ -95,3 +95,34 @@ export function anchorForCaret(
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
+
+/**
+ * Where the popover goes when the platform cannot measure a caret.
+ *
+ * There used to be a second answer to this question: the list was rendered
+ * INSIDE the editor with `bottom: 100%`, so the fallback had its own rendering
+ * path, its own stacking problem, and its own `zIndex` lift to escape it. That
+ * lift is what cost the editor its focus on Android. Two paths meant the rare
+ * one carried a hazard the common one had already solved.
+ *
+ * So the fallback is now the same path: a real anchor, in screen coordinates,
+ * drawn by the same overlay. It is expressed as a caret of zero height at the
+ * field's top-left with NO room below, which makes `anchorForCaret` flip above
+ * and clamp to the room available — reproducing "above the whole field" without
+ * a second set of rules to keep in step.
+ *
+ * The one deliberate difference from the old placement: it is capped at
+ * `MENTION_POPOVER_WIDTH` rather than spanning the field, because that cap is a
+ * property of the list and not of how it happened to be positioned.
+ */
+export function anchorForField(
+  field: { x: number; y: number; width: number },
+  desiredHeight: number,
+): MentionAnchor {
+  const anchor = anchorForCaret(
+    { x: 0, y: 0, height: 0 },
+    { fieldWidth: field.width, below: 0, above: field.y },
+    desiredHeight,
+  );
+  return { ...anchor, top: anchor.top + field.y, left: anchor.left + field.x };
+}

@@ -395,6 +395,51 @@ the team.
 
 ## Deploy log
 
+### 2026-08-29 — A mention cannot span a line break — v0.11.2
+
+**Reported from a device:** after typing a bare `@` and moving the caret to the
+line below without picking anyone, the whole roster opened again with the caret
+nowhere near the `@`. Picking from that list would have inserted the handle on
+the wrong line and left the `@` orphaned above it — a wrong result, not just
+noise.
+
+**The cause is a parity bug in the editor library, and its own iOS code states
+the intended rule.** On selection change it checks the word at the caret and, if
+that is not a mention, the word BEFORE it. iOS refuses to make that step across a
+newline and says so: *"we want to check for the previous word ONLY if the
+separating character was a space newlines don't make it"*, using
+`whitespaceCharacterSet`, which excludes newlines. The Android implementation
+does the same walk with `Character.isWhitespace`, which includes `\n`, so it
+stepped over the line break, found the bare `@`, and reported an active mention
+whose query was a line break. `mentionSuggestions` trims, a trimmed line break is
+empty, and empty means "show everyone".
+
+**The fix is our own invariant, asserted at the boundary.** `isMentionQuery` is
+now the single statement of what a mention query may contain — the rule that was
+always implicit in `activeMentionQuery`'s character class — exported from
+`@sabeel/shared` and applied where native takes the library's word for it. Web
+needed no change and could not have had the bug: it derives the query from the
+anchor TEXT NODE up to the caret, so a new line is a different node and matches
+nothing. Two surfaces disagreeing about what a mention IS, is exactly what one
+shared definition prevents. The upstream Android/iOS divergence is worth
+reporting, but the guard is right regardless of which library version is
+installed.
+
+**And the second render path is gone.** The popover no longer has a "no caret
+measured" branch that draws inside the editor: `anchorForField` produces a real
+screen-coordinate anchor from the field's own box, so the overlay draws every
+case. That deletes `styles.lifted` from both editors — the `zIndex` lift that
+cost the input its focus on Android — along with `aboveField`, the inline
+render, and the `onOpenChange` plumbing that existed only to drive it. The rare
+path can no longer carry a hazard the common one has already solved.
+
+**Verified:** lint, typecheck, **565 unit** (8 new: 4 pinning `isMentionQuery`
+against `activeMentionQuery`, 4 on `anchorForField`), and the browser suites
+including a new end-to-end check that a line break closes the list. The device
+half — that the popover still opens, still sits at the caret, and no longer
+reopens on the next line — needs a phone, and web cannot prove any of it.
+
+
 ### 2026-08-29 — The mention list stopped closing itself — v0.11.1
 
 **On a device the popover opened, drew at the caret, and vanished again in

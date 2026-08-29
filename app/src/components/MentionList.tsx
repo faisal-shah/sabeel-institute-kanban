@@ -5,13 +5,13 @@
  * the platform measured. `anchor === null` is the fallback for a surface that
  * cannot report one: the old placement, above the whole field, full width.
  *
- * WHO DRAWS IT depends on the same thing. With an anchor it is rendered by
- * `MentionOverlay` as the last child of the app root, in screen coordinates,
- * because no zIndex inside the editor can lift it clear — every
- * react-native-web View is a stacking context, so a later SECTION of the card
- * drew over the third name even after the editor was lifted over its own
- * siblings. Without an anchor the editor still renders it inline, where
- * `bottom: 100%` is the only thing that means anything.
+ * IT IS ALWAYS DRAWN BY `MentionOverlay`, as the last child of the app root, in
+ * screen coordinates. Never inside the editor: no zIndex there can lift it clear
+ * — every react-native-web View is a stacking context, so a later SECTION of the
+ * card drew over the third name even after the editor was lifted over its own
+ * siblings — and the lift that escape needed re-parented the focused input on
+ * Android and cost it focus. One path, so the rare case cannot carry a hazard
+ * the common one has already solved.
  *
  * Every property here was learned on a device and must survive any move:
  *  - `position: absolute`. Inline-below hid behind the keyboard; inline-above
@@ -56,13 +56,12 @@ export interface MentionListProps {
   onPick: (c: MentionCandidate) => void;
   onMeasureRow: (pitch: number) => void;
   /**
-   * Null when the platform could not measure a caret — see the header.
-   *
-   * When it is NOT null the list is drawn by `MentionOverlay` at the app root,
-   * so these are SCREEN coordinates. When it is null the editor renders this
-   * component inline and the old above-the-field placement applies.
+   * SCREEN coordinates, always. `mentionAnchor.ts` supplies one either way — the
+   * caret when the platform can report it, the field's own box when it cannot —
+   * so there is a single rendering path and no placement rule that only runs on
+   * a surface nobody exercises.
    */
-  anchor: MentionAnchor | null;
+  anchor: MentionAnchor;
 }
 
 export function MentionList({
@@ -83,14 +82,12 @@ export function MentionList({
       testID="mention-popover"
       style={[
         styles.popover,
-        anchor
-          ? {
-              top: anchor.top,
-              left: anchor.left,
-              width: anchor.width,
-              maxHeight: anchor.maxHeight,
-            }
-          : styles.aboveField,
+        {
+          top: anchor.top,
+          left: anchor.left,
+          width: anchor.width,
+          maxHeight: anchor.maxHeight,
+        },
         { backgroundColor: t.bg.surface, borderColor: t.border.subtle },
       ]}
     >
@@ -100,12 +97,7 @@ export function MentionList({
       </Hint>
       <ScrollView
         ref={listRef}
-        style={[
-          styles.list,
-          anchor
-            ? { maxHeight: Math.max(ROW_PITCH, anchor.maxHeight - CHROME) }
-            : null,
-        ]}
+        style={[styles.list, { maxHeight: Math.max(ROW_PITCH, anchor.maxHeight - CHROME) }]}
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
       >
@@ -152,13 +144,6 @@ const styles = StyleSheet.create({
     // field on one surface and nobody notices on the other.
     zIndex: 10,
     elevation: 8,
-  },
-  /** No caret to anchor to: above the whole field, full width, as before. */
-  aboveField: {
-    bottom: '100%',
-    left: 0,
-    right: 0,
-    marginBottom: space.xs,
   },
   list: { maxHeight: LIST_MAX_HEIGHT },
   option: {

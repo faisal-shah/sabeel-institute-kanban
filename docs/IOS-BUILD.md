@@ -668,42 +668,51 @@ the twenty-minute archive.
 
 NEW IN THIS RELEASE, and the reason this build matters:
 
-1. The app no longer creates accounts. `accountExists` is a new callable
-   the native sign-in path calls BEFORE signInWithCredential, and it must
-   be deployed for sign-in to work at all on a device. If sign-in fails
-   with a missing-function error, the functions deploy has not happened —
-   report it, do not work around it.
+1. The @mention popover no longer renders inside the editor. It is
+   published to MentionOverlay, a layer mounted as the LAST child of the
+   app root and OUTSIDE SafeAreaProvider, positioned in SCREEN
+   coordinates. That has been verified on web and on a real Android
+   phone. It has NEVER run on iOS, and iOS has the largest safe-area
+   insets of the three — if the overlay's origin assumption is wrong
+   anywhere, it is wrong there. Open a card, type a few words into the
+   comment box, then "@": the list must sit AT the caret, not shifted
+   down by the status bar or Dynamic Island and not clipped at the top.
+   Check it with the keyboard up. Screenshot it.
 
-2. There is now a privacy manifest. `app.json` carries
-   `expo.ios.privacyManifests`, and prebuild writes it to
-   ios/PrivacyInfo.xcprivacy. VERIFY THE FILE EXISTS after prebuild —
-   the key being present in app.json is not proof it was written.
+2. The native caret comes from react-native-keyboard-controller's
+   focused-input tracking, through the app's only reanimated worklet.
+   That path is proven on Android only. If iOS reports no caret the
+   popover falls back to sitting above the whole field — that fallback
+   is designed and nothing breaks — but SAY WHICH ONE YOU SAW. "It
+   worked" is not an answer to this question.
 
-3. Check ios/Pods for the SDKs Apple requires manifests from:
-   GoogleSignIn, AppAuth, GTMAppAuth, GTMSessionFetcher, GoogleUtilities.
-   This cannot be checked from Linux, so nobody has looked yet. Sentry is
-   NOT on Apple's list; do not chase it.
+3. A mention must not survive a line break. Type "@", and without
+   picking anyone put the caret on the line below it. The list must NOT
+   reopen. iOS is expected to be correct already: the library's own iOS
+   code refuses a newline separator and says so in a comment, while its
+   Android code did not. So this is a confirmation, not a fix under
+   test — if it DOES reopen on iOS, that is new information and worth
+   reporting loudly.
 
-4. After upload, watch the account's email for ITMS-91053 warnings.
-   Apple warns about privacy manifests rather than failing, so an upload
-   that "succeeded" is not evidence.
+4. There are no functions, rules or index changes in this release, so
+   there is no deploy dependency. A build from this tag works against
+   production exactly as it stands.
 
 Scope: iOS only. Do not touch app/android/, do not commit app/ios/, and
 do not deploy hosting, functions or rules — those go out from Linux.
 If a gate fails, stop and report rather than working around it.
 
 Report back: the build number, its App Store Connect processing state,
-whether ios/PrivacyInfo.xcprivacy was written and what it contains, the
-result of the Pods check, any ITMS-91053 email, and the version and
-commit read off the sign-in screen of the installed build — read, not
-inferred.
+whether ios/PrivacyInfo.xcprivacy was written, any ITMS-91053 email, and
+the version and commit read off the sign-in screen of the installed
+build — read, not inferred.
 
-Then, on a real iPhone with a Google account that has NO Kanban account:
-tap Sign in with Google and confirm you get "This account isn't set up
-for the app yet", and that tapping again re-opens the account chooser
-rather than silently reusing the same account. That is the one path no
-automated test on Linux can reach, and it is the whole point of the
-release.
+Then the three checks above, each answered with what you SAW and a
+screenshot of the open mention list. A negative result from an
+instrument that cannot drive the editor is not a result: `xcrun simctl`
+text injection could not open this popover on Android's equivalent
+harness, and a "no popover" from it would prove nothing. Type on a real
+keyboard, on a real device.
 ```
 
 ## Things that are genuinely open

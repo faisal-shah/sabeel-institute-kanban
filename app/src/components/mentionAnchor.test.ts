@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   anchorForCaret,
+  anchorForField,
   MENTION_POPOVER_WIDTH,
   type AnchorSpace,
 } from './mentionAnchor';
@@ -59,5 +60,33 @@ describe('anchorForCaret', () => {
   it('never asks for more height than the list wants', () => {
     const a = anchorForCaret(caret, roomy, 120);
     expect(a.maxHeight).toBe(120);
+  });
+});
+
+describe('anchorForField', () => {
+  const field = { x: 16, y: 500, width: 600 };
+
+  it('sits ABOVE the field, clear of it', () => {
+    const a = anchorForField(field, 260);
+    expect(a.placement).toBe('above');
+    expect(a.top + a.maxHeight).toBeLessThanOrEqual(field.y);
+  });
+
+  it('is in SCREEN coordinates, not field-relative', () => {
+    const a = anchorForField(field, 260);
+    expect(a.left).toBe(field.x);
+    expect(a.top).toBeGreaterThan(0);
+  });
+
+  it('never runs off the top of the screen', () => {
+    // A field near the very top has almost no room above it.
+    const a = anchorForField({ x: 0, y: 40, width: 600 }, 260);
+    expect(a.top).toBeGreaterThanOrEqual(0);
+    expect(a.maxHeight).toBeLessThanOrEqual(40);
+  });
+
+  it('narrows to a phone-width field', () => {
+    const a = anchorForField({ x: 0, y: 500, width: 200 }, 260);
+    expect(a.width).toBe(200);
   });
 });

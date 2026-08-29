@@ -101,13 +101,41 @@ export function mentionSuggestions(
   });
 }
 
+/** What a handle may contain. The ONE definition; everything else derives. */
+const HANDLE_CHARS = '[A-Za-z0-9._%+-]';
+
 /**
  * The partial handle currently being typed, or null when the caret is not in a
  * mention. Used to decide whether to show the autocomplete at all.
  */
 export function activeMentionQuery(textUpToCaret: string): string | null {
-  const m = textUpToCaret.match(/(?:^|\s)@([A-Za-z0-9._%+-]*)$/);
+  const m = textUpToCaret.match(new RegExp(`(?:^|\\s)@(${HANDLE_CHARS}*)$`));
   return m ? m[1] : null;
+}
+
+/**
+ * Is this text a mention query at all?
+ *
+ * The rule was always here, hidden inside `activeMentionQuery`'s character
+ * class: a handle has no whitespace, so a "query" containing any is not a
+ * mention being typed. Web got this for free because it derives the query from
+ * the text up to the caret and the pattern simply fails to match. NATIVE does
+ * not derive it — the editor library decides, and its rule is different:
+ * it looks at the word before the caret, and its word boundaries use
+ * `Character.isWhitespace`, which includes `\n`. So placing the caret on the
+ * line BELOW a bare `@` walked back over the newline, found the `@`, and
+ * reported an active mention whose query was a line break. `mentionSuggestions`
+ * trims, a trimmed line break is empty, and empty means "show everyone" — so
+ * the whole roster opened with the caret nowhere near the `@`, and picking
+ * someone would have inserted the handle on the wrong line and orphaned the
+ * `@`.
+ *
+ * Exported so the native editor can apply the SAME rule as web rather than
+ * trusting a third-party heuristic about our domain. Two surfaces disagreeing
+ * about what a mention is, is precisely what one shared definition prevents.
+ */
+export function isMentionQuery(text: string): boolean {
+  return new RegExp(`^${HANDLE_CHARS}*$`).test(text);
 }
 
 /**

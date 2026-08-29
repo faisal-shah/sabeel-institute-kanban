@@ -4,6 +4,7 @@ import {
   completeMention,
   extractMentions,
   handleFor,
+  isMentionQuery,
   mentionSuggestions,
 } from '../src/mentions';
 
@@ -205,5 +206,58 @@ describe('completeMention', () => {
 
   it('works at the very start', () => {
     expect(completeMention('@f', '', people[1])).toBe('@faisal ');
+  });
+});
+
+/**
+ * The rule the two editors have to agree on.
+ *
+ * Web derives the query from the text up to the caret, so a non-handle simply
+ * fails to match and the popover never opens. Native is TOLD there is a mention
+ * by the editor library, whose own rule differs — it looks at the word before
+ * the caret with `Character.isWhitespace` boundaries, which include `\n`. On a
+ * device, placing the caret on the line below a bare `@` walked back over the
+ * newline and reported an active mention with a line break as its query; that
+ * trims to empty, empty means "no query yet", and the whole roster opened with
+ * the caret on the wrong line.
+ *
+ * These cases are paired with `activeMentionQuery` deliberately: they are two
+ * expressions of one rule, and the pairing is what stops them drifting apart.
+ */
+describe('isMentionQuery', () => {
+  it('accepts what a handle may contain, including the empty just-typed-@ case', () => {
+    for (const q of ['', 'sara', 'faisal.shah', 'a_b', 'x%y', 'a+b', 'a-b', 'A1']) {
+      expect(isMentionQuery(q), q).toBe(true);
+    }
+  });
+
+  it('rejects anything with whitespace — a handle has none', () => {
+    for (const q of ['\n', ' ', '\t', '\nLong', 'two words', 'sara ']) {
+      expect(isMentionQuery(q), JSON.stringify(q)).toBe(false);
+    }
+  });
+
+  it('agrees with activeMentionQuery, which is the same rule stated for web', () => {
+    // Whatever web is willing to call a query, native must accept.
+    for (const text of ['@', '@sa', 'hello @faisal.shah', 'a\n@x']) {
+      const q = activeMentionQuery(text);
+      expect(q, text).not.toBeNull();
+      expect(isMentionQuery(q as string), text).toBe(true);
+    }
+    // And where web refuses to see a mention, the query native would be handed
+    // is one this rejects.
+    expect(activeMentionQuery('@sara\n')).toBeNull();
+    expect(isMentionQuery('\n')).toBe(false);
+  });
+
+  it('is what stops a trimmed line break reading as "show everyone"', () => {
+    // The actual device symptom, in one line: this query must never reach
+    // mentionSuggestions, because mentionSuggestions would return the roster.
+    const roster = [
+      { uid: 'u1', email: 'a@x.com', displayName: 'A' },
+      { uid: 'u2', email: 'b@x.com', displayName: 'B' },
+    ];
+    expect(mentionSuggestions('\n', roster)).toHaveLength(2);
+    expect(isMentionQuery('\n')).toBe(false);
   });
 });
