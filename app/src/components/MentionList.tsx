@@ -1,10 +1,14 @@
 /**
- * The @mention popover, shared by the plain-text box and both rich editors.
+ * The @mention popover, shared by both rich editors.
+ *
+ * WHERE it goes comes from `anchor`, computed by `mentionAnchor.ts` from a caret
+ * the platform measured. `anchor === null` is the fallback for a surface that
+ * cannot report one: the old placement, above the whole field, full width.
  *
  * Every property here was learned on a device and must survive any move:
- *  - `position: absolute` above the field. Inline-below hid behind the
- *    keyboard; inline-above pushed the field down without re-triggering a
- *    scroll. Absolute takes no layout, so the 96px keyboard budget is unspent.
+ *  - `position: absolute`. Inline-below hid behind the keyboard; inline-above
+ *    pushed the field down without re-triggering a scroll. Absolute takes no
+ *    layout, so the 96px keyboard budget is unspent.
  *  - `zIndex` AND `elevation`: the first is web/iOS, the second is Android.
  *  - `keyboardShouldPersistTaps` is NOT inherited from `Screen`'s scroller.
  *    Without it the first tap on a name only dismisses the keyboard and the row
@@ -17,6 +21,7 @@
  */
 import { ScrollView, StyleSheet, Pressable, View } from 'react-native';
 import { handleFor, type MentionCandidate } from '@sabeel/shared';
+import type { MentionAnchor } from './mentionAnchor';
 import { Body, Hint } from './ui';
 import { radius, space, useTheme } from '../theme';
 
@@ -25,6 +30,16 @@ const ROW_GAP = space.xs;
 export const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
 const VISIBLE_ROWS = 4;
 const LIST_MAX_HEIGHT = ROW_PITCH * VISIBLE_ROWS;
+/**
+ * Everything in the popover that is not the scrolling list: its padding, the
+ * gap, and the "Mention" caption. Subtracted so the list inside honours the
+ * height the anchor measured — Yoga defaults `flexShrink` to 0, so a taller
+ * child would simply overflow the box rather than give.
+ */
+const CHROME = space.sm * 2 + space.xs + 18;
+
+/** How tall the whole popover would like to be, before room is considered. */
+export const MENTION_DESIRED_HEIGHT = LIST_MAX_HEIGHT + CHROME;
 
 export function MentionList({
   suggestions,
@@ -32,18 +47,29 @@ export function MentionList({
   listRef,
   onPick,
   onMeasureRow,
+  anchor,
 }: {
   suggestions: readonly MentionCandidate[];
   index: number;
   listRef: React.RefObject<ScrollView | null>;
   onPick: (c: MentionCandidate) => void;
   onMeasureRow: (pitch: number) => void;
+  /** Null when the platform could not measure a caret — see the header. */
+  anchor: MentionAnchor | null;
 }) {
   const t = useTheme();
   return (
     <View
       style={[
         styles.popover,
+        anchor
+          ? {
+              top: anchor.top,
+              left: anchor.left,
+              width: anchor.width,
+              maxHeight: anchor.maxHeight,
+            }
+          : styles.aboveField,
         { backgroundColor: t.bg.surface, borderColor: t.border.subtle },
       ]}
     >
@@ -53,7 +79,12 @@ export function MentionList({
       </Hint>
       <ScrollView
         ref={listRef}
-        style={styles.list}
+        style={[
+          styles.list,
+          anchor
+            ? { maxHeight: Math.max(ROW_PITCH, anchor.maxHeight - CHROME) }
+            : null,
+        ]}
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
       >
@@ -92,16 +123,21 @@ export function MentionList({
 const styles = StyleSheet.create({
   popover: {
     position: 'absolute',
-    bottom: '100%',
-    left: 0,
-    right: 0,
-    marginBottom: space.xs,
     padding: space.sm,
     gap: space.xs,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
+    // zIndex is web/iOS, elevation is Android. Both, or it draws behind the
+    // field on one surface and nobody notices on the other.
     zIndex: 10,
     elevation: 8,
+  },
+  /** No caret to anchor to: above the whole field, full width, as before. */
+  aboveField: {
+    bottom: '100%',
+    left: 0,
+    right: 0,
+    marginBottom: space.xs,
   },
   list: { maxHeight: LIST_MAX_HEIGHT },
   option: {

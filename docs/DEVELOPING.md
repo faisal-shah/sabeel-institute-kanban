@@ -138,10 +138,17 @@ curl -X DELETE "http://127.0.0.1:61202/emulator/v1/projects/demo-sabeel-kanban/a
 >
 > If `/proc/cpuinfo` shows `hypervisor` but neither `vmx` nor `svm`, nested
 > virtualization is off at the host and nothing inside the machine — root
-> included — can enable it. The AVD still boots, in software: measured at
-> **805 s to boot and ~14 s per `screencap`**, with input events around 1.4 s.
-> Input is usable; the screenshot-based verification this file relies on
-> effectively is not, so plan on a real device over ADB TCP instead.
+> included — can enable it. **Emulator 37.1.11 then refuses to start**, exiting
+> at once with *"x86_64 emulation currently requires hardware acceleration!"* —
+> it does not fall back. (An older emulator did, at 805 s to boot and ~14 s per
+> `screencap`; that is history, not the current behaviour, and the modern
+> failure is instant rather than slow.) Plan on a real device over ADB TCP.
+>
+> Before giving up on a native change, exhaust what still works without a
+> device: `npx expo export --platform android` proves the native module graph
+> resolves and the worklets compile, and transforming a file with
+> `babel-preset-expo` proves a `'worklet'` directive really became a worklet
+> factory instead of being dropped.
 > **Builds are unaffected** — Gradle needs no KVM, so `build:aab` and the APK
 > path work normally. `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh`
 > gives the verdict and the numbers.

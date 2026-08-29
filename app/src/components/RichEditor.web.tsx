@@ -74,7 +74,8 @@ import {
 } from '@sabeel/shared';
 import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
-import { MentionList, ROW_PITCH } from './MentionList';
+import { MentionList, MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
+import { anchorForCaret, type MentionAnchor } from './mentionAnchor';
 import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, type as type_, useTheme } from '../theme';
 
@@ -265,6 +266,52 @@ function Bridge({
 
 
 /**
+ * Where the caret is on screen, relative to the popover's positioned ancestor.
+ *
+ * `getBoundingClientRect` on the live DOM range is the only thing that knows —
+ * Lexical's model has offsets, not pixels, and a wrapped line makes the two
+ * unrelated. A COLLAPSED range legitimately has zero width, and at the very
+ * start of a text node some engines hand back an all-zero rect; the anchor
+ * node's own element is the fallback, which is the right line even if not the
+ * right column.
+ *
+ * Returns null rather than a guess when nothing can be measured, because
+ * `MentionList` treats null as "no caret known" and falls back to its old
+ * placement. A zero would instead pin the popover to the field's top-left
+ * corner and look deliberate.
+ */
+function measureCaret(anchorTo: React.RefObject<unknown>): MentionAnchor | null {
+  const host = anchorTo.current as HTMLElement | null;
+  if (!host || typeof window === 'undefined') return null;
+
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+
+  let rect = range.getBoundingClientRect();
+  if (rect.height === 0) {
+    const el =
+      range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.startContainer as HTMLElement)
+        : range.startContainer.parentElement;
+    if (!el) return null;
+    rect = el.getBoundingClientRect();
+  }
+  if (rect.height === 0) return null;
+
+  const box = host.getBoundingClientRect();
+  return anchorForCaret(
+    { x: rect.left - box.left, y: rect.top - box.top, height: rect.height },
+    {
+      fieldWidth: box.width,
+      below: window.innerHeight - rect.bottom,
+      above: rect.top,
+    },
+    MENTION_DESIRED_HEIGHT,
+  );
+}
+
+/**
  * @mention autocomplete, using a REAL caret.
  *
  * This is the half a plain `TextInput` cannot have. The old box passed its
@@ -280,17 +327,25 @@ function Bridge({
 function MentionPlugin({
   candidates,
   prioritiseUids,
+  anchorTo,
+  onOpenChange,
 }: {
   candidates: readonly MentionCandidate[];
   prioritiseUids?: readonly string[];
+  /** The popover's positioned ancestor — what `anchor` is measured against. */
+  anchorTo: React.RefObject<unknown>;
+  /** So the editor can lift itself over its siblings — see `styles.lifted`. */
+  onOpenChange: (open: boolean) => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const [query, setQuery] = useState<string | null>(null);
+  const [anchor, setAnchor] = useState<MentionAnchor | null>(null);
   const pitch = useRef(ROW_PITCH);
 
   useEffect(
     () =>
       editor.registerUpdateListener(({ editorState }) => {
+        let open = false;
         editorState.read(() => {
           const sel = $getSelection();
           if (!$isRangeSelection(sel) || !sel.isCollapsed()) {
@@ -303,10 +358,18 @@ function MentionPlugin({
             return;
           }
           // Text up to the CARET, not the whole value.
-          setQuery(activeMentionQuery(node.getTextContent().slice(0, sel.anchor.offset)));
+          const q = activeMentionQuery(
+            node.getTextContent().slice(0, sel.anchor.offset),
+          );
+          setQuery(q);
+          open = q !== null;
         });
+        // Read the caret's position AFTER the editor-state read, and only while
+        // a mention is actually being typed — a rect per keystroke otherwise,
+        // and `getBoundingClientRect` forces layout.
+        setAnchor(open ? measureCaret(anchorTo) : null);
       }),
-    [editor],
+    [editor, anchorTo],
   );
 
   const policy = useMentionPolicy({
@@ -373,6 +436,11 @@ function MentionPlugin({
     );
   }, [editor, policy]);
 
+  useEffect(() => {
+    onOpenChange(policy.open);
+    return () => onOpenChange(false);
+  }, [policy.open, onOpenChange]);
+
   if (!policy.open) return null;
   return (
     <MentionList
@@ -383,6 +451,7 @@ function MentionPlugin({
       onMeasureRow={(p) => {
         pitch.current = p;
       }}
+      anchor={anchor}
     />
   );
 }
@@ -412,6 +481,20 @@ export function RichEditor({
 }) {
   const t = useTheme();
   const [marks, setMarks] = useState<RichMarks>(EMPTY_MARKS);
+  /**
+   * The mention popover's positioned ancestor.
+   *
+   * `LexicalComposer` renders no DOM node of its own, so the popover's
+   * containing block is THIS View — react-native-web gives every View
+   * `position: relative`. Measuring the caret against it is what turns a
+   * viewport rect into the popover's own coordinate space.
+   */
+  const wrapRef = useRef(null);
+  /**
+   * Whether the mention popover is up — and therefore whether this editor has to
+   * out-rank its own siblings. See `styles.lifted`.
+   */
+  const [mentionOpen, setMentionOpen] = useState(false);
   /**
    * The link sheet, and the selected text CAPTURED at the moment it opens.
    *
@@ -499,7 +582,7 @@ export function RichEditor({
   }, [css]);
 
   return (
-    <View style={styles.wrap}>
+    <View ref={wrapRef} style={[styles.wrap, mentionOpen ? styles.lifted : null]}>
       {/*
         Pressing a toolbar button steals focus and collapses the selection
         before the command runs, so the format applies to nothing. Preventing
@@ -573,7 +656,12 @@ export function RichEditor({
         <LinkPlugin validateUrl={isSafeHref} />
         <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
         {candidates ? (
-          <MentionPlugin candidates={candidates} prioritiseUids={prioritiseUids} />
+          <MentionPlugin
+            candidates={candidates}
+            prioritiseUids={prioritiseUids}
+            anchorTo={wrapRef}
+            onOpenChange={setMentionOpen}
+          />
         ) : null}
         <Bridge
           initialMarkdown={initialMarkdown}
@@ -598,4 +686,19 @@ export function RichEditor({
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
+  /**
+   * The editor, lifted over whatever follows it, WHILE the popover is open.
+   *
+   * react-native-web gives every View `position: relative` AND `zIndex: 0`, so
+   * every one of them is a stacking context. The popover's own `zIndex: 10` is
+   * therefore sealed inside THIS View and cannot out-paint anything outside it:
+   * the Comment button is a later sibling at the same rank, so it drew straight
+   * across the list of names. The old placement hid this completely by opening
+   * upward into the empty space above the toolbar.
+   *
+   * Lifting the whole editor is what actually works, and only while the popover
+   * is up — a permanently raised editor would sit over anything the card draws
+   * near it.
+   */
+  lifted: { zIndex: 30 },
 });

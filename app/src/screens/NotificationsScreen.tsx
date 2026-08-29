@@ -2,10 +2,12 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { NOTIFICATION_RETENTION_DAYS, NOTIFY_EVENTS } from '@sabeel/shared';
 import {
+  alertsView,
   dismiss,
   dismissAll,
   markAllRead,
   markRead,
+  markUnread,
   routeForNotification,
   setNotifyPref,
   useInbox,
@@ -60,7 +62,8 @@ function when(ms: number): string {
  */
 export function NotificationsScreen({ user }: { user: SessionUser }) {
   const nav = useNav();
-  const inbox = useInbox(user);
+  const { unreadOnly } = alertsView.use();
+  const inbox = useInbox(user, unreadOnly);
   const prefsDoc = useNotifyPrefs(user);
   const boards = useMyBoards(user);
   const t = useTheme();
@@ -303,12 +306,27 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
           <Row style={styles.between}>
             <Hint>
               {items.length === 0
-                ? 'Nothing here yet.'
-                : `${unread} unread of ${items.length}`}
+                ? unreadOnly
+                  ? 'Nothing unread.'
+                  : 'Nothing here yet.'
+                : unreadOnly
+                  ? `${items.length} unread`
+                  : `${unread} unread of ${items.length}`}
             </Hint>
             {/* A tight gap: each IconAction is a laid-out 44pt box, so a wide
                 one would push this bar past a narrow phone. */}
             <Row style={styles.actions}>
+              {/* An icon in `selected`, not a FilterChip: this bar already
+                  carries two 44pt boxes and a labelled chip beside them does not
+                  fit a 320px phone. `selected` is what keeps the active filter
+                  visible AND one tap from gone, which a filter has to be. */}
+              <IconAction
+                icon="mark-email-unread"
+                label={unreadOnly ? 'Show all alerts' : 'Show unread only'}
+                selected={unreadOnly}
+                disabled={busy}
+                onPress={() => alertsView.set((v) => ({ unreadOnly: !v.unreadOnly }))}
+              />
               {unread > 0 ? (
                 <IconAction
                   icon="done-all"
@@ -391,6 +409,29 @@ export function NotificationsScreen({ user }: { user: SessionUser }) {
                     {item.read ? '' : ' · unread'}
                   </Caption>
                 </Pressable>
+                {/* One control that SHOWS the state and flips it, not two
+                    buttons — the same shape the Owner switch and the People
+                    screen's access toggle use. No confirmation: it is trivial
+                    and undoes itself on the next tap, so the "destructive
+                    actions confirm" rule has nothing to bite on.
+
+                    Marking unread notifies NOBODY. Push goes out inline when the
+                    entry is created and no trigger watches this collection, so
+                    an update here reaches no server code at all. */}
+                <IconAction
+                  icon={item.read ? 'mark-email-unread' : 'mark-email-read'}
+                  label={
+                    item.read
+                      ? `Mark unread: ${item.text}`
+                      : `Mark read: ${item.text}`
+                  }
+                  disabled={busy}
+                  onPress={() =>
+                    run(() =>
+                      item.read ? markUnread(user, item) : markRead(user, item),
+                    )
+                  }
+                />
                 <IconAction
                   icon="close"
                   label={`Dismiss: ${item.text}`}

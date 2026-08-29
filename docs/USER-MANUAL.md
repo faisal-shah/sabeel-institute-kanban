@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.10.2 · August 2026*
+*For app version 0.11.0 · August 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -78,7 +78,8 @@ A slim navigation bar is always in reach — **along the bottom on a phone**, an
 - **Boards** — your board list, the home screen.
 - **My Work** — every card assigned to you, across every board.
 - **Search** — find a card by its words.
-- **Alerts** — what you've been told about; a badge shows how many are unread.
+- **Alerts** — what you've been told about; a badge shows how many are unread,
+  and a screen reader says the number too.
 - **More** — everything that isn't a place you go often: **Stats** (admins),
   **People** (admins), and **Sign out**. It also shows the version of
   the app you're running, which is the first thing to quote if something looks
@@ -450,9 +451,20 @@ what it is about — the card for a card alert, **People** for an account waitin
 for approval. Tapping the notification on your phone's lock screen or in its
 notification tray does the same thing, including when the app was not running.
 
-Each item has a **✕** to dismiss it. At the top of the list, **✓✓** marks
-everything read and the **sweep** icon empties the inbox — that one asks first,
-because dismissed alerts cannot be brought back.
+Each item has two icons: an **envelope** and a **✕**. The envelope flips between
+read and unread — on an unread item it marks it read, and on one you have
+already read it puts it **back to unread**, so you can leave something flagged to
+come back to. Nothing is sent to anybody when you do that: marking an alert
+unread does **not** produce another phone notification, and never notifies the
+person whose action it was about. The **✕** dismisses the item for good.
+
+Tapping the item itself opens what it is about and marks it read — so if you
+flagged something unread and then look at it, it goes back to read.
+
+At the top of the list, the **envelope** shows **only what is unread** (tap it
+again to see everything), **✓✓** marks everything read, and the **sweep** icon
+empties the inbox — that last one asks first, because dismissed alerts cannot be
+brought back.
 
 Alerts keeps the last **90 days** and clears out anything older on its own, so
 the list stays worth reading. Nothing is lost by it — a card keeps its own
@@ -566,7 +578,9 @@ From here:
 
   Somebody removed while they have the board open is told they no longer have
   access to it, rather than being left looking at a screen that will not load.
-- **Owners** — each member's row carries an **Owner** switch. See below.
+- **Owners** — each member's row carries a switch that makes that person an
+  owner. A line at the top of *Members* says so, and both directions ask before
+  anything happens. See below.
 - **Archive** — hides the board from everyone's list. Boards are never deleted
   outright.
 
@@ -577,10 +591,11 @@ From here:
   <figure><img class="narrow" src="manual/img/owners-phone.png" alt="The same Members section on a phone"><figcaption>On a phone</figcaption></figure>
 </div>
 
-Turn a member's **Owner** switch on and they can run the board exactly as you
-can; turn it off and they go back to being an ordinary member, keeping the board
-and everything on it. **Both directions ask first** and spell out what changes,
-so a stray tap grants nothing.
+Turn a member's switch on and they can run the board exactly as you can; turn it
+off and they go back to being an ordinary member, keeping the board and
+everything on it. **Both directions ask first** and spell out what changes, so a
+stray tap grants nothing. The line above the list says what the switch is for;
+the confirmation says what it will do.
 
 Unless you created the board, you can step down the same way — your own switch
 works like anyone else's. The confirmation is worth reading: **you cannot undo
@@ -769,6 +784,10 @@ they're a member of its board).
 **…stop a noisy notification?**
 **Alerts → Settings** → switch off that kind, or **mute** the board.
 
+**…keep an alert to deal with later?**
+**Alerts** → the **envelope** on its row puts it back to unread. Tap the envelope
+at the top of the list to show only those. Nobody is notified again.
+
 **…create a board?** *(organizers and admins)*
 **Boards → New board** → name it. You own the board you create.
 
@@ -836,7 +855,7 @@ instead.
 Board **settings → Members** → add them. (They must be an approved account first.)
 
 **…let someone else run a board with me?** *(the board's owners)*
-Board **settings → Members** → turn on **Owner** on their row → confirm.
+Board **settings → Members** → turn on the switch on their row → confirm.
 
 **…find out who runs a board I'm on?** *(anyone)*
 Open the board → **Board members** — or **Board settings**, if you are one of

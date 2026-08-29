@@ -7,6 +7,7 @@ import {
   query,
   runTransaction,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import type { NotifyEvent } from '@sabeel/shared';
@@ -14,6 +15,7 @@ import { db } from './firebase';
 import { useLiveDoc, useLiveQuery } from './liveQuery';
 import type { Route } from './nav';
 import type { SessionUser } from './session';
+import { createViewStore } from './viewState';
 
 export interface InboxItem {
   id: string;
@@ -57,11 +59,38 @@ export function routeForNotification(n: {
   return null;
 }
 
-/** The in-app inbox, newest first. Capped — nobody scrolls past 50. */
-export function useInbox(user: SessionUser) {
+/**
+ * Whether Alerts is showing everything or only what is unread.
+ *
+ * A view store, not `useState`: tapping a notification navigates away and
+ * unmounts this screen, so a local flag would be gone by the time Back returns —
+ * and the whole point of the filter is to work through what it lists.
+ */
+export const alertsView = createViewStore<{ unreadOnly: boolean }>({
+  unreadOnly: false,
+});
+
+/**
+ * The in-app inbox, newest first. Capped — nobody scrolls past 50.
+ *
+ * `unreadOnly` narrows in the QUERY rather than filtering the loaded page. The
+ * cap is on what comes back, so filtering afterwards would hide any unread entry
+ * sitting behind 50 read ones — the filter would then be least useful exactly
+ * when it is most needed. `(read ASC, at DESC)` is already in
+ * firestore.indexes.json, so this costs nothing.
+ */
+export function useInbox(user: SessionUser, unreadOnly = false) {
   return useLiveQuery<InboxItem[]>(
     'inbox',
-    () => query(inboxRef(user.uid), orderBy('at', 'desc'), limit(50)),
+    () =>
+      unreadOnly
+        ? query(
+            inboxRef(user.uid),
+            where('read', '==', false),
+            orderBy('at', 'desc'),
+            limit(50),
+          )
+        : query(inboxRef(user.uid), orderBy('at', 'desc'), limit(50)),
     (docs) =>
       docs.map((d) => ({
         id: d.id,
@@ -73,7 +102,7 @@ export function useInbox(user: SessionUser) {
         read: Boolean(d.data.read),
         at: (d.data.at as number) ?? 0,
       })),
-    [user.uid],
+    [user.uid, unreadOnly],
   );
 }
 
@@ -115,6 +144,37 @@ export async function markReadById(uid: string, notifId: string): Promise<void> 
     if (!snap.exists() || snap.data().read === true) return;
     tx.update(notifRef, { read: true });
     tx.update(userRef, { unreadNotifCount: increment(-1) });
+  });
+}
+
+export async function markUnread(user: SessionUser, item: InboxItem): Promise<void> {
+  if (!item.read) return;
+  await markUnreadById(user.uid, item.id);
+}
+
+/**
+ * Put one entry back to unread, by id.
+ *
+ * The inverse of `markReadById` and deliberately its mirror image, down to the
+ * transaction: the guard is re-read INSIDE it and only a genuinely-read entry
+ * moves, so two rapid taps cannot both `increment(1)` off one stale snapshot and
+ * leave the badge counting an entry twice.
+ *
+ * NOTHING is pushed by this. Push is sent inline by `notify()` at the moment an
+ * inbox entry is CREATED (functions/src/notifications.ts) — no trigger watches
+ * `users/{uid}/notifications/**` at all, so an update here reaches no server
+ * code. `functions/test/integration/notifications.test.ts` pins that, because
+ * the day somebody adds an `onDocumentWritten` on this collection, marking a
+ * week of alerts unread would re-page the whole organisation.
+ */
+export async function markUnreadById(uid: string, notifId: string): Promise<void> {
+  const notifRef = doc(db, 'users', uid, 'notifications', notifId);
+  const userRef = doc(db, 'users', uid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(notifRef);
+    if (!snap.exists() || snap.data().read !== true) return;
+    tx.update(notifRef, { read: false });
+    tx.update(userRef, { unreadNotifCount: increment(1) });
   });
 }
 

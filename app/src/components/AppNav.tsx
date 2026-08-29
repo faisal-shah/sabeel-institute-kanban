@@ -250,7 +250,11 @@ function NavItem({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      /* The badge is a number drawn over an icon, so a screen reader saw nothing
+         of it and announced "Alerts" whether one thing waited or nine. Appended
+         rather than replacing the label, so the name still STARTS with the
+         destination — every selector in scripts/ finds the tab by that prefix. */
+      accessibilityLabel={badge > 0 ? `${label}, ${badge} unread` : label}
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={({ pressed }) => [

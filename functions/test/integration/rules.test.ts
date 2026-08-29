@@ -333,6 +333,35 @@ describe('the notification inbox', () => {
     await assertFails(updateDoc(doc(db, 'users/member1/notifications/n1'), { text: 'nope' }));
   });
 
+  // Marking something UNREAD again is the same write in the other direction, and
+  // the rule is phrased on the affected KEYS rather than the value — so this
+  // already passes. Pinned because it is now a feature people use: a
+  // value-shaped rule ("read may only become true") would break it, and nothing
+  // else would notice until someone tapped the icon.
+  it('you may put an entry back to unread, and adjust your own badge for it', async () => {
+    await seedNotif('member1', 'n1', true);
+    const db = ctx('member1', 'member', 'active');
+    await assertSucceeds(
+      updateDoc(doc(db, 'users/member1/notifications/n1'), { read: false }),
+    );
+    await assertSucceeds(updateDoc(doc(db, 'users/member1'), { unreadNotifCount: 1 }));
+  });
+
+  // `hasOnly(['read'])` means a timestamp smuggled alongside the flag is
+  // refused. Worth pinning: a `readAt` is the obvious next thing to reach for,
+  // and it would fail as a bare permission-denied with nothing pointing at the
+  // extra field.
+  it('may not smuggle another field in beside `read`', async () => {
+    await seedNotif('member1', 'n1', false);
+    const db = ctx('member1', 'member', 'active');
+    await assertFails(
+      updateDoc(doc(db, 'users/member1/notifications/n1'), {
+        read: true,
+        readAt: 123,
+      }),
+    );
+  });
+
   it("nobody may read or clear SOMEONE ELSE's inbox, an admin included", async () => {
     await seedNotif('member1', 'n1', false);
     for (const [uid, role] of [

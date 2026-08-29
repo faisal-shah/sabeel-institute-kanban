@@ -319,6 +319,49 @@ await page.keyboard.type(' @sa');
 await page.waitForTimeout(900);
 const rows = page.getByRole('button', { name: /^Mention / });
 check('the mention list opens MID-TEXT, which the plain box cannot do', (await rows.count()) > 0);
+
+/**
+ * The popover goes at the CARET, not at the top of the field.
+ *
+ * It used to be `bottom: 100%` on the whole editor, so on a long comment the
+ * list sat hundreds of pixels above the "@" that opened it — off screen on a
+ * phone. Measured against the caret's own rect rather than against a constant,
+ * because the right answer moves with the font, the width and the line.
+ *
+ * A generous tolerance on purpose: this is asserting "beside the caret" rather
+ * than pinning an exact offset, which would fail on a font-metrics change that
+ * broke nothing.
+ */
+const nearCaret = await page.evaluate(() => {
+  const pop = [...document.querySelectorAll('div')].find(
+    (d) =>
+      d.textContent?.startsWith('Mention') &&
+      getComputedStyle(d).position === 'absolute',
+  );
+  const sel = window.getSelection();
+  if (!pop || !sel || sel.rangeCount === 0) return null;
+  const caret = sel.getRangeAt(0).getBoundingClientRect();
+  const box = pop.getBoundingClientRect();
+  return {
+    dx: Math.abs(box.left - caret.left),
+    // Distance from the caret line to whichever popover edge faces it.
+    dy:
+      box.top >= caret.bottom
+        ? box.top - caret.bottom
+        : Math.max(0, caret.top - box.bottom),
+    onScreen: box.top >= 0 && box.bottom <= window.innerHeight,
+  };
+});
+check(
+  'the mention popover is anchored AT the caret, not at the top of the field',
+  !!nearCaret && nearCaret.dy < 60 && nearCaret.dx < 320,
+  nearCaret ? `dx=${Math.round(nearCaret.dx)} dy=${Math.round(nearCaret.dy)}` : 'no popover found',
+);
+check(
+  'the mention popover lands fully on screen',
+  !!nearCaret && nearCaret.onScreen,
+);
+
 if (await rows.count()) await rows.first().click();
 await page.waitForTimeout(500);
 await page.getByRole('button', { name: 'Comment', exact: true }).click();

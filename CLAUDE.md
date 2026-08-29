@@ -494,12 +494,26 @@ drops mid-run, a stale build stays on the device). Confirm with
 `adb shell dumpsys package com.sabeelinstitute.kanban.debug | grep versionName`
 before trusting a native screenshot.
 
-**The AVD needs hardware virtualization and a VM may not have it.**
-`emulator -accel-check` is authoritative; on a host without it the AVD still
-boots in software at ~805 s and ~14 s per screenshot, which retires the
-screenshot loop while leaving input usable. Builds are unaffected — Gradle needs
-no KVM. `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh` gives
-the verdict.
+**The AVD needs hardware virtualization, and on THIS box it does not merely get
+slow — it does not start at all.** `emulator -accel-check` is authoritative
+(`accel: 3` here). Emulator **37.1.11** with the x86_64 system image exits
+immediately with *"x86_64 emulation currently requires hardware acceleration!"*.
+An older emulator did fall back to a software renderer — 805 s to boot, ~14 s per
+screenshot — and that is what this file used to promise; it is no longer true,
+and the failure is instant rather than slow. **There is no way to verify Android
+by screenshot on this machine**: a native change has to be proven on a real
+device, which means Faisal, through the GitHub-release APK channel.
+
+What DOES still work here, and is worth exhausting first:
+`npx expo export --platform android` proves the whole native module graph
+resolves and every worklet compiles, and a Babel transform with
+`babel-preset-expo` proves a `'worklet'` directive became a worklet factory
+rather than being silently dropped. Neither is a substitute for a device, but
+both catch the failures that otherwise reach one.
+
+Builds are unaffected — Gradle needs no KVM.
+`../agent-skills/skills/expo-firebase-stack/tools/check-host.sh` gives the
+verdict.
 
 ## Secrets (zero tolerance)
 

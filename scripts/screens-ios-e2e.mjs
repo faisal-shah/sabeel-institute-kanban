@@ -113,7 +113,9 @@ const SCREENS = [
   },
   { name: '04-my-work', steps: [{ tapOn: 'My Work' }], assert: ['My work'] },
   { name: '05-search', steps: [{ tapOn: 'Search' }], assert: ['Search'] },
-  { name: '06-alerts', steps: [{ tapOn: 'Alerts' }], assert: ['Alerts'] },
+  // A REGEX for the same reason BOARD_ROW is one: the Alerts tab announces
+  // its badge ("Alerts, 2 unread"), and Maestro matches the whole string.
+  { name: '06-alerts', steps: [{ tapOn: '.*Alerts.*' }], assert: ['Alerts'] },
 ];
 
 /**

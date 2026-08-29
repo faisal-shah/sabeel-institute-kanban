@@ -31,7 +31,13 @@
  * the library exposes no opt-out. Documented in the manual.
  */
 import { useCallback, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  useFocusedInputHandler,
+  useKeyboardState,
+  useReanimatedFocusedInput,
+} from 'react-native-keyboard-controller';
+import { runOnJS } from 'react-native-reanimated';
 import {
   EnrichedTextInput,
   type EnrichedTextInputInstance,
@@ -44,9 +50,64 @@ import {
 } from '@sabeel/shared';
 import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
-import { MentionList, ROW_PITCH } from './MentionList';
+import { MentionList, MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
+import { anchorForCaret, type MentionAnchor } from './mentionAnchor';
 import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, type as type_, useTheme } from '../theme';
+
+/** A caret as the OS reports it: field-relative x/y, plus the field's own top. */
+interface NativeCaret {
+  x: number;
+  y: number;
+  height: number;
+  /** The focused input's Y on screen, or -1 when the layout is not known yet. */
+  inputTop: number;
+}
+
+/** A caret line, when the event reports no height of its own. */
+const FALLBACK_LINE = 20;
+
+/**
+ * Turn a native caret into a popover placement.
+ *
+ * Returns null — meaning "fall back to the old placement above the field" —
+ * whenever the inputs cannot support an honest answer. That is the important
+ * case: if `useFocusedInputHandler` never fires for this editor, or the focused
+ * input's layout is unknown, `caret` stays null and the popover behaves exactly
+ * as it did before. A zero here would instead pin it to the field's top-left
+ * corner and look like a deliberate position.
+ */
+function nativeAnchor({
+  caret,
+  fieldWidth,
+  screenH,
+  keyboardHeight,
+}: {
+  caret: NativeCaret | null;
+  fieldWidth: number;
+  screenH: number;
+  keyboardHeight: number;
+}): MentionAnchor | null {
+  if (!caret || caret.inputTop < 0 || fieldWidth <= 0) return null;
+
+  const height = caret.height > 0 ? caret.height : FALLBACK_LINE;
+  // The caret on SCREEN, which is what the keyboard occludes — `caret.y` alone
+  // is relative to a field that has been scrolled somewhere.
+  const caretTop = caret.inputTop + caret.y;
+  // The keyboard overlays the window under edge-to-edge, so its height off the
+  // bottom is where the visible area ends.
+  const visibleBottom = screenH - keyboardHeight;
+
+  return anchorForCaret(
+    { x: caret.x, y: caret.y, height },
+    {
+      fieldWidth,
+      below: visibleBottom - (caretTop + height),
+      above: caretTop,
+    },
+    MENTION_DESIRED_HEIGHT,
+  );
+}
 
 /** Exactly the two list triggers, pinned rather than defaulted. */
 const TEXT_SHORTCUTS = [
@@ -122,6 +183,71 @@ export function RichEditor({
     setLinkSheet({ open: false, text: '', start: 0, end: 0 });
   const [query, setQuery] = useState<string | null>(null);
   const pitch = useRef(ROW_PITCH);
+
+  /**
+   * WHERE the caret is, so the popover can sit at it instead of above the whole
+   * field. `react-native-enriched-html` has no caret API at all — its selection
+   * event carries character offsets and nothing else — so the coordinates come
+   * from `react-native-keyboard-controller`, which tracks the focused input at
+   * the OS level and is already a dependency for `KeyboardScroll`.
+   *
+   * The handler is a WORKLET, hence `runOnJS`. It is the only worklet in app
+   * code, and it earns that: nothing else in the tree can answer the question.
+   */
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const keyboardHeight = useKeyboardState((k) => k.height);
+  const { input } = useReanimatedFocusedInput();
+  const [caret, setCaret] = useState<NativeCaret | null>(null);
+  const [fieldWidth, setFieldWidth] = useState(screenW);
+  /**
+   * The latest caret, kept in a REF as well as state.
+   *
+   * Selection changes on every keystroke and cursor move; committing each one to
+   * state would re-render this editor per character, which is the exact cost the
+   * draft-ownership rule exists to avoid. So the ref is always current and state
+   * is only written while a mention is open — and `onStartMention` seeds from
+   * the ref, because the '@' keystroke moves the caret BEFORE the mention opens
+   * and the popover would otherwise draw its first frame against a stale one.
+   */
+  const caretRef = useRef<NativeCaret | null>(null);
+  const mentionOpen = useRef(false);
+  mentionOpen.current = query !== null;
+
+  const onCaret = useCallback(
+    (x: number, y: number, height: number, inputTop: number) => {
+      const next = { x, y, height, inputTop };
+      caretRef.current = next;
+      if (mentionOpen.current) setCaret(next);
+    },
+    [],
+  );
+
+  useFocusedInputHandler(
+    {
+      onSelectionChange: (e) => {
+        'worklet';
+        const layout = input.value?.layout;
+        runOnJS(onCaret)(
+          e.selection.start.x,
+          e.selection.start.y,
+          // The event gives the selection RECTANGLE: start is its top-left and
+          // end its bottom-right, so for a collapsed caret the difference is one
+          // line. -1 when that comes out as nothing, so the fallback below can
+          // tell "no height" from "zero-height line".
+          Math.max(0, e.selection.end.y - e.selection.start.y),
+          layout ? layout.absoluteY : -1,
+        );
+      },
+    },
+    [onCaret],
+  );
+
+  const anchor = nativeAnchor({
+    caret,
+    fieldWidth,
+    screenH,
+    keyboardHeight,
+  });
   /**
    * `setLink` takes an explicit [start, end) range rather than "the current
    * selection", so the caret has to be tracked. Read out of the library's
@@ -151,12 +277,14 @@ export function RichEditor({
   );
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, policy.open ? styles.lifted : null]}>
       <RichToolbar commands={commands()} marks={marks} />
 
-      {/* Positioning context for the popover, which is absolute and sits above
-          the input. RN Views are `relative` by default. */}
-      <View>
+      {/* Positioning context for the popover, which is absolute. RN Views are
+          `relative` by default. The input is this View's ONLY child at offset
+          zero, which is what lets a caret measured against the input be used
+          against this View unchanged. */}
+      <View onLayout={(e) => setFieldWidth(e.nativeEvent.layout.width)}>
         {policy.open ? (
           <MentionList
             suggestions={policy.suggestions}
@@ -166,6 +294,7 @@ export function RichEditor({
             onMeasureRow={(p) => {
               pitch.current = p;
             }}
+            anchor={anchor}
           />
         ) : null}
 
@@ -200,7 +329,10 @@ export function RichEditor({
           // The library extracts the query itself, so `activeMentionQuery` —
           // which exists to find one in a flat string — is simply not needed
           // here. Start fires with an empty query; change carries the text.
-          onStartMention={() => setQuery('')}
+          onStartMention={() => {
+            setCaret(caretRef.current);
+            setQuery('');
+          }}
           onChangeMention={(e) => setQuery(e.text)}
           onEndMention={() => setQuery(null)}
           onFocus={policy.onFocus}
@@ -236,4 +368,15 @@ export function RichEditor({
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
+  /**
+   * The editor, lifted over whatever follows it, WHILE the popover is open.
+   *
+   * The popover carries `zIndex` and `elevation` of its own, but both are
+   * measured INSIDE this View — so the Comment button that follows the editor
+   * still won, and drew across the list of names. Found on the web sibling,
+   * where react-native-web makes every View a stacking context; applied here
+   * too because the ordering question is the same one and the answer must not
+   * differ by surface.
+   */
+  lifted: { zIndex: 30, elevation: 30 },
 });

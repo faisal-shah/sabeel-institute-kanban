@@ -458,7 +458,7 @@ const smallTargets = (page) =>
   ]);
 
 // ---- The tour --------------------------------------------------------------
-const SCREENS = 17;
+const SCREENS = 18;
 
 async function tour(page, tag, width) {
   /**
@@ -472,7 +472,12 @@ async function tour(page, tag, width) {
    */
   const nav = async (label) => {
     for (let i = 0; i < 6; i += 1) {
-      const tab = page.getByRole('button', { name: label, exact: true }).first();
+      // A PREFIX, not an exact match: the Alerts tab announces its badge as
+      // "Alerts, 3 unread", so an exact name stops finding it the moment
+      // anything is waiting — and this suite seeds exactly that.
+      const tab = page
+        .getByRole('button', { name: new RegExp(`^${label}(,|$)`) })
+        .first();
       if (await tab.isVisible().catch(() => false)) {
         await tab.click();
         await page.waitForTimeout(700);
@@ -765,6 +770,27 @@ async function tour(page, tag, width) {
   });
 
   /**
+   * THE @MENTION POPOVER, OPEN.
+   *
+   * A floating layer over a composer, and until this entry the sweep had never
+   * drawn one — the only picture of it anywhere was an unasserted screenshot in
+   * web-e2e. It is now anchored to the CARET rather than pinned above the whole
+   * field, so where it lands depends on the width, the wrap and the line: the
+   * sweep is exactly the check that catches it clipping an edge at 320px.
+   *
+   * Typed into the composer left focused by `card-comment`, so this costs no
+   * navigation.
+   */
+  await visit('card-mention', async () => {
+    await page.keyboard.type(' @sa');
+    await page
+      .getByRole('button', { name: /^Mention / })
+      .first()
+      .waitFor({ timeout: 15000 });
+    await page.waitForTimeout(400);
+  });
+
+  /**
    * A SHEET IS ITS OWN SCREEN, and was the one state never toured.
    *
    * Every overlay in the app goes through `Sheet` — the new-label dialog, the
@@ -778,6 +804,10 @@ async function tour(page, tag, width) {
    * field, which is the combination that broke.
    */
   await visit('card-sheet', async () => {
+    // Escape closes the mention popover left open above. Without it the list
+    // floats over the card body and swallows the tap below.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
     await page.getByRole('button', { name: 'New label' }).first().click();
     await page.getByPlaceholder(/label name/i).first().waitFor({ timeout: 15000 });
     await page.waitForTimeout(400);

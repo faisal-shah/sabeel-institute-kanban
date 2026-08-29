@@ -27,7 +27,7 @@ web. "The code looks right" is not verification.
 | 14 | ClickUp import + launch | **complete** (2026-07-26) — three boards imported from a CSV export in one pass; `scripts/import-clickup.mjs` and the `sourceId` field remain so a re-run would update, not duplicate. See `docs/MIGRATION.md`. |
 | — | Since launch | The app is **in production and in daily use**. Work now ships as numbered releases rather than phases; the **deploy log** below is the running record. |
 
-## What works today (2026-08-16, v0.9.0)
+## What works today (2026-08-29, v0.11.0)
 
 Every phase is complete and the app is **live and in daily use** at
 <https://sabeel-institute-kanban.web.app> with an Android APK beside it:
@@ -54,10 +54,14 @@ Every phase is complete and the app is **live and in daily use** at
   column with a "Move to…" sheet.
 - Multi-select and bulk move/assign/archive/delete on both surfaces, including
   cross-board move and copy.
-- Comments with @mentions, per-card **comment subscriptions**, and a
-  tamper-proof per-card activity history.
+- Comments with @mentions — the picker opens **at the caret**, like code
+  completion, rather than above the field — per-card **comment subscriptions**,
+  and a tamper-proof per-card activity history.
 - Notifications: in-app inbox with unread badge, per-event preferences,
-  per-board mute, and a daily due-soon sweep.
+  per-board mute, and a daily due-soon sweep. An alert can be put **back to
+  unread** to deal with later — which notifies nobody, because push is sent when
+  the entry is created and nothing watches it afterwards — and the list filters
+  to unread only.
 - My Work across every board, and search across the boards you belong to, with
   filters for archived, overdue, priority, label, board and assignee that
   survive navigating away, and a sort by last activity in either direction.
@@ -67,11 +71,12 @@ Every phase is complete and the app is **live and in daily use** at
   which boards, or which people.
 - Sabeel brand palette (Option 1) and logo; single light theme, no dark mode.
 
-**Tests: 467 unit + 306 emulator integration + 619 browser e2e checks**, the last
-across four suites — access and board flow (116), attachments (21), the stats
-chart at nine widths (280), and every screen at five widths (202). All four run
-in CI on every push, and `app/src/ciCoverage.test.ts` fails if one is ever left
-out of the workflow.
+**Tests: 557 unit + 132 emulator integration + 680 browser e2e checks**, the last
+across four suites — access and board flow (150), attachments (21), the stats
+chart at nine widths (280), and every screen at five widths (229). Rich text (30)
+and typing performance (3) run beside them, and the migration scripts (96) run
+under their own emulator. All of them run in CI on every push, and
+`app/src/ciCoverage.test.ts` fails if a suite is ever left out of the workflow.
 
 See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
 `docs/DEPLOY.md` for the production checklist.
@@ -93,6 +98,12 @@ See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
   hold. Both are fine below fifty colleagues; neither survives untrusted users.
 - **A simultaneous double-create can make two labels with the same name.**
   Uniqueness is case-insensitive and checked on the client only.
+- **The @mention popover's caret anchoring is unverified on Android** (v0.11.0).
+  Web is proven by two e2e assertions and a screenshot at five widths; the native
+  half reads the caret from `react-native-keyboard-controller`, and whether that
+  reports coordinates for `EnrichedTextInput` needs a real device — this machine
+  cannot run an AVD at all (see the deploy log). If it reports nothing the
+  popover keeps its old placement above the field; nothing breaks either way.
 
 Faisal's console tasks are tracked in `TODO.md`.
 
@@ -371,6 +382,111 @@ the team.
 ---
 
 ## Deploy log
+
+### 2026-08-29 — Alerts you can re-flag, a named switch, a caret-anchored mention list — v0.11.0
+
+**Three things the team hit in daily use, and the one real bug was found by
+looking at a screenshot of a passing suite.**
+
+**An alert could be marked read but never unread.** There was no way to say "I
+saw this, deal with it later". The row now carries one envelope icon that shows
+the state and flips it, beside the existing dismiss — one control, not two, the
+shape the Owner switch and the People screen's access toggle already use.
+
+This needed **no server change at all**, and the reason is worth stating because
+it is a property of the trigger layout rather than of any code that could be
+read for correctness: push is sent INLINE by `notify()` at the moment an inbox
+entry is created, and **nothing watches `users/{uid}/notifications/**`**. So an
+update to `read` reaches no server code and can page nobody. The rules already
+allowed the write — `hasOnly(['read'])` is phrased on the affected KEYS, not on
+the value, so it permitted both directions before anyone needed the second one.
+Both facts are now pinned by tests, because the day somebody adds an
+`onDocumentWritten` on that collection to recompute a badge, marking a week of
+alerts unread would re-page the whole organisation and every existing test would
+still pass. The integration test uses a real comment as its control, so an
+unchanged count means the triggers were alive and silent rather than absent.
+
+Beside it: an **unread-only filter** — a selected icon, not a chip, because that
+bar already carries two 44pt boxes and a labelled chip does not fit 320px. It
+narrows in the QUERY (`where('read','==',false)`, on the index that already
+existed) rather than filtering the loaded page, or an unread entry sitting behind
+fifty read ones would be hidden exactly when the filter was most wanted. Its
+state lives in a view store, not `useState`: opening an alert unmounts the
+screen, and a filter you cannot return to is not a filter.
+
+**The Owner switch had no visible label.** It carried an `accessibilityLabel` and
+nothing else, so a sighted owner met a bare switch beside every name — and the
+manual cheerfully told them to "turn on **Owner** on their row", describing
+something that was not on the screen. Columns and Labels both open with an
+explanatory line; Members now does too, branched on whether you can manage the
+board, and with a third case for a board that has no owners at all. Per-row
+labels were never an option: 320px has no width for one, and repeating it down
+every row is the thing that was asked against.
+
+**The @mention list is now anchored to the caret.** It was
+`bottom: 100%; left: 0; right: 0` — above the WHOLE field — so on a long comment
+the list sat hundreds of pixels above the "@" that opened it. It now behaves like
+code completion: below the caret line, flipping above when the space below cannot
+show a usable list, clamped inside the field. The arithmetic is a pure module
+with unit tests, because it is the only part of a two-surface,
+device-dependent problem that can be pinned without a device.
+
+Web reads a real DOM range rect. **Native has no caret API whatsoever** — the
+editor library's selection event carries character offsets and its Android
+emitter puts exactly two keys on the wire — so the coordinates come from
+`react-native-keyboard-controller`, already a dependency for `KeyboardScroll`,
+which tracks the focused input at the OS level and reports selection x/y. That is
+one worklet, the first in app code, and it earns its place because nothing else
+in the tree can answer the question. `react-native-reanimated` is now declared
+rather than borrowed transitively, and the stale "this stack ships no reanimated"
+note in `ReorderList` has been corrected instead of left to mislead.
+
+**The bug the suite could not see.** With the popover moved below the caret, the
+**Comment button drew straight across the list of names** — and every assertion
+passed, at every width. react-native-web gives every `View`
+`position: relative` AND **`zIndex: 0`**, so every View is a stacking context and
+the popover's own `zIndex: 10` was sealed inside the editor, unable to out-paint
+a later sibling at the same rank. The old upward placement had hidden it
+completely by opening into the empty space above the toolbar. The fix is to lift
+the whole editor while the popover is up — and only while it is up. Found by
+opening the screenshot, which is the entire argument for the rule that says to.
+
+**Also:** the Alerts tab announced only "Alerts" to a screen reader, whatever the
+badge said; the count is now in the accessible name. That changes the accessible
+NAME, and three suites matched it exactly — so every `Alerts` selector moved to a
+prefix match in the same change, or this would have shipped as a green suite that
+had quietly stopped finding the tab.
+
+**Verified:** lint, typecheck, **557 unit** (432 shared + 36 functions + 89 app,
+9 of them new), **132 emulator integration** (3 new), and every browser suite —
+150 web (4 new), 229 across the five-width sweep (a new `card-mention` state at
+each width), 30 rich-text (2 new positioning checks), 21 attachments, 280 stats,
+3 typing-perf, and 96 migration. The mention popover, the two-icon alert row and
+the Members line were each read off a rendered screenshot rather than inferred
+from a green check — which is how the button-over-popover bug was found.
+
+**The Android caret path is NOT verified on a device, and could not be here.**
+The AVD does not merely run slowly without KVM — emulator 37.1.11 **refuses to
+start**, exiting at once with *"x86_64 emulation currently requires hardware
+acceleration!"*. `CLAUDE.md` and `docs/DEVELOPING.md` both promised a software
+fallback at 805 s a boot; that was an older emulator and is now wrong, so both
+have been corrected. There is no screenshot path to Android on this machine at
+all.
+
+What was proven without one, because it is what catches the failures that
+otherwise reach a device: `expo export --platform android` bundles the whole app
+(7.8 MB Hermes), so every new import resolves on the native graph; and
+transforming `RichEditor.tsx` through `babel-preset-expo` shows the `'worklet'`
+directive became a worklet factory with no bare directive left — which is the
+one failure that would have looked exactly like success, since
+`babel-preset-expo` only adds the worklets plugin when the package resolves and
+an unompiled worklet simply never runs.
+
+What remains unproven is the single question a device answers: whether
+`useFocusedInputHandler` reports coordinates for `EnrichedTextInput`. **If it
+does not, nothing breaks** — `caret` stays null, `nativeAnchor` returns null, and
+the popover keeps the placement it has today. That is the designed fallback, not
+a hope. Faisal to confirm from a phone through the GitHub-release APK channel.
 
 ### 2026-08-28 — The Android device pass web push never got — v0.10.2
 

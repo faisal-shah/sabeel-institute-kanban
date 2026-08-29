@@ -1640,6 +1640,62 @@ try {
     .catch(() => true);
   check('mark all read clears the inbox badge', !stillUnread);
 
+  // ---- Mark one back to unread -------------------------------------------
+  // The point of the feature: everything is read, and one item gets flagged to
+  // come back to. It must NOT re-push, but that is a server property and is
+  // pinned in functions/test/integration/notifications.test.ts — what this
+  // checks is the round trip a person actually performs.
+  const markUnread = sara.getByRole('button', { name: /^Mark unread: / }).first();
+  await markUnread.waitFor({ timeout: 20000 });
+  const flaggedName = (await markUnread.getAttribute('aria-label')) ?? '';
+  await markUnread.click();
+
+  const backToUnread = await sara
+    .getByText('· unread', { exact: false })
+    .first()
+    .waitFor({ timeout: 20000 })
+    .then(() => true)
+    .catch(() => false);
+  check('one entry can be put back to unread', backToUnread);
+
+  // The control flipped with the state — one control showing what it will do,
+  // not two buttons. Same row, so it must now offer the opposite verb.
+  const flipped = await sara
+    .getByRole('button', { name: flaggedName.replace('Mark unread: ', 'Mark read: ') })
+    .first()
+    .isVisible()
+    .catch(() => false);
+  check('the row action flips to "Mark read" once unread', flipped);
+
+  // ---- Unread-only filter -------------------------------------------------
+  await sara.getByRole('button', { name: 'Show unread only' }).click();
+  const onlyUnread = await sara
+    .waitForFunction(
+      () => {
+        const rows = document.querySelectorAll('[aria-label^="Dismiss: "]').length;
+        const unread = (document.body.textContent || '').split('· unread').length - 1;
+        return rows > 0 && rows === unread;
+      },
+      undefined,
+      { timeout: 20000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  check('the unread filter lists only unread entries', onlyUnread);
+
+  // Visible AND removable in one tap — a filter that cannot be cleared is a
+  // trap, and this one hides everything else on the screen.
+  await sara.getByRole('button', { name: 'Show all alerts' }).click();
+  const restored = await sara
+    .waitForFunction(
+      () => document.querySelectorAll('[aria-label^="Dismiss: "]').length > 1,
+      undefined,
+      { timeout: 20000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  check('clearing the unread filter brings the rest back', restored);
+
   // ---- Search (Phase 11) --------------------------------------------------
   // Walk back to the board list rather than assuming how deep the stack is —
   // earlier sections leave the admin on a card or a board depending on flow.

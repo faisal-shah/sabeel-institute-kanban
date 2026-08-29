@@ -530,6 +530,23 @@ export function BoardSettingsScreen({
         </Card>
       ) : null}
       <Card>
+        {/* What the switch column IS. Nothing else on this screen says it: the
+            Toggle carries an accessibilityLabel and no visible text, and at
+            320px a per-row label does not fit — so a sighted owner met a bare
+            switch beside every name with no clue what flipping it would do.
+
+            One line for the section, the same shape Columns and Labels above
+            already use, rather than the same words repeated down every row.
+            Kept SHORT on purpose: docs/PERMISSIONS.md is the single statement of
+            who can do what, and the confirmation below already spells out the
+            whole grant before anything happens. */}
+        <Hint>
+          {canManage
+            ? 'The switch on each row makes that person an owner of this board. Turning it on or off asks first and says what changes.'
+            : b.boardOwnerUids.length === 0
+              ? 'Nobody owns this board at the moment, so only an admin can change it.'
+              : 'Owners are marked below — they are who to ask to add someone or change this board.'}
+        </Hint>
         {members.map((m) => {
           const isOwner = b.boardOwnerUids.includes(m.uid);
           const isCreator = m.uid === b.createdBy;

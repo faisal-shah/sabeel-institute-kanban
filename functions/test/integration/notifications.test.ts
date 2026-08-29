@@ -275,3 +275,47 @@ describe('an archived board is quiet', () => {
     expect(fromArchived).toHaveLength(0);
   });
 });
+
+describe('marking an entry read or unread reaches no server code', () => {
+  /**
+   * The whole safety argument for "mark unread" in one test.
+   *
+   * Push is sent INLINE by `notify()` at the moment an inbox entry is created —
+   * no trigger watches `users/{uid}/notifications/**`, so flipping `read` runs
+   * nothing at all. That is a property of the trigger layout rather than of any
+   * code that could be inspected for correctness, which is exactly why it needs
+   * pinning: the day somebody adds an `onDocumentWritten` on this collection to
+   * recompute a badge, marking a week of alerts unread would re-page everyone
+   * who was ever mentioned, and every other test here would still pass.
+   *
+   * The control is what makes it a test rather than a wait: a real comment must
+   * land an entry AFTER the flip, so an unchanged count is proof the triggers
+   * were alive and silent, not proof that nothing was running.
+   */
+  it('flipping `read` writes no new entry, while a real comment still does', async () => {
+    await clearInbox(MENTIONED);
+    await comment('first look @Ben', [MENTIONED]);
+    const entry = await waitFor('the entry to notify about', async () => {
+      const snap = await adminDb().collection(`users/${MENTIONED}/notifications`).get();
+      return snap.docs.length ? snap.docs[0] : undefined;
+    });
+    const before = (await adminDb().collection(`users/${MENTIONED}/notifications`).get()).size;
+
+    // Read, then unread again — both directions, the way the inbox does it.
+    await entry.ref.update({ read: true });
+    await entry.ref.update({ read: false });
+
+    // The control: a genuine comment, which MUST still notify. Waiting on this
+    // also gives any (unwanted) trigger from the two writes above ample time to
+    // have run before the count below is taken.
+    await comment('second look @Ben', [MENTIONED]);
+    await waitFor('the control entry', async () => {
+      const snap = await adminDb().collection(`users/${MENTIONED}/notifications`).get();
+      return snap.size > before ? snap.size : undefined;
+    });
+
+    const after = (await adminDb().collection(`users/${MENTIONED}/notifications`).get()).size;
+    // Exactly one more: the control. The two updates contributed nothing.
+    expect(after).toBe(before + 1);
+  });
+});

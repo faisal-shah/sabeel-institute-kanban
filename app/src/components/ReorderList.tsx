@@ -7,11 +7,15 @@ import { radius, space, useTheme, type Theme } from '../theme';
  * A user-reorderable list with a drag HANDLE — the native sibling (web:
  * ReorderList.web.tsx). Reorderable lists use a handle, not up/down buttons.
  *
- * This stack ships no gesture library (no reanimated / gesture-handler, by
- * design), so the drag is hand-rolled with PanResponder + Animated: the handle
- * picks the row up, it follows the finger, and on release the row is dropped at
- * the index its travel implies (rounded to whole rows). Fine for a short list
- * (columns are a handful, fixed height, no nested scroll).
+ * This stack ships no GESTURE library (no gesture-handler, by design), so the
+ * drag is hand-rolled with PanResponder + Animated: the handle picks the row up,
+ * it follows the finger, and on release the row is dropped at the index its
+ * travel implies (rounded to whole rows). Fine for a short list (columns are a
+ * handful, fixed height, no nested scroll).
+ *
+ * Reanimated IS present — `react-native-keyboard-controller` requires it, and
+ * `RichEditor.tsx` uses one worklet to read the caret. It is not used here: a
+ * PanResponder drag that works has no reason to be rewritten.
  */
 const ROW_GAP = space.xs;
 

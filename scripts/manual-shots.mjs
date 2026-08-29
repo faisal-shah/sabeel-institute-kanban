@@ -197,7 +197,11 @@ async function fresh(w, h, { signIn = true, who = 'faisal' } = {}) {
  */
 async function nav(p, label) {
   for (let i = 0; i < 6; i += 1) {
-    const tab = p.getByRole('button', { name: label, exact: true }).first();
+    // A PREFIX, not an exact match — the Alerts tab carries its unread count
+    // in its accessible name ("Alerts, 2 unread").
+    const tab = p
+      .getByRole('button', { name: new RegExp(`^${label}(,|$)`) })
+      .first();
     if (await tab.isVisible().catch(() => false)) {
       await tab.click();
       await p.waitForTimeout(900);
