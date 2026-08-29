@@ -160,6 +160,9 @@ export function htmlToMarkdown(html: string): string {
   let listItems: RichInline[][] = [];
   let inItem = false;
   let dropDepth = 0;
+  // Inside a <mention> whose `text` attribute we have already emitted. Its own
+  // child text duplicates that attribute, so it is skipped — see the open case.
+  let mentionDepth = 0;
   // Nesting depth of <ul>/<ol>. A nested list is FLATTENED into the outer
   // one (the native editor does not nest either), so the inner </ul> must
   // not end the list and strand every item after it.
@@ -221,6 +224,12 @@ export function htmlToMarkdown(html: string): string {
   };
 
   for (const tk of tokens) {
+    if (mentionDepth > 0) {
+      if (tk.t === 'close' && tk.name === 'mention') mentionDepth -= 1;
+      else if (tk.t === 'open' && tk.name === 'mention') mentionDepth += 1;
+      continue;
+    }
+
     if (dropDepth > 0) {
       if (tk.t === 'close' && DROP_CONTENT.has(tk.name)) dropDepth -= 1;
       else if (tk.t === 'open' && DROP_CONTENT.has(tk.name)) dropDepth += 1;
@@ -243,6 +252,35 @@ export function htmlToMarkdown(html: string): string {
       const n = tk.name;
       if (DROP_CONTENT.has(n)) {
         dropDepth += 1;
+        continue;
+      }
+      if (n === 'mention') {
+        // THE NATIVE EDITOR'S CHIP, and the one tag whose meaning is not in its
+        // text. `react-native-enriched-html` keeps the indicator in an
+        // ATTRIBUTE — `<mention text="sara" indicator="@">sara</mention>` — so
+        // unwrapping it, which is what any unknown tag gets, dropped the "@"
+        // and stored "Cc sara". `extractMentions` scans the stored markdown for
+        // /@handle/, so it found nobody, `mentionUids` came out empty and
+        // `onCommentWritten` paged nobody. Every native build shipped that, and
+        // nothing looked wrong: the popover opened, the chip rendered, the
+        // comment posted.
+        //
+        // Web never had it — Lexical inserts literal "@handle" text and has no
+        // mention node — which is the whole reason a browser suite could not
+        // see it. Emitting indicator + text here makes both surfaces store the
+        // same bytes for the same act, which is what this module is for.
+        //
+        // The `text` attribute is authoritative and the element's own text
+        // duplicates it, so the content is skipped. With no attribute to trust,
+        // the content is kept instead: a degraded mention still reads.
+        const indicator = attr(tk.attrs, 'indicator') ?? '';
+        const label = attr(tk.attrs, 'text') ?? '';
+        if (label) {
+          pushText(label.startsWith(indicator) ? label : indicator + label);
+          mentionDepth += 1;
+        } else {
+          pushText(indicator);
+        }
         continue;
       }
       const openMark = (kind: 'bold' | 'italic') => {

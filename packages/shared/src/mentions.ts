@@ -101,6 +101,43 @@ export function mentionSuggestions(
   });
 }
 
+/** The trigger character. One definition; both editors and the parser derive. */
+export const MENTION_INDICATOR = '@';
+
+/**
+ * How a picked candidate is inserted — defined ONCE, for both editors.
+ *
+ * This existed twice, and the copies disagreed. Web inserted the literal text
+ * `@handle`; native called the editor library's `setMention('@', handle)`,
+ * which keeps the indicator in an attribute of a `<mention>` node. Our HTML
+ * seam had no case for that node, so it was unwrapped, the "@" was lost, and
+ * the stored body read "Cc sara". `extractMentions` scans for /@handle/, so it
+ * found nobody and every native @mention since 2026-07-30 notified no one —
+ * silently, because the popover, the chip and the posted comment all looked
+ * right.
+ *
+ * The lesson is not "add a case to the converter". It is that two editors were
+ * each deciding what a mention IS at the moment of insertion, with nothing
+ * holding them to the same answer. They now derive it from here, and
+ * `richtextHtml.test.ts` asserts the two shapes converge on identical markdown
+ * and the same uid.
+ */
+export function mentionInsertion(candidate: MentionCandidate): {
+  /** For the native editor's `setMention(indicator, text)`. */
+  indicator: string;
+  /** The native mention node's display text — NO indicator; it is an attribute. */
+  text: string;
+  /** What web types, and what BOTH surfaces must end up storing. */
+  literal: string;
+} {
+  const handle = handleFor(candidate.email);
+  return {
+    indicator: MENTION_INDICATOR,
+    text: handle,
+    literal: `${MENTION_INDICATOR}${handle}`,
+  };
+}
+
 /** What a handle may contain. The ONE definition; everything else derives. */
 const HANDLE_CHARS = '[A-Za-z0-9._%+-]';
 

@@ -395,6 +395,52 @@ the team.
 
 ## Deploy log
 
+### 2026-08-29 — Native @mentions notified nobody — v0.11.3
+
+**Found on the iOS build Mac while verifying build 9, and it is the worst bug
+this app has shipped**, because it was silent. Picking someone from the mention
+list stored their handle WITHOUT the `@`. The popover opened, the chip
+rendered, the comment posted, and the person was simply never told. Every native
+build since 2026-07-30 carried it. Web was never affected.
+
+**Mechanism, reproduced from source before it was fixed.** The native editor
+hands the insert to the library: `setMention('@', handle)`. The library keeps
+the indicator in an ATTRIBUTE —
+`<mention text="sara" indicator="@">sara</mention>` — and
+`packages/shared/src/richtextHtml.ts` had no case for that node. Its documented
+behaviour for an unknown tag is to unwrap it, so the tag went and `sara`
+remained. `extractMentions` scans stored markdown for `/@handle/`, found
+nobody, `mentionUids` came out empty, and `onCommentWritten` paged nobody.
+
+**The fix is not the converter case; that is the symptom.** Two editors were
+each deciding what inserting a mention MEANS, and had disagreed for a month.
+`mentionInsertion` in `@sabeel/shared` is now the one definition, returning the
+indicator, the native node's display text and the literal both surfaces must
+store. Both call sites derive from it. While doing that a THIRD copy turned up —
+web had `activeMentionQuery`'s regex written out inline — which now calls the
+shared matcher too. The converter gained its `<mention>` case as well, so the
+node round-trips whatever the call sites do.
+
+**Three layers of test, because the obvious one would not have prevented this.**
+The converter tests pin a shape WE wrote down, so they would keep passing if the
+library renamed the attribute while production went quiet again. So: a
+convergence test builds what each surface produces for the same roster and
+asserts byte-identical markdown and the same uid — including the bug as an
+assertion, that `extractMentions('hi sara there')` is `[]`; and
+`app/src/mentionSeam.test.ts` couples to the LIBRARY's own source, pinning the
+verified version, the `indicator`/`text` attribute names in its parser fixture,
+and that `setMention` still takes the indicator separately. It reads files with
+no try/catch on purpose: a missing file must fail, because "cannot check" and
+"checked, fine" must never look alike.
+
+**Already-posted comments are not repaired.** `onCommentWritten` reads
+`mentionUids` rather than re-deriving, so mentions made from a phone since
+2026-07-30 stay unsent. The download page says so in as many words.
+
+**Verified:** lint, typecheck, **575 unit** (441 shared, 96 app, 38 functions),
+237 rules + 132 emulator integration, rich-text 35/35, web 150/150, sweep 229.
+
+
 ### 2026-08-29 — A mention cannot span a line break — v0.11.2
 
 **Reported from a device:** after typing a bare `@` and moving the caret to the

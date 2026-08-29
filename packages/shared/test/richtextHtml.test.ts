@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { htmlToMarkdown, markdownToHtml } from '../src/richtextHtml';
+import { extractMentions, mentionInsertion } from '../src/mentions';
 import { normalizeMarkdown, toPlainText } from '../src/richtext';
 
 /**
@@ -133,5 +134,111 @@ describe('paste is safe without a paste handler', () => {
     expect(toPlainText(md)).not.toContain('alert(1)');
     // And it is already canonical, so the counter and the write agree.
     expect(normalizeMarkdown(md)).toBe(md);
+  });
+});
+
+/**
+ * A MENTION MUST SURVIVE THE SEAM WITH ITS INDICATOR.
+ *
+ * The native editor owns the mention as a <mention> node and puts the indicator
+ * in an ATTRIBUTE, not in the element's text. An unknown tag is unwrapped here
+ * — its text survives, the tag does not — so the "@" was silently dropped and
+ * the stored body read "Cc sara". `extractMentions` scans for /@handle/, so it
+ * found nobody, `mentionUids` was empty, and `onCommentWritten` paged nobody.
+ * Nothing looked wrong: the popover opened, the chip rendered, the comment
+ * posted.
+ *
+ * Web never had this — it inserts literal "@handle" text and has no mention
+ * node at all — which is exactly why only a device found it. The assertion that
+ * matters is the LAST one: not that the markdown looks right, but that the
+ * function which decides who gets notified can still find the person.
+ */
+describe('mentions across the HTML seam', () => {
+  const roster = [
+    { uid: 'u-sara', email: 'sara@oursabeel.com', displayName: 'Sara' },
+    { uid: 'u-omar', email: 'omar@oursabeel.com', displayName: 'Omar' },
+  ];
+
+  it('keeps the indicator, which lives in an attribute', () => {
+    expect(
+      htmlToMarkdown('<p>Cc <mention text="sara" indicator="@">sara</mention> please</p>'),
+    ).toBe('Cc @sara please');
+  });
+
+  it('does not double the indicator when the text already carries it', () => {
+    expect(
+      htmlToMarkdown('<p><mention text="@sara" indicator="@">@sara</mention></p>'),
+    ).toBe('@sara');
+  });
+
+  it('degrades to the visible text when the attributes are missing', () => {
+    expect(htmlToMarkdown('<p>hi <mention>sara</mention></p>')).toBe('hi sara');
+  });
+
+  it('THE POINT: the stored body still resolves to a uid', () => {
+    const body = htmlToMarkdown(
+      '<p>Hi <mention text="sara" indicator="@">sara</mention> and <mention text="omar" indicator="@">omar</mention></p>',
+    );
+    expect(extractMentions(body, roster)).toEqual(['u-sara', 'u-omar']);
+  });
+
+  it('a mention is plain text in storage, as it is on web', () => {
+    // Storage stays markdown with a literal @handle: `@` is NOT in the parse
+    // set, and making it one would force it into the escape set and store
+    // `\@` noise. So the chip is an editor-side representation only.
+    const body = htmlToMarkdown('<p><mention text="sara" indicator="@">sara</mention></p>');
+    expect(markdownToHtml(body)).toBe('<p>@sara</p>');
+  });
+});
+
+/**
+ * THE TWO SURFACES MUST CONVERGE — this is the test the bug needed.
+ *
+ * The converter tests above pin one shape. This pins the PROPERTY that made the
+ * bug possible: web and native insert a mention by different mechanisms, and
+ * for a month they disagreed about whether the indicator was part of the text.
+ * Both now derive from `mentionInsertion`, and both paths are exercised here
+ * against the same roster, asserting they produce byte-identical markdown and
+ * resolve to the same uid.
+ *
+ * A regression on either surface alone fails this, which is what the old tests
+ * could not do: they covered detection and conversion, never the round trip
+ * from "the person picked a name" to "the person gets notified".
+ */
+describe('web and native mentions converge on the same stored markdown', () => {
+  const roster = [
+    { uid: 'u-sara', email: 'sara@oursabeel.com', displayName: 'Sara' },
+    { uid: 'u-omar', email: 'omar@oursabeel.com', displayName: 'Omar' },
+    { uid: 'u-dotted', email: 'faisal.shah@oursabeel.com', displayName: 'Faisal Shah' },
+    { uid: 'u-plus', email: 'a+b@oursabeel.com', displayName: 'Plus' },
+  ];
+
+  /** What Lexical types into the document. */
+  const webHtml = (c: (typeof roster)[number]) =>
+    `<p>hi ${mentionInsertion(c).literal} there</p>`;
+
+  /** What `react-native-enriched-html` serialises after setMention(). */
+  const nativeHtml = (c: (typeof roster)[number]) => {
+    const m = mentionInsertion(c);
+    return `<p>hi <mention text="${m.text}" indicator="${m.indicator}">${m.text}</mention> there</p>`;
+  };
+
+  for (const c of roster) {
+    it(`${c.displayName}: both surfaces store the same bytes and resolve`, () => {
+      const fromWeb = htmlToMarkdown(webHtml(c));
+      const fromNative = htmlToMarkdown(nativeHtml(c));
+
+      expect(fromNative, 'native must store what web stores').toBe(fromWeb);
+      expect(fromWeb).toBe(`hi ${mentionInsertion(c).literal} there`);
+
+      // The assertion that actually matters: who gets notified.
+      expect(extractMentions(fromWeb, roster)).toEqual([c.uid]);
+      expect(extractMentions(fromNative, roster)).toEqual([c.uid]);
+    });
+  }
+
+  it('a handle the indicator is missing from resolves to NOBODY', () => {
+    // The bug, stated as a test: this is exactly what native used to store.
+    expect(extractMentions('hi sara there', roster)).toEqual([]);
   });
 });

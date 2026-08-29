@@ -383,12 +383,27 @@ a new machine.
   own** — never widen that array. `61203` also reads as "this project,
   functions" in a `ps` line, which is the diagnostic that was missing when one
   session killed another's emulator.
-- **Kill by port, never by pattern.** `pkill -f "firebase emulators"` or
-  `-f "expo start"` matches a sibling checkout's processes *and* this shell's
-  own command line (exit 144 mid-run). Use `ss`, not `lsof`: `lsof` is absent
-  from a non-interactive shell without the toolchain env sourced, which silently
-  turns a port guard into "always free". To find an owner:
+- **NEVER match a process by pattern — not to kill it, not to WAIT for it.**
+  `pkill -f "firebase emulators"` matches a sibling checkout *and this shell's
+  own command line* (exit 144 mid-run). The same trap wearing a different hat is
+  `pgrep -f "e2e.sh"` inside a waiter: the waiting shell's own command line
+  contains the pattern, so `until ! pgrep -f ...` waits on itself, forever. That
+  one cost three separate wedges in a single session — after the `pkill` half of
+  this rule was already written down, which is why it is now stated as one rule
+  about matching rather than one about killing. Wait on a **pid** (`kill -0`),
+  on a **file** the job writes, or on the harness's own completion signal.
+  Use `ss`, not `lsof`: `lsof` is absent from a non-interactive shell without the
+  toolchain env sourced, which silently turns a port guard into "always free".
+  To find an owner:
   `readlink /proc/$(ss -lptn "sport = :$PORT" | grep -oP 'pid=\K[0-9]+' | head -1)/cwd`.
+- **Run e2e suites with `scripts/e2e-all.sh`, never a hand-rolled chain.**
+  `e2e.sh` runs ONE suite because CI wants it that way; locally that invited
+  ad-hoc loops, and the loops were the problem — two chains each calling
+  `dev.sh stop` killed each other's dev server, and the corpse held a port that
+  failed the next run. `e2e-all.sh` runs them one at a time, verifies **every**
+  port in the block is free before each (not the three you remember), refuses to
+  start rather than reporting a skip, and routes `migration-e2e` around `e2e.sh`
+  the way CI does. `scripts/e2e-all.sh richtext web` for a subset.
 - Unit: `npm test` (Vitest: functions + shared).
 - Rules/integration: `npm run test:emulator` (needs JDK 21).
 - Web: `npm run dev:web` (or `scripts/dev.sh web`) — these set

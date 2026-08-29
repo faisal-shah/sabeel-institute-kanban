@@ -43,9 +43,9 @@ import {
   type EnrichedTextInputInstance,
 } from 'react-native-enriched-html';
 import {
-  handleFor,
   htmlToMarkdown,
   isMentionQuery,
+  mentionInsertion,
   markdownToHtml,
   type MentionCandidate,
 } from '@sabeel/shared';
@@ -296,7 +296,13 @@ export function RichEditor({
     prioritiseUids,
     rowPitch: pitch.current,
     // The library owns the mention node; we only say which handle it is.
-    onInsert: (c) => ref.current?.setMention('@', handleFor(c.email)),
+    // Shape from @sabeel/shared, not spelled out here: web and native each
+    // decided this for themselves once, disagreed, and native mentions notified
+    // nobody for a month. See `mentionInsertion`.
+    onInsert: (c) => {
+      const m = mentionInsertion(c);
+      ref.current?.setMention(m.indicator, m.text);
+    },
     onRefocus: () => ref.current?.focus(),
   });
 

@@ -66,11 +66,12 @@ import {
 } from 'lexical';
 import {
   activeMentionQuery,
-  handleFor,
   htmlToMarkdown,
-  markdownToHtml,
   isSafeHref,
+  markdownToHtml,
+  MENTION_INDICATOR,
   type MentionCandidate,
+  mentionInsertion,
 } from '@sabeel/shared';
 import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
@@ -399,7 +400,11 @@ function MentionPlugin({
     prioritiseUids,
     rowPitch: pitch.current,
     onInsert: (candidate) => {
-      const handle = handleFor(candidate.email);
+      // Both the literal AND the range come from @sabeel/shared. This used to
+      // spell out `@${handle}` here while native called setMention() there, and
+      // the two disagreed about whether the indicator was part of the text —
+      // which is how native mentions notified nobody for a month.
+      const { literal } = mentionInsertion(candidate);
       editor.update(() => {
         const sel = $getSelection();
         if (!$isRangeSelection(sel) || !sel.isCollapsed()) return;
@@ -407,12 +412,14 @@ function MentionPlugin({
         if (!$isTextNode(node)) return;
         const offset = sel.anchor.offset;
         const before = node.getTextContent().slice(0, offset);
-        const m = before.match(/(?:^|\s)@([A-Za-z0-9._%+-]*)$/);
-        if (!m) return;
-        // Select back over the "@partial" only — never the space before it.
-        const typed = m[0].startsWith('@') ? m[0].length : m[0].length - 1;
+        // The SHARED matcher, not a fourth copy of the pattern. It returns the
+        // partial handle; what has to be selected back over is that plus the
+        // indicator.
+        const partial = activeMentionQuery(before);
+        if (partial === null) return;
+        const typed = partial.length + MENTION_INDICATOR.length;
         sel.setTextNodeRange(node, offset - typed, node, offset);
-        sel.insertText(`@${handle} `);
+        sel.insertText(`${literal} `);
       });
     },
     onRefocus: () => editor.focus(),
