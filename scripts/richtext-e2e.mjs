@@ -333,11 +333,12 @@ check('the mention list opens MID-TEXT, which the plain box cannot do', (await r
  * broke nothing.
  */
 const nearCaret = await page.evaluate(() => {
-  const pop = [...document.querySelectorAll('div')].find(
-    (d) =>
-      d.textContent?.startsWith('Mention') &&
-      getComputedStyle(d).position === 'absolute',
-  );
+  // BY TEST ID, not by "the first absolute div whose text starts with Mention".
+  // The popover is drawn in a root overlay layer now, and that layer is itself
+  // absolutely positioned and contains the same text — so the heuristic matched
+  // the full-screen wrapper and cheerfully measured the viewport instead,
+  // reporting dx=423 for a popover sitting right beside the caret.
+  const pop = document.querySelector('[data-testid="mention-popover"]');
   const sel = window.getSelection();
   if (!pop || !sel || sel.rangeCount === 0) return null;
   const caret = sel.getRangeAt(0).getBoundingClientRect();
@@ -361,6 +362,73 @@ check(
   'the mention popover lands fully on screen',
   !!nearCaret && nearCaret.onScreen,
 );
+
+/**
+ * NOTHING MAY PAINT OVER THE LIST — checked on EVERY row, not just the first.
+ *
+ * This is the check that was missing when the popover moved to the caret. The
+ * position assertions above all passed while the Comment button drew straight
+ * across the names, because "where is it" and "what is on top of it" are
+ * different questions and only the first was being asked. It was found by
+ * opening a screenshot, which is not a check.
+ *
+ * Every row, because the first one is the one least likely to be covered: the
+ * list is drawn downward, so whatever follows the editor reaches the BOTTOM of
+ * it first. Lifting the editor over its own siblings fixed row one and left the
+ * card's Activity section drawing over row three — `elementFromPoint` there
+ * returned "Faisal created this card", and clicking that row timed out.
+ *
+ * `elementFromPoint` rather than a zIndex comparison: it asks the browser the
+ * question a click asks, so it cannot be satisfied by a stacking rule that looks
+ * right and resolves differently.
+ */
+// Widen to every candidate first — 'sa' matches one person, and one row is
+// never far enough down the list to reach what is drawn after the editor.
+await page.keyboard.press('Backspace');
+await page.keyboard.press('Backspace');
+await page.waitForTimeout(700);
+const coverage = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('[aria-label^="Mention "]')];
+  const covered = rows
+    .filter((row) => {
+      const r = row.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !(hit && (row === hit || row.contains(hit) || hit.contains(row)));
+    })
+    .map((row) => row.getAttribute('aria-label'));
+  return { total: rows.length, covered };
+});
+check(
+  'the mention list shows more than one candidate for a bare "@"',
+  coverage.total > 1,
+  `${coverage.total} rows`,
+);
+check(
+  'no mention row is painted over by anything',
+  coverage.covered.length === 0,
+  coverage.covered.join(', '),
+);
+
+// And the LAST row specifically can be clicked, which is what a covered row
+// cannot do — Playwright's actionability check fails on exactly that.
+const lastRow = rows.last();
+const lastName = (await lastRow.getAttribute('aria-label')) ?? '';
+let lastClickable = true;
+try {
+  await lastRow.click({ timeout: 5000 });
+} catch {
+  lastClickable = false;
+}
+check(`the LAST mention row can actually be clicked (${lastName})`, lastClickable);
+
+// Put the query back the way the rest of this section expects it: the checks
+// below assert a mention that resolves to Sara's uid.
+if (lastClickable) {
+  await page.keyboard.press('Backspace');
+  await page.waitForTimeout(400);
+}
+await page.keyboard.type('@sa');
+await page.waitForTimeout(900);
 
 if (await rows.count()) await rows.first().click();
 await page.waitForTimeout(500);

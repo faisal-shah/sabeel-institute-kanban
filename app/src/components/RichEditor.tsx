@@ -30,7 +30,7 @@
  * un-underlines. `textShortcuts` governs typed triggers, not hardware keys, and
  * the library exposes no opt-out. Documented in the manual.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import {
   useFocusedInputHandler,
@@ -52,16 +52,19 @@ import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
 import { MentionList, MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
 import { anchorForCaret, type MentionAnchor } from './mentionAnchor';
+import { useMentionOverlay } from './MentionOverlay';
 import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, type as type_, useTheme } from '../theme';
 
-/** A caret as the OS reports it: field-relative x/y, plus the field's own top. */
+/** A caret as the OS reports it: field-relative x/y, plus the field's own origin. */
 interface NativeCaret {
   x: number;
   y: number;
   height: number;
   /** The focused input's Y on screen, or -1 when the layout is not known yet. */
   inputTop: number;
+  /** The focused input's X on screen. Only meaningful when `inputTop` is. */
+  inputLeft: number;
 }
 
 /** A caret line, when the event reports no height of its own. */
@@ -98,7 +101,7 @@ function nativeAnchor({
   // bottom is where the visible area ends.
   const visibleBottom = screenH - keyboardHeight;
 
-  return anchorForCaret(
+  const anchor = anchorForCaret(
     { x: caret.x, y: caret.y, height },
     {
       fieldWidth,
@@ -107,6 +110,14 @@ function nativeAnchor({
     },
     MENTION_DESIRED_HEIGHT,
   );
+  // Into the OVERLAY's space, which is the screen. `anchorForCaret` stays
+  // field-relative — that is what makes its sideways clamp mean "inside the
+  // field" — so the field's own origin is added here and nowhere else.
+  return {
+    ...anchor,
+    top: anchor.top + caret.inputTop,
+    left: anchor.left + caret.inputLeft,
+  };
 }
 
 /** Exactly the two list triggers, pinned rather than defaulted. */
@@ -214,8 +225,8 @@ export function RichEditor({
   mentionOpen.current = query !== null;
 
   const onCaret = useCallback(
-    (x: number, y: number, height: number, inputTop: number) => {
-      const next = { x, y, height, inputTop };
+    (x: number, y: number, height: number, inputTop: number, inputLeft: number) => {
+      const next = { x, y, height, inputTop, inputLeft };
       caretRef.current = next;
       if (mentionOpen.current) setCaret(next);
     },
@@ -236,18 +247,17 @@ export function RichEditor({
           // tell "no height" from "zero-height line".
           Math.max(0, e.selection.end.y - e.selection.start.y),
           layout ? layout.absoluteY : -1,
+          layout ? layout.absoluteX : 0,
         );
       },
     },
     [onCaret],
   );
 
-  const anchor = nativeAnchor({
-    caret,
-    fieldWidth,
-    screenH,
-    keyboardHeight,
-  });
+  const anchor = useMemo(
+    () => nativeAnchor({ caret, fieldWidth, screenH, keyboardHeight }),
+    [caret, fieldWidth, screenH, keyboardHeight],
+  );
   /**
    * `setLink` takes an explicit [start, end) range rather than "the current
    * selection", so the caret has to be tracked. Read out of the library's
@@ -276,6 +286,39 @@ export function RichEditor({
     [],
   );
 
+  const onMeasureRow = useCallback((p: number) => {
+    pitch.current = p;
+  }, []);
+
+  /**
+   * Memoised because `useMentionOverlay` publishes on identity: a fresh object
+   * every render would re-render the root layer on every keystroke, not only on
+   * the ones that change the list.
+   */
+  const overlay = useMemo(
+    () =>
+      policy.open && anchor
+        ? {
+            suggestions: policy.suggestions,
+            index: policy.index,
+            listRef: policy.listRef,
+            onPick: policy.accept,
+            onMeasureRow,
+            anchor,
+          }
+        : null,
+    [
+      policy.open,
+      policy.suggestions,
+      policy.index,
+      policy.listRef,
+      policy.accept,
+      onMeasureRow,
+      anchor,
+    ],
+  );
+  useMentionOverlay(overlay);
+
   return (
     <View style={[styles.wrap, policy.open ? styles.lifted : null]}>
       <RichToolbar commands={commands()} marks={marks} />
@@ -285,16 +328,18 @@ export function RichEditor({
           zero, which is what lets a caret measured against the input be used
           against this View unchanged. */}
       <View onLayout={(e) => setFieldWidth(e.nativeEvent.layout.width)}>
-        {policy.open ? (
+        {/* Anchored, and the root layer is drawing it — see MentionOverlay.tsx.
+            Only the no-caret fallback renders here, where `bottom: 100%` still
+            refers to this field. Rendering both would put two copies of the same
+            list on screen at once. */}
+        {policy.open && !anchor ? (
           <MentionList
             suggestions={policy.suggestions}
             index={policy.index}
             listRef={policy.listRef}
             onPick={policy.accept}
-            onMeasureRow={(p) => {
-              pitch.current = p;
-            }}
-            anchor={anchor}
+            onMeasureRow={onMeasureRow}
+            anchor={null}
           />
         ) : null}
 
@@ -369,14 +414,16 @@ export function RichEditor({
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   /**
-   * The editor, lifted over whatever follows it, WHILE the popover is open.
+   * The editor, lifted over its own siblings, WHILE the popover is open.
    *
-   * The popover carries `zIndex` and `elevation` of its own, but both are
-   * measured INSIDE this View — so the Comment button that follows the editor
-   * still won, and drew across the list of names. Found on the web sibling,
-   * where react-native-web makes every View a stacking context; applied here
-   * too because the ordering question is the same one and the answer must not
-   * differ by surface.
+   * Kept for the no-caret FALLBACK only: an anchored popover is drawn at the app
+   * root by `MentionOverlay` and needs nothing from this. The fallback still
+   * renders the list inside this View, where the Comment button that follows the
+   * editor would otherwise draw across the names.
+   *
+   * Both `zIndex` and `elevation`, and the same value as the web sibling,
+   * because the ordering question is the same one and the answer must not differ
+   * by surface.
    */
   lifted: { zIndex: 30, elevation: 30 },
 });

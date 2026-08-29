@@ -5,6 +5,14 @@
  * the platform measured. `anchor === null` is the fallback for a surface that
  * cannot report one: the old placement, above the whole field, full width.
  *
+ * WHO DRAWS IT depends on the same thing. With an anchor it is rendered by
+ * `MentionOverlay` as the last child of the app root, in screen coordinates,
+ * because no zIndex inside the editor can lift it clear — every
+ * react-native-web View is a stacking context, so a later SECTION of the card
+ * drew over the third name even after the editor was lifted over its own
+ * siblings. Without an anchor the editor still renders it inline, where
+ * `bottom: 100%` is the only thing that means anything.
+ *
  * Every property here was learned on a device and must survive any move:
  *  - `position: absolute`. Inline-below hid behind the keyboard; inline-above
  *    pushed the field down without re-triggering a scroll. Absolute takes no
@@ -41,6 +49,22 @@ const CHROME = space.sm * 2 + space.xs + 18;
 /** How tall the whole popover would like to be, before room is considered. */
 export const MENTION_DESIRED_HEIGHT = LIST_MAX_HEIGHT + CHROME;
 
+export interface MentionListProps {
+  suggestions: readonly MentionCandidate[];
+  index: number;
+  listRef: React.RefObject<ScrollView | null>;
+  onPick: (c: MentionCandidate) => void;
+  onMeasureRow: (pitch: number) => void;
+  /**
+   * Null when the platform could not measure a caret — see the header.
+   *
+   * When it is NOT null the list is drawn by `MentionOverlay` at the app root,
+   * so these are SCREEN coordinates. When it is null the editor renders this
+   * component inline and the old above-the-field placement applies.
+   */
+  anchor: MentionAnchor | null;
+}
+
 export function MentionList({
   suggestions,
   index,
@@ -48,18 +72,15 @@ export function MentionList({
   onPick,
   onMeasureRow,
   anchor,
-}: {
-  suggestions: readonly MentionCandidate[];
-  index: number;
-  listRef: React.RefObject<ScrollView | null>;
-  onPick: (c: MentionCandidate) => void;
-  onMeasureRow: (pitch: number) => void;
-  /** Null when the platform could not measure a caret — see the header. */
-  anchor: MentionAnchor | null;
-}) {
+}: MentionListProps) {
   const t = useTheme();
   return (
     <View
+      // Named, because the popover is no longer the only absolutely-positioned
+      // thing whose text begins with "Mention": the overlay layer wraps it and
+      // matches a heuristic selector FIRST, which silently turns a placement
+      // assertion into a measurement of the whole viewport.
+      testID="mention-popover"
       style={[
         styles.popover,
         anchor

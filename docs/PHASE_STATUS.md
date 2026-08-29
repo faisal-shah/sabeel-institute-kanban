@@ -98,16 +98,28 @@ See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
   hold. Both are fine below fifty colleagues; neither survives untrusted users.
 - **A simultaneous double-create can make two labels with the same name.**
   Uniqueness is case-insensitive and checked on the client only.
-- **The @mention popover's caret anchoring is unverified on Android** (v0.11.0).
-  Web is proven by two e2e assertions and a screenshot at five widths; the native
-  half reads the caret from `react-native-keyboard-controller`, and whether that
-  reports coordinates for `EnrichedTextInput` needs an emulator or a device. If
-  it reports nothing the popover keeps its old placement above the field;
-  nothing breaks either way. An emulator attempt on 2026-08-29 got the app
-  running and signed in but could NOT exercise it: `adb input` cannot restore
-  focus to the rich-text editor once lost, and the popover only opens while the
-  editor is focused. That is a limit of the harness, not a result — see
-  CLAUDE.md § Verification.
+- **The @mention popover does not open at all on Android under an adb-driven
+  emulator, and the caret anchoring is therefore still unverified there**
+  (v0.11.0). Web is proven by e2e assertions, a paint-order guard and screenshots
+  at five widths. On Android, a second attempt on 2026-08-29 — this time on an
+  **accelerated** AVD with a build confirmed fresh (`versionName=0.11.0`, after
+  catching a stale 0.10.1 already installed) — got further and still could not
+  settle it. The popover never rendered: **no `Mention` node appears in the view
+  hierarchy at all**, so it is not mispositioned, it does not open. That
+  reproduced across four input paths — long text mid-string, a word-boundary `@`
+  as a single-character commit, hardware key events (`KEYCODE_AT`), and `@` as
+  the first character of an empty composer — each with the editor demonstrably
+  focused and receiving the characters. The identical action on web opens a
+  three-row list 31px below and 9px left of the caret.
+
+  **This is not caused by the caret work.** `mentionIndicators` and
+  `onStartMention` are untouched by it; that change only added `setCaret(...)` to
+  the trigger. Whether the cause is the editor library's mention detection under
+  injected input or a real gap on the surface is **unknown**, and adb cannot
+  distinguish them — settling it needs a real keyboard, which means a device or a
+  windowed emulator someone types into. Until then the native caret path is
+  unexercised rather than broken, and if the handler reports nothing the popover
+  keeps its old placement above the field.
 
 Faisal's console tasks are tracked in `TODO.md`.
 
@@ -451,9 +463,41 @@ passed, at every width. react-native-web gives every `View`
 `position: relative` AND **`zIndex: 0`**, so every View is a stacking context and
 the popover's own `zIndex: 10` was sealed inside the editor, unable to out-paint
 a later sibling at the same rank. The old upward placement had hidden it
-completely by opening into the empty space above the toolbar. The fix is to lift
-the whole editor while the popover is up — and only while it is up. Found by
-opening the screenshot, which is the entire argument for the rule that says to.
+completely by opening into the empty space above the toolbar. Found by opening
+the screenshot, which is the entire argument for the rule that says to.
+
+**And the first fix for it was half a fix.** Lifting the editor over its own
+siblings cleared the Comment button and stopped there, because that was the
+symptom that had been seen. The card's **Activity** section — a later sibling of
+the whole comments Card, not of the editor — still drew over the THIRD name.
+Measured, not guessed: `elementFromPoint` at the centre of the "Mention Sara" row
+returned "Faisal created this card", and a click on that row timed out because
+the row was not hittable. **A person could not pick the third person on the
+list**, on web, in a release that had passed every check.
+
+The lesson is the general one about this stack: **a stacking context cannot be
+escaped from the inside.** Raising the Card too would have fixed that one case
+and broken again the next time a section was added after the editor, because the
+rule it depends on — "nothing is drawn after me" — is stated nowhere and checked
+by nothing. So the popover is no longer rendered inside the editor at all. It is
+published to `MentionOverlay`, a layer that is the **last child of the app root**,
+and positioned in screen coordinates; `anchorForCaret` stays field-relative,
+which is what keeps its sideways clamp meaning "inside the field", and each
+editor adds its own field origin. The no-caret fallback still renders inline,
+where `bottom: 100%` is the only thing that refers to anything, so the designed
+Android fallback is untouched. A view store rather than a context carries it, so
+opening the list re-renders that layer alone instead of the whole app on every
+keystroke.
+
+**The guard that was missing.** The position assertions all passed while the
+button drew across the names, because *where is it* and *what is on top of it*
+are different questions and only the first was being asked. `richtext-e2e` now
+asks the second, with `elementFromPoint` — the question a click asks — on
+**every row, not just the first**. Every row matters: the list is drawn downward,
+so whatever follows the editor reaches the BOTTOM of it first, and a first-row
+check passes cleanly against exactly this bug. It also widens the query to a bare
+`@` before probing, because one candidate is never far enough down to reach
+anything, and it clicks the LAST row, which is what a covered row cannot do.
 
 **Also:** the Alerts tab announced only "Alerts" to a screen reader, whatever the
 badge said; the count is now in the accessible name. That changes the accessible
@@ -464,8 +508,15 @@ had quietly stopped finding the tab.
 **Verified:** lint, typecheck, **557 unit** (432 shared + 36 functions + 89 app,
 9 of them new), **132 emulator integration** (3 new), and every browser suite —
 150 web (4 new), 229 across the five-width sweep (a new `card-mention` state at
-each width), 30 rich-text (2 new positioning checks), 21 attachments, 280 stats,
-3 typing-perf, and 96 migration. The mention popover, the two-icon alert row and
+each width), **33 rich-text** (2 positioning checks and 3 that ask what is on
+TOP of the list), 21 attachments, 280 stats, 3 typing-perf, and 96 migration.
+
+Moving the popover to a root layer also broke an existing assertion in a way
+worth recording, because it is this stack's favourite shape: the placement check
+found the popover as "the first absolutely-positioned div whose text starts with
+Mention", and the overlay wrapper now matches that first. The check did not
+error — it measured the whole viewport and reported the popover 423px from a
+caret it was sitting beside. The selector is now a `testID`, which is exact. The mention popover, the two-icon alert row and
 the Members line were each read off a rendered screenshot rather than inferred
 from a green check — which is how the button-over-popover bug was found.
 

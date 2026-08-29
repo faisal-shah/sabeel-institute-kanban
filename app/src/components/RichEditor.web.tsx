@@ -76,6 +76,7 @@ import { RichToolbar, type RichMarks } from './RichToolbar';
 import { LinkSheet } from './LinkSheet';
 import { MentionList, MENTION_DESIRED_HEIGHT, ROW_PITCH } from './MentionList';
 import { anchorForCaret, type MentionAnchor } from './mentionAnchor';
+import { useMentionOverlay } from './MentionOverlay';
 import { useMentionPolicy } from './useMentionPolicy';
 import { radius, space, type as type_, useTheme } from '../theme';
 
@@ -300,7 +301,7 @@ function measureCaret(anchorTo: React.RefObject<unknown>): MentionAnchor | null 
   if (rect.height === 0) return null;
 
   const box = host.getBoundingClientRect();
-  return anchorForCaret(
+  const anchor = anchorForCaret(
     { x: rect.left - box.left, y: rect.top - box.top, height: rect.height },
     {
       fieldWidth: box.width,
@@ -309,6 +310,11 @@ function measureCaret(anchorTo: React.RefObject<unknown>): MentionAnchor | null 
     },
     MENTION_DESIRED_HEIGHT,
   );
+  // Into the OVERLAY's space, which is the viewport: the layer is the last child
+  // of the app root and scrolls with nothing. `anchorForCaret` stays field-
+  // relative — it is what makes the sideways clamp mean "inside the field" —
+  // so the field's own origin is added here and nowhere else.
+  return { ...anchor, top: anchor.top + box.top, left: anchor.left + box.left };
 }
 
 /**
@@ -441,17 +447,52 @@ function MentionPlugin({
     return () => onOpenChange(false);
   }, [policy.open, onOpenChange]);
 
+  const onMeasureRow = useCallback((p: number) => {
+    pitch.current = p;
+  }, []);
+
+  /**
+   * Memoised because `useMentionOverlay` publishes on identity: a fresh object
+   * every render would re-render the root layer on every keystroke of the
+   * document, not just the ones that change the list.
+   */
+  const overlay = useMemo(
+    () =>
+      policy.open && anchor
+        ? {
+            suggestions: policy.suggestions,
+            index: policy.index,
+            listRef: policy.listRef,
+            onPick: policy.accept,
+            onMeasureRow,
+            anchor,
+          }
+        : null,
+    [
+      policy.open,
+      policy.suggestions,
+      policy.index,
+      policy.listRef,
+      policy.accept,
+      onMeasureRow,
+      anchor,
+    ],
+  );
+  useMentionOverlay(overlay);
+
   if (!policy.open) return null;
+  // Anchored: the root layer draws it, and drawing it here as well would put two
+  // copies of the same list on screen. Only the no-caret fallback renders inline,
+  // where `bottom: 100%` still refers to this field.
+  if (anchor) return null;
   return (
     <MentionList
       suggestions={policy.suggestions}
       index={policy.index}
       listRef={policy.listRef}
       onPick={policy.accept}
-      onMeasureRow={(p) => {
-        pitch.current = p;
-      }}
-      anchor={anchor}
+      onMeasureRow={onMeasureRow}
+      anchor={null}
     />
   );
 }
@@ -687,18 +728,18 @@ export function RichEditor({
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   /**
-   * The editor, lifted over whatever follows it, WHILE the popover is open.
+   * The editor, lifted over its own siblings, WHILE the popover is open.
    *
-   * react-native-web gives every View `position: relative` AND `zIndex: 0`, so
-   * every one of them is a stacking context. The popover's own `zIndex: 10` is
-   * therefore sealed inside THIS View and cannot out-paint anything outside it:
-   * the Comment button is a later sibling at the same rank, so it drew straight
-   * across the list of names. The old placement hid this completely by opening
-   * upward into the empty space above the toolbar.
+   * This is NOT what makes the anchored popover visible — `MentionOverlay` is,
+   * by drawing it at the app root. Lifting is kept for the no-caret FALLBACK,
+   * which still renders the list inside this View and still has to clear the
+   * Comment button beside it.
    *
-   * Lifting the whole editor is what actually works, and only while the popover
-   * is up — a permanently raised editor would sit over anything the card draws
-   * near it.
+   * Lifting alone was tried and is not enough, which is worth stating because it
+   * looks sufficient: react-native-web gives every View `position: relative` AND
+   * `zIndex: 0`, so every View is a stacking context. Raising this one wins
+   * against the Comment button in the same card and loses to the card's Activity
+   * section below, which covered the third name entirely.
    */
   lifted: { zIndex: 30 },
 });

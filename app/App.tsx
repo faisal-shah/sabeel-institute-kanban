@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { KeyboardHost } from './src/components/KeyboardHost';
+import { OverlayLayer } from './src/components/MentionOverlay';
 import { SafeAreaProvider, type Edge } from 'react-native-safe-area-context';
 import { sessionCan, useSession, type SessionUser } from './src/session';
 import { initErrorReporting, setErrorUser } from './src/sentry';
@@ -232,6 +233,13 @@ export default function App() {
         <StatusBar style="auto" />
         <Routes />
       </SafeAreaProvider>
+      {/* LAST, at the root, and OUTSIDE SafeAreaProvider: the @mention popover
+          is drawn here rather than inside the editor, because every
+          react-native-web View is a stacking context and no zIndex inside a card
+          can lift it clear of the section drawn after that card. Outside the
+          provider because it is positioned in SCREEN coordinates, and an inset
+          parent would shift every one of them. See MentionOverlay.tsx. */}
+      <OverlayLayer />
     </KeyboardHost>
   );
 }
