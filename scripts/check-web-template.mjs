@@ -17,6 +17,8 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const html = readFileSync(resolve(root, 'app/public/index.html'), 'utf8');
 const palette = readFileSync(resolve(root, 'app/src/theme/palette.ts'), 'utf8');
+const worker = readFileSync(resolve(root, 'app/public/firebase-messaging-sw.js'), 'utf8');
+const clientConfig = readFileSync(resolve(root, 'app/src/firebase-config.ts'), 'utf8');
 
 const fail = (msg) => {
   console.error(`\nweb template check FAILED\n  ${msg}\n`);
@@ -49,4 +51,46 @@ if (got.toUpperCase() !== wanted.toUpperCase()) {
   );
 }
 
-console.log(`web template ok (canvas ${wanted}, #root uses dvh)`);
+// 3. The service worker's Firebase config, mirrored from the client's.
+//
+//    The worker runs OUTSIDE the app bundle — `importScripts` has no module
+//    system — so it cannot import `firebase-config.ts` and duplicates the four
+//    fields FCM needs. Its own comment says to keep them in step, and until now
+//    that was the whole enforcement.
+//
+//    Drift here is silent and total, which is why it belongs on the export path
+//    rather than in a comment. A wrong `messagingSenderId` or `projectId` means
+//    `getToken` mints a token against a different project, or none at all: the
+//    build succeeds, the deploy succeeds, permission is granted, and every
+//    device reports it cannot receive notifications. That is the exact failure
+//    signature `check-web-push.mjs` exists for, reached by a different route —
+//    and that check cannot see it, because it reads the BUNDLE and the worker is
+//    a separate file the bundler never touches.
+const CONFIG_FIELDS = ['apiKey', 'projectId', 'messagingSenderId', 'appId'];
+const readField = (text, field) =>
+  text.match(new RegExp(`${field}\\s*:\\s*'([^']+)'`))?.[1];
+
+for (const field of CONFIG_FIELDS) {
+  const mine = readField(clientConfig, field);
+  const theirs = readField(worker, field);
+  if (!mine) fail(`could not read \`${field}\` from app/src/firebase-config.ts`);
+  if (!theirs) {
+    fail(
+      `app/public/firebase-messaging-sw.js has no \`${field}\`.\n` +
+        '  The worker needs it to reach FCM; without it web push registers nothing\n' +
+        '  and every device reports it cannot receive notifications.',
+    );
+  }
+  if (mine !== theirs) {
+    fail(
+      `service worker config drift: ${field} is '${theirs}' in\n` +
+        `  app/public/firebase-messaging-sw.js and '${mine}' in app/src/firebase-config.ts.\n` +
+        '  firebase-config.ts wins. Left alone this deploys happily and delivers\n' +
+        '  nothing, with no error anywhere.',
+    );
+  }
+}
+
+console.log(
+  `web template ok (canvas ${wanted}, #root uses dvh, service worker config agrees)`,
+);
