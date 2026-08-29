@@ -514,6 +514,17 @@ unaffected either way — Gradle needs no KVM.
 `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh` gives the
 verdict for a machine.
 
+**`adb input` cannot drive the rich-text editor, so it cannot verify a mention.**
+Attempted 2026-08-29 on an unaccelerated AVD: the app installs, signs in and
+renders every screen, and `adb shell input text` reaches the composer on the
+FIRST focus — but once focus leaves the editor, no `input tap` restores it, and
+subsequent text lands nowhere or in another field. The @mention popover only
+opens while the editor reports focus, so it never appeared, and that is a
+property of the harness rather than evidence about the feature. Verifying
+anything behind the editor's focus or IME needs a real keyboard: a device, or an
+accelerated emulator you can type into. Screenshot the RESULT, do not infer it
+from an `input text` that appeared to succeed.
+
 Two checks worth running before reaching for a device at all, since they catch
 the native failures that otherwise only show up there:
 `npx expo export --platform android` proves the whole native module graph

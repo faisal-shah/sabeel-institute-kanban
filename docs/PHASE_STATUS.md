@@ -103,7 +103,11 @@ See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
   half reads the caret from `react-native-keyboard-controller`, and whether that
   reports coordinates for `EnrichedTextInput` needs an emulator or a device. If
   it reports nothing the popover keeps its old placement above the field;
-  nothing breaks either way.
+  nothing breaks either way. An emulator attempt on 2026-08-29 got the app
+  running and signed in but could NOT exercise it: `adb input` cannot restore
+  focus to the rich-text editor once lost, and the popover only opens while the
+  editor is focused. That is a limit of the harness, not a result — see
+  CLAUDE.md § Verification.
 
 Faisal's console tasks are tracked in `TODO.md`.
 
