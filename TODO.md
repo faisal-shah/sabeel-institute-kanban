@@ -714,10 +714,27 @@ Android push is wired and ships in the next APK. Two items are console work.
       demoted it to the quiet chip, so the site sat at `default` — in neither
       the allowed nor the blocked list. Fixed; the ask is now on a button.
 
-      So: after the next web deploy, open the site, use **Enable notifications**
-      (the card on Boards, or the gear on Alerts), allow it, and have someone
-      `@`-mention you. Note the deployed bundle predates this fix, so nothing
-      changes until that deploy.
+      So: open <https://sabeel-institute-kanban.web.app> (deployed with the fix
+      on 2026-08-28), use **Enable notifications** — the card on Boards, or the
+      gear on Alerts — and allow it. Check the screen then reads *Notifications
+      are enabled on this device*: that message means a TOKEN WAS FILED, not
+      merely that permission was granted, so it is worth confirming on its own
+      before involving anybody else.
+
+      Then two things, or the test misreads:
+
+      - **Someone else** has to do the action — `shouldNotify` drops the actor,
+        so nothing is sent if you trigger it yourself.
+      - **Background the tab**, or minimise the browser. FCM skips the service
+        worker's handler whenever a visible client window exists and forwards to
+        the page's `onMessage` instead; the app registers none, so a push at a
+        focused tab draws nothing at all. The Alerts badge still goes up, because
+        the notification is written to Firestore independently of the push — that
+        badge moving is itself evidence the trigger fired, and separates "the
+        server never sent" from "the push did not arrive".
+
+      Safari is its own case: on macOS it wants the site added to the Dock before
+      it will accept web push. Chrome, Edge and Firefox on desktop need nothing.
 
       Expect the TAP to only focus the app, not open the card. That is
       deliberate and is not part of this item: the web app has no URLs for board

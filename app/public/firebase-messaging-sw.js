@@ -26,8 +26,20 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Background messages only. A message arriving while the tab is focused is
-// handled in the app, so leaving this to also draw a banner would show two.
+// Background messages only, and that is FCM's choice rather than ours: its SW
+// looks for a visible client window and, finding one, skips this handler and
+// forwards to the page's `onMessage` instead.
+//
+// The app registers no `onMessage`, so a push arriving at a FOCUSED tab draws
+// nothing — no banner, no sound. That is deliberate and not a gap: the
+// notification is written to Firestore independently of the push, so the Alerts
+// tab's unread badge goes up either way and the inbox has the item. Somebody
+// looking at the app does not need a banner over it.
+//
+// It does mean a delivery TEST must background the tab or minimise the browser,
+// or it looks like nothing arrived. Native differs — it shows a banner in the
+// foreground too (setNotificationHandler in notify.ts) — because there the app
+// being open does not imply the notification is on screen.
 messaging.onBackgroundMessage((payload) => {
   const { title, body } = payload.notification ?? {};
   self.registration.showNotification(title ?? 'Sabeel Kanban', {
