@@ -19,6 +19,22 @@
 #      times in one session. So the fix is a script, not a rule: there is now
 #      nothing left to hand-roll.
 #
+# RUN IT DETACHED. A single suite is ~10 minutes, because `e2e.sh` builds the
+# production web bundle before every one; the full set is well over an hour. Any
+# launcher with a timeout — an agent's background command, a CI step budget, an
+# ssh session that drops — will be killed long before that, and the `e2e.sh` it
+# started is NOT killed with it: it is orphaned, reparented to `systemd --user`,
+# and carries on holding port 61210 and the emulator block. The next run then
+# fails on a held port, which looks like a broken test and is not. Observed
+# repeatedly in one session before the mechanism was understood.
+#
+#   setsid bash -c 'echo $$ > /tmp/e2e.pid; exec scripts/e2e-all.sh' \
+#     > /tmp/e2e.log 2>&1 < /dev/null &
+#   # then wait on that PID — `kill -0 $(cat /tmp/e2e.pid)` — never on a pattern
+#
+# The pidfile matters: `$!` after `setsid` is the wrapper, which exits at once,
+# so waiting on it reports success while the suite is still running.
+#
 # The rules this encodes, and none of them are optional:
 #   - one suite at a time, never concurrently;
 #   - EVERY port in the block verified free before each suite, not a spot-check
