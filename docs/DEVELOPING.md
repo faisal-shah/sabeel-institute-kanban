@@ -138,17 +138,28 @@ curl -X DELETE "http://127.0.0.1:61202/emulator/v1/projects/demo-sabeel-kanban/a
 >
 > If `/proc/cpuinfo` shows `hypervisor` but neither `vmx` nor `svm`, nested
 > virtualization is off at the host and nothing inside the machine — root
-> included — can enable it. **Emulator 37.1.11 then refuses to start**, exiting
-> at once with *"x86_64 emulation currently requires hardware acceleration!"* —
-> it does not fall back. (An older emulator did, at 805 s to boot and ~14 s per
-> `screencap`; that is history, not the current behaviour, and the modern
-> failure is instant rather than slow.) Plan on a real device over ADB TCP.
+> included — can enable it. **`scripts/emulator.sh` handles this on its own**:
+> it checks per launch and adds `-accel off` only when there is no KVM, so an
+> accelerated machine is untouched and runs at full speed.
 >
-> Before giving up on a native change, exhaust what still works without a
-> device: `npx expo export --platform android` proves the native module graph
-> resolves and the worklets compile, and transforming a file with
-> `babel-preset-expo` proves a `'worklet'` directive really became a worklet
-> factory instead of being dropped.
+> Start it through that script rather than by hand. `-accel auto` — the default
+> — does NOT fall back for an x86_64 image: it exits at once with *"x86_64
+> emulation currently requires hardware acceleration!"*, which looks like a
+> broken emulator instead of a missing CPU feature. Only an explicit
+> `-accel off` selects QEMU's software CPU (TCG), and `-gpu
+> swiftshader_indirect` is a GPU knob that never stood in for it.
+>
+> Unaccelerated, expect **several minutes to boot** (805 s measured for a cold
+> first boot including provisioning; ~200 s for a later one) and ~14 s per
+> `screencap`, with input around 1.4 s. Input is usable; the screenshot sweeps
+> this file relies on are not, so prefer the browser suites on such a host — or
+> a real device over ADB TCP.
+>
+> Before reaching for a device, exhaust what needs none:
+> `npx expo export --platform android` proves the native module graph resolves
+> and the worklets compile, and transforming a file with `babel-preset-expo`
+> proves a `'worklet'` directive really became a worklet factory instead of
+> being dropped.
 > **Builds are unaffected** — Gradle needs no KVM, so `build:aab` and the APK
 > path work normally. `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh`
 > gives the verdict and the numbers.

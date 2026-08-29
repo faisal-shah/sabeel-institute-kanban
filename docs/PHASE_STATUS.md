@@ -101,9 +101,9 @@ See `docs/DEVELOPING.md` to run it, `docs/USER-MANUAL.md` for the user guide and
 - **The @mention popover's caret anchoring is unverified on Android** (v0.11.0).
   Web is proven by two e2e assertions and a screenshot at five widths; the native
   half reads the caret from `react-native-keyboard-controller`, and whether that
-  reports coordinates for `EnrichedTextInput` needs a real device — this machine
-  cannot run an AVD at all (see the deploy log). If it reports nothing the
-  popover keeps its old placement above the field; nothing breaks either way.
+  reports coordinates for `EnrichedTextInput` needs an emulator or a device. If
+  it reports nothing the popover keeps its old placement above the field;
+  nothing breaks either way.
 
 Faisal's console tasks are tracked in `TODO.md`.
 
@@ -465,28 +465,31 @@ each width), 30 rich-text (2 new positioning checks), 21 attachments, 280 stats,
 the Members line were each read off a rendered screenshot rather than inferred
 from a green check — which is how the button-over-popover bug was found.
 
-**The Android caret path is NOT verified on a device, and could not be here.**
-The AVD does not merely run slowly without KVM — emulator 37.1.11 **refuses to
-start**, exiting at once with *"x86_64 emulation currently requires hardware
-acceleration!"*. `CLAUDE.md` and `docs/DEVELOPING.md` both promised a software
-fallback at 805 s a boot; that was an older emulator and is now wrong, so both
-have been corrected. There is no screenshot path to Android on this machine at
-all.
+**The Android caret path is not yet verified on a device.** What was proven
+without one, because it catches the failures that otherwise only surface there:
+`expo export --platform android` bundles the whole app (7.8 MB Hermes), so every
+new import resolves on the native graph; and transforming `RichEditor.tsx`
+through `babel-preset-expo` shows the `'worklet'` directive became a worklet
+factory with no bare directive left. That last one matters because
+`babel-preset-expo` adds the worklets plugin only when the package resolves, and
+an uncompiled worklet does not error — it simply never runs, which is a failure
+wearing success's face.
 
-What was proven without one, because it is what catches the failures that
-otherwise reach a device: `expo export --platform android` bundles the whole app
-(7.8 MB Hermes), so every new import resolves on the native graph; and
-transforming `RichEditor.tsx` through `babel-preset-expo` shows the `'worklet'`
-directive became a worklet factory with no bare directive left — which is the
-one failure that would have looked exactly like success, since
-`babel-preset-expo` only adds the worklets plugin when the package resolves and
-an unompiled worklet simply never runs.
-
-What remains unproven is the single question a device answers: whether
+What remains is the single question a device answers: whether
 `useFocusedInputHandler` reports coordinates for `EnrichedTextInput`. **If it
 does not, nothing breaks** — `caret` stays null, `nativeAnchor` returns null, and
 the popover keeps the placement it has today. That is the designed fallback, not
-a hope. Faisal to confirm from a phone through the GitHub-release APK channel.
+a hope.
+
+**A launcher bug found while trying, and worth more than the release.**
+`scripts/emulator.sh` has never been able to start an AVD on a host without KVM,
+on any machine, since it was written — `-accel auto` does not fall back for an
+x86_64 image, it exits at once with *"x86_64 emulation currently requires
+hardware acceleration!"*. Only an explicit `-accel off` selects the software CPU.
+The script now detects this per launch and passes the flag only when needed, so
+an **accelerated machine is completely unaffected and keeps the fast path**.
+Verified in both directions before shipping, because getting it backwards would
+have pushed a good machine onto the slow path.
 
 ### 2026-08-28 — The Android device pass web push never got — v0.10.2
 

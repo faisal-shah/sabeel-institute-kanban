@@ -17,11 +17,46 @@ export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 AVD="${SK_AVD:-tb_emu}"
 
+# Pick the CPU acceleration flags for THIS host, per run.
+#
+# `-accel auto` (the default) does NOT fall back to software for an x86_64
+# image — it REFUSES, exiting at once with "x86_64 emulation currently requires
+# hardware acceleration!". Only an explicit `-accel off` selects QEMU's software
+# CPU (TCG). `-gpu swiftshader_indirect` is a separate knob covering the GPU
+# alone, so it never stood in for this.
+#
+# Detected rather than hardcoded, because this repo is developed from several
+# machines and most of them HAVE KVM: on those nothing changes and the emulator
+# runs at full speed. Only a host without it gets the slow path, instead of an
+# instant exit that reads as a broken emulator.
+#
+# Both accepted spellings are matched. `-accel-check` says "accel: 0" on some
+# builds and "KVM (version N) is installed and usable" on others — matching only
+# the first would push an ACCELERATED host onto the software path, which is the
+# expensive direction to get wrong.
+# Called only by the two commands that actually boot, so `list`/`shot`/`kill`
+# stay quiet and cost nothing.
+accel_flags() {
+  local out
+  out=$(emulator -accel-check 2>&1 | tr '\n' ' ' || true)
+  case "$out" in
+    *"is installed and usable"*|*"accel:0"*|*"accel: 0"*) return 0 ;;
+  esac
+  ACCEL=(-accel off)
+  echo "No CPU acceleration on this host ($out)." >&2
+  echo "Falling back to software CPU (-accel off): expect several minutes to" >&2
+  echo "boot and ~14 s per screencap. Input stays usable." >&2
+}
+
+ACCEL=()
+
 case "${1:-help}" in
   headless)
-    exec emulator -avd "$AVD" -no-window -no-boot-anim -gpu swiftshader_indirect -no-snapshot ;;
+    accel_flags
+    exec emulator -avd "$AVD" -no-window -no-boot-anim -gpu swiftshader_indirect -no-snapshot "${ACCEL[@]}" ;;
   window)
-    exec emulator -avd "$AVD" -gpu host -no-snapshot ;;
+    accel_flags
+    exec emulator -avd "$AVD" -gpu host -no-snapshot "${ACCEL[@]}" ;;
   list)
     adb devices | grep -E 'emulator-|device$' || echo "no devices" ;;
   shot)

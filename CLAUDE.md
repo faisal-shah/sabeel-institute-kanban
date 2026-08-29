@@ -494,26 +494,32 @@ drops mid-run, a stale build stays on the device). Confirm with
 `adb shell dumpsys package com.sabeelinstitute.kanban.debug | grep versionName`
 before trusting a native screenshot.
 
-**The AVD needs hardware virtualization, and on THIS box it does not merely get
-slow — it does not start at all.** `emulator -accel-check` is authoritative
-(`accel: 3` here). Emulator **37.1.11** with the x86_64 system image exits
-immediately with *"x86_64 emulation currently requires hardware acceleration!"*.
-An older emulator did fall back to a software renderer — 805 s to boot, ~14 s per
-screenshot — and that is what this file used to promise; it is no longer true,
-and the failure is instant rather than slow. **There is no way to verify Android
-by screenshot on this machine**: a native change has to be proven on a real
-device, which means Faisal, through the GitHub-release APK channel.
+**The AVD wants hardware virtualization, and `scripts/emulator.sh` works out the
+flags for itself.** It runs `emulator -accel-check` per launch: on a host with
+KVM it changes nothing and the emulator runs at full speed, which is the normal
+case and the expected way to verify Android. Only a host without it gets
+`-accel off`, and the script says so on stderr.
 
-What DOES still work here, and is worth exhausting first:
-`npx expo export --platform android` proves the whole native module graph
-resolves and every worklet compiles, and a Babel transform with
-`babel-preset-expo` proves a `'worklet'` directive became a worklet factory
-rather than being silently dropped. Neither is a substitute for a device, but
-both catch the failures that otherwise reach one.
+**Always start it through that script, never by hand.** `-accel auto` — the
+default — does NOT fall back for an x86_64 image; it refuses outright with
+*"x86_64 emulation currently requires hardware acceleration!"* and exits at
+once, which reads as a broken emulator rather than a missing CPU feature. Only
+an explicit `-accel off` selects QEMU's software CPU. `-gpu
+swiftshader_indirect` covers the GPU alone and never substituted for it.
 
-Builds are unaffected — Gradle needs no KVM.
+On an unaccelerated host expect several minutes to boot and ~14 s per
+screenshot: input is fine, a screenshot sweep is not, so prefer the browser
+suites there and keep the emulator for the seams in the table above. Builds are
+unaffected either way — Gradle needs no KVM.
 `../agent-skills/skills/expo-firebase-stack/tools/check-host.sh` gives the
-verdict.
+verdict for a machine.
+
+Two checks worth running before reaching for a device at all, since they catch
+the native failures that otherwise only show up there:
+`npx expo export --platform android` proves the whole native module graph
+resolves and every worklet compiles, and transforming a file through
+`babel-preset-expo` proves a `'worklet'` directive really became a worklet
+factory rather than being silently dropped.
 
 ## Secrets (zero tolerance)
 
