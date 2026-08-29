@@ -901,6 +901,40 @@ first.
       Adding that person as a member and turning their Owner toggle on is the
       whole fix, and until then an admin can still administer all three.
 
+## N. Play content rating — BLOCKING the team's install route
+
+Observed 2026-08-29 on a real phone: the internal-testing listing shows
+**"com.sabeelinstitute.kanban (unreviewed)"**, **Unrated**, and refuses to
+install with *"Parental controls restrict downloading of this item"* — on the
+correct adult account.
+
+**It is not an account problem, and switching accounts will not fix it.** Play's
+parental controls filter by CONTENT RATING, and an app with no rating fails
+every filter. The setting also lives on the Play Store profile on the device,
+not on the signed-in account, so any device with parental controls enabled will
+refuse an unrated app no matter who is signed in. That means this blocks an
+unknown number of the team, silently, with a message that points at the wrong
+cause.
+
+- [ ] **Complete the content rating questionnaire.** Play Console → Policy →
+      App content → Content rating. It is a short form; for a private
+      productivity tool with no ads, no purchases and no user-generated content
+      shown to strangers, the outcome is the everyone/all-ages rating. The app
+      stops being "Unrated" once it propagates.
+- [ ] While you are on that screen, clear whatever else **App content** still
+      lists — privacy policy, data safety, ads, target audience. Play blocks a
+      production rollout on these anyway, and `TODO.md` § F step 3b already
+      warned they would come due.
+
+**Workaround until then, in order of preference:** you already have this exact
+build sideloaded from the download page, so nothing is blocking YOUR testing.
+For anyone else, either turn off parental controls on their device (Play Store →
+profile → Settings → Family → Parental controls) or send them the APK. Remember
+the signature rule if someone switches route: a Play install carries Google's
+app signing key and a downloaded APK carries the upload key, they cannot replace
+one another, and the only symptom is "App not installed" — uninstall first,
+nothing is lost because all state is in Firestore.
+
 ## M. v0.10.0 — do these two, they are the only ones outstanding
 
 - [ ] **Create `privacy@oursabeel.com`.** A Workspace GROUP with two admins on
