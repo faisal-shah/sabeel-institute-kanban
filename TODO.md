@@ -15,23 +15,28 @@ tells you the command to run.
 
 ---
 
-## Play publishing from the command line — SET THIS UP
+## Play publishing from the command line — **DONE, verified 2026-08-29**
+
+All five steps below are ticked because they were *exercised*, not because
+someone remembered doing them: `npm run publish:play -- --internal` uploaded
+v0.11.3 as versionCode 11003, and `-- --check` created and discarded a real
+edit first, which is what proves the service account can actually release.
 
 So a build can reach your phone when you are away from this machine. Everything
 below is console work; the script is already written (`npm run publish:play`).
 
-- [ ] **Enable the API.** Google Cloud Console → the project already backing
+- [x] **Enable the API.** Google Cloud Console → the project already backing
       Firebase → *APIs & Services → Library* → **Google Play Android Developer
       API** → Enable.
-- [ ] **Create the service account.** *IAM & Admin → Service Accounts → Create*,
+- [x] **Create the service account.** *IAM & Admin → Service Accounts → Create*,
       name it `sabeel-play-publisher`. No project roles are needed — its power
       comes from Play Console, not IAM. Then *Keys → Add key → Create new key →
       JSON*. **That download is the only copy.**
-- [ ] **Give it Play access.** Play Console → *Users and permissions → Invite new
+- [x] **Give it Play access.** Play Console → *Users and permissions → Invite new
       user* → paste the service account's `…iam.gserviceaccount.com` address →
       restrict it to **this app** → tick **Release apps to testing tracks**.
       That one permission also covers internal app sharing. Send the invite.
-- [ ] **Put the key where the script looks:**
+- [x] **Put the key where the script looks:**
       ```
       mkdir -p ~/keys
       mv ~/Downloads/<the-file>.json ~/keys/sabeel-play-publisher.json
@@ -39,7 +44,7 @@ below is console work; the script is already written (`npm run publish:play`).
       ```
       **Never inside the repo — it is public.** Hand back nothing; do not paste
       any part of it into chat.
-- [ ] **Confirm it works:** `npm run publish:play -- --check`. It runs every
+- [x] **Confirm it works:** `npm run publish:play -- --check`. It runs every
       gate and proves the Play permission by creating and discarding an edit —
       a key mints a token whether or not Play granted it anything, so this
       checks the thing that actually fails. Uploads nothing.
