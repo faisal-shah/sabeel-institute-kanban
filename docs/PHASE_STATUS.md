@@ -409,13 +409,21 @@ obvious guess. The list appears with the keyboard FULLY UP; the keyboard only
 starts dismissing about 80ms later. So the list's own appearance cost the
 editor its focus.
 
-**`zIndex` on Android is not a paint order, it is a re-parent.** React Native
-implements it by REORDERING the children of the parent ViewGroup, which
-detaches and re-attaches the view — and the view being lifted contained the
-focused input. `styles.lifted` was applied whenever the popover was open, so
-every open dropped focus, hid the IME, and closed the list 200ms later. Web
-never showed it, at any width, because CSS `z-index` reparents nothing; this
-is a genuine Yoga-vs-CSS seam of the kind the emulator table exists for.
+**What is established, and what is not.** `styles.lifted` put `zIndex` and
+`elevation` on the focused input's ANCESTOR at exactly the moment the list
+opened, and removing it is the change. The precise mechanism is NOT proven.
+An initial claim that RN implements `zIndex` by re-parenting was checked
+against the source and is wrong for this app: `ViewGroupDrawingOrderHelper`
+only computes a custom drawing order, and under Fabric — which this app runs —
+`ReactViewGroup.updateDrawingOrder` is a documented no-op because "z-order is
+managed at the C++ layer". A Fabric reorder applied as remove+insert would
+detach and re-attach the view and would explain the focus loss, but that has
+not been read or instrumented. Treat it as the leading hypothesis, not a fact.
+
+What IS solid is the evidence: deterministic on every open, Android only,
+duration pinned to `BLUR_GRACE_MS`, and the list appearing ~80ms BEFORE the
+keyboard moves. Web never showed it at any width, which is what makes this a
+device-only seam whatever the mechanism turns out to be.
 
 The lift is now scoped to the inline no-caret FALLBACK, which is the only
 path that still draws the list inside the editor, and it uses `elevation`
