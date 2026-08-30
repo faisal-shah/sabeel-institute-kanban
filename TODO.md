@@ -906,7 +906,7 @@ first.
       Adding that person as a member and turning their Owner toggle on is the
       whole fix, and until then an admin can still administer all three.
 
-## N. Play content rating — BLOCKING the team's install route
+## N. Play content rating — **DONE 2026-08-29**, and the message lied
 
 Observed 2026-08-29 on a real phone: the internal-testing listing shows
 **"com.sabeelinstitute.kanban (unreviewed)"**, **Unrated**, and refuses to
@@ -921,7 +921,25 @@ refuse an unrated app no matter who is signed in. That means this blocks an
 unknown number of the team, silently, with a message that points at the wrong
 cause.
 
-- [ ] **Complete the content rating questionnaire.** Play Console → Policy →
+**RESOLVED: completing the content rating fixed it.** Keep the rest of this
+entry, because the diagnosis wasted real time and the next person will repeat it.
+The message names parental controls, so the instinct is to fix the DEVICE:
+several Google accounts were checked and all were over 18, the supervised child
+accounts were removed, the Play Store cache was cleared and the phone rebooted.
+None of it changed anything, because none of it was the cause.
+
+Two things make that message misleading. Parental controls are **one switch per
+Play Store, not one per account** — an adult account can have it on, so verifying
+ages proves nothing and removing child accounts does not turn it off. And an app
+with no content rating is **Unrated**, which means "unknown", which fails EVERY
+rating filter rather than only strict ones. So the app was blocked by a filter
+whose switch nobody could find, for a reason the message did not state.
+
+Whether the device toggle was ever on was never established, and it stopped
+mattering: an all-ages rating passes the filter either way. **Do the
+questionnaire first and debug the phone never.**
+
+- [x] **Complete the content rating questionnaire.** Play Console → Policy →
       App content → Content rating. It is a short form; for a private
       productivity tool with no ads, no purchases and no user-generated content
       shown to strangers, the outcome is the everyone/all-ages rating. The app
