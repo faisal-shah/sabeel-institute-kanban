@@ -327,20 +327,29 @@ exactly the kind of thing a reviewer might push back on.
 
 ### Recordings app — the one that differs
 
-`platforms: ["android", "web"]`, and **Google auth only today**; the student
-email/password system does not exist yet.
+`platforms: ["android", "web"]`, two populations, and **both doors now exist**
+(updated 2026-09-07; this section previously said the student email/password
+system had not been built).
 
-- **Two labelled doors on the sign-in screen** — "Teacher sign in" (Google
-  Workspace) and "Student sign in" (email/password). Make the split *visible*; a
-  reviewer needs to see it, and it stops students tapping Google and hitting a
+- **Two labelled doors on the sign-in screen — DONE.** "Staff" (Google
+  Workspace) and "Students" (email and password), as separate headed sections. A
+  reviewer can see the split, and it stops students tapping Google and hitting a
   wall.
 - **Sign in with Apple is not needed** provided the student door stays
   first-party. The moment any social login appears on the student side, 4.8
   triggers and Sign in with Apple becomes mandatory.
-- **Student accounts are created on the web app by a teacher**, and the student's
-  first sign-in is on the web. The mobile refusal applies to both doors.
-- **Password reset** must exist, and it is a first-party flow — no third-party
-  login service involved, so it changes nothing about 4.8.
+- **Student accounts are created by staff, on the web app only**
+  (`CAN_CREATE_ACCOUNTS`), and the student sets their own password from an
+  emailed link. The student never creates the account, wherever they first sign
+  in.
+- **Only the Google door needed the § 2 gate.** `signInWithEmailAndPassword`
+  cannot bring an account into existence — it fails when there is none — so the
+  student door was never a trigger. `createUserWithEmailAndPassword` is the call
+  that would be, and this app has never had it on any surface. Worth stating
+  because "the mobile refusal applies to both doors" reads as though both needed
+  building, and only one did.
+- **Password reset** exists, and it is a first-party flow — no third-party login
+  service involved, so it changes nothing about 4.8.
 - Retention: academic records are retained. FERPA grants students the right to
   inspect and amend, never to erase, and transcripts are normally kept
   permanently.
@@ -419,7 +428,7 @@ document. Have someone read it who is not the person who wrote it.
 
 ---
 
-## 11. What Kanban shipped, and what is still unverified
+## 11. What has shipped, and what is still unverified
 
 Built 2026-08-18 in v0.10.0. **Two halves are each proven; their join is not.**
 
@@ -450,6 +459,28 @@ claim.
 **Still unverified: iOS.** Same code path and the same seam, but a different
 platform, and `docs/IOS-BUILD.md`'s handoff prompt asks for the identical check
 on a real iPhone.
+
+### Recordings — built 2026-09-07
+
+The same design, adapted: `functions/src/accountExists.ts` and the gate in
+`app/src/auth/google.ts`, with the refusal copy from § 2 and no URL in it.
+
+- 7 emulator tests on the callable. Every one asserts the **user count**
+  afterwards, not just the boolean — a version answering `exists: false` while
+  quietly minting a record would satisfy a return-value test and fail the only
+  promise that matters. Two cases are about refusing a *real colleague* on the
+  allowed domain whose account does not exist yet, and refusing an unverified
+  address that does match an account.
+- 5 unit tests on the ordering, the load-bearing one being that
+  `signInWithCredential` is never reached when no account exists. Shown to fail
+  with the gate bypassed.
+- Only the Google door was changed, for the reason in § 8.
+
+**Still unverified: the native round trip**, and for a different reason than
+iOS. It needs a personal Google account with no account in the project, signed in
+on a device against production — the check Kanban did on 2026-08-18. Nobody has
+run it here, so the claim currently rests on the callable and the ordering being
+correct, not on having watched a stranger be refused. Do it before submitting.
 
 ## 12. Open decisions
 
