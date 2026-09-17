@@ -103,12 +103,11 @@ export default tseslint.config(
     },
   },
   {
-    // The FCM service worker runs in the Service Worker global scope, not a
-    // page: `self`, `clients`, `importScripts`, and the compat `firebase` global
-    // it importScripts are all legitimate there, none of them page globals.
+    // The push service worker runs in the Service Worker global scope, not a
+    // page: `self` and `clients` are legitimate there, none of them page globals.
     files: ['app/public/firebase-messaging-sw.js'],
     languageOptions: {
-      globals: { ...globals.serviceworker, firebase: 'readonly' },
+      globals: { ...globals.serviceworker },
     },
   },
   {

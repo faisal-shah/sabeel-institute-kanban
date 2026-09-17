@@ -6,50 +6,64 @@
  * to this worker instead. It must sit at the ORIGIN ROOT — a worker under a
  * subdirectory can only receive events for that subdirectory.
  *
- * It runs outside the app bundle, so it cannot import from src/ and duplicates
- * the Firebase config. Only the fields FCM needs are here; keep them in step
- * with app/src/firebase-config.ts. These are public client identifiers, the
- * same ones already committed there.
+ * It handles the `push` event ITSELF, without the Firebase messaging SDK, and
+ * that is the decision this file turns on. The SDK's worker shows a push only
+ * while no tab of the app is visible; one arriving at a focused tab is handed
+ * to the page instead and drawn only if the page registers `onMessage`, which
+ * this app never did — so a push at an open tab drew nothing, and this file
+ * used to call that deliberate. Faisal's decision (2026-09-17) is the reverse:
+ * a notification shows whether the app is in the foreground, the background or
+ * closed, on both surfaces. On web that means the worker shows every push, so
+ * the visibility split is exactly the behaviour to remove — and the SDK had a
+ * second problem: with a `notification` payload it showed the push ITSELF
+ * before calling `onBackgroundMessage`, so the handler that used to live here
+ * drew a second banner beside the SDK's own, which nothing could dismiss into
+ * the app because the SDK's click handler stops propagation and, with no link
+ * configured, does nothing. Two banners per background push, never seen,
+ * because web arrival has never been watched (TODO.md § I).
  *
- * The compat build is deliberate: importScripts has no module system, and the
- * modular SDK cannot be loaded this way.
+ * One listener, one presenter, and no copy of the Firebase config: minting the
+ * token (`notify.web.ts`) needs only a registration, not a Firebase-aware
+ * worker. The payload is FCM's web push JSON — `notification` (title, body)
+ * and `data` — the same two fields the SDK's handler used to pass on.
+ * `firebase-messaging-sw.test.ts` runs this file in a fake worker scope and
+ * holds both handlers to what they do here.
  */
-importScripts('https://www.gstatic.com/firebasejs/12.0.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/12.0.0/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: 'AIzaSyDnHBj4vlBquHotVRjexa2yB1_x18XWqaI',
-  projectId: 'sabeel-institute-kanban',
-  messagingSenderId: '826656438175',
-  appId: '1:826656438175:web:d9d89ccb61181de5c5efaa',
-});
+const APP_NAME = 'Sabeel Kanban';
 
-const messaging = firebase.messaging();
+// Take over as soon as a new version of this file is installed. A worker waits
+// by default until every tab of the app is closed, which for someone who keeps
+// a tab open means weeks on the previous worker; this one intercepts no
+// fetches, so there is nothing an open page could be part-way through with the
+// old one, and a push arriving after the deploy should be drawn by the code
+// that was deployed.
+self.addEventListener('install', () => self.skipWaiting());
 
-// Background messages only, and that is FCM's choice rather than ours: its SW
-// looks for a visible client window and, finding one, skips this handler and
-// forwards to the page's `onMessage` instead.
-//
-// The app registers no `onMessage`, so a push arriving at a FOCUSED tab draws
-// nothing — no banner, no sound. That is deliberate and not a gap: the
-// notification is written to Firestore independently of the push, so the Alerts
-// tab's unread badge goes up either way and the inbox has the item. Somebody
-// looking at the app does not need a banner over it.
-//
-// It does mean a delivery TEST must background the tab or minimise the browser,
-// or it looks like nothing arrived. Native differs — it shows a banner in the
-// foreground too (setNotificationHandler in notify.ts) — because there the app
-// being open does not imply the notification is on screen.
-messaging.onBackgroundMessage((payload) => {
+/** FCM's JSON body, or null for a push that is not one (nothing else sends any). */
+function readPayload(event) {
+  try {
+    return event.data ? event.data.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+self.addEventListener('push', (event) => {
+  const payload = readPayload(event);
+  if (!payload) return;
   const { title, body } = payload.notification ?? {};
-  self.registration.showNotification(title ?? 'Sabeel Kanban', {
-    body: body ?? '',
-    icon: '/favicon.ico',
-    // Collapse repeats for the same card rather than stacking a banner per
-    // comment on a busy thread.
-    tag: payload.data?.cardId ?? payload.data?.boardId ?? 'sabeel-kanban',
-    data: payload.data ?? {},
-  });
+  const data = payload.data ?? {};
+  event.waitUntil(
+    self.registration.showNotification(title ?? APP_NAME, {
+      body: body ?? '',
+      icon: '/favicon.ico',
+      // Collapse repeats for the same card rather than stacking a banner per
+      // comment on a busy thread.
+      tag: data.cardId ?? data.boardId ?? 'sabeel-kanban',
+      data,
+    }),
+  );
 });
 
 // Clicking a notification focuses the app. It does NOT deep-link to the card:

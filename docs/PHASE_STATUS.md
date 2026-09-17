@@ -395,6 +395,78 @@ the team.
 
 ## Deploy log
 
+### 2026-09-17 — One icon per push, and a banner in every state — v0.11.4
+
+**Found on a phone, in the shade, by looking at two pushes side by side.** Two
+mention pushes from this app, minutes apart, with two different small icons: the
+monochrome glyph tinted raspberry on the one that arrived with the app closed,
+and the full launcher icon crammed into the small-icon slot, untinted, on the one
+that arrived with the app open. Same channel, same text, same app.
+
+**Two components draw a push on Android, and each reads its own manifest keys.**
+A push arriving with the app in the background or closed is drawn by the FCM SDK
+from `com.google.firebase.messaging.default_notification_*`. One arriving with
+the app OPEN reaches `onMessageReceived` instead and is drawn by
+expo-notifications — `notify.ts` sets a handler that says to show it — from
+`expo.modules.notifications.default_notification_*`, and with that pair absent
+`ExpoNotificationBuilder` falls back to `applicationInfo.icon`, the launcher
+mipmap, with no tint. Read in the installed library source, not inferred. The
+manifest set only the FCM pair, under a comment that correctly said the config
+plugin does nothing in this bare workflow and then covered one presenter of two.
+The device pass that verified the icon on 2026-08-28 sent its push to a closed
+app, which is the configured path, so it photographed the correct icon and never
+exercised the other presenter. The fix is the second pair, pointing at the same
+two resources, and `functions/test/unit/notificationIcon.test.ts` holds the pairs
+together: it went red on the unfixed manifest, on either expo key deleted, and on
+either icon pointed at the launcher mipmap, each with a message naming the key.
+
+**Proven on the emulator with the presenter that was wrong, before and after.**
+A local notification is drawn by the same builder as a foreground push, so one
+was posted through expo-notifications' own native module in the shipped v0.11.0
+debug build and again in a build of this fix, and `dumpsys notification` read
+back: `icon id=0x7f0e0002` (`mipmap/ic_launcher_round`), `color=0x00000000`
+before; `icon id=0x7f0700b4` (`drawable/ic_notification`), `color=0xff83114f`
+after. Both shades were looked at: an empty grey ring, then the glyph in
+raspberry. The APK's binary manifest carries all four keys resolving to those two
+ids. What this does NOT prove is an FCM push arriving at a phone with the app
+open — no emulator receives one — so the next device pass sends one push with
+the app closed and one with it open and checks the two icons match; TODO.md § I
+says so.
+
+**The web half is a product decision, made the same day: a push shows whether
+the app is in the foreground, the background or closed, on both surfaces.** A
+push arriving at a focused browser tab drew nothing, by design — the service
+worker's own comment called it deliberate, on the argument that the Alerts badge
+was already moving in front of the person. Reversed. Reading the Firebase
+messaging SDK's worker to implement it turned up a second defect in the path the
+decision was about: with a `notification` payload present, the SDK's worker
+shows the push ITSELF and then calls `onBackgroundMessage`, where ours showed it
+again — two banners per background web push, the SDK's one untagged, without an
+icon and a dead end on click (its handler stops propagation and, with no link
+configured, does nothing). Never seen, because web arrival is the still-open
+item in TODO.md § I. The worker now handles the `push` event itself, with no
+Firebase SDK in it at all: one listener, one presenter, no visibility split, no
+duplicate, and no second copy of the Firebase config for `check-web-template.mjs`
+to hold in step — that check is gone with the config. Minting the token needs
+only a registration, which is unchanged. The worker also `skipWaiting`s on
+install: a new worker waits by default until every tab of the app is closed,
+which would have kept anyone with a standing tab on the old one for weeks, and
+this one intercepts no fetches, so there is nothing to wait for.
+`app/src/firebase-messaging-sw.test.ts`
+runs the worker in a fake scope: the first test holds a visible, focused window
+of the app open and requires the banner anyway, and went red on a visibility
+check put back, on `waitUntil` dropped, on the tag rule changed, and on the
+previous worker.
+
+**Verified:** lint, typecheck, **587 unit** (446 shared, 102 app, 39 functions),
+`check-web-template`. **Not verified, and cannot be here:** arrival on either
+surface — TODO.md § I has the procedure for both, now including the app-open case
+on each.
+
+**Ships** as an Android rebuild (manifest only), a web deploy (the worker), and
+whatever iOS build is cut takes `buildNumber` 11.
+
+
 ### 2026-08-29 — Native @mentions notified nobody — v0.11.3
 
 **Found on the iOS build Mac while verifying build 9, and it is the worst bug

@@ -1,6 +1,6 @@
 # Sabeel Institute Kanban — User Manual
 
-*For app version 0.11.0 · August 2026*
+*For app version 0.11.4 · September 2026*
 
 Welcome! This guide covers everything you can do in Sabeel Kanban — from finding
 your first board to running boards and approving accounts. It is organized by
@@ -448,8 +448,10 @@ notification is missed or swiped away. You're alerted when a card is **assigned*
 to you, when someone **@mentions** you in a comment, and — for admins — when a
 **new account** is waiting. Unread items are outlined; tap one to go straight to
 what it is about — the card for a card alert, **People** for an account waiting
-for approval. Tapping the notification on your phone's lock screen or in its
-notification tray does the same thing, including when the app was not running.
+for approval. A notification shows whether the app is open, in the background
+or closed — on a phone and in a browser alike. Tapping it on your phone's lock
+screen or in its notification tray does the same thing as tapping the item in
+Alerts, including when the app was not running.
 
 Each item has two icons: an **envelope** and a **✕**. The envelope flips between
 read and unread — on an unread item it marks it read, and on one you have

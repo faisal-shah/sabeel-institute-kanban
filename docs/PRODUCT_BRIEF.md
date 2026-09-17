@@ -656,6 +656,14 @@ than been told.
 dismissed or missed push is never lost — there's a badge and a list. The client
 may only flip `read`; it can neither create nor edit entries.
 
+**A push shows whether the app is in the foreground, the background or closed,
+on both surfaces** (decided 2026-09-17). Until then a push arriving at a focused
+browser tab drew nothing, by design, on the argument that the Alerts badge was
+already moving in front of the person; the decision reverses that. On Android the
+app's notification handler already presented a foreground push; on web the
+service worker now shows every push itself rather than letting the Firebase
+SDK's worker hand a focused tab's push to a page that never drew it.
+
 There are no watchers: you are notified because a card is assigned to you or
 someone @mentioned you. Anyone wanting to track a card subscribes to its comments,
 or assigns themselves alongside the doer.

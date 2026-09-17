@@ -684,7 +684,15 @@ would update rather than duplicate.
 
 Android push is wired and ships in the next APK. Two items are console work.
 
-- [ ] **Verify a push actually arrives.** Install the new APK and sign in.
+- [x] **Verify a push actually arrives.** Done, on your phone, 2026-09-16:
+      two mention pushes minutes apart. What the screenshot ALSO showed was the
+      bug it took to v0.11.4 to fix — the two carried different small icons,
+      the glyph for the one that arrived with the app closed and the launcher
+      icon for the one that arrived with it open — so the next device pass sends
+      one push of EACH kind and checks both icons match. The steps below stay,
+      because they are the procedure for that pass.
+
+      Install the new APK and sign in.
       **Signing in no longer asks for permission** — that changed in v0.10.2,
       because the prompt used to land on the *Waiting for approval* screen, and
       Android only offers it twice ever. Press **Enable notifications** instead:
@@ -719,9 +727,10 @@ Android push is wired and ships in the next APK. Two items are console work.
       demoted it to the quiet chip, so the site sat at `default` — in neither
       the allowed nor the blocked list. Fixed; the ask is now on a button.
 
-      So: open <https://sabeel-institute-kanban.web.app> (deployed with the fix
-      on 2026-08-28), use **Enable notifications** — the card on Boards, or the
-      gear on Alerts — and allow it. Check the screen then reads *Notifications
+      So: open <https://sabeel-institute-kanban.web.app> once v0.11.4 is
+      deployed — the service worker that shows every push ships with it — use
+      **Enable notifications** (the card on Boards, or the gear on Alerts) and
+      allow it. Check the screen then reads *Notifications
       are enabled on this device*: that message means a TOKEN WAS FILED, not
       merely that permission was granted, so it is worth confirming on its own
       before involving anybody else.
@@ -730,11 +739,14 @@ Android push is wired and ships in the next APK. Two items are console work.
 
       - **Someone else** has to do the action — `shouldNotify` drops the actor,
         so nothing is sent if you trigger it yourself.
-      - **Background the tab**, or minimise the browser. FCM skips the service
-        worker's handler whenever a visible client window exists and forwards to
-        the page's `onMessage` instead; the app registers none, so a push at a
-        focused tab draws nothing at all. The Alerts badge still goes up, because
-        the notification is written to Firestore independently of the push — that
+      - **Try it both ways: once with the tab focused, once with it minimised.**
+        Since v0.11.4 the service worker shows every push itself, so a banner
+        should appear in BOTH cases, and exactly one each time — the Firebase
+        SDK's worker used to show a background push itself and then hand our
+        handler the same message, which drew a second banner, and to hand a
+        focused tab's push to the page, which drew none. Clicking the banner
+        should focus the app. The Alerts badge goes up either way, because the
+        notification is written to Firestore independently of the push — that
         badge moving is itself evidence the trigger fired, and separates "the
         server never sent" from "the push did not arrive".
 
