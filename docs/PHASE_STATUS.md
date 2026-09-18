@@ -463,8 +463,11 @@ previous worker.
 surface — TODO.md § I has the procedure for both, now including the app-open case
 on each.
 
-**Ships** as an Android rebuild (manifest only), a web deploy (the worker), and
-whatever iOS build is cut takes `buildNumber` 11.
+**Shipped 2026-09-18 from `424a54d`:** web hosting (stamp read back off the
+live bundle and the sign-in screen; the live worker byte-identical to source),
+the download page and GitHub release `v0.11.4` (four ABI splits, release-signed,
+source maps up), and Play internal testing (versionCode 11004). No iOS build was
+cut — nothing in this release touches it; if one is, it takes `buildNumber` 11.
 
 
 ### 2026-08-29 — Native @mentions notified nobody — v0.11.3
