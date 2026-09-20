@@ -32,6 +32,7 @@ vi.mock('./sentry', () => ({ captureError: vi.fn() }));
 
 import { getToken, isSupported } from 'firebase/messaging';
 import { setDoc } from 'firebase/firestore';
+import { captureError } from './sentry';
 
 // Read at module scope by notify.web.ts, so it has to be in place before the
 // import below — hence the dynamic import rather than a static one.
@@ -281,6 +282,68 @@ describe('a browser missing a capability', () => {
     delete globalThis.PushManager;
     await expect(registerPush('user-1')).resolves.toBe(false);
     expect(setDoc).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * What a registration failure is REPORTED as, which is what decides whether it
+ * pages anyone. The sign-in path runs silently on every visit, so a browser
+ * that could not reach Google — offline at sign-in, or Google's Installations
+ * service answering 503 — is the environment, not a defect: the token doc the
+ * browser already holds keeps working and the next load tries again. Both
+ * shapes were seen in production and both paged. Anything else on that path,
+ * and every failure on the button, still does.
+ */
+describe('how a registration failure is reported', () => {
+  /** A FirebaseError, as the SDK throws it: an Error with `code` and `customData`. */
+  function firebaseError(code: string, customData?: Record<string, unknown>) {
+    return Object.assign(new Error(code), { code, customData });
+  }
+  const levelOf = () => asMock(captureError).mock.calls[0]?.[2];
+  /** 'error' is captureError's default, so "pages" means "was not demoted". */
+  const pages = () => levelOf() !== 'warning';
+
+  it('records a 503 from Google at sign-in as a warning, not an error', async () => {
+    browser('granted');
+    asMock(getToken).mockRejectedValue(
+      firebaseError('installations/request-failed', { requestName: 'Generate Auth Token', serverCode: 503 }),
+    );
+    await expect(registerPush('user-1')).resolves.toBe(false);
+    expect(captureError).toHaveBeenCalledTimes(1);
+    expect(levelOf()).toBe('warning');
+  });
+
+  it('records a browser offline at sign-in as a warning', async () => {
+    browser('granted');
+    asMock(getToken).mockRejectedValue(firebaseError('installations/app-offline'));
+    await registerPush('user-1');
+    expect(levelOf()).toBe('warning');
+  });
+
+  it('keeps a 4xx from Google at sign-in an error — that is the project or the key', async () => {
+    browser('granted');
+    asMock(getToken).mockRejectedValue(
+      firebaseError('installations/request-failed', { requestName: 'Generate Auth Token', serverCode: 403 }),
+    );
+    await registerPush('user-1');
+    expect(pages()).toBe(true);
+  });
+
+  it('keeps any other failure at sign-in an error', async () => {
+    browser('granted');
+    asMock(getToken).mockRejectedValue(firebaseError('messaging/token-subscribe-failed'));
+    await registerPush('user-1');
+    expect(pages()).toBe(true);
+  });
+
+  it('keeps every failure on the button an error, 503 included', async () => {
+    browser('granted');
+    asMock(getToken).mockRejectedValue(
+      firebaseError('installations/request-failed', { requestName: 'Generate Auth Token', serverCode: 503 }),
+    );
+    await expect(enablePush('user-1')).resolves.toBe('unavailable');
+    expect(captureError).toHaveBeenCalledTimes(1);
+    expect(pages()).toBe(true);
   });
 });
 

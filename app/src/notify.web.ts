@@ -121,9 +121,32 @@ export async function registerPush(uid: string): Promise<boolean> {
   try {
     return await claimToken(uid);
   } catch (e) {
-    captureError(e, { source: 'registerPush' });
+    // Recorded either way; only whether it PAGES differs. This path runs
+    // silently at every sign-in, so a browser that could not reach Google is
+    // not a defect here — the token doc it already holds keeps working (the
+    // server prunes only tokens FCM rejects outright), and the next page load
+    // tries again. `enablePush` stays at 'error': a failure there is one the
+    // person just watched happen.
+    captureError(e, { source: 'registerPush' }, isTransient(e) ? 'warning' : 'error');
     return false;
   }
+}
+
+/**
+ * The browser could not reach Google, as opposed to Google refusing it.
+ *
+ * Two shapes, both seen in production from the sign-in path: the Installations
+ * SDK's own `app-offline`, and `request-failed` carrying a 5xx `serverCode` —
+ * a 503 from the auth-token endpoint, which the SDK retries once and then
+ * throws. A 4xx there is a real problem with the project or the key, and stays
+ * an error.
+ */
+function isTransient(e: unknown): boolean {
+  if (!(e instanceof Error) || !('code' in e)) return false;
+  const { code, customData } = e as { code: unknown; customData?: Record<string, unknown> };
+  if (code === 'installations/app-offline') return true;
+  const status = customData?.serverCode;
+  return code === 'installations/request-failed' && typeof status === 'number' && status >= 500;
 }
 
 /**

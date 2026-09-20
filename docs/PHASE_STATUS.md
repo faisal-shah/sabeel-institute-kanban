@@ -395,6 +395,32 @@ the team.
 
 ## Deploy log
 
+### 2026-09-20 — A Google 503 at sign-in stops paging — v0.11.5
+
+**Two pages, same class, no defect.** `SABEEL-KANBAN-WEB-C`: Google's Firebase
+Installations service answered 503 to the auth-token request that web push
+registration makes at sign-in — twice, since the SDK retries a 5xx once — and
+`registerPush` caught it, reported it, and returned false. Sixteen days earlier
+`SABEEL-KANBAN-WEB-B` was the same path with the browser offline. In both the
+person saw nothing: the token doc that browser already holds is untouched (the
+server prunes only tokens FCM rejects outright), so its pushes keep arriving,
+and the next page load registers again. Environment, not code — the same
+distinction the slow-write monitor got when it moved to `warning`.
+
+**Only the report level changes, and only on the silent path.** `registerPush`
+now reports `installations/app-offline`, and `installations/request-failed`
+with a 5xx `serverCode`, at `warning`; a 4xx there is the project or the key
+and stays an error, as does everything else. `enablePush` is untouched: a
+failure behind the button is one the person just watched happen. Five tests in
+`notify.web.test.ts`, mutation-checked three ways — the change reverted, the
+predicate loosened to every `request-failed`, and the button demoted too — each
+caught by the test that names it.
+
+**Verified:** lint, typecheck, unit. Web only; ships with the next hosting
+deploy. Archiving the two Sentry issues as transient is a console decision and
+was left for Faisal.
+
+
 ### 2026-09-17 — One icon per push, and a banner in every state — v0.11.4
 
 **Found on a phone, in the shade, by looking at two pushes side by side.** Two
