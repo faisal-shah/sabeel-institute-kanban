@@ -416,9 +416,13 @@ failure behind the button is one the person just watched happen. Five tests in
 predicate loosened to every `request-failed`, and the button demoted too — each
 caught by the test that names it.
 
-**Verified:** lint, typecheck, unit. Web only; ships with the next hosting
-deploy. Archiving the two Sentry issues as transient is a console decision and
-was left for Faisal.
+**Verified:** lint, typecheck, unit. **Shipped 2026-09-20 from `67913fa`** to
+web hosting alone — the stamp read back off the live bundle and sign-in screen,
+and the new branch present in it. Android and iOS carry nothing from this
+change and were not rebuilt; Play and the download page stay at v0.11.4. Both
+Sentry issues archived until escalating, with the reason on each. The mobile
+project shows no push-registration failure of any kind in 90 days, so the native
+`registerPush` keeps its default level until one appears.
 
 
 ### 2026-09-17 — One icon per push, and a banner in every state — v0.11.4
